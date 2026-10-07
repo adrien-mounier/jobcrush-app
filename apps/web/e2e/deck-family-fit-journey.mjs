@@ -35,6 +35,7 @@ import { buildServer } from "../../api/dist/server.js";
 import { loadPostings } from "../../api/dist/preview.js";
 import { lookupAdRequirements } from "../../api/dist/e5stub.js";
 import { canonicalKeyOf } from "../../../packages/contracts/dist/index.js";
+import { InMemoryClaimStore } from "../../api/dist/claims.js";
 
 const BASE_URL = process.env.BASE_URL || "http://127.0.0.1:3000";
 const FAMILY = "it-project-delivery"; // the one published production family (familyFloors.ts)
@@ -130,18 +131,38 @@ const stampingReader = (family, confidenceFor = () => 0.9, requirements) => asyn
   ],
 });
 
-// The two essential-band items the harness decks answer, so cards score against real confirmed
-// facts (an all-null deck has no ranking to sink a card in - see the confidence server below).
+// The two essential-band requirements every confidence-deck advert carries, and the two confirmed
+// facts that meet them, so the cards score against real evidence: with no facts every card scores
+// 0%, and 0 × any confidence is 0 — an all-zero deck has no ranking to sink a card in.
 //
-// #216: these are ADVERT requirement ids this harness authors - not discovery floor ids - but they
-// have to NAME what the visitor is actually asked, or nothing she confirms meets them and every
-// card scores identically. They carried the retired stub's ids until the researched floor made the
-// pairing dead: the confidence deck came back with four cards at 74% and no 100% cohort to rank
-// them against. If the published floor's item ids change again, these follow.
+// #339: discovery no longer asks the floor, so the facts cannot come from discovery answers any
+// more. A real visitor's facts now come from her CV; this harness has no model to read one, so it
+// hands its OWN claims store to buildServer and confirms the two facts there for the visitor's
+// session — the state a read CV leaves behind. That is the third seam this harness fakes (beside
+// readAd and placeFamily), and it is only used on the confidence server.
 const SCORING_REQS = [
   { id: "end-to-end-delivery", band: "essential", kind: "ordinary", requirement: "Own delivery end to end", sourceSpan: "delivery" },
   { id: "risk-dependency-control", band: "essential", kind: "ordinary", requirement: "Control risks and dependencies", sourceSpan: "risk" },
 ];
+const SCORING_FACTS = [
+  "Owned delivery end to end for a EUR 1.2M checkout replatforming.",
+  "Controlled risks and dependencies across three vendor teams.",
+];
+const confidenceClaims = new InMemoryClaimStore();
+const confirmFact = (text, i) => ({
+  id: `harness-fact-${i}`,
+  semantic_key: `harness-fact-${i}`,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "experience",
+  text,
+  machine_touch: "verbatim",
+  classification: "Verified",
+  source_quote: text,
+  needs_grill: false,
+  grill_hint: null,
+});
 
 const HARNESS = [
   // her deck: the curated corpus PLUS five construction adverts only the reader knows
@@ -169,6 +190,7 @@ const HARNESS = [
       placeFamily: async () => confirmedPlacement(FAMILY),
       retrievePostings: retriever([...weakRows, ...strongRows]),
       readAd: stampingReader(FAMILY, (id) => (weakIds.has(id) ? 0.05 : 0.95), SCORING_REQS),
+      claims: confidenceClaims,
     },
   },
 ];
@@ -205,7 +227,8 @@ const placementsBaseline = await page.evaluate(() =>
 );
 
 // Seed the visitor over the REAL API the page is already talking to: a target role (which is what
-// the family labeler places, and therefore what arms the deck's family) and the essential band.
+// the family labeler places, and therefore what arms the deck's family). #339: nothing else — she
+// brought no CV, so nothing holds her deck back, and discovery no longer takes floor answers.
 const seeded = await page.evaluate(async () => {
   const send = (url, method, body) =>
     fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.status);
@@ -217,12 +240,7 @@ const seeded = await page.evaluate(async () => {
   codes.stack = await send("/api/qa/stack", "POST", { languageAdverts: true });
   return codes;
 });
-// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note
-// on seedFloorAnswers records what hard-coding them cost the last time.
-// NOTE: SCORING_REQS above keeps its own ids on purpose - those are this harness's ADVERT
-// requirement ids, which this journey authors itself. Only the DISCOVERY floor is read.
-const seededItems = await qa.seedFloorAnswers({ yes: "Yes, over $1M across cross-functional teams" });
-qa.note(`seeded over the real API — intent ${seeded.intent}, discovery start ${seeded.start}, floor answered: ${seededItems.join(", ") || "nothing"}, reader armed ${seeded.stack}`);
+qa.note(`seeded over the real API — intent ${seeded.intent}, discovery start ${seeded.start}, reader armed ${seeded.stack}`);
 
 const shipped = await page.evaluate(async (placementsBefore) => {
   const before = (await fetch("/api/ops/counters").then((r) => r.json()))["deck.family_dropped"];
@@ -272,26 +290,24 @@ await qa.expectVisible(page.locator(".jobcard h2").first(), "a real job card is 
 
 // ------------------------------------------------------------------- Phase B: the harness ------
 
-/** Mint a session on a harness origin, earn the deck the way a visitor does (#63: discovery
- *  started, the essential floor covered — an uncovered family session is refused cards outright),
- *  wait out `searching` (#245: the cards route never blocks on provider latency), then read the
- *  deck + the counter, all in the browser. */
-const driveHarness = (port) =>
-  page.evaluate(async (base) => {
+/** Mint a session on a harness origin, start discovery the way a visitor does (#339: a session with
+ *  no CV is not held, so question 1 is all the deck needs), wait out `searching` (#245: the cards
+ *  route never blocks on provider latency), then read the deck + the counter, all in the browser. */
+const driveHarness = async (port, claimsStore = null) => {
+  const base = `http://127.0.0.1:${port}`;
+  const sessionId = await page.evaluate(async (b) => {
     const json = { "content-type": "application/json" };
-    await fetch(`${base}/sessions/anonymous`, { method: "POST", credentials: "include" });
-    await fetch(`${base}/onboarding/discovery/start`, {
+    await fetch(`${b}/sessions/anonymous`, { method: "POST", credentials: "include" });
+    await fetch(`${b}/onboarding/discovery/start`, {
       method: "POST", headers: json, credentials: "include",
       body: JSON.stringify({ role: "IT project manager in Hong Kong" }),
     });
-    // The floor items are READ off the live state, never hard-coded (#216).
-    const state = await fetch(`${base}/onboarding/discovery`, { credentials: "include" }).then((r) => r.json());
-    for (const q of (state.questions ?? []).filter((item) => !item.eligibility)) {
-      await fetch(`${base}/onboarding/discovery/answer`, {
-        method: "POST", headers: json, credentials: "include",
-        body: JSON.stringify({ itemId: q.itemId, answer: "Yes, over $1M across cross-functional teams" }),
-      });
-    }
+    return (await fetch(`${b}/sessions/me`, { credentials: "include" }).then((r) => r.json())).id;
+  }, base);
+  if (claimsStore) {
+    for (const [i, text] of SCORING_FACTS.entries()) await claimsStore.add(sessionId, confirmFact(text, i));
+  }
+  return page.evaluate(async (base) => {
     const before = (await fetch(`${base}/ops/counters`).then((r) => r.json()))["deck.family_dropped"];
     let deck = { cards: [] };
     for (let i = 0; i < 120; i += 1) {
@@ -301,7 +317,8 @@ const driveHarness = (port) =>
     }
     const after = (await fetch(`${base}/ops/counters`).then((r) => r.json()))["deck.family_dropped"];
     return { before, after, cards: (deck.cards ?? []).map((c) => ({ adId: c.adId, matchPct: c.matchPct })) };
-  }, `http://127.0.0.1:${port}`);
+  }, base);
+};
 
 await qa.goto(`http://127.0.0.1:34107/healthz`, "switch to the harness: the same Fastify app, serving a pool of construction adverts");
 const herDeck = await driveHarness(34107);
@@ -331,7 +348,7 @@ await check(
 );
 
 await qa.goto("http://127.0.0.1:34109/healthz", "switch to the confidence deck — every advert in HER family, four of them barely certain");
-const confidenceDeck = (await driveHarness(34109)).cards.map((c, i) => ({ i, ...c }));
+const confidenceDeck = (await driveHarness(34109, confidenceClaims)).cards.map((c, i) => ({ i, ...c }));
 
 // #247 (owner decision 2026-08-20, "finish the harness"): every advert on this server is
 // reader-stamped with ONE shared requirement set, so the deck must converge on ONE score — and the

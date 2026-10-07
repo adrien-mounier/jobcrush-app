@@ -34,21 +34,22 @@ export interface RetrievalRequest {
   family: { familyId: string; version: number } | null;
   /** #228 (spec #241 decision 5): this deck is the WIDENING the visitor accepted, so `family` above
    *  is the family her CV proves rather than her target role's. Everything downstream — providers,
-   *  regions, freshness, negatives, de-duplication — is untouched; only the query words and the
-   *  interview-coverage gate read this (see makePostingRetriever). */
+   *  regions, freshness, negatives, de-duplication — is untouched; only the query words read this
+   *  (see makePostingRetriever). */
   fallback: boolean;
   /** #235 (spec #233 decision 5): the floors the interview asks. In the request so the fingerprint
    *  covers the whole discovery plan — a session that gains a search family (or a floor) can never
    *  be served its stale word-search snapshot. */
   questionFloors: Array<{ familyId: string; version: number }>;
+  /** #339: carried for the record only — floor coverage gates nothing now, so it is left out of the
+   *  fingerprint: a coverage change must never buy a fresh paid search. */
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
   confirmedEvidence: RetrievalSignal[];
   explicitNegatives: RetrievalNegative[];
 }
 
 /** #248 - the family a deck is searched with, and whether it is the widening she accepted. ONE
- *  producer on purpose: the request builder below and the authorization test both read this pair,
- *  and two readings of it drifting apart is precisely how an unearned deck gets served. */
+ *  producer on purpose, so every request built for a session reads the same pair. */
 export function searchFamilyOf(
   session: Pick<SessionRecord, "discovery">,
 ): Pick<RetrievalRequest, "family" | "fallback"> {
@@ -59,32 +60,12 @@ export function searchFamilyOf(
   };
 }
 
-/** #248 - "may THIS SESSION be shown retrieved postings?", answered from the session itself.
- *
- *  Deliberately takes the session and not a flag: three call sites reach the posting pool (the deck,
- *  the want route, and the tailor target), and a parameter is a thing each of them can forget. The
- *  first cut of #248 guarded `ensureRetrieval` alone - which decides the payload's `retrieval`
- *  field, NOT the cards - so an early snapshot would still have rendered as a deck while the status
- *  field said the floor was uncovered. Both review axes caught it independently. */
-export function sessionDeckIsAuthorized(
-  session: Pick<SessionRecord, "discovery" | "importProof" | "reviewCompletedAt">,
-): boolean {
-  return (
-    reviewOpensJobs(session) &&
-    deckReadIsAuthorized({
-      ...searchFamilyOf(session),
-      questionFloors: session.discovery.questionFloors,
-      checkpoint: session.discovery.checkpoint,
-    })
-  );
-}
-
 /** #338 (ADR-0016 clause 6) — the jobs wait for a completed review. A session that brought a CV
  *  (it holds an import proof, whatever the read's outcome) sees no posting until the person reached
  *  the end of "Your CV, reviewed" and confirmed it. A session with no CV has nothing to review and
- *  is not held. Composed into `sessionDeckIsAuthorized` above, so every posting reader — the deck,
- *  the want door, the tailor target — gets it without being able to forget it; the floor gate it
- *  sits beside leaves with #339. */
+ *  is not held. preview.ts's sessionPostings asks it, so every posting reader — the deck, the want
+ *  door, the tailor target — gets it without being able to forget it. #339 removed the floor gate
+ *  that sat beside it: discovery no longer asks the floor, so nothing could cover it. */
 export function reviewOpensJobs(session: Pick<SessionRecord, "importProof" | "reviewCompletedAt">): boolean {
   return session.importProof === null || session.reviewCompletedAt !== null;
 }
@@ -498,31 +479,8 @@ function isFresh(record: ProviderPostingRecordV1, policy: PostingProviderPolicyV
   return Number.isFinite(expiresMs) && expiresMs > nowMs;
 }
 
-function invalid(code: "missing_intent" | "family_not_published" | "floor_not_covered" | "search_area_not_covered") {
+function invalid(code: "missing_intent" | "family_not_published" | "search_area_not_covered") {
   return { schemaVersion: "5" as const, outcome: "invalid_request" as const, code };
-}
-
-/** #248 - "has she earned her reveal?", extracted from the fetch so the two questions stop being
- *  one. Fetching postings and being ALLOWED TO SEE them are different decisions, and #246 fetches at
- *  question 1 - before she has answered anything - so the promise on her first screen can state a
- *  count that is true. Prefer `sessionDeckIsAuthorized` above; this is the raw truth table.
- *
- *  Both rules it carries are unchanged. #235: an EMPTY floor list is covered by definition. #228: a
- *  fallback family is not gated on a checkpoint for floors it does not have, while her own question
- *  floors, if she has any, still gate exactly as before. */
-export function deckReadIsAuthorized(
-  input: Pick<RetrievalRequest, "family" | "fallback" | "questionFloors" | "checkpoint">,
-): boolean {
-  if ((input.family !== null && !input.fallback) || input.questionFloors.length > 0) {
-    return input.checkpoint === "essential_floor_covered";
-  }
-  return true;
-}
-
-/** #248 - the refusal the deck now returns itself. Byte-identical to what the fetch used to return,
- *  so the wire, the frozen contract enum and every client are untouched by the move. */
-export function floorNotCoveredResult(): PostingRetrievalResultV1 {
-  return invalid("floor_not_covered");
 }
 
 export function retrievalFingerprint(input: RetrievalRequest): string {
@@ -534,7 +492,6 @@ export function retrievalFingerprint(input: RetrievalRequest): string {
         family: input.family,
         fallback: input.fallback,
         questionFloors: input.questionFloors,
-        checkpoint: input.checkpoint,
         confirmedEvidence: input.confirmedEvidence,
         explicitNegatives: input.explicitNegatives,
       }),

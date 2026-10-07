@@ -132,8 +132,9 @@ async function pasteAdvert(text, note) {
 //    journey's first claim is about the DECK.
 // ---------------------------------------------------------------------------------------------
 // /discovery, not "/": the anonymous session is created here, and /auth/verify has nothing to attach
-// an account to without one (a 401, which reads exactly like a limiter refusal and is not one). The
-// floor answers are what earn him a deck of jobs we found — the ranked deck his own job is pinned above.
+// an account to without one (a 401, which reads exactly like a limiter refusal and is not one).
+// Question 1 is all it takes to give him a deck of jobs we found — the ranked deck his own job is
+// pinned above (#339: no floor to answer, and a session with no CV is not held for a review).
 await qa.goto("/discovery", "land on discovery — the anonymous session is created here");
 const started = await page.evaluate(
   (role) =>
@@ -144,8 +145,7 @@ const started = await page.evaluate(
     }).then((r) => r.status),
   ROLE,
 );
-const seeded = await qa.seedFloorAnswers({ yes: "Yes, over EUR 4M across cross-functional teams" });
-await qa.note(`discovery started (HTTP ${started}); essential floor answered: ${seeded.join(", ") || "nothing"}`);
+await qa.note(`discovery started (HTTP ${started})`);
 
 const signIn = await page.evaluate(async () => {
   const linkRes = await fetch("/api/auth/request-link", {
@@ -365,7 +365,6 @@ await page.evaluate(
     }).then((r) => r.status),
   ROLE,
 );
-await qa.seedFloorAnswers({ yes: "Yes, over EUR 4M across cross-functional teams" });
 const signIn2 = await page.evaluate(async () => {
   const linkRes = await fetch("/api/auth/request-link", {
     method: "POST",

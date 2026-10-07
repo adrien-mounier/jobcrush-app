@@ -209,17 +209,18 @@ async function readPromise() {
   return { present: true, number, text };
 }
 
-/** Answer the floor questions the SCREEN puts to her, by pressing its own buttons. */
-async function answerFloorQuestionsOnScreen(limit = 8) {
+/** Answer the work-rights questions the SCREEN puts to her, by pressing its own buttons. #339: after
+ *  question 1 discovery asks eligibility only. The languages question is deliberately left open:
+ *  answering the last question hands her off the discovery screen, and the promise lives there. */
+async function answerWorkRightsOnScreen(limit = 4) {
   const asked = [];
   for (let i = 0; i < limit; i += 1) {
     const state = await json('/onboarding/discovery');
-    const next = (state?.questions ?? []).find((q) => !q.eligibility);
+    const next = (state?.questions ?? []).find((q) => q.eligibility?.dimension === 'work-rights');
     if (!next) break;
-    const opts = page.locator('.opts button.opt');
-    const freeText = page.locator('#floor-free');
+    const opts = page.locator('.opts[data-elig="work-rights"] button.opt');
     try {
-      await page.locator('.opts button.opt, #floor-free').first().waitFor({ state: 'visible', timeout: 20000 });
+      await opts.first().waitFor({ state: 'visible', timeout: 20000 });
     } catch {
       await qa.note(`the screen never offered a control for "${next.itemId}" — stopping the answer loop`);
       break;
@@ -227,18 +228,7 @@ async function answerFloorQuestionsOnScreen(limit = 8) {
     const heading = (await page.locator('.ask .q').first().innerText().catch(() => '(no question)'))
       .replace(/\s+/g, ' ')
       .trim();
-    if (await opts.count()) {
-      const count = await opts.count();
-      let chosen = opts.first();
-      for (let k = 0; k < count; k += 1) {
-        const label = (await opts.nth(k).innerText()).trim();
-        if (!/^no[.!]?$/i.test(label)) { chosen = opts.nth(k); break; }
-      }
-      await qa.click(chosen, `she is asked "${heading}" — she presses an answer`);
-    } else {
-      await qa.fill(freeText, 'Yes, across three vendor teams and the steering group', `she is asked "${heading}" — she types her own answer`);
-      await qa.click('.ask button.go', 'Continue — she sends her typed answer');
-    }
+    await qa.click(opts.first(), `she is asked "${heading}" — she presses "${(await opts.first().innerText()).trim()}"`);
     asked.push(next.itemId);
     await page.waitForTimeout(1200);
   }
@@ -300,8 +290,8 @@ await assertTrue(
 // =================================================================================================
 await qa.note(
   'Scene B — the visitor whose kind of work the product cannot name yet. Her CV proves IT project ' +
-  'delivery, so that is the floor she is INTERVIEWED on; but her deck searches the words she typed. ' +
-  'Before this ticket she was promised the count of the family she is interviewed on — a number ' +
+  'delivery, so that is the family her plan pins; but her deck searches the words she typed. ' +
+  'Before #246 she was promised the count of that family — a number ' +
   'drawn from a search her deck would never run.',
 );
 await freshVisitor(`word search — "${WORD_SEARCH_ROLE}"`);
@@ -340,9 +330,9 @@ await assertTrue(
 
 // The number must not blink out or re-price itself as she works. Every answer she gives moves her
 // retrieval fingerprint, so a promise read off the live snapshot would vanish on the first tap.
-const asked = await answerFloorQuestionsOnScreen();
+const asked = await answerWorkRightsOnScreen();
 await qa.note(`the questions her own screen put to her, in order: ${asked.join(', ') || '(none)'}`);
-await assertTrue(asked.length >= 4, `she was interviewed properly — ${asked.length} floor items, from the family her CV proves`);
+await assertTrue(asked.length >= 1, `she answered on her own screen — ${asked.length} work-rights question(s), each a fact that moves her search`);
 const afterAnswers = await readPromise();
 await qa.note(`the promise after she answered everything: "${afterAnswers.text}"`);
 await assertTrue(

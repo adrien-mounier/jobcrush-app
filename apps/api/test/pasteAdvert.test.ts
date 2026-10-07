@@ -16,7 +16,7 @@
 // stays blank.
 import { describe, expect, it, vi } from "vitest";
 import { AdRequirementsV1 } from "@jobcrush/contracts";
-import { buildDeckServer, coverEssentialFloor, injectSettled } from "./fixtureDeck.js";
+import { buildDeckServer, injectSettled } from "./fixtureDeck.js";
 import { InMemoryJobStore, type JobRecord, type JobStore } from "../src/jobs.js";
 import type { PasteProgress } from "../src/routes/paste.js";
 import { advertFingerprint, linkInText, makePastedAdvertReader } from "../src/pastedAdvert.js";

@@ -182,13 +182,15 @@ await qa.expectText(page.locator('.paper'), 'Dec 2024', 'AC5 on screen — the j
 // ---------------------------------------------------------------------------------------------
 // 5. A second visitor with NO readable work history — the deck must not mark them down. (AC6)
 // ---------------------------------------------------------------------------------------------
-// A like-for-like control: a visitor with the SAME set of discovery answers, but a readable
-// work history — so the only difference between the two decks is whether the years bar was testable.
+// A like-for-like control: a visitor with a readable work history, against one with none — so the
+// difference between the two decks that matters is whether the years bar was testable.
 //
-// #63: that set used to be EMPTY, and an empty set no longer earns a deck at all — the reveal is
-// refused outright until the essential floor is answered, where before the fixture pool was served
-// regardless. Both visitors below now answer the same floor, so the A/B is unchanged in the only
-// way that matters here: identical answers, and the work history is still the sole difference.
+// #339: both used to answer the same discovery floor, which is gone. A visitor with NO facts at all
+// is graded 0 on every requirement (judge.ts short-circuits), which would make "not lowered"
+// meaningless, so the no-history visitor gets her one fact the way a visitor without a CV now does:
+// a "Yes" to a requirement in the tailor step. The QA judge grades by requirement position, never by
+// the facts' content, so any non-empty fact set scores an advert alike — the years bar is what
+// can still move a score, and that is what this checks.
 await page.context().clearCookies();
 await qa.goto('/', 'a control visitor: a readable work history, no discovery answers');
 await api('POST', '/sessions/anonymous', {});
@@ -200,10 +202,9 @@ for (let i = 0; i < 60; i++) {
   await page.waitForTimeout(500);
 }
 await api('POST', '/onboarding/discovery/start', { role: ROLE });
-await qa.seedFloorAnswers({ yes: 'Yes, across three vendor teams' });
 const withHistory = await qa.cardsWhenRetrieved();
 const scoredWith = Object.fromEntries((withHistory.cards ?? []).map((c) => [c.adId, c.matchPct]));
-await qa.note(`control (history, floor answered) scores: ${JSON.stringify(scoredWith)}`);
+await qa.note(`control (a readable history, its CV's facts confirmed) scores: ${JSON.stringify(scoredWith)}`);
 await assertTrue(
   !(withHistory.cards ?? []).some((c) => (c.notTested ?? []).length > 0),
   'AC6 — with a readable history nothing is marked untested; the bar is measured for real',
@@ -213,7 +214,14 @@ await page.context().clearCookies();
 await qa.goto('/', 'a brand-new visitor, no CV, no work history at all');
 await api('POST', '/sessions/anonymous', {});
 await api('POST', '/onboarding/discovery/start', { role: ROLE });
-await qa.seedFloorAnswers({ yes: 'Yes, across three vendor teams' });
+// Her one fact: sign in (the tailor step is past the wall), want a job, say "Yes" to its first question.
+const link = await (await api('POST', '/auth/request-link', { email: `years-nohistory-${Date.now()}@example.com` })).json();
+await api('POST', '/auth/verify', { token: new URL(`http://x${link.devLink}`).searchParams.get('token') });
+const firstDeck = await qa.cardsWhenRetrieved();
+await api('POST', `/onboarding/cards/${encodeURIComponent(firstDeck.cards[0].adId)}/want`, {});
+const tailorQ = ((await (await api('GET', '/onboarding/tailor')).json()).questions ?? []).find((q) => q.kind !== 'profile');
+const told = await api('POST', '/onboarding/tailor/answer', { requirementId: tailorQ?.requirementId, answer: 'Yes, across three vendor teams' });
+await qa.note(`the no-history visitor's one fact: "Yes" to "${tailorQ?.requirementId}" in the tailor step (HTTP ${told.status()})`);
 const noHistory = await qa.cardsWhenRetrieved();
 const untestedCard = (noHistory.cards ?? []).find((c) => (c.notTested ?? []).length > 0);
 await qa.note(`the advert with a years bar, for a visitor with no history: ${JSON.stringify(

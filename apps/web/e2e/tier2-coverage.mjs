@@ -265,7 +265,8 @@ export const COVERAGE = {
     TAILOR,
     FRONT_DOOR,
   ),
-  // #106: the eligibility block inside the placed family's floor, answered/declined/corrected.
+  // #106/#339: the eligibility block — the only questions after Q1 — answered/declined/corrected,
+  // and a put-off question asked again on a later visit.
   "eligibility-questions-journey.mjs": union(
     DISCOVERY,
     ELIGIBILITY,
@@ -364,8 +365,6 @@ export const COVERAGE = {
   "cold-deck-hold-journey.mjs": union(REVIEW, CV_INTAKE, DECK, POSTINGS, DISCOVERY, AUTH),
   // #322: the front door's role and area carried into discovery as question 1 answered.
   "front-door-role-handoff-journey.mjs": union(FRONT_DOOR, DISCOVERY, POSTINGS),
-  // #324: skips close the question, write no fact, leave the profile alone and still open the deck.
-  "non-answer-skip-journey.mjs": union(REVIEW, ["apps/api/src/adaptiveDiscovery.ts"], DISCOVERY, PROFILE, FACTBADGE, DECK),
   // #159: the passive missing-dates note on the built master CV, and no uninvited "Present".
   "master-cv-dates-note-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
   // #222: an advert's years bars read at their own scope — family years vs the career total.
@@ -392,8 +391,9 @@ export const COVERAGE = {
     VOCABULARY_FEED,
     ["apps/api/src/usageLedgerStore.ts", "apps/api/src/llmPricing.ts"],
   ),
-  // #216/#234: the shipped interview writes the record the reveal is gated on.
-  "discovery-plan-split-journey.mjs": union(REVIEW, 
+  // #216/#234/#339: the shipped interview pins the plan (floors kept, never asked) and refuses a
+  // floor answer; the fixture seam writes nothing.
+  "discovery-plan-split-journey.mjs": union(REVIEW,
     DISCOVERY,
     FAMILY_REGISTRY,
     LABELER,
@@ -402,17 +402,7 @@ export const COVERAGE = {
     AUTH,
     CV_INTAKE,
   ),
-  // #216 gate: every floor answer is a real click on the screen's own button.
-  "discovery-earns-reveal-gate.mjs": union(REVIEW, 
-    DISCOVERY,
-    FAMILY_REGISTRY,
-    LABELER,
-    REVEAL_GATE,
-    DECK,
-    AUTH,
-    CV_INTAKE,
-  ),
-  // #248: a fresh retrieval snapshot is not permission — every door onto the pool refuses.
+  // #248/#339: a fresh retrieval snapshot is not permission — every door refuses an unreviewed CV.
   "snapshot-is-not-permission-journey.mjs": union(REVIEW, CV_INTAKE, REVEAL_GATE, POSTINGS, DECK, TAILOR, AUTH, DISCOVERY),
   // #63: the reveal is the server's to give; empty pool and provider outage read differently.
   "credible-reveal-journey.mjs": union(REVIEW, CV_INTAKE, REVEAL_GATE, POSTINGS, DECK, DISCOVERY, AUTH),

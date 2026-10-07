@@ -11,7 +11,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/contracts";
+import type { CandidateClaim, AdRequirementsV1 } from "@jobcrush/contracts";
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore } from "../claims.js";
 import { minedRoles, type JobStore } from "../jobs.js";
@@ -24,18 +24,12 @@ import { runGate } from "../gate.js";
 import { answeredGrillIds, answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
-import { ANY_FAMILY, type EligibilityStore } from "../eligibility.js";
-import {
-  answerEligibilityItem,
-  excludingEligibility,
-  isEligibilityItemId,
-} from "../eligibilityDiscovery.js";
+import type { EligibilityStore } from "../eligibility.js";
+import { answerEligibilityItem, excludingEligibility } from "../eligibilityDiscovery.js";
 import {
   answerQuestionOne,
   buildDiscoveryRouteState,
-  currentDiscoveryFamily,
   discoveryReads,
-  prependReaderQuestionFromJob,
   productionDiscoveryFamilyLookup,
   reconcileSessionDiscovery,
 } from "../discoveryEngine.js";
@@ -51,15 +45,7 @@ import type { BroughtJobsFn } from "../broughtJobs.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
 import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
 import { findWithdrawingRequirement } from "../withdrawal.js";
-import {
-  composeCvLine,
-  discoveryClaimId,
-  factCount,
-  freeTextLine,
-  isNoAnswer,
-  recordDiscoveryAnswer,
-  READER_ROLE_ITEM_ID,
-} from "../discovery.js";
+import { factCount, recordDiscoveryAnswer } from "../discovery.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   fixtureDiscoveryClaimId,
@@ -147,13 +133,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       retrievePostings,
       log: app.log,
     });
-    // Two reads of the same plan. `currentFamily` touches nothing - it is what the deck, the job
-    // card and the tailor use, because #235's rule is that nothing re-derives a plan while she is
-    // browsing. `reconciledFamily` is the interview's own read: #216, it also pins the plan and
-    // writes the coverage her answers have earned. The three discovery routes below are the only
-    // place a visitor's own ANSWERS move her discovery record - discoveryEngine.ts's header names
-    // the two other writers and the different facts they own.
-    const currentFamily = (session: SessionRecord) => currentDiscoveryFamily(session, deps);
+    // The interview's own read of the plan: #216, it also pins the plan and writes the coverage her
+    // claims have earned. The discovery routes below are the only place a visitor's own ANSWERS move
+    // her discovery record - discoveryEngine.ts's header names the two other writers.
     const reconciledFamily = (session: SessionRecord) => reconcileSessionDiscovery(session, deps);
 
     // #59's fixture seam — the policy lives in adaptiveDiscovery.ts (fixtureDiscoveryState); this
@@ -397,36 +379,20 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // The whole screen is a pure function of the session's role (Q1) + its recorded discovery answers,
     // so every response is `discoveryState(...)` and GET resumes with no client state.
 
-    // #106: eligibility questions are layered onto discoveryState()'s pure floor-only output by
-    // eligibilityDiscovery.ts's applyEligibilityQuestions — see its own doc for the band-interleaving
-    // rule and the funnel regression that produced it.
-
-    // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
-    // #18 AC6: an optional ?job= prepends the ONE reader-only question — over the uploaded CV's mined
-    // roles — as long as it's this session's job, it has mined roles, and it isn't answered yet (never
-    // re-ask). A missing/foreign/role-less job just omits it; this route never errors on a bad ?job=.
-    app.get(
-      "/onboarding/discovery",
-      { schema: { querystring: z.object({ job: z.string().optional() }) } },
-      async (req) => {
-        // #322: a role the front door already took is question 1 answered — never asked twice.
-        const opened = requireSession(req);
-        const handedRole = opened.targetTitles.length === 0 ? opened.intent.targetRole : null;
-        const handed = handedRole ? await answerQuestionOne(opened, handedRole, deps, retrievalCoordinator) : null;
-        const session = handed?.session ?? opened;
-        const role = session.targetTitles[0] ?? null;
-        const reads = await discoveryReads(deps, session.id);
-        const [confirmed, negatives, rejected] = reads;
-        const family = handed ? handed.family : role ? await reconciledFamily(session) : null;
-        const state = buildDiscoveryRouteState(role, reads, session, family);
-        // #35/#324: a deck-rejected, skipped or "no" reader-role claim still closes the question — same
-        // never-re-ask rule discoveryState applies internally; this check is separate (the reader
-        // question isn't a floor item) so it needs its own look at `rejected` and `negatives`.
-        await prependReaderQuestionFromJob(state, req.query.job, deps.store, session, confirmed, [...rejected, ...negatives]);
-        state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
-        return state;
-      },
-    );
+    // #339: the screen asks question 1 and then eligibility only (eligibilityDiscovery.ts) — no floor
+    // question and no reader-only question. Load / resume rebuilds the state from the store.
+    app.get("/onboarding/discovery", async (req) => {
+      // #322: a role the front door already took is question 1 answered — never asked twice.
+      const opened = requireSession(req);
+      const handedRole = opened.targetTitles.length === 0 ? opened.intent.targetRole : null;
+      const handed = handedRole ? await answerQuestionOne(opened, handedRole, deps, retrievalCoordinator) : null;
+      const session = handed?.session ?? opened;
+      const role = session.targetTitles[0] ?? null;
+      const family = handed ? handed.family : role ? await reconciledFamily(session) : null;
+      const state = buildDiscoveryRouteState(role, await discoveryReads(deps, session.id), session, family);
+      state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
+      return state;
+    });
 
     // Q1 typing lookup: the "same kind of job" family + kin titles. A no-match is placed in silence
     // (story #16) — never a "not found"; an empty query just returns no suggestions.
@@ -440,7 +406,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     );
 
     // Q1 submit: place the family, keep the role as the session's target title (persists the role for
-    // resume), and return the seeded state (floor questions + the promise carrying the city).
+    // resume), and return the seeded state (the eligibility questions + the promise).
     app.post(
       "/onboarding/discovery/start",
       { schema: { body: z.object({ role: z.string().trim().min(1) }) } },
@@ -453,25 +419,18 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
     );
 
-    // Answer a floor item → a confirmed claim carrying its composed CV line (or, for a bare "no", a
-    // negative via #13's answerNegative — it closes the item but adds no CV line). Returns the updated
-    // state so the client types the new line + advances the bar/countdown from one response.
-    //
-    // #18 AC4: IDEMPOTENT — re-answering an already-answered item CORRECTS it (a mistapped fact or an
-    // accidental "no"). No 409 guard: add()/answerNegative() upsert (ON CONFLICT DO UPDATE / Map.set),
-    // so a positive<->negative flip is automatic, whichever way the correction goes.
+    // Answer an eligibility question (eligibilityDiscovery.ts's answerEligibilityItem owns the write
+    // path). Idempotent — re-answering corrects (#18 AC4). #339: anything else is a 404, and "Ask me
+    // later" stores nothing, so the question it declined is served again on a later load.
     app.post(
       "/onboarding/discovery/answer",
       {
         schema: {
           body: z.object({
             itemId: z.string(),
-            // #123: `answers` is new (the languages question's multi-select real answer) — every
-            // existing single-answer caller (floor items, the reader-only question, every other
-            // eligibility question, and every question's OWN decline) is unchanged and keeps sending
-            // `answer` alone. Exactly one of the two must be present — checked below, not by the
-            // schema, so the failure reuses this route's own `invalid_answer` error shape rather than
-            // a generic schema-validation one.
+            // #123: `answers` is the languages question's multi-select real answer; every other answer,
+            // and every decline, is `answer`. Exactly one must be present — checked below so the
+            // failure reuses this route's own `invalid_answer` shape.
             answer: z.string().trim().min(1).optional(),
             answers: z.array(z.string()).optional(),
           }),
@@ -482,90 +441,23 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const role = session.targetTitles[0] ?? null;
         if (!role)
           return reply.status(409).send({ error: { code: "no_role", message: "answer question 1 first" } });
-        const hasAnswer = req.body.answer !== undefined;
-        const hasAnswers = req.body.answers !== undefined;
-        if (hasAnswer === hasAnswers) {
+        if ((req.body.answer !== undefined) === (req.body.answers !== undefined)) {
           return reply.status(400).send({
             error: { code: "invalid_answer", message: "exactly one of answer or answers is required" },
           });
         }
-
-        if (isEligibilityItemId(req.body.itemId)) {
-          // #162 (architecture pass): the whole eligibility write path now lives beside the module
-          // that builds the questions (eligibilityDiscovery.ts's answerEligibilityItem) — see its own
-          // doc for the never-a-claim rule and the decline/multi-select shapes.
-          const result = await answerEligibilityItem(
-            { eligibility: deps.eligibility, claims: deps.claims },
-            session.id,
-            resolvedMarketsFor(session.intent.searchAreas),
-            req.body.itemId,
-            req.body,
-          );
-          if (!result.ok)
-            return reply.status(result.status).send({ error: { code: result.code, message: result.message } });
-        } else {
-          // A floor item / the reader-only question predates `answers` entirely (#123) — neither ever
-          // accepts a multi-select shape, so this is the same single-`answer` flow as before.
-          const answer = req.body.answer;
-          if (answer === undefined) {
-            return reply
-              .status(400)
-              .send({ error: { code: "invalid_answer", message: "this item requires a single answer" } });
-          }
-          let claim: CandidateClaim;
-          if (req.body.itemId === READER_ROLE_ITEM_ID) {
-            // #18 AC6: the reader-only question has no floor item — the free-text answer IS the CV line.
-            claim = {
-              id: discoveryClaimId(req.body.itemId),
-              semantic_key: discoveryClaimId(req.body.itemId),
-              field_key: null,
-              field_value: null,
-              field_label: null,
-              role: "profile",
-              text: freeTextLine(answer),
-              machine_touch: "verbatim",
-              classification: "Verified",
-              source_quote: answer.slice(0, 200),
-              needs_grill: false,
-              grill_hint: null,
-            };
-          } else {
-            const family = await currentFamily(session);
-            const item = family?.items.find((i) => i.id === req.body.itemId);
-            if (!item)
-              return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
-
-            claim = {
-              id: discoveryClaimId(item.id),
-              semantic_key: item.id,
-              field_key: null,
-              field_value: null,
-              field_label: null,
-              role: "profile",
-              text: isNoAnswer(answer) ? `Not applicable — ${item.question}` : composeCvLine(item, answer),
-              machine_touch: "verbatim", // the visitor's own answer
-              classification: "Verified", // user-authored, they vouch for it
-              source_quote: answer.slice(0, 200),
-              needs_grill: false,
-              grill_hint: null,
-            };
-          }
-          await recordDiscoveryAnswer(deps.claims, session.id, claim, answer);
-        }
-
-        const reads = await discoveryReads(deps, session.id);
-        // #216: the closing read is the reconciling one, whichever branch above ran — the answer
-        // just recorded is what moves coverage, so the session's checkpoint is rewritten from it
-        // before this response leaves. placeFamily is cached per session+role (familyLabeler.ts),
-        // so the second derivation on the floor-item branch costs nothing.
-        const routeFamily = await reconciledFamily(session);
-        const state = buildDiscoveryRouteState(role, reads, session, routeFamily);
-        // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
-        // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
-        // full set of remaining floor + eligibility items is visible from the very first response
-        // (never gated on the essential band), so the combined countdown only ever counts down as
-        // items are answered — it can no longer jump back up the way withholding eligibility until
-        // essentialRemaining hit 0 once did.
+        const result = await answerEligibilityItem(
+          { eligibility: deps.eligibility },
+          session.id,
+          resolvedMarketsFor(session.intent.searchAreas),
+          req.body.itemId,
+          req.body,
+        );
+        if (!result.ok)
+          return reply.status(result.status).send({ error: { code: result.code, message: result.message } });
+        const state = buildDiscoveryRouteState(role, await discoveryReads(deps, session.id), session, await reconciledFamily(session));
+        // #18 AC1 / #106: every eligibility question closed flips the session to the deck stage, so a
+        // reload lands there too.
         if (state.stage === "deck") await deps.sessions.setStage(session.id, "deck");
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
@@ -581,11 +473,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       deps.watchFamilyCandidate?.(session); // #236 — background, never awaited, never user-visible.
       await runLabelerRetry(deps.retryJobBlockLabels, session.id, fastify.log);
       const reads = await discoveryReads(deps, session.id);
-      return buildDeckResponse(session, reads, {
-        ...deps,
-        ensureRetrieval: retrievalCoordinator.ensureRetrieval,
-        currentFamily,
-      });
+      return buildDeckResponse(session, reads, { ...deps, ensureRetrieval: retrievalCoordinator.ensureRetrieval });
     });
 
     // #228: her answer to that offer. No provider call here — accepting only records the choice, and

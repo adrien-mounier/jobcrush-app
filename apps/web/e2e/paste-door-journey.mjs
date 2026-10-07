@@ -145,8 +145,10 @@ const started = await page.evaluate(
     }).then((r) => r.status),
   ROLE,
 );
-const seeded = await qa.seedFloorAnswers({ yes: "Yes, over EUR 4M across cross-functional teams" });
-await qa.note(`discovery started over the real API (HTTP ${started}); essential floor answered: ${seeded.join(", ") || "nothing"}`);
+// #339: the floor answers that used to give him facts are gone; his read, reviewed CV gives them
+// now — the profile below is only a profile (not "Nothing here yet") once he has some.
+const facts = await qa.factsFromCv();
+await qa.note(`discovery started over the real API (HTTP ${started}); his CV read and reviewed: ${facts} facts`);
 
 const signIn = await page.evaluate(async () => {
   const linkRes = await fetch("/api/auth/request-link", {

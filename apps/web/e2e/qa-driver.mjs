@@ -31,6 +31,25 @@ const stamp = () =>
 const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// factsFromCv's default CV: two dated IT project jobs and a degree — the shape most journeys paste.
+export const SAMPLE_CV = [
+  'Marta Kowalska',
+  'marta.kowalska@example.com',
+  'Warsaw, Poland',
+  '',
+  'EXPERIENCE',
+  '',
+  'IT Project Manager, Nordic Retail Group, Warsaw — Mar 2018 - Present',
+  '- Led the checkout replatforming and delivered it two months ahead of plan.',
+  '- Managed a budget of EUR 1.2M across three vendor teams.',
+  '',
+  'Project Coordinator, Baltic Software House, Warsaw — Jun 2013 - Feb 2018',
+  '- Coordinated a team of twelve engineers and two business analysts.',
+  '',
+  'EDUCATION',
+  'MSc Management Information Systems, University of Warsaw, 2013',
+].join('\n');
+
 export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, viewport = { width: 1280, height: 800 } } = {}) {
   const runDir = path.join(outDir, `${name}-${stamp()}`);
   const shotsDir = path.join(runDir, 'screenshots');
@@ -113,18 +132,6 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
   const api = {
     page, context, runDir,
 
-    /** #216 - the floor questions a session is CURRENTLY being asked, newest state first.
-     *
-     *  READ, never hard-coded. The floor is the visitor's placed job family's published research
-     *  (#223 retired the seven-item stub; #216 made the shipped screen serve the researched floor),
-     *  so a journey carrying a literal list of item ids is asserting whichever question set
-     *  happened to ship the day it was written. That is not hypothetical: seven journeys did
-     *  exactly that, every POST answered 404 `unknown_item`, no fact was recorded, and each one
-     *  failed later and further away on a deck card whose "Where you fit" list was empty. Read the
-     *  ids and the rot cannot come back.
-     *
-     *  Eligibility, date-hole and reader questions ride the same list and are deliberately excluded
-     *  - they are not floor items and have their own journeys. */
     /** #63 - the deck once retrieval has FINISHED. The cards route never waits on provider latency
      *  (#245), so the first read reports `searching` with an empty deck and the real deck arrives on
      *  a later one. Before #63 that wait was invisible: the fixture pool answered the first read, so
@@ -144,59 +151,18 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
         }
       }, timeoutMs),
 
-    floorQuestions: async () => {
-      const state = await page.evaluate(async () => {
-        const res = await fetch('/api/onboarding/discovery', { credentials: 'same-origin' });
-        return res.ok ? res.json() : null;
-      });
-      return (state?.questions ?? []).filter((q) => !q.eligibility);
-    },
-
-    /** #216 - seed this session's floor answers over the wire. Runs in-page, not via
-     *  `page.request`: the session cookie is Secure, and Playwright's request context (correctly)
-     *  will not attach a Secure cookie over http://127.0.0.1, while the real browser page gets the
-     *  loopback "potentially trustworthy origin" exception - same reason every other in-page fetch
-     *  in these journeys exists.
-     *
-     *  `no: true` answers the LAST floor item with a bare "No", so a journey can still exercise the
-     *  asked-and-closed path the retired stub's hard-coded "No" used to give it. Returns the ids
-     *  answered, so a caller can assert what it actually seeded. */
-    seedFloorAnswers: async ({ yes = 'Yes, across three vendor teams', no = false } = {}) => {
-      const ids = (await api.floorQuestions()).map((q) => q.itemId);
-      if (ids.length === 0) return [];
-      return page.evaluate(
-        async ([itemIds, yesText, wantNo]) => {
-          const answered = [];
-          const refused = [];
-          for (let i = 0; i < itemIds.length; i += 1) {
-            const last = i === itemIds.length - 1;
-            const res = await fetch('/api/onboarding/discovery/answer', {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                itemId: itemIds[i],
-                answer: wantNo && last ? 'No' : yesText,
-              }),
-            });
-            // A 404 here means the ids went stale again. Collect the failures rather than seeding
-            // nothing quietly - a short list is how the last drift stayed invisible for weeks.
-            if (res.ok) answered.push(itemIds[i]);
-            else refused.push(`${itemIds[i]} -> ${res.status}`);
-          }
-          if (refused.length > 0) throw new Error(`discovery refused ${refused.length} floor answer(s): ${refused.join(', ')}`);
-          return answered;
-        },
-        [ids, yes, no],
-      );
-    },
-
     /** #338 - complete "Your CV, reviewed" over the wire, for a journey whose claim is not the
      *  review itself. A brought CV is reviewed before any job is shown (ADR-0016 clause 6): the deck,
      *  the want door and the tailor refuse an unreviewed session, and discovery's last answer hands
      *  off to /review instead of /deck. A journey that reads a CV and then wants its jobs calls this
-     *  once, after the read has landed. Runs in-page for the same Secure-cookie reason as
-     *  seedFloorAnswers. Returns the server's answer, so a caller can assert it happened. */
+     *  once, after the read has landed. Runs in-page, not via `page.request`: the session cookie is
+     *  Secure, and Playwright's request context (correctly) will not attach a Secure cookie over
+     *  http://127.0.0.1, while the real browser page gets the loopback "potentially trustworthy
+     *  origin" exception. Returns the server's answer, so a caller can assert it happened.
+     *
+     *  #339: there is no floor to seed any more. Discovery asks question 1 and the eligibility
+     *  questions only, and nothing but the completed review holds the jobs back - a journey that
+     *  needs a fact gets it from the CV it reads, or from the tailor step's own questions. */
     completeReview: async () =>
       page.evaluate(async () => {
         const res = await fetch('/api/review/complete', { method: 'POST', credentials: 'same-origin' });
@@ -204,69 +170,44 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
         return res.json();
       }),
 
-    /** #216 - answer WHICHEVER question is currently on screen, whatever shape its control is.
-     *
-     *  The researched family floor mixes tap-an-option items with type-your-own ones (2 of the 4 in
-     *  `it-project-delivery` v1 are free text). The retired seven-item stub was all options, so
-     *  every journey that walked the screen by clicking `.opts .opt` in a loop now stalls the moment
-     *  a free-text item comes up - 8s per attempt, then a run that aborts far from the cause. Use
-     *  this instead of a bare click when the point is "keep answering until X appears".
-     *
-     *  Returns true if it answered something, false if no answerable control was on screen. */
-    answerVisibleQuestion: async ({ freeText = 'Yes, across three vendor teams', note } = {}) => {
-      const opts = page.locator('.opts button.opt, .opts .opt');
-      const free = page.locator('#floor-free');
-      if (await opts.count()) {
-        const count = await opts.count();
-        let chosen = opts.first();
-        for (let k = 0; k < count; k += 1) {
-          if (!/^no[.!]?$/i.test((await opts.nth(k).innerText()).trim())) { chosen = opts.nth(k); break; }
-        }
-        await api.click(chosen, note || `she presses "${(await chosen.innerText()).trim()}"`);
-        return true;
-      }
-      if (await free.count()) {
-        await api.fill('#floor-free', freeText, note || 'she types her own answer');
-        await api.click('.ask button.go', 'Continue - she sends her typed answer');
-        return true;
-      }
-      return false;
+    /** #339 - give a session confirmed facts the way a real visitor now gets them: she brings a CV,
+     *  the read lands, and she confirms "Your CV, reviewed" (completing the review confirms every
+     *  line the read found). For a journey that set its session up over the wire and needs facts on
+     *  its cards - the floor answers that used to supply them are gone. Same POST /cv/paste route the
+     *  front door's paste tile calls; the page must already be on the app's origin. Returns the
+     *  number of confirmed facts the session holds afterwards, so a caller can assert it. */
+    factsFromCv: async (cvText = SAMPLE_CV) => {
+      const jobId = await page.evaluate(async (text) => {
+        const res = await fetch('/api/cv/paste', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) throw new Error(`CV paste refused: ${res.status} ${await res.text()}`);
+        return (await res.json()).jobId;
+      }, cvText);
+      await api.waitForJobDone(jobId);
+      await api.completeReview();
+      return page.evaluate(async () => (await (await fetch('/api/onboarding/discovery')).json()).factCount);
     },
 
-    /** #216 - answer the floor by pressing the screen's OWN controls, the way a person does.
-     *  Slower than seedFloorAnswers and worth it wherever the claim under test is "the button she
-     *  presses is what moves her record". Handles both shapes the researched floor uses:
-     *  tap-an-option and type-your-own - the retired stub was all options, which is why every
-     *  journey looping on `.opts .opt` alone now stalls on the free-text items. */
-    answerFloorOnScreen: async ({ limit = 8, freeText = 'Yes, across three vendor teams' } = {}) => {
-      const asked = [];
-      for (let i = 0; i < limit; i += 1) {
-        const next = (await api.floorQuestions())[0];
-        if (!next) break;
-        // The screen types the answered item's CV line out before rendering the next question, so
-        // the control lands a beat after the state does.
-        try {
-          await page.locator('.opts button.opt, #floor-free').first().waitFor({ state: 'visible', timeout: 20000 });
-        } catch {
-          await api.note(`the screen never offered a control for "${next.itemId}" - stopping the answer loop`);
-          break;
-        }
-        const opts = page.locator('.opts button.opt');
-        const count = await opts.count();
-        if (count > 0) {
-          let chosen = opts.first();
-          for (let k = 0; k < count; k += 1) {
-            if (!/^no[.!]?$/i.test((await opts.nth(k).innerText()).trim())) { chosen = opts.nth(k); break; }
-          }
-          await api.click(chosen, `she is asked "${next.question.slice(0, 70)}" - she presses "${(await chosen.innerText()).trim()}"`);
-        } else {
-          await api.fill('#floor-free', freeText, `she is asked "${next.question.slice(0, 70)}" - she types her own answer`);
-          await api.click('.ask button.go', 'Continue - she sends her typed answer');
-        }
-        await page.waitForTimeout(1200);
-        asked.push(next.itemId);
+    /** Answer WHICHEVER option question is currently on screen by pressing its first option that is
+     *  not a bare "No". #339: after question 1 discovery asks only eligibility (work rights per
+     *  market, then languages), so this is a tap on an option button - the free-text floor box is
+     *  gone. Use it when the point is "keep answering until X appears".
+     *
+     *  Returns true if it answered something, false if no answerable control was on screen. */
+    answerVisibleQuestion: async ({ note } = {}) => {
+      const opts = page.locator('.opts button.opt, .opts .opt');
+      const count = await opts.count();
+      if (count === 0) return false;
+      let chosen = opts.first();
+      for (let k = 0; k < count; k += 1) {
+        if (!/^no[.!]?$/i.test((await opts.nth(k).innerText()).trim())) { chosen = opts.nth(k); break; }
       }
-      return asked;
+      await api.click(chosen, note || `she presses "${(await chosen.innerText()).trim()}"`);
+      return true;
     },
 
     /** #271 - bring a CV in the way a person does: the front door's paste tile (#270), through to

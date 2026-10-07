@@ -240,19 +240,19 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const cookie = await startSession(server.app);
 
-    // A discovery answer lands in the store before the deck is ever opened.
+    // A discovery answer lands in the store before the deck is ever opened. #339: the answer route
+    // no longer takes floor answers, so it is planted in the shape that route used to write.
     await server.app.inject({
       method: "POST",
       url: "/onboarding/discovery/start",
       headers: { cookie },
       payload: { role: "Product Manager" },
     });
-    await server.app.inject({
-      method: "POST",
-      url: "/onboarding/discovery/answer",
-      headers: { cookie },
-      payload: { itemId: END_TO_END, answer: "Yes" },
-    });
+    const sessionId = (await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id;
+    await server.claims.add(
+      sessionId,
+      claim({ id: END_TO_END_CLAIM, semantic_key: END_TO_END, role: "profile", text: "Owned delivery from planning through completion." }),
+    );
 
     const jobId = await mineAndGetJob(server, cookie);
     const deck = await server.app.inject({

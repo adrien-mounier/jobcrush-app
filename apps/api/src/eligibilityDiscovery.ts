@@ -15,17 +15,15 @@
 // "Yes" through claims.add()/confirmed (renders unconditionally) OR claims.answerNegative() (a
 // confirmed-gap node) both lie about the visitor. The fix: a REAL eligibility answer, of any kind,
 // never touches the claims store at all — it lives ONLY in the eligibility store (put()/get()), which
-// already answers "has this been asked" via a non-null read. Only a DECLINE still writes a claims-store
-// record (answerNegative — "asked and closed, no fact"), reusing the one persistence this repo already
-// has for that state; it stores no eligibility-store value, which is the whole point of a decline.
+// already answers "has this been asked" via a non-null read. #339: a DECLINE writes nothing anywhere —
+// "Not sure" never becomes a fact, and the question stays open to be asked again on a later visit.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { EligibilityDimension, FloorItem } from "@jobcrush/contracts";
-import type { ClaimRecord, ClaimStore } from "./claims.js";
+import type { EligibilityDimension } from "@jobcrush/contracts";
+import type { ClaimRecord } from "./claims.js";
 import {
-  discoveryClaimId,
   isDiscoveryClaim,
   itemIdOf,
   slug,
@@ -209,10 +207,9 @@ function buildQuestion(
   city: string | null,
 ): DiscoveryQuestion {
   if (dimension === "work-rights") {
-    // Must-fix 8: this text is recorded verbatim in a decline's claim text, so it must reflect the
-    // CITY THE VISITOR WAS ACTUALLY ASKED ABOUT — callers must pass the real resolved city (#184:
-    // routes/onboarding.ts's resolvedCityFor, over the confirmed search area — no longer
-    // parseCity(role)), never a placeholder null, for that record to be honest.
+    // Must-fix 8: the question names the CITY THE VISITOR IS ACTUALLY ASKED ABOUT — callers pass
+    // the real resolved market (#184/#214: resolvedMarketsFor, over the confirmed search areas),
+    // never a placeholder.
     //
     // #182: the ANSWER is now a fact about that same city — `familyId` (the store's generic scope
     // column) carries it, falling back to ANY_FAMILY only when no city is known at all (never a
@@ -221,8 +218,7 @@ function buildQuestion(
     // LANGUAGE_ITEM_ID already made for the same reason: no real session's answer predates this.
     //
     // #182 QA round 3 must-fix: the KEY is `slug(city)`, never the raw display string — a raw city
-    // ("Hong Kong") breaks ClaimGraph's kebab-slug id contract the moment a decline's claim id
-    // inherits it, and "Hong Kong" / "HONG KONG" / "Hong  Kong" would otherwise be three different
+    // ("Hong Kong") breaks the kebab-slug id contract the moment an id inherits it, and "Hong Kong" / "HONG KONG" / "Hong  Kong" would otherwise be three different
     // markets. `city` itself (unslugged) is used ONLY in `question`'s display text below.
     const marketId = city ? slug(city) : anyFamily;
     const question = city
@@ -269,24 +265,6 @@ export function eligibilityCandidates(anyFamily: string, markets: readonly strin
   );
 }
 
-/** itemIds of every eligibility question DECLINED or otherwise claims-store-closed. A real answer
- *  never reaches the claims store under this module's design (see the header comment), so today this
- *  only ever finds decline markers — but it still checks confirmed/rejected too, for the same #35
- *  three-way union floor items get (a claims-store record moved to any of those buckets still closes
- *  its question). */
-function claimsClosedEligibilityItemIds(
-  confirmed: ClaimRecord[],
-  negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
-): Set<string> {
-  return new Set(
-    [...confirmed, ...negatives, ...rejected]
-      .filter((c) => isDiscoveryClaim(c.id))
-      .map((c) => itemIdOf(c.id))
-      .filter(isEligibilityItemId),
-  );
-}
-
 /** itemIds already carrying a real, stored eligibility fact — `facts` is whatever
  *  eligibility.list(sessionId) returned. Each itemId is rebuilt from the FACT's own recorded
  *  dimension+familyId (not the session's currently-resolved family), so a fact stays correctly
@@ -320,72 +298,33 @@ function factResolvedItemIds(facts: readonly { dimension: EligibilityDimension; 
   return ids;
 }
 
-/** The eligibility questions this session still needs asked — #106's addition to
- *  DiscoveryState.questions. Per code-review must-fix 2, callers append these UNCONDITIONALLY (from
- *  Q1, never gated on the floor's essential band) and rely on array ORDER — this function's own
- *  candidates are appended after the floor's own questions by the caller — to keep them "asked after
- *  the floor" without withholding them from the visible countdown. */
+/** The eligibility questions this session still needs asked. #339: a question is closed by a stored
+ *  fact and nothing else — "Ask me later" stores nothing, so a declined question stays open and is
+ *  asked again on a later visit. */
 export function unresolvedEligibilityQuestions(
   anyFamily: string,
   markets: readonly string[],
-  confirmed: ClaimRecord[],
-  negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
 ): DiscoveryQuestion[] {
-  const declined = claimsClosedEligibilityItemIds(confirmed, negatives, rejected);
   const resolved = factResolvedItemIds(facts);
-  return eligibilityCandidates(anyFamily, markets).filter(
-    (q) => !declined.has(q.itemId) && !resolved.has(q.itemId),
-  );
+  return eligibilityCandidates(anyFamily, markets).filter((q) => !resolved.has(q.itemId));
 }
 
-/** #106: eligibility questions layered onto discoveryState()'s pure floor-only output, so
- *  essentialRemaining/railFill's floor-only meaning needs no new carve-out there. Code-review
- *  must-fix 2 (round 2): these are appended UNCONDITIONALLY (never gated on the essential band),
- *  and — round 3's funnel-regression fix — inserted right after the essential band and BEFORE the
- *  standard one, never after it. discoveryState() only ever gates `stage` on the essential band;
- *  the standard band has always been optional/loopback-reachable, never required to reach the deck.
- *  Putting eligibility after the WHOLE floor (round 2's shape) meant the ask dock — which only ever
- *  renders questions[0], one at a time, with no skip — forced a visitor through all 5 standard items
- *  just to REACH the 3 eligibility ones that actually gate the deck, tripling the pre-deck question
- *  count nobody asked for. Standard items are moved after eligibility instead; everything else
- *  (essential items, the reader-only question, in whatever relative order discoveryState()/the route
- *  already established) stays exactly where it was — only the standard-band entries move.
- *
- *  2026-08-12 (architecture pass candidate 6): lifted verbatim out of routes/onboarding.ts, where
- *  the rule that decides what the visitor is asked NEXT sat in a route-local closure post-processing
- *  discoveryState()'s output — untestable except through the HTTP funnel, and invisible from the
- *  module that owns eligibility questions. It lives here, beside unresolvedEligibilityQuestions
- *  (which generates the very questions it places), rather than in discovery.ts: this module already
- *  imports discovery.ts, so the reverse direction would be an import cycle.
- *
- *  Mutates `state` in place, as it always has — every call site builds a fresh DiscoveryState from
+/** #106: eligibility questions layered onto discoveryState()'s output. #339: they are the only
+ *  questions discovery still asks, so they are the whole list, and while one is open the screen
+ *  stays in discovery. Mutates `state` in place — every call site builds a fresh DiscoveryState from
  *  discoveryState() one line earlier and keeps using it after.
  *
- *  #162 rode the date-hole questions (yearsWorked.ts's dateHoleQuestions) in this same band; #338
- *  moved them to "Your CV, reviewed", where each is asked on its own job's card (ADR-0016 clause 2) —
- *  still before the deck, since the review gates it. */
+ *  #162 rode the date-hole questions (yearsWorked.ts's dateHoleQuestions) in this band; #338 moved
+ *  them to "Your CV, reviewed", where each is asked on its own job's card (ADR-0016 clause 2). */
 export function applyEligibilityQuestions(
   state: DiscoveryState,
-  confirmed: ClaimRecord[],
-  negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
   markets: readonly string[],
-  floor: readonly FloorItem[],
 ): void {
-  // #214: `markets` (the session's resolved covered markets, up to 3) replaces state.city here —
-  // work-rights is per selected market now, and the display city on `state` is a chip label, not
-  // the visa scope.
-  const eligQuestions = unresolvedEligibilityQuestions(ANY_FAMILY, markets, confirmed, negatives, rejected, facts);
-  const standardIds = new Set(
-    floor.filter((i) => i.rankBand === "standard").map((i) => i.id),
-  );
-  const leading = state.questions.filter((q) => !standardIds.has(q.itemId));
-  const standard = state.questions.filter((q) => standardIds.has(q.itemId));
-  state.questions = [...leading, ...eligQuestions, ...standard];
-  if (eligQuestions.length > 0) state.stage = "discovery";
+  // #214: `markets` (the session's resolved covered markets, up to 3) — work-rights is per market.
+  state.questions = [...state.questions, ...unresolvedEligibilityQuestions(ANY_FAMILY, markets, facts)];
+  if (state.questions.length > 0) state.stage = "discovery";
 }
 
 /** Code-review must-fix 3: a decline ("Ask me later") is a refusal, not a recorded fact, and must not
@@ -393,7 +332,8 @@ export function applyEligibilityQuestions(
  *  sums confirmed+negatives with no awareness of eligibility). Strips any claim whose itemId is
  *  eligibility-namespaced before it reaches that count. Non-discovery claims (mined, grill, tailor,
  *  floor items) pass through unaffected; only an eligibility decline is ever removed by this (a real
- *  eligibility answer is never in the claims store to begin with — see the header comment). */
+ *  eligibility answer is never in the claims store to begin with — see the header comment). #339: no
+ *  decline is written any more; this keeps a session's pre-#339 decline records out of the count. */
 export function excludingEligibility(claims: readonly ClaimRecord[]): ClaimRecord[] {
   return claims.filter((c) => !isDiscoveryClaim(c.id) || !isEligibilityItemId(itemIdOf(c.id)));
 }
@@ -557,7 +497,6 @@ export function isValidLanguageSelection(answers: readonly string[]): boolean {
 
 export interface EligibilityAnswerStores {
   eligibility: EligibilityStore;
-  claims: ClaimStore;
 }
 
 export type EligibilityAnswerResult =
@@ -573,14 +512,11 @@ const badAnswer = { ok: false as const, status: 400, code: "invalid_answer", mes
  *  (packages/contracts/oracle/validate_graph.mjs) defines as a CONFIRMED GAP Tailor must never
  *  assert. Either path would misrepresent a real answer. A real answer therefore lives ONLY in the
  *  eligibility store (put()); "already answered" is read back from THAT store, never from a claim.
- *  Only a DECLINE still writes a claims-store record (answerNegative — "asked and closed, no fact"),
- *  reusing the one persistence this repo already has for that state. Must-fix 5: correcting an answer
- *  TO a decline retracts any value a PRIOR real answer stored — eligibility.remove() runs
- *  unconditionally on a decline (a no-op if nothing was ever stored), so the dimension reads unknown
- *  again, never a retracted value. Must-fix 8: `city` is the visitor's REAL resolved city (#184:
- *  postingRetrieval.ts's resolvedCityFor, over the confirmed search area) — it's rebuilt into the
- *  question text a decline's claim records verbatim, so that record must match what the visitor was
- *  actually asked.
+ *  #339: a DECLINE ("Ask me later", the question's "Not sure") stores nothing at all — it used to
+ *  write a negative claim to close the question, and that negative reached the graph as a confirmed
+ *  gap. Must-fix 5 still holds: correcting an answer TO a decline retracts any value a PRIOR real
+ *  answer stored — eligibility.remove() runs unconditionally on a decline (a no-op if nothing was
+ *  ever stored), so the dimension reads unknown again, never a retracted value.
  *
  *  #123: `body` carries either a single `answer` (every single-select question, and every question's
  *  OWN decline) or `answers: string[]` (the multi-select languages question's real answer).
@@ -597,7 +533,7 @@ export async function answerEligibilityItem(
   body: { answer?: string; answers?: string[] },
 ): Promise<EligibilityAnswerResult> {
   const question = eligibilityCandidates(ANY_FAMILY, markets).find((q) => q.itemId === itemId);
-  if (!question) return { ok: false, status: 404, code: "unknown_item", message: "no such floor item" };
+  if (!question) return { ok: false, status: 404, code: "unknown_item", message: "no such question" };
   const ask = question.eligibility!;
 
   if (body.answer !== undefined) {
@@ -633,21 +569,6 @@ export async function answerEligibilityItem(
       } else {
         await stores.eligibility.remove(sessionId, ask.dimension, ask.familyId);
       }
-      const claimId = discoveryClaimId(itemId);
-      await stores.claims.answerNegative(sessionId, {
-        id: claimId,
-        semantic_key: claimId,
-        field_key: null,
-        field_value: null,
-        field_label: null,
-        role: "profile",
-        text: `Declined — ${question.question}`,
-        machine_touch: "verbatim",
-        classification: "Verified",
-        source_quote: answer.slice(0, 200),
-        needs_grill: false,
-        grill_hint: null,
-      });
       return { ok: true };
     }
 

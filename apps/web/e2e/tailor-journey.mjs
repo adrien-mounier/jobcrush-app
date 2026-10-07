@@ -59,7 +59,7 @@ const assert = (cond, note) => qa.expectText('body', cond ? '' : '\u0000-IMPOSSI
 await qa.goto('/discovery', 'land on discovery — establishes the anonymous session');
 await page.waitForTimeout(700);
 
-await qa.note('seed the discovery floor + sign in over the real magic-link path');
+await qa.note('start discovery, bring her CV + sign in over the real magic-link path');
 await page.evaluate(
   async ({ role }) =>
     fetch('/api/onboarding/discovery/start', {
@@ -69,12 +69,12 @@ await page.evaluate(
     }).then(() => undefined),
   { role: ROLE },
 );
-// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note on
-// seedFloorAnswers records why. `no: true` keeps the closed-with-a-No requirement this journey's
-// named-denial ("You told me you don't have this") assertions need.
-const seededItems = await qa.seedFloorAnswers({ yes: 'Yes, over $1M', no: true });
-if (seededItems.length === 0) throw new Error('no floor questions were served - the session was never placed');
-await qa.note(`seeded the floor her placed family actually asks: ${seededItems.join(', ')}`);
+// #339: the floor answers that used to give her deck its facts are gone — her read, reviewed CV
+// does it now (a deck with no facts grades every requirement 0 and has no "Where you fit" to show).
+// The named-denial ("You told me you don't have this") assertions ride on the tailor "No" in §6.
+const facts = await qa.factsFromCv();
+if (!(facts > 0)) throw new Error(`her CV gave the session no facts (${facts})`);
+await qa.note(`her CV was read and reviewed — ${facts} facts on her record`);
 const seeded = await page.evaluate(async ({ email }) => {
   const post = (url, body) =>
     fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -310,7 +310,7 @@ await qa.click(page.getByRole('button', { name: 'Drop it' }), 'Drop it — confi
 await page.waitForURL('**/deck', { timeout: 10_000 });
 await qa.expectVisible('.jobdeck', 'Drop returns to the deck');
 
-// /discovery redirects to /deck once the essential band is answered, so read the profile itself:
+// /discovery hands off to the deck once nothing is left to ask, so read the record itself:
 // discovery's own cvLines + factCount are "everything you told me", session-wide.
 const profile = await page.evaluate(async () => {
   const d = await (await fetch('/api/onboarding/discovery')).json();

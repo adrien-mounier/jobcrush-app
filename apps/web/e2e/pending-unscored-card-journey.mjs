@@ -82,22 +82,24 @@ const setJudgeDelay = (ms) => armStack({ judgeDelayMs: ms, languageAdverts: ms >
 await qa.note(`armed the QA stack for this run (slow judge + a pool bigger than the bound): HTTP ${await setJudgeDelay(20_000)}`);
 await qa.scrollThrough("read the discovery screen the way a first-time visitor does");
 
-// #209: the seeded fact carries a run-unique tail on purpose. A judgement is cached against the
-// FACTS that produced it (judge.ts's judgementFingerprint), and the QA judgement store lives for the
-// life of the API process — so a byte-identical fact set makes the SECOND run of this journey in one
+// #209: the facts carry a run-unique tail on purpose. A judgement is cached against the FACTS that
+// produced it (judge.ts's judgementFingerprint), and the QA judgement store lives for the life of
+// the API process — so a byte-identical fact set makes the SECOND run of this journey in one
 // process resolve every card for free from that cache, and the pending state it exists to observe
 // can never appear. Unique facts keep every run genuinely cold.
+//
+// #339: the reader-role answer and the floor answers that used to carry that tail are gone. Her
+// facts now come from her CV (read, then confirmed by completing her review), and the tail rides on
+// one of its lines, edited in her own words through the S2 deck's edit door (PUT
+// /onboarding/claims/:id) — the fake miner reads every CV the same way, so without the edit two runs
+// would hold byte-identical facts.
 const RUN_TAG = `run ${Date.now()}`;
-const seed = await page.evaluate(async ({ role, runTag }) => {
+const seed = await page.evaluate(async ({ role }) => {
   const post = (url, body) =>
     fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       .then((r) => r.status);
   const codes = [];
   codes.push(await post("/api/onboarding/discovery/start", { role }));
-  codes.push(await post("/api/onboarding/discovery/answer", {
-    itemId: "reader-role",
-    answer: `I owned a EUR 2M project budget and led end-to-end delivery with senior stakeholders (${runTag}).`,
-  }));
   const link = await fetch("/api/auth/request-link", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: `pending-journey-${Date.now()}@example.com` }),
@@ -109,12 +111,20 @@ const seed = await page.evaluate(async ({ role, runTag }) => {
   }).then((r) => r.status));
   return codes;
 }, { role: ROLE, runTag: RUN_TAG });
-await qa.note(`seeded discovery + signed in over the real API — status codes: ${seed.join(", ")}`);
-// #63: the reveal is now REFUSED until the essential floor is answered — before, an uncovered
-// session was served the fixture pool regardless, so this journey never had to earn its deck. The
-// reader-role fact above still carries this run's unique tail, so judgements stay genuinely cold.
-const seededFloor = await qa.seedFloorAnswers({ yes: `Yes, end to end (${RUN_TAG}).` });
-await qa.note(`answered her essential floor so the deck is earned: ${seededFloor.join(", ") || "(nothing open)"}`);
+await qa.note(`started discovery + signed in over the real API — status codes: ${seed.join(", ")}`);
+const facts = await qa.factsFromCv();
+const edited = await page.evaluate(async (runTag) => {
+  const profile = await (await fetch("/api/profile")).json();
+  const line = (profile.domains ?? []).flatMap((d) => d.facts).find((f) => f.source === "read");
+  if (!line) return { status: "no CV line to edit" };
+  const text = `${line.text.replace(/\.$/, "")} (${runTag}).`;
+  const res = await fetch(`/api/onboarding/claims/${encodeURIComponent(line.id)}`, {
+    method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }),
+  });
+  return { status: res.status, text };
+}, RUN_TAG);
+await qa.note(`her CV was read and reviewed (${facts} facts); one line edited in her own words so this run's facts are unique: ${JSON.stringify(edited)}`);
+if (edited.status !== 200) throw new Error(`could not make this run's facts unique: ${JSON.stringify(edited)}`);
 
 // 2) The cold deck. The reveal is the few seconds the poll is designed to hide behind.
 const t0 = Date.now();
@@ -331,7 +341,6 @@ if (ESTIMATED_URL || ESTIMATE_HERE) {
     const post = (url, body) =>
       fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.status);
     await post("/api/onboarding/discovery/start", { role });
-    await post("/api/onboarding/discovery/answer", { itemId: "reader-role", answer: "I owned a EUR 2M project budget and led end-to-end delivery." });
   }, ROLE);
   await qa.goto(`${ESTIMATED_URL}/deck`, "load the deck with no judge wired — every number is the old scorer's");
   await page.locator("button.go").first().click().catch(() => {});

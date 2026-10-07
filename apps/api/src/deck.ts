@@ -32,7 +32,7 @@ import { NO_KNOWN_FAMILY } from "./adReader.js";
 import { pinBrought, withBroughtFacts, type BroughtJob } from "./broughtJobs.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
-import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
+import { excludingEligibility, unresolvedEligibilityQuestions } from "./eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "./language.js";
 import { addToCounter, incrementCounter, recordReadFailure } from "./counters.js";
 import {
@@ -61,9 +61,7 @@ import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
 import {
   discoveryCvLines,
-  discoveryState,
   factCount,
-  type DiscoveryFamily,
   type DiscoveryCvLine,
 } from "./discovery.js";
 import {
@@ -961,9 +959,8 @@ export async function buildDeckCards(
 
 /** What GET /onboarding/cards needs that is not a store read: the retrieval coordinator's answer for
  *  this response, the deck's family placement, the fallback offer's published registry, and — #305 —
- *  the adverts this person brought. `ensureRetrieval` and `currentFamily` are passed as functions
- *  rather than imported: the coordinator is one per server instance and the family lookup lives in
- *  discoveryEngine.ts, which imports this module. */
+ *  the adverts this person brought. `ensureRetrieval` is passed as a function rather than imported:
+ *  the coordinator is one per server instance. */
 export interface DeckResponseDeps extends DeckJudgingDeps {
   readAd?: ReadAdFn;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
@@ -976,7 +973,6 @@ export interface DeckResponseDeps extends DeckJudgingDeps {
     retrievalRequest: RetrievalRequest,
     requestFingerprint: string,
   ) => PostingRetrievalResultV1;
-  currentFamily: (session: SessionRecord) => Promise<DiscoveryFamily | null>;
 }
 
 /** The five reads GET /onboarding/cards already performs once per request (the route's
@@ -1006,7 +1002,7 @@ export type DeckDiscoveryReads = readonly [
  */
 export async function buildDeckResponse(
   session: SessionRecord,
-  [confirmed, negatives, rejected, facts, blocks]: DeckDiscoveryReads,
+  [confirmed, negatives, , facts, blocks]: DeckDiscoveryReads,
   deps: DeckResponseDeps,
 ) {
   // #338 (ADR-0016 clause 6): a CV that has not been reviewed earns no deck — not even a retrieval.
@@ -1036,7 +1032,6 @@ export async function buildDeckResponse(
   // many awaits happen to run in between — which is a coin toss, not a rule.
   const observed = {
     retrieval: session.retrieval,
-    discovery: session.discovery,
     importProof: session.importProof,
     reviewCompletedAt: session.reviewCompletedAt,
   };
@@ -1064,14 +1059,7 @@ export async function buildDeckResponse(
     deps,
   );
   // #235: whether the empty deck may say "answer a few more questions" (hasOpenDiscoveryQuestions).
-  const moreQuestions = hasOpenDiscoveryQuestions(
-    session,
-    confirmed,
-    negatives,
-    rejected,
-    facts,
-    await deps.currentFamily(session),
-  );
+  const moreQuestions = hasOpenDiscoveryQuestions(session, facts);
   // #22: authed tells the client whether the account wall at the reveal applies — false only for a
   // still-anonymous session, so a returning (claimed) visitor is never re-walled.
   return {
@@ -1313,9 +1301,7 @@ export function buildTailorState(
     years && { ...years, familyConfidence: null });
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
-  // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions
-  // rebuild for fields tailor can't use). Before Q1 (role null — structurally unreachable in tailor,
-  // since reaching it requires discovery's essential band asked, but kept honest) discovery contributes
+  // the narrow slice of discoveryState's work this needs. Before Q1 (role null) discovery contributes
   // nothing, same as discoveryState's own empty-skeleton branch.
   const discoveryLines = role ? discoveryCvLines(role, discoveryFloor, confirmed) : [];
   const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
@@ -1339,34 +1325,11 @@ export function buildTailorState(
  *  deck's copy: "answer a few more questions and I'll widen the net" may only be shown when a
  *  question actually exists — a visitor whose word search returned nothing and whose questions are
  *  all answered is invited to try a different job title instead, never sent to an empty ask screen.
- *  Deck policy, so it lives here: the union of the fixture discovery loop's open questions (floor +
- *  eligibility, the same composition GET /onboarding/discovery serves) and an uncovered production
- *  question-floor checkpoint. */
+ *  #339: the questions discovery still asks are question 1 and the eligibility questions. */
 export function hasOpenDiscoveryQuestions(
-  session: Pick<SessionRecord, "targetTitles" | "intent" | "discovery">,
-  confirmed: ClaimRecord[],
-  negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
+  session: Pick<SessionRecord, "targetTitles" | "intent">,
   facts: readonly EligibilityFact[],
-  discoveryFamily: DiscoveryFamily | null,
 ): boolean {
-  if (
-    session.discovery.questionFloors.length > 0 &&
-    session.discovery.checkpoint !== "essential_floor_covered"
-  ) {
-    return true;
-  }
-  const role = session.targetTitles[0] ?? null;
-  if (!role) return true; // question 1 itself is still open
-  const state = discoveryState(role, confirmed, negatives, rejected, null, discoveryFamily);
-  applyEligibilityQuestions(
-    state,
-    confirmed,
-    negatives,
-    rejected,
-    facts,
-    resolvedMarketsFor(session.intent.searchAreas),
-    discoveryFamily?.items ?? [],
-  );
-  return state.questions.length > 0;
+  if (!session.targetTitles[0]) return true; // question 1 itself is still open
+  return unresolvedEligibilityQuestions(ANY_FAMILY, resolvedMarketsFor(session.intent.searchAreas), facts).length > 0;
 }

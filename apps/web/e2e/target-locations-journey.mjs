@@ -109,8 +109,8 @@ await expectAbsent(
 await qa.scrollThrough('read the discovery page the way a person would');
 
 const workRights = page.locator('.opts[data-elig="work-rights"]');
-// #216: the researched floor mixes tap-an-option and type-your-own items, so a loop that only
-// clicks `.opts .opt` stalls on the free-text ones. answerVisibleQuestion handles both shapes.
+// #339: work rights comes straight after question 1 (no floor ahead of it); the loop answers
+// anything that is ahead of it the way the screen serves it.
 for (let i = 0; i < 10 && (await workRights.count()) === 0; i += 1) {
   const answered = await qa.answerVisibleQuestion({
     note: `answer the question on screen (step ${i + 1}) to reach work rights`,

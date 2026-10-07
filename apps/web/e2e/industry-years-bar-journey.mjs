@@ -182,20 +182,16 @@ await verdict(setStart.ok(), `the date door accepted a ${LONG_START.year} start 
 // 3. Discovery, the wall, and the deck — her score BEFORE any industry is corrected.
 // ================================================================================================
 await qa.goto(`${BASE}/discovery`, 'into discovery — the sign-up questions');
-await qa.fill('#q1-role', ROLE, 'the role she is going for');
-await qa.click('button.go.wide', 'answers the role question');
 await page.waitForTimeout(2500);
+// #322: a role the front door already took is question 1 answered — only ask it if it is on screen.
+if (await page.locator('#q1-role').count()) {
+  await qa.fill('#q1-role', ROLE, 'the role she is going for');
+  await qa.click('button.go.wide', 'answers the role question');
+  await page.waitForTimeout(2500);
+}
 await qa.scrollThrough('reads the discovery screen the way a real visitor would');
 
-const floor = await json('/onboarding/discovery');
-const floorIds = (floor?.questions ?? []).filter((q) => !q.eligibility).map((q) => q.itemId);
-for (let i = 0; i < floorIds.length; i++) {
-  await api('POST', '/onboarding/discovery/answer', {
-    itemId: floorIds[i],
-    answer: i === floorIds.length - 1 ? 'No' : 'Yes, over $1M',
-  });
-}
-await qa.note(`answered the discovery floor her family asks: ${floorIds.join(', ') || '(none)'}`);
+// #339: discovery asks no floor any more — her facts are her CV's, the same in every arm below.
 
 const signIn = await api('POST', '/auth/request-link', { email: `industry-years-${Date.now()}@example.com` });
 const devLink = (await signIn.json()).devLink;
@@ -345,11 +341,6 @@ async function wireArm(industryId) {
   await cjson(`/job-blocks/${bal.id}/correct`, 'POST', { key: 'start', value: LONG_START });
   await cjson(`/job-blocks/${bal.id}/correct`, 'POST', { key: 'industry', value: { industryId, version: 1 } });
   await cjson('/onboarding/discovery/start', 'POST', { role: ROLE });
-  const st = await cjson('/onboarding/discovery');
-  const ids = (st?.questions ?? []).filter((q) => !q.eligibility).map((q) => q.itemId);
-  for (let i = 0; i < ids.length; i++) {
-    await cjson('/onboarding/discovery/answer', 'POST', { itemId: ids[i], answer: i === ids.length - 1 ? 'No' : 'Yes, over $1M' });
-  }
   // The cards live behind the sign-in wall (#21) — the same real magic-link path the browser walked.
   const link = (await cjson('/auth/request-link', 'POST', { email: `arm-${industryId}-${Date.now()}@example.com` })).devLink;
   await cjson('/auth/verify', 'POST', { token: new URL('http://x' + link).searchParams.get('token') });

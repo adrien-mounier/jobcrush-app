@@ -44,8 +44,9 @@ const HELD_BACK_AD_IDS = liveAdIds([
 const qa = await createSession("uncurated-advert-journey", { baseURL: BASE_URL });
 const { page } = qa;
 
-// 1) Bootstrap the anonymous session and seed the essential discovery band over the real API, so
-//    the deck scores against genuine confirmed facts rather than an empty profile.
+// 1) Bootstrap the anonymous session, start discovery and bring a CV over the real API, so the deck
+//    scores against genuine confirmed facts rather than an empty profile. #339: the floor answers
+//    that used to supply them are gone; a read, reviewed CV supplies them now.
 await qa.goto("/discovery", "bootstrap the anonymous session on the discovery screen");
 const seed = await page.evaluate(async (role) => {
   const post = (url, body) =>
@@ -55,10 +56,8 @@ const seed = await page.evaluate(async (role) => {
   codes.push(await post("/api/onboarding/discovery/start", { role }));
   return codes;
 }, ROLE);
-// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note
-// on seedFloorAnswers records what hard-coding them cost the last time.
-const seededItems = await qa.seedFloorAnswers({ yes: "Yes, over $1M", no: true });
-qa.note(`seeded the essential band over the real API — start ${seed.join(", ")}, floor answered: ${seededItems.join(", ") || "nothing"}`);
+const facts = await qa.factsFromCv();
+qa.note(`seeded over the real API — discovery start ${seed.join(", ")}, her CV read and reviewed: ${facts} facts`);
 
 // 2) Sign in (magic-link dev token) so the reveal's account wall doesn't stand between us and the
 //    deck — wanting a job requires an account (S2), and this journey ends in the tailor.

@@ -99,21 +99,15 @@ await qa.waitForJobDone(firstJobId);
 await qa.note('the CV is read — the header contact is captured with the facts (no draft is built, #272)');
 
 // --------------------------------------------------------------------------------------------
-// 1b. The profile only opens once the person has told us something, so answer the opening
-//     questions the way any visitor does on the way there.
+// 1b. The profile only opens once the person has told us something. #339: the opening questions
+//     add no fact any more (discovery asks eligibility only), so she confirms her CV review — the
+//     lines it read become hers — after saying what job she is going for.
 // --------------------------------------------------------------------------------------------
 await qa.goto(`${BASE}/discovery`, 'on to the questions');
 await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going for/ }), 'IT Project Manager', 'says what job she is going for');
 await qa.click(page.getByRole('button', { name: "That's me" }), 'confirms it');
-for (let i = 0; i < 3; i++) {
-  const opt = page.locator('.discovery .opts button').first();
-  if (await opt.count()) {
-    await qa.click(opt, `answers question ${i + 1}`);
-  } else if (await page.locator('#floor-free').count()) {
-    await qa.fill('#floor-free', 'Owned a EUR 1.2M budget at Nordic Retail Group from 2021 to 2024', `answers question ${i + 1} in her own words`);
-    await qa.click('.discovery .field .go', `question ${i + 1}: Continue`);
-  } else break;
-}
+await page.waitForTimeout(1500);
+await qa.completeReview(); // #338: "Your CV, reviewed" confirmed — the read's lines are her facts now
 
 // --------------------------------------------------------------------------------------------
 // 2. The profile shows both, in the rail's Contact section (#194 re-homed this off "About you"),

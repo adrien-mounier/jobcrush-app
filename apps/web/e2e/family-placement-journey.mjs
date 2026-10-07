@@ -4,10 +4,11 @@
 // front door's "Target role" box, and NO client reaches the placement's own interview — the web
 // app's /discovery screen talked to a second engine that was not reward-eligible and never asked
 // for a family placement. That second engine is gone. The shipped screen now serves the placed
-// family's published floor and writes the plan, so this journey drives ONE path:
+// family's published floor and writes the plan (#339: the floor is pinned, never asked — the
+// screen asks eligibility only), so this journey drives ONE path:
 //
 //   Ready? -> Start questions instead -> type a role -> Save and continue -> "Got it."
-//   -> /discovery -> answer question 1 -> the placed family's floor questions appear
+//   -> /discovery -> answer question 1 -> the next questions appear
 //   -> the plan and checkpoint are readable off the visitor's own session.
 //
 // The old "no client reaches it" assertion is inverted below: the discovery screen MUST now reach
@@ -131,19 +132,24 @@ await assert(
 );
 
 // AC1's "no extra question": the placement came off the role already typed — the visitor was asked
-// nothing between typing it and the family's own questions appearing.
+// nothing between typing it and the next questions appearing.
 await assert(
   !apiCalls.some((call) => call.includes('placement') || call.includes('family/confirm')),
   'AC1: no extra question was put to the visitor — the placement was made from the role they already typed',
 );
 
-// The floor survives a resume, so it was genuinely written and not just returned.
+// The plan survives a resume, so it was genuinely written and not just returned. #339: the floor
+// is pinned for matching but never asked — a fresh read asks eligibility only, and the stored plan
+// is unchanged by it.
 const resumed = await callAsVisitor('GET', '/onboarding/discovery');
-await qa.expectVisible('#qa-wire', 'AC5: resuming reads the same live floor questions back');
+await qa.expectVisible('#qa-wire', 'AC5: resuming reads the live questions back — eligibility only');
 const resumedBody = resumed.status === 200 ? JSON.parse(resumed.body) : null;
+const replan = JSON.parse((await callAsVisitor('GET', '/sessions/me')).body).discovery;
 await assert(
-  resumed.status === 200 && (resumedBody?.questions ?? []).some((q) => !q.eligibility),
-  `AC5: the interview was WRITTEN — a fresh read gives the same floor questions back (${resumed.status})`,
+  resumed.status === 200 &&
+    (resumedBody?.questions ?? []).every((q) => q.eligibility) &&
+    JSON.stringify(replan?.questionFloors) === JSON.stringify(plan?.questionFloors),
+  `AC5: the plan was WRITTEN — a fresh read keeps the same pinned floor and asks no floor question (${resumed.status})`,
 );
 
 // ==================================================== 2. a visitor the vocabulary does not cover

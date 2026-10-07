@@ -20,9 +20,8 @@
 // corpus states work rights in 0 of 17 postings (the corpus research measured it), so the two
 // adverts this journey needs are canned in qa-main.ts (QA_WORK_RIGHTS_ADVERTS), armed by this
 // journey for this run only, and put back at the end. The VISITOR's side is never seeded: the
-// discovery work-rights question is deliberately LEFT UNANSWERED (the floor seeding answers floor
-// items only), because the queue exists precisely for the person who arrives at a job with the
-// fact still unknown.
+// discovery work-rights question is deliberately LEFT UNANSWERED, because the queue exists
+// precisely for the person who arrives at a job with the fact still unknown.
 import { createSession } from './qa-driver.mjs';
 import { liveAdId } from './live-ad-id.mjs';
 
@@ -58,8 +57,9 @@ const setWorkRightsAdverts = (on) =>
     on,
   );
 
-/** Discovery start + floor seeding + real magic-link sign-in, all over the live routes — the
- *  tailor-journey pattern. The eligibility questions are deliberately not touched. */
+/** Discovery start + real magic-link sign-in, all over the live routes — the tailor-journey
+ *  pattern. The eligibility questions are deliberately not touched (#339: they are the only
+ *  questions discovery asks after question 1, so nothing else is answered either). */
 async function seedSignedInSession(email) {
   await qa.goto('/discovery', 'land on discovery — establishes the anonymous session');
   await page.waitForTimeout(700);
@@ -72,9 +72,7 @@ async function seedSignedInSession(email) {
       }).then(() => undefined),
     { role: ROLE },
   );
-  const seededItems = await qa.seedFloorAnswers();
-  if (seededItems.length === 0) throw new Error('no floor questions were served - the session was never placed');
-  await qa.note(`seeded the floor (floor items only — work-rights stays UNANSWERED): ${seededItems.join(', ')}`);
+  await qa.note('discovery started — work-rights stays UNANSWERED');
   const seeded = await page.evaluate(async ({ addr }) => {
     const post = (url, body) =>
       fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -104,7 +102,7 @@ await qa.note(`armed the QA work-rights adverts for this run: HTTP ${armed}`);
 await assert(armed === 200, `the QA stack accepted the arming call (got ${armed})`);
 
 // -------------------------------------------------------------------------------------------
-// 1. Person one: discovery floor, sign in, deck up — work-rights never asked, never answered.
+// 1. Person one: discovery started, sign in, deck up — work-rights never asked, never answered.
 // -------------------------------------------------------------------------------------------
 await seedSignedInSession(`asked-once-a-${Date.now()}@example.com`);
 const deck = await qa.cardsWhenRetrieved();

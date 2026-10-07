@@ -234,15 +234,13 @@ export interface DiscoveryPromise {
 }
 
 export interface DiscoveryState {
-  stage: "discovery" | "deck"; // "deck" once the essential band is fully asked (#18) — the client
-  // shows the handoff placeholder and nothing else; the reveal itself is #19's.
+  stage: "discovery" | "deck"; // "deck" once every question is closed — the client shows the
+  // handoff placeholder and nothing else. #339: discovery asks question 1 and eligibility only.
   role: string | null;
   family: string | null;
   city: string | null;
   promise: DiscoveryPromise | null;
-  questions: DiscoveryQuestion[]; // remaining floor items, rank order; [] before Q1
-  railFill: Record<CvSection, number>; // 0..1 per section
-  essentialRemaining: number; // the countdown
+  questions: DiscoveryQuestion[]; // the open eligibility questions; [] before Q1
   cvLines: DiscoveryCvLine[]; // role lead line first, then answered lines — for resume
   factCount: number; // #17's profile badge count — every recorded answer, a "no" included, never decreases
   // #338: once `stage` is "deck", where the screen hands off — "Your CV, reviewed" while a brought CV
@@ -250,10 +248,8 @@ export interface DiscoveryState {
   reviewPending?: boolean;
 }
 
-// jobId (#18, AC6): when a CV was uploaded via the front-door shortcut, the server composes a
-// reader-only first question from it — a plain call (no jobId) behaves exactly as before.
-export function getDiscovery(jobId?: string): Promise<DiscoveryState> {
-  return jfetch(`/api/onboarding/discovery${jobId ? `?job=${encodeURIComponent(jobId)}` : ""}`);
+export function getDiscovery(): Promise<DiscoveryState> {
+  return jfetch("/api/onboarding/discovery");
 }
 
 // Q1 typing lookup — caller debounces (~250ms). Silent no-match comes back as suggestions: [].

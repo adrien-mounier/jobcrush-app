@@ -13,6 +13,7 @@ import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
 import { exportGate, exportEmailText } from "../src/tailorExport.js";
 import type { DraftInputs } from "../src/tailorDraft.js";
 import type { Draft } from "../src/preview.js";
+import type { CandidateClaim } from "@jobcrush/contracts";
 
 const ROLE = "IT project manager in Paris";
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -38,19 +39,37 @@ async function signIn(app: App, cookie: string, email: string): Promise<void> {
   await post(app, cookie, "/auth/verify", { token });
 }
 
-/** Discovery → sign in → retrieval → want: tailorDraft.test.ts's walk, verbatim. */
-async function reachTailor(app: App, cookie: string, email: string) {
+type Claims = ReturnType<typeof buildServer>["claims"];
+/** One discovery answer exactly as the pre-#339 answer route wrote it: id `discovery-<item>`,
+ *  semantic_key the bare item id, the visitor's own words as the line. */
+const floorClaim = (itemId: string, text: string, answer: string): CandidateClaim => ({
+  id: `discovery-${itemId}`,
+  semantic_key: itemId,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "profile",
+  text,
+  machine_touch: "verbatim",
+  classification: "Verified",
+  source_quote: answer,
+  needs_grill: false,
+  grill_hint: null,
+});
+
+/** Discovery → sign in → retrieval → want: tailorDraft.test.ts's walk, verbatim. #339: the floor
+ *  answers are planted in the claims store — discovery no longer asks them, the deck no longer waits
+ *  on them, but the draft still needs facts to cite and the RISKS "No" to keep off the page. */
+async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie: string, email: string) {
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: STAKEHOLDERS,
-    answer: "Business, engineering, and vendors",
-  });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: COMMUNICATION,
-    answer: "Weekly steering updates",
-  });
+  const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+  await claims.add(sid, floorClaim(END_TO_END, "Owned delivery from planning through completion.", "Yes"));
+  await claims.add(sid, floorClaim(STAKEHOLDERS, "Business, engineering, and vendors.", "Business, engineering, and vendors"));
+  await claims.answerNegative(
+    sid,
+    floorClaim(RISKS, "Not applicable — Have you acted on delivery risks, dependencies, timelines, or budgets?", "No"),
+  );
+  await claims.add(sid, floorClaim(COMMUNICATION, "Weekly steering updates.", "Weekly steering updates"));
   await signIn(app, cookie, email);
   await warmRetrieval(app, cookie);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
@@ -129,9 +148,9 @@ async function draftAndRead(app: App, cookie: string) {
 
 describe("#313 POST /onboarding/tailor/approve — guards", () => {
   it("503s honestly when no document maker is wired — never an invented PDF", async () => {
-    const { app } = buildServer({ tailorLlm: draftingLlm() });
+    const { app, claims } = buildServer({ tailorLlm: draftingLlm() });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-no-maker@example.com");
+    await reachTailor({ app, claims }, cookie, "export-no-maker@example.com");
     const view = await draftAndRead(app, cookie);
     const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
     expect(res.statusCode).toBe(503);
@@ -141,14 +160,14 @@ describe("#313 POST /onboarding/tailor/approve — guards", () => {
   it("refuses an unapproved draft: a press naming a draft he never saw sends nothing", async () => {
     const { sent, mailer } = recordingMailer();
     const tailorDrafts = new InMemoryTailorDraftStore();
-    const { app } = buildServer({
+    const { app, claims } = buildServer({
       tailorLlm: draftingLlm(),
       documentMaker: new StandInDocumentMaker(),
       mailer,
       tailorDrafts,
     });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-unapproved@example.com");
+    await reachTailor({ app, claims }, cookie, "export-unapproved@example.com");
     await draftAndRead(app, cookie);
     const res = await post(app, cookie, "/onboarding/tailor/approve", {
       draftedAt: "2020-01-01T00:00:00.000Z",
@@ -160,13 +179,13 @@ describe("#313 POST /onboarding/tailor/approve — guards", () => {
 
   it("404s when there is no draft for the current facts — nothing to approve", async () => {
     const { mailer } = recordingMailer();
-    const { app } = buildServer({
+    const { app, claims } = buildServer({
       tailorLlm: draftingLlm(),
       documentMaker: new StandInDocumentMaker(),
       mailer,
     });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-no-draft@example.com");
+    await reachTailor({ app, claims }, cookie, "export-no-draft@example.com");
     const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: "whenever" });
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe("no_draft");
@@ -185,14 +204,14 @@ describe("#313 one press: approve → lint → document → email, through the s
         return new StandInDocumentMaker().printCv(html);
       },
     };
-    const { app, sessions } = buildServer({
+    const { app, sessions, claims } = buildServer({
       tailorLlm: draftingLlm(),
       documentMaker: capturingMaker,
       mailer,
       tailorDrafts,
     });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-happy@example.com");
+    await reachTailor({ app, claims }, cookie, "export-happy@example.com");
     const view = await draftAndRead(app, cookie);
 
     const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
@@ -228,14 +247,14 @@ describe("#313 one press: approve → lint → document → email, through the s
     // refuse it, which proves the route hands the gate the session's real denial list.
     const { sent, mailer } = recordingMailer();
     const tailorDrafts = new InMemoryTailorDraftStore();
-    const { app, sessions } = buildServer({
+    const { app, sessions, claims } = buildServer({
       tailorLlm: draftingLlm(),
       documentMaker: new StandInDocumentMaker(),
       mailer,
       tailorDrafts,
     });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-lint@example.com");
+    await reachTailor({ app, claims }, cookie, "export-lint@example.com");
     // Deny an advert requirement in the card's own words — the never-print list entry. First one
     // the answer door takes (a profile-owned requirement is refused there, and rightly).
     let denied: { id: string; requirement: string } | undefined;
@@ -292,7 +311,7 @@ describe("#313 one press: approve → lint → document → email, through the s
       needs_grill: false,
       grill_hint: null,
     } as Parameters<typeof claims.add>[1]);
-    await reachTailor(app, cookie, "export-language@example.com");
+    await reachTailor({ app, claims }, cookie, "export-language@example.com");
     const view = await draftAndRead(app, cookie);
     expect(view.html).toContain("German");
 
@@ -319,13 +338,13 @@ describe("#313 one press: approve → lint → document → email, through the s
         return new StandInDocumentMaker().printCv(html);
       },
     };
-    const { app } = buildServer({
+    const { app, claims } = buildServer({
       tailorLlm: draftingLlm(),
       documentMaker: slowMaker,
       mailer,
     });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-double@example.com");
+    await reachTailor({ app, claims }, cookie, "export-double@example.com");
     const view = await draftAndRead(app, cookie);
 
     const first = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
@@ -344,13 +363,13 @@ describe("#313 one press: approve → lint → document → email, through the s
         throw new Error("browser died");
       },
     };
-    const { app } = buildServer({
+    const { app, claims } = buildServer({
       tailorLlm: draftingLlm(),
       documentMaker: brokenMaker,
       mailer,
     });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "export-broken@example.com");
+    await reachTailor({ app, claims }, cookie, "export-broken@example.com");
     const view = await draftAndRead(app, cookie);
     const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
     const job = await awaitJob(app, cookie, res.json().jobId);

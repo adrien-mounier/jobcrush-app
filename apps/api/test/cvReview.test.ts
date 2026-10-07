@@ -13,7 +13,7 @@
 import { describe, expect, it } from "vitest";
 import type { CandidateClaim, MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
-import { coverEssentialFloor, getCardsWhenRetrieved, liveIdFor } from "./fixtureDeck.js";
+import { getCardsWhenRetrieved, liveIdFor } from "./fixtureDeck.js";
 import { isTerminal } from "../src/jobs.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
@@ -139,11 +139,10 @@ async function withCv(opts: Parameters<typeof buildServer>[0] = {}) {
   return { server, app, cookie, sessionId, jobBlocks, eligibility };
 }
 
-/** Earns the floor and signs in — everything the OLD gate asked for, so the review is the only
- *  thing still between the session and its jobs. */
+/** Answers question 1 and signs in, so the review is the only thing between the session and its jobs
+ *  (#339: there is no floor left to earn). */
 async function pastDiscovery(app: App, cookie: string, email: string) {
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await coverEssentialFloor(app, cookie);
   await signIn(app, cookie, email);
 }
 

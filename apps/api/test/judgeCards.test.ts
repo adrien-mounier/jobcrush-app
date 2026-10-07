@@ -20,7 +20,7 @@ import type { AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 // reaches them. See fixtureDeck.ts.
 import { buildDeckServer as buildServer, fixtureReadAd, injectSettled, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
 import type { Posting } from "../src/preview.js";
-import { READER_ROLE_ITEM_ID, discoveryClaimId, freeTextLine } from "../src/discovery.js";
+import { discoveryClaimId, freeTextLine } from "../src/discovery.js";
 import { makeJudge, makeJudgePeek, judgementFingerprint, judgeVersion, type JudgeFn } from "../src/judge.js";
 import { InMemoryJudgementStore } from "../src/judgementStore.js";
 import { readCounters } from "../src/counters.js";
@@ -48,6 +48,30 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
 async function sessionId(app: ReturnType<typeof buildServer>["app"], cookie: string): Promise<string> {
   const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
   return me.json().id as string;
+}
+// #339: discovery no longer asks the reader-only question, so the evidence these tests judge is
+// planted as the confirmed fact its answer used to write — same id, same line — and the judge sees
+// exactly the fact set it always did.
+const READER_FACT_ID = discoveryClaimId("reader-role");
+async function plantEvidence(
+  { app, claims }: Pick<ReturnType<typeof buildServer>, "app" | "claims">,
+  cookie: string,
+  answer: string,
+): Promise<void> {
+  await claims.add(await sessionId(app, cookie), {
+    id: READER_FACT_ID,
+    semantic_key: READER_FACT_ID,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text: freeTextLine(answer),
+    machine_touch: "verbatim",
+    classification: "Verified",
+    source_quote: answer.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+  });
 }
 
 interface JobCard {
@@ -117,10 +141,10 @@ describe("#105 PLUMBING ONLY (not judgement correctness): a scripted verdict for
           cost: { model: "fake-judge", inputTokens: 10, outputTokens: 10, judgedAt: new Date().toISOString() },
         };
       };
-      const { app } = buildServer({ readAd, judge });
+      const { app, claims } = buildServer({ readAd, judge });
       const cookie = await anonSession(app);
       await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: READER_ROLE_ITEM_ID, answer: row.evidence });
+      await plantEvidence({ app, claims }, cookie, row.evidence);
       await signIn(app, cookie, `${row.id}@example.com`); // want/tailor are post-wall
 
       expect((await wantTarget(app, cookie, targetPosting.id)).statusCode).toBe(200);
@@ -175,13 +199,10 @@ describe("#105 a STORED judgement spends no second judging call, and its number 
       },
     };
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
-    const { app } = buildServer({ readAd, judge: makeJudge(llm, store) });
+    const { app, claims } = buildServer({ readAd, judge: makeJudge(llm, store) });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Managed multiple software delivery programs end to end.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Managed multiple software delivery programs end to end.");
 
     const first = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const firstCallCount = calls.length;
@@ -211,7 +232,7 @@ describe("#105 a STORED judgement spends no second judging call, and its number 
     const targetPosting = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === targetPosting.id ? stubRequirements(targetPosting.id) : null;
-    const { app } = buildServer({ readAd, judge: makeJudge(llm, store) });
+    const { app, claims } = buildServer({ readAd, judge: makeJudge(llm, store) });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     // #117: strongly matches stubRequirements' own "Own a project budget" requirement (near-perfect
@@ -219,11 +240,11 @@ describe("#105 a STORED judgement spends no second judging call, and its number 
     // hand-curated fixtures also in the pool, guaranteeing it lands inside DECK_JUDGE_MAX_CARDS's
     // bound and actually gets judged — this test is about cost recording, not about the bound.
     const evidence = "Owned a project budget of $2M with vendor oversight.";
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: READER_ROLE_ITEM_ID, answer: evidence });
+    await plantEvidence({ app, claims }, cookie, evidence);
     await get(app, cookie, "/onboarding/cards");
 
     const fp = judgementFingerprint(stubRequirements(targetPosting.id), [
-      { id: discoveryClaimId(READER_ROLE_ITEM_ID), text: freeTextLine(evidence) },
+      { id: READER_FACT_ID, text: freeTextLine(evidence) },
     ]);
     const stored = await store.get(targetPosting.id, fp);
     expect(stored?.cost).toEqual({
@@ -258,7 +279,7 @@ describe("#105 review: a negative answer must never move the number or force a r
     };
     const targetPosting = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
-    const { app } = buildServer({ readAd, judge: makeJudge(llm, store) });
+    const { app, claims } = buildServer({ readAd, judge: makeJudge(llm, store) });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     // #117: strongly matches "Own a project budget" so targetPosting reliably lands inside
@@ -266,10 +287,7 @@ describe("#105 review: a negative answer must never move the number or force a r
     // never buying a second call, which requires the FIRST view to have already judged the target
     // (otherwise the later tailor answer's own judging call would be the target's first-ever one, not
     // an "additional" one, and callsAfterFirstDeck would no longer be the right baseline).
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Owned a project budget of $2M with vendor oversight.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Owned a project budget of $2M with vendor oversight.");
     await signIn(app, cookie, "no-answer-no-rejudge@example.com"); // want/tailor are post-wall
 
     const before = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -339,15 +357,12 @@ describe("#105/#117 a judging failure never fabricates a number — the card sur
       return null;
     };
     const before = readCounters()["judge.fallback_used"];
-    const { app } = buildServer({ readAd, judge });
+    const { app, claims } = buildServer({ readAd, judge });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     // #117: strongly matches stubRequirements' own requirement so targetPosting reliably lands
     // inside the bound — this test is about a judging FAILURE, not about the bound excluding it.
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Owned a project budget of $2M with vendor oversight.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Owned a project budget of $2M with vendor oversight.");
 
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200); // no 500 — the card survives
@@ -386,13 +401,10 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
       const hungForever: JudgeFn = () => new Promise(() => {}); // never resolves or rejects, for every ad
       const before = readCounters()["judge.fallback_used"];
       const built = buildServer({ readAd, judge: hungForever });
-      const { app } = built;
+      const { app, claims } = built;
       const cookie = await anonSession(app);
       await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-      await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: READER_ROLE_ITEM_ID,
-        answer: "Owned a project budget of $2M.",
-      });
+      await plantEvidence({ app, claims }, cookie, "Owned a project budget of $2M.");
 
       // #63: the snapshot is written straight to the session rather than earned by an extra deck
       // read. The deck arrives through retrieval now, and any read that settles it would spend a
@@ -447,13 +459,10 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
       attempted.add(adReq.adId);
       return null; // fall back — this test only cares about HOW MANY were even attempted
     };
-    const { app } = buildServer({ readAd, judge: countingJudge, judgeMaxCards: testCeiling });
+    const { app, claims } = buildServer({ readAd, judge: countingJudge, judgeMaxCards: testCeiling });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Owned a project budget of $2M with vendor oversight.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Owned a project budget of $2M with vendor oversight.");
 
     const res = await get(app, cookie, "/onboarding/cards");
     const body = res.json() as { cards: JobCard[]; pendingCount: number };
@@ -493,7 +502,7 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
         });
       },
     };
-    const { app } = buildServer({
+    const { app, claims } = buildServer({
       readAd,
       judge: makeJudge(llm, store),
       judgePeek: makeJudgePeek(store),
@@ -501,10 +510,7 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
     });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Owned a project budget of $2M with vendor oversight.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Owned a project budget of $2M with vendor oversight.");
 
     // Four identical polls, same unchanged fact set — exactly the web deck's poll-while-pending loop.
     for (let i = 0; i < 4; i++) {
@@ -573,7 +579,7 @@ describe("#105/#117 review: a real deck ranks a judged card above a pending one"
       // pendingPosting's ad (and any hand-fixtured ad in the pool): forces a judging failure.
       throw new Error("boom - forces this card to pending");
     };
-    const { app } = buildServer({ readAd, judge });
+    const { app, claims } = buildServer({ readAd, judge });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     // Near-verbatim token overlap with pendingAd's requirement -> matchTick's cheap pre-filter ranks
@@ -581,10 +587,7 @@ describe("#105/#117 review: a real deck ranks a judged card above a pending one"
     // actually ATTEMPTED (and fails) rather than skipped for a different reason (out of the bound).
     // The SAME confirmed fact also reaches judgedPosting's scripted (low) verdict above unchanged,
     // since that fake ignores the evidence text entirely.
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Owned a project budget with vendor oversight.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Owned a project budget with vendor oversight.");
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const judgedIndex = body.cards.findIndex((c) => c.adId === judgedPosting!.id);
@@ -640,10 +643,7 @@ describe("#117 AC2: a grown fact set re-purchases only the still-open requiremen
     const { app, claims } = buildServer({ readAd, judge: makeJudge(llm, store) });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: READER_ROLE_ITEM_ID,
-      answer: "Owned a project budget of $2M with vendor oversight.",
-    });
+    await plantEvidence({ app, claims }, cookie, "Owned a project budget of $2M with vendor oversight.");
 
     // The SAME judge/llm judges every OTHER card inside the bound too (8-ish hand-curated fixtures,
     // each with their own, differently-named requirement ids) — `calls` collects ALL of them, so
@@ -729,16 +729,16 @@ describe("#117 must-fix 1: a card already judged (e.g. from an earlier visit or 
       },
     };
     const store = new InMemoryJudgementStore();
-    const { app } = buildServer({ readAd, judge: makeJudge(llm, store), judgePeek: makeJudgePeek(store) });
+    const { app, claims } = buildServer({ readAd, judge: makeJudge(llm, store), judgePeek: makeJudgePeek(store) });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     const evidence = "Ran weekly steering meetings with the CFO and the engineering leads.";
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: READER_ROLE_ITEM_ID, answer: evidence });
+    await plantEvidence({ app, claims }, cookie, evidence);
 
     // Simulate "already judged" (an earlier deck view, or tailoring this exact card) by writing the
     // record directly under THIS session's own fingerprint, at the current judge version — nothing
     // about the read path below depends on how it got there.
-    const facts = [{ id: discoveryClaimId(READER_ROLE_ITEM_ID), text: freeTextLine(evidence) }];
+    const facts = [{ id: READER_FACT_ID, text: freeTextLine(evidence) }];
     await store.put(targetPosting.id, judgementFingerprint(weakMatchAd, facts), {
       verdicts: [{ requirementId: "the-req", fit: 0.95, supportingFactId: facts[0]!.id, reason: "covered" }],
       version: judgeVersion(),

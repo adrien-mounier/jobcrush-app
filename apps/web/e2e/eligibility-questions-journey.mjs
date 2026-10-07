@@ -1,9 +1,13 @@
 // #106 — the eligibility questions inside discovery: the whole journey a real person walks.
 //
-// Front door -> the role question -> the discovery floor -> the eligibility block (answering, an
-// explicit "no", declining, and correcting an answer through the fix affordance) -> the deck ->
-// a reload that must not re-ask. Plus AC8's responsive/a11y non-regression, including the design
-// spec's 360px floor (§8) which the .spec.ts sweep does not cover (its smallest viewport is 390px).
+// Front door -> the role question -> the eligibility block (answering, an explicit "no", declining,
+// and correcting an answer through the fix affordance) -> the deck -> a reload that asks the
+// put-off questions again. Plus AC8's responsive/a11y non-regression, including the design spec's
+// 360px floor (§8) which the .spec.ts sweep does not cover (its smallest viewport is 390px).
+//
+// #339: discovery asks nothing but eligibility after question 1 — no floor question, no countdown.
+// "Ask me later" stores nothing: the screen moves past the question for the rest of the visit, and
+// a reload asks it again.
 //
 // Nothing is stubbed — this rides the live Fastify API and a real Next build.
 //
@@ -48,25 +52,18 @@ const eligDim = async () => {
     : null;
   return dim ?? ((await page.locator('.discovery fieldset.elig-group').count()) ? 'language' : null);
 };
-const countdown = () => txt('.discovery .countdown');
+// The badge renders nothing at 0 facts (badge spec §6), so "no badge" on discovery reads as 0. Off
+// discovery (the deck carries no badge) a null still means "no badge on this screen".
 const badgeCount = () => page.evaluate(() => {
+  if (!document.querySelector('.discovery .topbar')) return null;
   const el = document.querySelector('a.prof');
-  return el ? Number(el.querySelector('.n')?.textContent ?? '0') : null;
+  return el ? Number(el.querySelector('.n')?.textContent ?? '0') : 0;
 });
 
 // Every question the visitor actually answers before jobs appear.
 let asked = 0;
 const askedLog = [];
 const countAsk = (what) => { asked++; askedLog.push(`${asked}. ${what}`); };
-
-// Every countdown reading, in order — the number must only ever fall.
-const meter = [];
-async function readMeter(what) {
-  const c = await countdown();
-  const n = c ? Number((c.match(/^(\d+)/) ?? [])[1]) : null;
-  if (n !== null) meter.push({ n, what });
-  return n;
-}
 
 // ---------------------------------------------------------------------------------------------
 // 1. The front door — the screen before any question.
@@ -92,45 +89,24 @@ await assert(intent.ok, `the current intent checkpoint records Singapore before 
 await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going for/ }), ROLE, 'Q1: type the role');
 await qa.click(page.getByRole('button', { name: "That's me" }), "Q1: submit the role (That's me)");
 await page.waitForTimeout(1600);
-await readMeter('after Q1');
-await qa.expectVisible('.discovery .countdown', 'the countdown appears with the first question');
-await qa.note(`countdown after Q1: ${await countdown()}`);
 await assert(
   (await page.locator('.discovery').innerText()).match(/eligibility/i) === null,
   'UX intent: nothing on screen labels these as a different kind of question — the word "eligibility" never appears',
 );
+// #339: the countdown and the section rail it fed are gone, and so is every floor question.
+await assert(
+  (await page.locator('.discovery .countdown, .discovery .rail, .discovery .session-strip').count()) === 0,
+  '#339: no "N answers until your next jobs" countdown and no progress rail on the screen',
+);
+await qa.scrollThrough('read the screen right after question 1');
 
 // ---------------------------------------------------------------------------------------------
-// 3. The discovery floor — answer through it until the eligibility block starts.
-// ---------------------------------------------------------------------------------------------
-let floorAnswered = 0;
-for (let i = 0; i < 14; i++) {
-  if (await eligDim()) break; // the eligibility block has begun
-  const opt = page.locator('.discovery .opts .opt').first();
-  if (await opt.count()) {
-    const label = (await opt.textContent()).trim();
-    await qa.click(opt, `floor answer ${i + 1}: "${label}"`);
-    countAsk(`floor: "${label}"`);
-  } else if (await page.locator('#floor-free').count()) {
-    // Some floor questions are free-text only — a real visitor types and continues.
-    await qa.fill('#floor-free', 'Owned a $2M budget at Acme from 2021 to 2024', `floor answer ${i + 1}: typed`);
-    await qa.click('.discovery .field .go', `floor answer ${i + 1}: Continue`);
-    countAsk('floor: typed a free-text answer');
-  } else break;
-  await page.waitForTimeout(2100);
-  floorAnswered++;
-  await readMeter(`floor answer ${floorAnswered}`);
-  if (!page.url().includes('/discovery')) break;
-}
-await qa.note(`answered ${floorAnswered} floor questions; countdown trail so far: ${meter.map((m) => m.n).join(' -> ')}`);
-await qa.scrollThrough('read the CV the floor answers wrote, then back to the dock');
-
-// ---------------------------------------------------------------------------------------------
-// 4. The FIRST eligibility question. #162: it is work-rights now — the years question is GONE,
-//    worked out from the dated job records instead of asked (ADR-0008 clause 2).
+// 3. The FIRST question after Q1 is eligibility. #339: there is no floor to walk through first.
+//    #162: it is work-rights — the years question is GONE, worked out from the dated job records
+//    instead of asked (ADR-0008 clause 2).
 // ---------------------------------------------------------------------------------------------
 const dim1 = await eligDim();
-await assert(dim1 === 'work-rights', `the eligibility block opens on work-rights (got "${dim1}")`);
+await assert(dim1 === 'work-rights', `#339: the very next question after Q1 is work-rights, no floor in between (got "${dim1}")`);
 const firstQ = await askQ();
 const firstSub = await askSub();
 const firstOpts = await optLabels();
@@ -192,7 +168,6 @@ await assert(noIsQuiet === false, `AC6/design §4: saying no is styled with the 
 await qa.click(page.getByRole('button', { name: NO_LABEL, exact: true }).first(), 'AC6: answer NO — "Not yet — I\'d need sponsorship"');
 countAsk('eligibility: work-rights = NO');
 await page.waitForTimeout(2300);
-await readMeter('answered work-rights (a real "no")');
 const notice1 = await txt('.discovery .notice');
 await qa.expectVisible('.discovery .notice', 'AC6: a "no" is confirmed like any other answer — no warning, no red, no apology');
 await assert(
@@ -234,51 +209,38 @@ await assert(
   (await page.getByRole('button', { name: 'Answer it now' }).count()) > 0,
   'a declined answer offers "Answer it now", not "Fix that?" — the state genuinely changed',
 );
-await readMeter('after retracting work-rights to a decline');
+// #339: "Ask me later" stores nothing and takes back what the "no" stored — the server serves the
+// work-rights question again, so it is this screen alone that moves past it for this visit.
+const afterRetract = await page.evaluate(async () => (await fetch('/api/onboarding/discovery')).json());
+await assert(
+  afterRetract.questions.some((q) => q.eligibility?.dimension === 'work-rights'),
+  `#339: the retraction stored nothing — the server still has the work-rights question open (${afterRetract.questions.map((q) => q.itemId).join(', ')})`,
+);
 
 // ---------------------------------------------------------------------------------------------
 // 6b. A REFUSAL IS NOT A FACT — the count must not move, on any screen that shows it.
 // ---------------------------------------------------------------------------------------------
+// #339: this visitor brought no CV and an eligibility answer is never counted as a fact, so her
+// count is 0 throughout — and the badge is not rendered at 0 (badge spec §6), which `badgeCount`
+// reads as 0. The claim is that it does not MOVE; the profile round trip that checks the same number
+// on another screen is §11b, after the deck, because leaving this page ends the visit — and a new
+// visit asks the put-off question again, which §7 below must not see yet.
 const badgeAfterRetract = await badgeCount();
-await qa.note(`fact badge across the retraction (a decline): ${badgeAfterReal} -> ${badgeAfterRetract}`);
-await qa.expectVisible('a.prof', `the fact badge right after declining — it reads ${badgeAfterRetract}`);
+const factsAfterRetract = afterRetract.factCount;
+await qa.note(`fact count across the retraction (a decline): badge ${badgeAfterReal} -> ${badgeAfterRetract}, server ${factsAfterRetract}`);
 await assert(
-  badgeAfterRetract === badgeAfterReal,
-  `declining did not inflate the count on discovery (${badgeAfterReal} -> ${badgeAfterRetract})`,
-);
-// The same visitor, the same session, opening the profile the badge links to.
-await qa.click('a.prof', 'tap the fact badge to open the profile');
-await page.waitForTimeout(2000);
-const profileHeading = (await txt('.profile .pcount')) ?? '(no profile heading)';
-const profileListed = await page.locator('.profile .fact, .profile li').count();
-await qa.expectVisible('.profile .pcount', `the profile heading a visitor reads after declining: "${profileHeading}"`);
-await qa.note(`profile heading: "${profileHeading}" — discovery badge said ${badgeAfterRetract}; facts listed on the page: ${profileListed}`);
-const profileN = Number((profileHeading.match(/^(\d+)/) ?? [])[1] ?? NaN);
-await assert(
-  profileN === badgeAfterRetract,
-  `the profile and the discovery badge tell the same visitor the same number (profile ${profileN} vs badge ${badgeAfterRetract})`,
-);
-await qa.scrollThrough('read the whole profile after a decline');
-// Back to discovery — whatever the profile computed must not have moved the badge.
-await qa.goto('/discovery', 'back to discovery after visiting the profile');
-await page.waitForTimeout(2000);
-const badgeAfterProfile = await badgeCount();
-await qa.note(`fact badge after the profile round trip: ${badgeAfterRetract} -> ${badgeAfterProfile}`);
-await qa.expectVisible('a.prof', `the fact badge back on discovery — it now reads ${badgeAfterProfile}`);
-await assert(
-  badgeAfterProfile === badgeAfterRetract,
-  `opening the profile did not permanently raise the visitor's fact count (${badgeAfterRetract} -> ${badgeAfterProfile})`,
+  badgeAfterRetract === badgeAfterReal && factsAfterRetract === badgeAfterRetract,
+  `declining did not inflate the count on discovery (badge ${badgeAfterReal} -> ${badgeAfterRetract}, server says ${factsAfterRetract})`,
 );
 
 // ---------------------------------------------------------------------------------------------
 // 7. AFTER THE RETRACTION — "ask me later" means later, not now.
 //
-// #205: this section used to expect a SECOND work-rights question here, and had been failing (with
-// the five behind it) ever since the question set changed. There is one work-rights question — the
-// visitor searches one market — and retracting its answer to "Ask me later" closes it for
-// discovery: the subtext promised "I'll ask again when a JOB needs it", so re-asking on the very
-// next screen would break that promise. What a real visitor sees next is the languages question.
-// That promise is the thing worth asserting, and it is what this now asserts.
+// There is one work-rights question — the visitor searches one market. #339: retracting its answer
+// to "Ask me later" stores nothing, so the question stays open on the server, but the screen passes
+// it for the rest of this visit: the subtext promised "I'll ask again when a JOB needs it", so
+// re-asking on the very next screen would break that promise. What a real visitor sees next is the
+// languages question. §11 proves the other half — a later visit does ask again.
 // ---------------------------------------------------------------------------------------------
 const dim2 = await eligDim();
 await qa.note(`the ask dock right now: ${await dockText()}`);
@@ -309,21 +271,11 @@ await assert(await declineBtn.evaluate((n) => n.classList.contains('quiet')), 't
 await qa.click(declineBtn, 'decline the last eligibility question: "Ask me later"');
 countAsk('eligibility: language = declined');
 await page.waitForTimeout(2600);
-await readMeter('declined the last question');
 const badgeAfterDecline = await badgeCount();
-// The last eligibility answer hands off to /deck, which deliberately carries no badge (spec §11) —
-// so a null here is the deck, not a lost count. The decline/count check that matters is §6b above.
+// #339: with every question either answered or put off for this visit, the last decline hands off
+// to /deck, which deliberately carries no badge (spec §11) — so a null here is the deck, not a lost
+// count. The decline/count check that matters is §6b above.
 await qa.note(`fact badge across the final DECLINE: ${badgeBeforeDecline} -> ${badgeAfterDecline ?? 'no badge (the deck carries none)'}`);
-
-// ---------------------------------------------------------------------------------------------
-// 9. THE COUNTDOWN — across the entire walk it must never climb.
-// ---------------------------------------------------------------------------------------------
-await qa.note(`the full countdown trail a visitor saw: ${meter.map((m) => `${m.n} (${m.what})`).join('  ->  ')}`);
-const climbs = meter.filter((m, i) => i > 0 && m.n > meter[i - 1].n);
-await assert(
-  climbs.length === 0,
-  `"N answers until your next jobs" never went UP across the whole flow (${meter.map((m) => m.n).join(' -> ')})`,
-);
 
 // ---------------------------------------------------------------------------------------------
 // 10. THE DECK — the questions are behind them.
@@ -373,14 +325,47 @@ await assert(
 await qa.expectVisible('body', `the deck — ${cardScan.count} cards, none carrying a question the visitor declined`);
 
 // ---------------------------------------------------------------------------------------------
-// 11. ASKED EXACTLY ONCE — reload discovery; nothing may be re-asked.
+// 11. A LATER VISIT ASKS AGAIN — #339. Both questions were put off ("Ask me later" on each), and
+//     putting a question off stores nothing, so reopening discovery asks the first of them again.
+//     Within the visit above neither was re-asked (§7); a new visit is when "later" arrives.
 // ---------------------------------------------------------------------------------------------
-await qa.goto('/discovery', 'reload discovery after finishing it — the ask-once test');
+await qa.goto('/discovery', 'reopen discovery after the deck — a later visit');
 await page.waitForTimeout(2000);
 const reAsked = await eligDim();
 await qa.note(`after a reload, discovery shows: ${page.url()} — eligibility question on screen: ${reAsked ?? 'none'}`);
-await assert(reAsked === null, `AC2: no eligibility question is asked a second time on reload (got "${reAsked}")`);
-await qa.expectVisible('body', 'AC2: a reload after finishing asks nothing again');
+await assert(reAsked === 'work-rights', `#339: a later visit asks the put-off work-rights question again (got "${reAsked}")`);
+const reloaded = await page.evaluate(async () => (await fetch('/api/onboarding/discovery')).json());
+await assert(
+  reloaded.stage === 'discovery' &&
+    reloaded.questions.map((q) => q.eligibility?.dimension).join(',') === 'work-rights,language',
+  `#339: both put-off questions are still open on the server, and nothing else is (${reloaded.stage}: ${reloaded.questions.map((q) => q.itemId).join(', ')})`,
+);
+await qa.expectVisible('.discovery #ask-q', '#339: the reopened screen asks the put-off question again');
+
+// ---------------------------------------------------------------------------------------------
+// 11b. A REFUSAL IS NOT A FACT, on the profile too — the same visitor opens her profile, which must
+//      tell her the same number discovery does (two declines in, still nothing counted).
+// ---------------------------------------------------------------------------------------------
+const badgeBeforeProfile = await badgeCount();
+await qa.goto('/profile', 'she opens her profile (the badge that links there is not drawn at 0 facts)');
+await page.waitForTimeout(2000);
+// At 0 facts the profile shows its empty state ("Nothing here yet.") instead of a counted heading.
+const profileHeading = (await txt('.profile .pcount'))
+  ?? (/Nothing here yet\./.test(await page.locator('body').innerText()) ? '0 (the empty profile: "Nothing here yet.")' : '(no profile heading)');
+await qa.expectVisible('body', `what the profile says after two declines: "${profileHeading}"`);
+const profileN = Number((profileHeading.match(/^(\d+)/) ?? [])[1] ?? NaN);
+await assert(
+  profileN === badgeBeforeProfile && profileN === reloaded.factCount,
+  `the profile and discovery tell the same visitor the same number (profile ${profileN}, badge ${badgeBeforeProfile}, server ${reloaded.factCount})`,
+);
+await qa.scrollThrough('read the whole profile after two declines');
+await qa.goto('/discovery', 'back to discovery after visiting the profile');
+await page.waitForTimeout(2000);
+const badgeAfterProfile = await badgeCount();
+await assert(
+  badgeAfterProfile === badgeBeforeProfile,
+  `opening the profile did not raise the visitor's fact count (${badgeBeforeProfile} -> ${badgeAfterProfile})`,
+);
 
 // ---------------------------------------------------------------------------------------------
 // 12. AC8 — the 360px floor the design spec calls out (§8), on a fresh session.
@@ -391,17 +376,6 @@ await qa.goto('/discovery', 'AC8: a fresh visitor at the 360px floor the design 
 await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going for/ }), ROLE, 'Q1 at 360px');
 await qa.click(page.getByRole('button', { name: "That's me" }), 'Q1 at 360px: submit');
 await page.waitForTimeout(1600);
-for (let i = 0; i < 12; i++) {
-  if (await eligDim()) break;
-  const opt = page.locator('.discovery .opts .opt').first();
-  if (await opt.count()) await opt.click();
-  else if (await page.locator('#floor-free').count()) {
-    await page.fill('#floor-free', 'Owned a $2M budget at Acme from 2021 to 2024');
-    await page.click('.discovery .field .go');
-  } else break;
-  await page.waitForTimeout(1700);
-  if (!page.url().includes('/discovery')) break;
-}
 
 // The two labels the design spec names by hand — the longest in the set.
 async function checkLabel(name) {

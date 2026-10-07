@@ -3,7 +3,7 @@
 // repo as a re-runnable CI asset (run with `node`, never the Playwright MCP).
 //
 // One continuous anonymous session carries the journey end to end:
-//   discovery Q1 (a role) -> tap the essential floor -> #25 handoff bridge -> nav to /deck reveal
+//   discovery Q1 (a role) -> the eligibility questions -> #25 handoff bridge -> nav to /deck reveal
 //   -> "See them" as anon -> the #22 wall (Google leading, magic-link secondary, no card yet)
 //   -> send the magic link -> "Check your email" + dev link -> follow it (anon->account merge)
 //   -> resume on /deck now AUTHED -> "See them" -> the card (the % ring), no wall.
@@ -28,21 +28,16 @@ await qa.scrollThrough("read the discovery screen");
 await qa.fill("#q1-role", ROLE, `question 1: type the role — "${ROLE}"`);
 await qa.click("button.go.wide", "submit the role ('That's me')");
 
-// Walk the current floor and the first two eligibility questions. The languages checkbox group is
-// deliberately left for the closing answer below so the transient handoff can still be captured.
-await qa.expectVisible("#ask-q", "the first floor question is asked");
+// #339: after question 1 discovery asks eligibility only — work rights, then languages. The
+// languages question is deliberately left for the closing answer below so the transient handoff
+// can still be captured.
+await qa.expectVisible("#ask-q", "the work-rights question is asked");
 let answered = 0;
-for (let i = 0; i < 12 && !(await page.locator("fieldset.elig-group").count()); i++) {
+for (let i = 0; i < 4 && !(await page.locator("fieldset.elig-group").count()); i++) {
   const option = page.locator(".discovery .opts .opt").first();
-  if (await option.count()) {
-    const label = (await option.textContent()).trim();
-    await qa.click(option, `answer ${i + 1}: "${label}"`);
-  } else if (await page.locator("#floor-free").count()) {
-    await qa.fill("#floor-free", "Owned a $2M budget at Acme from 2021 to 2024", `answer ${i + 1}: type the evidence`);
-    await qa.click(".discovery .field .go", `answer ${i + 1}: Continue`);
-  } else {
-    break;
-  }
+  if (!(await option.count())) break;
+  const label = (await option.textContent()).trim();
+  await qa.click(option, `answer ${i + 1}: "${label}"`);
   answered += 1;
   await page.waitForTimeout(1200);
 }

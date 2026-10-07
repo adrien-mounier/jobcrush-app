@@ -103,64 +103,6 @@
   color: var(--hud-mute);
 }
 
-/* ---------- countdown ---------- */
-.discovery .countdown {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0 16px 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--hud-mute);
-}
-
-/* ---------- progress rail: one overall bar + section labels ---------- */
-.discovery .rail {
-  flex: 0 0 auto;
-  padding: 0 16px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.discovery .rail-track {
-  height: 4px;
-  border-radius: 999px;
-  background: var(--hud-2);
-  overflow: hidden;
-}
-.discovery .rail-track i {
-  display: block;
-  height: 100%;
-  width: 100%;
-  transform: scaleX(0); /* JS sets the live fraction inline — page.tsx's Rail component */
-  transform-origin: left;
-  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
-  border-radius: 999px;
-  transition: transform 620ms cubic-bezier(0.3, 0.9, 0.3, 1);
-}
-.discovery .rail-steps {
-  display: flex;
-  gap: 10px;
-}
-.discovery .rail-steps .step {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--hud-mute);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color 400ms ease;
-}
-.discovery .rail-steps .step.active {
-  color: var(--gold);
-}
-.discovery .rail-steps .step.done {
-  color: var(--hud-ink);
-}
-
 /* ---------- the promise ---------- */
 .discovery .promise {
   margin: 0 16px 12px;
@@ -379,7 +321,7 @@
     transform 90ms ease;
 }
 /* #106: the "not answering" option — a real answer, but never competing with the real ones.
-   --hud-mute on transparent is this screen's existing secondary treatment (.sub/.notice/.countdown). */
+   --hud-mute on transparent is this screen's existing secondary treatment (.sub/.notice). */
 .discovery .opt.quiet {
   background: transparent;
   color: var(--hud-mute);
@@ -462,28 +404,6 @@
 .discovery .go.wide {
   width: 100%;
   padding: 14px;
-}
-
-/* ---------- #51 the permanent free-text box (alongside the option buttons) ---------- */
-.discovery .freetext {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--hud-line);
-}
-.discovery .freetext .ft-label {
-  margin: 0 0 8px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--hud-mute);
-}
-.discovery .freetext textarea {
-  display: block;
-  width: 100%;
-  resize: none;
-  height: 60px;
-  margin-bottom: 0;
 }
 
 .discovery .sugg.live {
@@ -647,44 +567,6 @@
 }
 
 /* ---------- in-flow correction + deck handoff (#18) ---------- */
-/* a CV line becomes a real button without changing how it looks on paper. Explicit
-   font-size/line-height (not `font:inherit`): button.cv-line's (0,0,1,1) would otherwise override
-   .cv-line's own 14.5px. Keep the left padding for the bullet; zero the rest. */
-.discovery button.cv-line {
-  display: block;
-  width: 100%;
-  text-align: left;
-  appearance: none;
-  background: none;
-  border: 0;
-  margin: 0 0 9px;
-  padding: 0 0 0 14px;
-  font-family: var(--serif);
-  font-size: 14.5px;
-  line-height: 1.45;
-  color: var(--ink);
-  cursor: pointer;
-}
-/* quiet, discoverable-on-focus/hover cue — no persistent clutter */
-.discovery button.cv-line:hover::after,
-.discovery button.cv-line:focus-visible::after {
-  content: "Fix";
-  position: absolute;
-  right: 0;
-  top: 0.2em;
-  font-family: var(--sans);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-mute);
-}
-/* the line being fixed: a soft warm wash, never an error colour */
-.discovery .cv-line.fixing {
-  background: var(--gold-glow);
-  border-radius: 6px;
-  transition: background 200ms ease;
-}
-
 /* inline text button inside a notice ("Fix that?", "Leave it as is") */
 .discovery .notice button {
   appearance: none;
@@ -707,9 +589,6 @@
   .discovery .handoff {
     animation: none;
   }
-  .discovery .cv-line.fixing {
-    transition: none;
-  }
 }
 
 /* ---------- #51 Discovery B — shared desktop shell ----------
@@ -729,20 +608,6 @@
     z-index: 5;
     background: var(--hud-0);
   }
-  /* session strip: countdown directly above the progress bar, shared left edge */
-  .discovery .session-strip {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .discovery .session-strip .countdown {
-    padding: 0;
-    margin: 0;
-  }
-  .discovery .session-strip .rail {
-    padding: 0;
-  }
-
   /* promise slim banner (role="status" + text preserved — spec-pinned) */
   .discovery .promise {
     align-items: baseline;

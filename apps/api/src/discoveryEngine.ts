@@ -1,7 +1,9 @@
 // #216 - the ONE discovery INTERVIEW. (This file was `legacyDiscovery.ts` while there were two.)
 // The shipped screen (GET/POST /onboarding/discovery*) is the only surface a visitor's interview is
-// served through: the floor items it asks come from her plan's published family floors, and the
-// coverage her answers earn is reconciled onto the session on the same request. The parallel
+// served through, and the plan she is searched on is pinned onto the session on the same request.
+// #339: it asks eligibility only — the family floors no longer become questions; they stay for
+// matching and scoring. The floor coverage reconciled below still lands on the session, but no
+// longer gates the jobs (that gate is the completed review, postingRetrieval.ts). The parallel
 // /discovery/production/* interview that used to be the only writer is gone - it had no client and
 // could not build the screen (CV lines, rail fill, eligibility questions, the promise), so
 // reconciliation moved here.
@@ -12,27 +14,18 @@
 import type { FamilyPlacement } from "@jobcrush/contracts";
 import { discoveryPlan, planDiscoveryState } from "./adaptiveDiscovery.js";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
-import {
-  discoveryClaimId,
-  discoveryState,
-  factCount,
-  readerQuestion,
-  READER_ROLE_ITEM_ID,
-  type DiscoveryFamily,
-  type DiscoveryState,
-} from "./discovery.js";
+import { discoveryState, factCount, type DiscoveryFamily, type DiscoveryState } from "./discovery.js";
 import { withReadTimeout, type DeckDiscoveryReads } from "./deck.js";
 import type { makeRetrievalCoordinator } from "./deckRetrieval.js";
 import { cvLanguages, type CvLanguage } from "./cvLanguages.js";
 import { applyEligibilityQuestions, excludingEligibility, LANGUAGE_ITEM_ID } from "./eligibilityDiscovery.js";
-import type { EligibilityFact, EligibilityStore } from "./eligibility.js";
+import type { EligibilityStore } from "./eligibility.js";
 import {
   eligiblePublication,
   productionDiscoveryFamily,
   type ProductionFamilyFloorStore,
 } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
-import { minedRoles, type JobStore } from "./jobs.js";
 import { readingLanguages } from "./language.js";
 import { retrievalFingerprint, retrievalRequestForSession, resolvedMarketsFor, reviewOpensJobs } from "./postingRetrieval.js";
 import { retrievedPostingCount } from "./preview.js";
@@ -138,12 +131,10 @@ export async function currentDiscoveryFamily(
 }
 
 /** #216 — the same family, plus the write the interview owes the session. The plan is pinned and
- *  the coverage her recorded answers earn across its floors is stored, so
- *  `session.discovery.checkpoint` reaches `essential_floor_covered` through the flow she actually
- *  walks — and `/onboarding/cards` retrieves on the family she was interviewed on.
+ *  the coverage her recorded claims earn across its floors is stored, so `/onboarding/cards`
+ *  retrieves on the family she was interviewed on. (#339: coverage is recorded, never a gate.)
  *
- *  Recomputed from the claims on every call and never latched: an answer corrected so that an item
- *  falls out of coverage drops the checkpoint back on that same request, and the reveal with it. */
+ *  Recomputed from the claims on every call and never latched. */
 export async function reconcileSessionDiscovery(
   session: SessionRecord,
   deps: DiscoveryPlanDeps,
@@ -152,13 +143,10 @@ export async function reconcileSessionDiscovery(
   const publications = plan.questionFloors.map((reference) =>
     eligiblePublication(deps.productionFamilyFloors.get(reference.familyId, reference.version)),
   );
-  // A publication pulled since the pin: nothing is asked, and the stored record is left exactly as
-  // it was rather than rewritten - rewriting it would be claiming coverage over a floor nobody can
-  // read any more. What that can leave behind is a stale `essential_floor_covered`. In FAMILY mode
-  // it authorizes nothing: retrieval re-checks the publication and refuses a pulled family
-  // (`family_not_published`, postingRetrieval.ts). In WORD mode the search family is null, so what
-  // it authorizes is the word search she would have had anyway - never a family reveal she did not
-  // earn. Same behaviour as the retired route, which refused the request outright at this point.
+  // A publication pulled since the pin: the stored record is left exactly as it was rather than
+  // rewritten - rewriting it would be claiming coverage over a floor nobody can read any more. In
+  // FAMILY mode retrieval re-checks the publication and refuses a pulled family
+  // (`family_not_published`, postingRetrieval.ts).
   if (publications.some((publication) => !publication)) return null;
   const [claims, negatives] = await Promise.all([
     deps.claims.list(session.id),
@@ -297,9 +285,9 @@ export function buildDiscoveryRouteState(
   session: Pick<SessionRecord, "intent" | "promiseOpenJobs" | "importProof" | "reviewCompletedAt">,
   family: DiscoveryFamily | null,
 ): DiscoveryState {
-  const [confirmed, negatives, rejected, facts] = reads;
-  const state = discoveryState(role, confirmed, negatives, rejected, null, family, session.promiseOpenJobs);
-  if (role) applyDiscoveryEligibility(state, session, confirmed, negatives, rejected, facts, family);
+  const [confirmed, negatives, , facts] = reads;
+  const state = discoveryState(role, confirmed, negatives, family, session.promiseOpenJobs);
+  if (role) applyEligibilityQuestions(state, facts, resolvedMarketsFor(session.intent.searchAreas));
   const languages = state.questions.find((q) => q.itemId === LANGUAGE_ITEM_ID);
   if (languages && reads.cvLanguages.length > 0) languages.cvLanguages = reads.cvLanguages;
   state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
@@ -307,39 +295,4 @@ export function buildDiscoveryRouteState(
   // the jobs otherwise. The server owns the gate (postingRetrieval.ts); this only tells the screen.
   state.reviewPending = !reviewOpensJobs(session);
   return state;
-}
-
-export async function prependReaderQuestionFromJob(
-  state: DiscoveryState,
-  jobId: string | undefined,
-  jobs: JobStore,
-  session: Pick<SessionRecord, "id">,
-  confirmed: ClaimRecord[],
-  closed: ClaimRecord[], // rejected + negatives: asked and closed, no CV line
-): Promise<void> {
-  const readerAnswered = [...confirmed, ...closed].some((c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID));
-  if (!jobId || readerAnswered) return;
-  const job = await jobs.get(jobId);
-  const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
-  if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
-}
-
-export function applyDiscoveryEligibility(
-  state: DiscoveryState,
-  session: Pick<SessionRecord, "intent">,
-  confirmed: ClaimRecord[],
-  negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
-  facts: readonly EligibilityFact[],
-  family: DiscoveryFamily | null,
-): void {
-  applyEligibilityQuestions(
-    state,
-    confirmed,
-    negatives,
-    rejected,
-    facts,
-    resolvedMarketsFor(session.intent.searchAreas),
-    family?.items ?? [],
-  );
 }

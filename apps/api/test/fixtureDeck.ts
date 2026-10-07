@@ -11,7 +11,13 @@
 // by contract (PostingV1's own superRefine), never the fixture's filename-shaped id, so a test that
 // pins an id pins it through `liveIdFor()` and the curated requirements are resolved by canonical
 // key in `fixtureReadAd` rather than by the id the fixture file happens to be keyed on.
-import { canonicalKeyOf, type AdRequirementsV1, type PostingRetrievalResultV1, type PostingV1 } from "@jobcrush/contracts";
+import {
+  canonicalKeyOf,
+  type AdRequirementsV1,
+  type CandidateClaim,
+  type PostingRetrievalResultV1,
+  type PostingV1,
+} from "@jobcrush/contracts";
 import { buildServer as baseBuildServer } from "../src/server.js";
 import { lookupAdRequirements } from "../src/e5stub.js";
 import { loadPostings, type Posting } from "../src/preview.js";
@@ -159,34 +165,24 @@ export async function injectSettled(
   throw new Error("retrieval never finished");
 }
 
-/** The published production floor's essential items, in the order discovery asks them. */
-export const ESSENTIAL_FLOOR_ITEM_IDS = [
-  "end-to-end-delivery",
-  "stakeholder-coordination",
-  "risk-dependency-control",
-  "delivery-communication",
-] as const;
-
-/** Answers every essential item on the published floor, which is what moves a session's checkpoint
- *  to `essential_floor_covered`.
- *
- *  #63: a family session that has NOT covered its floor is now refused a deck outright rather than
- *  quietly served the fixture pool, so a test that wants to look at cards past the gate has to earn
- *  them the way a visitor does. `answer` defaults to "Yes" — a covering answer; pass a map to give
- *  a specific item a different one. */
-export async function coverEssentialFloor(
-  app: App,
-  cookie: string,
-  answers: Partial<Record<(typeof ESSENTIAL_FLOOR_ITEM_IDS)[number], string>> = {},
-): Promise<void> {
-  for (const itemId of ESSENTIAL_FLOOR_ITEM_IDS) {
-    await app.inject({
-      method: "POST",
-      url: "/onboarding/discovery/answer",
-      headers: { cookie },
-      payload: { itemId, answer: answers[itemId] ?? "Yes" },
-    });
-  }
+/** #339: discovery no longer takes floor answers, so a test that needs one on record (a confirmed
+ *  fact, or a "no") plants it straight into the claims store — `claims.add` / `claims.answerNegative`
+ *  — in the same shape the answer route used to write: `discovery-<itemId>`, keyed by the item id. */
+export function discoveryFact(itemId: string, text: string): CandidateClaim {
+  return {
+    id: `discovery-${itemId}`,
+    semantic_key: itemId,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text,
+    machine_touch: "verbatim",
+    classification: "Verified",
+    source_quote: text,
+    needs_grill: false,
+    grill_hint: null,
+  };
 }
 
 /** Writes the snapshot a completed retrieval would have left, without issuing a deck request.

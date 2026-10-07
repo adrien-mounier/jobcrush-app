@@ -78,7 +78,7 @@ The user's current residence may suggest it but does not establish it.
 _Avoid_: Current location, home address
 
 **Job family**:
-A group of target roles that share one essential requirement floor for discovery and matching. Roles
+A group of target roles that share one essential requirement floor for matching and scoring. Roles
 may be related without belonging to the same job family.
 _Avoid_: Career neighborhood, job title
 
@@ -202,8 +202,8 @@ confirmed or unmapped — never the nearest family. A confirmed placement names 
 families (a job can genuinely be two kinds of work) and carries an ordinal **placement confidence**.
 Nobody is ever asked to choose between families. It is worked out, stored on the job record as a
 correctable fact, and a correction is never overwritten by a re-read (#134, ADR-0014 + amendment 1).
-For a plural target role, discovery asks the de-duplicated essential items of every usable family
-floor in placement order; the first family remains the single downstream search family (#232).
+For a plural target role, every usable family floor is kept in placement order (no longer asked as
+questions since #339); the first family remains the single downstream search family (#232).
 _Avoid_: Job label, classification, posting family fit, needs clarification (deleted in #231)
 
 **Placement confidence**:

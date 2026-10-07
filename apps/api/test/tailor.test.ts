@@ -333,38 +333,53 @@ const minedClaimFor = (req: AdRequirementV1): CandidateClaim => ({
   grill_hint: null,
 });
 
-/** Discovery (production essential answers, closing the band) -> deck -> sign in -> want -> tailor. Exact prior
- *  art: cards.test.ts's own flow, plus discovery.test.ts's known essential item ids. */
-async function reachTailor(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string) {
+/** One discovery answer exactly as the pre-#339 answer route wrote it: id `discovery-<item>`,
+ *  semantic_key the bare item id, the visitor's own words as the line. */
+const floorClaim = (itemId: string, text: string, answer: string): CandidateClaim => ({
+  id: discoveryClaimId(itemId),
+  semantic_key: itemId,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "profile",
+  text,
+  machine_touch: "verbatim",
+  classification: "Verified",
+  source_quote: answer,
+  needs_grill: false,
+  grill_hint: null,
+});
+/** #339: discovery no longer asks the floor and the deck no longer waits on it, but these tests read
+ *  the four answers it used to record (factCount's 4, the deck reject of END_TO_END, the RISKS "No"),
+ *  so they are planted in the claims store exactly as the old route wrote them. */
+async function plantFloorAnswers(claims: ReturnType<typeof buildServer>["claims"], sid: string) {
+  await claims.add(sid, floorClaim(END_TO_END, "Owned delivery from planning through completion.", "Yes"));
+  await claims.add(sid, floorClaim(STAKEHOLDERS, "Business, engineering, and vendors.", "Business, engineering, and vendors"));
+  await claims.answerNegative(
+    sid,
+    floorClaim(RISKS, "Not applicable — Have you acted on delivery risks, dependencies, timelines, or budgets?", "No"),
+  );
+  await claims.add(sid, floorClaim(COMMUNICATION, "Weekly steering updates.", "Weekly steering updates"));
+}
+
+/** Question 1 + the planted floor answers -> deck -> sign in -> want -> tailor. Exact prior art:
+ *  cards.test.ts's own flow. */
+async function reachTailor(
+  { app, claims }: Pick<ReturnType<typeof buildServer>, "app" | "claims">,
+  cookie: string,
+  email: string,
+) {
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: STAKEHOLDERS,
-    answer: "Business, engineering, and vendors",
-  });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: COMMUNICATION,
-    answer: "Weekly steering updates",
-  });
+  await plantFloorAnswers(claims, (await get(app, cookie, "/sessions/me")).json().id as string);
   await signIn(app, cookie, email);
   await warmRetrieval(app, cookie); // #63: the advert exists for this session once retrieval delivers it
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 }
 
 async function reachTailorWithSeededDeck(server: ReturnType<typeof buildServer>, cookie: string, email: string) {
-  const { app, store } = server;
+  const { app, store, claims } = server;
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: STAKEHOLDERS,
-    answer: "Business, engineering, and vendors",
-  });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: COMMUNICATION,
-    answer: "Weekly steering updates",
-  });
+  await plantFloorAnswers(claims, (await get(app, cookie, "/sessions/me")).json().id as string);
   await signIn(app, cookie, email);
 
   const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
@@ -391,9 +406,9 @@ describe("#23 GET /onboarding/tailor", () => {
   });
 
   it("returns the pinned TailorState shape once a job is targeted", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "first-get@example.com");
+    await reachTailor({ app, claims }, cookie, "first-get@example.com");
 
     const res = await get(app, cookie, "/onboarding/tailor");
     expect(res.statusCode).toBe(200);
@@ -420,18 +435,18 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   });
 
   it("404s on a requirementId that isn't part of this ad", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "unknown-req@example.com");
+    await reachTailor({ app, claims }, cookie, "unknown-req@example.com");
     const res = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "not-real", answer: "Yes" });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: { code: "unknown_requirement", message: "no such requirement" } });
   });
 
   it("answering re-scores instantly, flips the requirement off the question list, and records a ledger line", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "answer-moves-pct@example.com");
+    await reachTailor({ app, claims }, cookie, "answer-moves-pct@example.com");
     const before = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = before.questions[0];
 
@@ -453,9 +468,9 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   // becomes a lie once corrections are honoured"). This is the exact journey #31's floor was built
   // to hold up; it now falls, honestly, and the response carries the raw number.
   it("#309: correcting the same requirement to a 'no' LOWERS the % — the floor is gone", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "floor-gone@example.com");
+    await reachTailor({ app, claims }, cookie, "floor-gone@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
 
@@ -470,9 +485,9 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   });
 
   it("never re-asks a requirement answered 'no' — a fresh GET still omits it", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "never-reask@example.com");
+    await reachTailor({ app, claims }, cookie, "never-reask@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
 
@@ -484,7 +499,7 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   it("is idempotent — re-answering the same requirement corrects it (positive<->negative flip)", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "idempotent@example.com");
+    await reachTailor({ app, claims }, cookie, "idempotent@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
@@ -499,9 +514,9 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   });
 
   it("done flips true once nothing is left worth asking, and matchPct reaches 100", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "done-flips@example.com");
+    await reachTailor({ app, claims }, cookie, "done-flips@example.com");
     let state = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(state.done).toBe(false);
 
@@ -515,9 +530,9 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   });
 
   it("factCount is session-wide, grows by one per new answer, and never decreases across a correction", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "fact-count@example.com");
+    await reachTailor({ app, claims }, cookie, "fact-count@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
 
@@ -531,9 +546,9 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   // #106 code-review D1 (2026-08-03, round 3): buildTailorState's own factCount is a SEPARATE
   // emission point from /profile's — a decline used to inflate this one too, unfiltered.
   it("a declined eligibility question does not inflate tailor's factCount (D1)", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "elig-decline-factcount@example.com");
+    await reachTailor({ app, claims }, cookie, "elig-decline-factcount@example.com");
     const before = (await get(app, cookie, "/onboarding/tailor")).json();
 
     const discovery = (await get(app, cookie, "/onboarding/discovery")).json();
@@ -560,7 +575,7 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   it("factCount holds at its peak across all five emission seams, even after a deck reject (#33)", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "fact-floor@example.com");
+    await reachTailor({ app, claims }, cookie, "fact-floor@example.com");
     const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
 
     // One genuinely new tailor answer, so peak (4) sits strictly above what the post-reject raw count
@@ -589,10 +604,11 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     await warmRetrieval(app, cookie);
     await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 
-    // All five emission seams. The two POST /answer calls are legitimate idempotent corrections (#18
-    // AC4 / #23's own "re-answering the same item CORRECTS it" contract) on items already answered
-    // before the reject — same item, same answer, no new record — so they exercise the route's own
-    // factCount computation without accidentally growing the raw count back up to peak on their own.
+    // All five emission seams. The tailor POST /answer is a legitimate idempotent correction (#23's
+    // own "re-answering the same item CORRECTS it" contract) on an item already answered before the
+    // reject — same item, same answer, no new record — and the discovery one is a decline, which
+    // records nothing; both exercise the route's own factCount computation without accidentally
+    // growing the raw count back up to peak on their own.
     const seams: [string, () => Promise<{ factCount: number }>][] = [
       ["GET /onboarding/tailor", () => get(app, cookie, "/onboarding/tailor").then((r) => r.json())],
       // #63: BOTH tailor seams run before the discovery ones. Rejecting a claim changes this
@@ -614,11 +630,15 @@ describe("#23 POST /onboarding/tailor/answer", () => {
       ],
       [
         "POST /onboarding/discovery/answer",
-        () =>
-          post(app, cookie, "/onboarding/discovery/answer", {
-            itemId: STAKEHOLDERS,
-            answer: "Business, engineering, and vendors",
-          }).then((r) => r.json()),
+        // #339: the route takes eligibility answers only, so this seam declines the first open one —
+        // a decline stores nothing, so it cannot grow the raw count back up to peak on its own.
+        async () => {
+          const open = (await get(app, cookie, "/onboarding/discovery")).json().questions[0];
+          return post(app, cookie, "/onboarding/discovery/answer", {
+            itemId: open.itemId,
+            answer: DECLINE_OPTION,
+          }).then((r) => r.json());
+        },
       ],
     ];
     const results: Record<string, number> = {};
@@ -633,9 +653,9 @@ describe("#23 POST /onboarding/tailor/answer", () => {
 // in dontYet forever and the ledger's "still open" count never fell.
 describe("#23 B1 — a 'no' closes the gap, not just the question", () => {
   it("answering every requirement 'No' empties dontYet, and the ledger's open count agrees (0) at the end", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "b1-all-no@example.com");
+    await reachTailor({ app, claims }, cookie, "b1-all-no@example.com");
     let state = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(state.card.dontYet.length).toBeGreaterThan(0); // sanity: there's something to close
     const totalToAnswer = state.questions.length; // every "no" here, answered in rank order (below)
@@ -666,9 +686,9 @@ describe("#23 B1 — a 'no' closes the gap, not just the question", () => {
 // even after a plain re-read with no new answer in between (a straight rebuild-vs-rebuild check).
 describe("#28 GET /onboarding/tailor — a landed ledger line survives later answers and a reload", () => {
   it("the first-answered line's text is unchanged after more 'no's land, and a reload repeats it byte-for-byte", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "historical-ledger@example.com");
+    await reachTailor({ app, claims }, cookie, "historical-ledger@example.com");
     let state = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(state.questions.length).toBeGreaterThan(1); // sanity: more than one "no" is coming below
 
@@ -791,9 +811,9 @@ describe("#37 GET /onboarding/tailor - later deck decisions do not rewrite earli
 // design (B1). So the bubble kept naming a requirement the visitor had just declined, permanently.
 describe("#23 D1 — the bubble's gap clause rewrites after a 'No' (AC2)", () => {
   it("answering 'No' to the requirement the bubble names stops the bubble naming it", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "d1-bubble@example.com");
+    await reachTailor({ app, claims }, cookie, "d1-bubble@example.com");
     const before = (await get(app, cookie, "/onboarding/tailor")).json();
     const namedRequirement = before.card.bubble.open;
     // The bubble names dontYet's own top entry — find its requirementId so we answer "No" to exactly
@@ -811,9 +831,9 @@ describe("#23 D1 — the bubble's gap clause rewrites after a 'No' (AC2)", () =>
   });
 
   it("answering 'No' to everything rewrites the bubble to the nothing-open fallback", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "d1-bubble-all-no@example.com");
+    await reachTailor({ app, claims }, cookie, "d1-bubble-all-no@example.com");
     let state = (await get(app, cookie, "/onboarding/tailor")).json();
 
     while (state.questions.length > 0) {
@@ -837,9 +857,9 @@ describe("#23 D1 — the bubble's gap clause rewrites after a 'No' (AC2)", () =>
 // return exactly the CV discovery alone had already produced.
 describe("#23 B2 — tailor answers reach the CV", () => {
   it("a tailor 'Yes' answer produces a cvLine keyed to that answer's claim id", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "b2-cv-line@example.com");
+    await reachTailor({ app, claims }, cookie, "b2-cv-line@example.com");
     const before = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = before.questions[0];
     const beforeLineCount = before.cvLines.length;
@@ -854,9 +874,9 @@ describe("#23 B2 — tailor answers reach the CV", () => {
   });
 
   it("free text also lands in cvLines, in the visitor's own words", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "b2-free-text@example.com");
+    await reachTailor({ app, claims }, cookie, "b2-free-text@example.com");
     const before = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = before.questions[0];
 
@@ -898,7 +918,7 @@ describe("#23 POST /onboarding/tailor/drop", () => {
   it("clears the tailor target and returns to deck WITHOUT losing recorded answers", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "drop-keeps-claims@example.com");
+    await reachTailor({ app, claims }, cookie, "drop-keeps-claims@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
     await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
@@ -936,9 +956,9 @@ describe("#23 POST /onboarding/tailor/drop", () => {
 // drop because the CLAIMS survive it, never because a stored floor holds the number up.
 describe("#309 the % is honest across drop + re-swipe — no stored floor", () => {
   it("drop → re-swipe keeps the earned % (the claims carry it), and a correction then lowers it", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "no-floor-drop@example.com");
+    await reachTailor({ app, claims }, cookie, "no-floor-drop@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
 
@@ -961,9 +981,9 @@ describe("#309 the % is honest across drop + re-swipe — no stored floor", () =
   });
 
   it("a DIFFERENT job after a drop is scored on its own merits", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "other-job-own-merits@example.com");
+    await reachTailor({ app, claims }, cookie, "other-job-own-merits@example.com");
     const q = (await get(app, cookie, "/onboarding/tailor")).json().questions[0];
     await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
     await post(app, cookie, "/onboarding/tailor/drop");
@@ -1097,7 +1117,7 @@ describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
     const server = buildServer();
     const { app, claims } = server;
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "grow-door@example.com");
+    await reachTailor({ app, claims }, cookie, "grow-door@example.com");
     const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
 
     let state = (await get(app, cookie, "/onboarding/tailor")).json();
@@ -1143,9 +1163,9 @@ describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
   });
 
   it("a grow for a requirement nothing denied maps to is refused (400), fail-closed like the door it lacks", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "grow-refused@example.com");
+    await reachTailor({ app, claims }, cookie, "grow-refused@example.com");
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
     const res = await post(app, cookie, "/onboarding/tailor/answer", {
       requirementId: state.questions[0].requirementId,

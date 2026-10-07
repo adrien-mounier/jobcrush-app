@@ -1,7 +1,7 @@
 // #338 — "Your CV, reviewed", walked the way a person walks it, over the REAL stack (fake model only):
 //
 //   1. she pastes her CV on the front door, says what she is going for, and answers the questions
-//      the CV cannot answer (the floor is seeded over the wire — not under test here);
+//      the CV cannot answer (#339: work rights and languages — discovery asks nothing else);
 //   2. the LAST answer hands off to "Your CV, reviewed", not the jobs (AC1);
 //   3. the paper: her letterhead first, then each job with its lines as read, all ticked (AC2);
 //   4. she unticks a line (kept), reloads, re-ticks it, reloads — each tap is what the server stored (AC3);
@@ -91,8 +91,7 @@ await json(`/job-blocks/${bsh.id}/correct`, {
   body: JSON.stringify({ key: 'end', value: { state: 'unknown' } }),
 });
 
-const seeded = await qa.seedFloorAnswers();
-await qa.note(`floor answers seeded over the wire: ${seeded.length} (the floor leaves with #339)`);
+// #339: what is left to ask is eligibility — work rights for her market, then languages.
 await qa.goto('/discovery', 'the questions the CV cannot answer');
 for (let i = 0; i < 8 && !/\/review/.test(page.url()); i += 1) {
   await page.waitForTimeout(1500);

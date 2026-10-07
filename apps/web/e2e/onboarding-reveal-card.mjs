@@ -31,26 +31,26 @@ const seed = await page.evaluate(async (role) => {
   const codes = [];
   let current = await post("/api/onboarding/discovery/start", { role });
   codes.push(current.status);
+  // #339: after question 1 these are the eligibility questions only (work rights, then languages),
+  // each answered with its first real option — a put-off one would stay open and never reach "deck".
   let answered = 0;
-  let recordedNo = false;
-  while (current.state.stage !== "deck" && answered < 15) {
+  while (current.state.stage !== "deck" && answered < 6) {
     const question = current.state.questions?.[0];
     if (!question) break;
-    const no = question.options.find((option) => option === "No");
     const body = question.multiSelect
       ? { itemId: question.itemId, answers: [question.options[0]] }
-      : {
-          itemId: question.itemId,
-          answer: ((!recordedNo && no) || question.options[0]) ?? "Owned a $2M budget at Acme from 2021 to 2024",
-        };
-    if (body.answer === "No") recordedNo = true;
+      : { itemId: question.itemId, answer: question.options[0] };
     current = await post("/api/onboarding/discovery/answer", body);
     codes.push(current.status);
     answered += 1;
   }
-  return { codes, answered, recordedNo, stage: current.state.stage };
+  return { codes, answered, stage: current.state.stage };
 }, ROLE);
-await qa.note(`answered ${seed.answered} discovery questions over the real API — stage=${seed.stage}; recorded no=${seed.recordedNo}; POST status codes: ${seed.codes.join(", ")}`);
+await qa.note(`answered ${seed.answered} discovery questions over the real API — stage=${seed.stage}; POST status codes: ${seed.codes.join(", ")}`);
+// #339: those answers are eligibility, never facts, and the card's "Where you fit" needs facts to
+// list — a read, reviewed CV gives them now (the floor answers that used to are gone).
+const facts = await qa.factsFromCv();
+await qa.note(`her CV was read and reviewed — ${facts} facts for the card to score against`);
 
 // 2) The reachability boundary: reload discovery complete and let its current handoff navigate.
 await qa.goto("/discovery", "reload discovery with the current question set answered");

@@ -96,7 +96,7 @@ await assertTrue(
 );
 const before = await counters();
 
-// ---- 2. The walk a brand-new visitor takes: CV in, intent, discovery floor --------------------
+// ---- 2. The walk a brand-new visitor takes: CV in, intent, discovery ----------------------------
 await page.context().clearCookies();
 await qa.frontDoorPaste(CV_TEXT, 'the front door — a brand-new visitor pastes her CV');
 await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
@@ -113,8 +113,7 @@ if (await page.locator('#q1-role').count()) {
   await qa.click('button.go.wide', 'send question 1');
   await page.waitForTimeout(2500);
 }
-const asked = await qa.answerFloorOnScreen();
-await qa.note(`the floor questions her screen put to her: ${asked.join(', ') || '(none)'}`);
+// #339: no floor to answer — her completed review is all the deck waits for.
 
 // ---- 3. The cold deck: held, honest, then revealed once ---------------------------------------
 const cardResponses = [];

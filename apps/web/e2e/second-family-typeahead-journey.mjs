@@ -129,12 +129,12 @@ await assert(
   placedBody?.family === 'Business Analyst',
   `#255: a fresh business-analyst placement lands in the newly published family (${JSON.stringify(placedBody?.family ?? null)})`,
 );
-// The floor she is asked is the PUBLISHED package's own essentialItems, not the other family's —
-// the publication reaching a visitor, not just the registry.
+// #339: discovery no longer ASKS any family's floor — she is asked eligibility only, whatever family
+// she is placed in. The publication still reaches her: it is the plan pinned below.
 const askedIds = (placedBody?.questions ?? []).map((q) => q.itemId);
 await assert(
-  askedIds.includes('requirements-elicitation'),
-  `#255: she is asked the new family's own published floor questions (${JSON.stringify(askedIds)})`,
+  !askedIds.includes('requirements-elicitation') && (placedBody?.questions ?? []).every((q) => q.eligibility),
+  `#339: she is asked no floor question, the new family's included — eligibility only (${JSON.stringify(askedIds)})`,
 );
 const baPlan = JSON.parse((await callAsVisitor('GET', '/sessions/me')).body).discovery;
 await qa.expectVisible('#qa-wire', 'the durable record the placement wrote');

@@ -135,11 +135,9 @@ await expectAbsent(
   'AC4 (#214): the promise never names one place while several can be selected',
 );
 
-// Answer the questions one at a time, the way the screen serves them, until the work-rights
-// question is the one on screen.
+// #339: after question 1 discovery asks eligibility only, so work rights is the first question on
+// screen; the loop below answers anything ahead of it (nothing, today) the way the screen serves it.
 const workRights = page.locator('.opts[data-elig="work-rights"]');
-// #216: the researched floor mixes tap-an-option and type-your-own items, so a loop that only
-// clicks `.opts .opt` stalls on the free-text ones. answerVisibleQuestion handles both shapes.
 for (let i = 0; i < 8 && (await workRights.count()) === 0; i += 1) {
   const answered = await qa.answerVisibleQuestion({
     note: `answer the question on screen (step ${i + 1}) to reach work rights`,

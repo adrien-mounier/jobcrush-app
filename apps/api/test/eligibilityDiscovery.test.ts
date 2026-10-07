@@ -7,7 +7,6 @@
 // #162: the years-experience question is GONE — worked out, never asked (ADR-0008 clause 2). The
 // ADR's own falsifiable check is the first case below.
 import { describe, expect, it } from "vitest";
-import type { FloorItem } from "@jobcrush/contracts";
 import { ANY_FAMILY } from "../src/eligibility.js";
 import {
   DECLINE_OPTION,
@@ -21,39 +20,9 @@ import {
   mapEligibilityAnswer,
   unresolvedEligibilityQuestions,
 } from "../src/eligibilityDiscovery.js";
-import type { ClaimRecord } from "../src/claims.js";
-import { discoveryClaimId, discoveryState, type DiscoveryFamily } from "../src/discovery.js";
+import { discoveryState } from "../src/discovery.js";
 
-const FAMILY_ID = "it-project-delivery";
-const SCOPE_LABEL = "IT project delivery";
 const ROLE = "IT project manager in Paris";
-
-const floorItem = (over: Partial<FloorItem>): FloorItem => ({
-  id: "x",
-  rankBand: "essential",
-  question: "Have you owned delivery from planning through completion?",
-  options: ["Yes", "No"],
-  cvSection: "experience",
-  noIsFatal: true,
-  ...over,
-});
-
-const INTERLEAVING_FAMILY: DiscoveryFamily = {
-  label: SCOPE_LABEL,
-  familyId: FAMILY_ID,
-  suggestions: [],
-  items: [
-    floorItem({ id: "essential-one" }),
-    floorItem({
-      id: "standard-one",
-      rankBand: "standard",
-      question: "Which delivery method did you use?",
-      options: ["Agile", "Waterfall"],
-      cvSection: "skills",
-      noIsFatal: false,
-    }),
-  ],
-};
 
 describe("#106 eligibilityCandidates", () => {
   const candidates = eligibilityCandidates(ANY_FAMILY, ["Paris"]);
@@ -161,47 +130,17 @@ describe("#106 eligibilityCandidates", () => {
   });
 });
 
-describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
-  // Derives real itemIds from the candidates themselves (never a hand-typed copy of the naming
-  // scheme) — the point of this suite is to observe closing behaviour, not to re-encode the id shape.
-  const candidateItemId = (dimension: string) =>
-    eligibilityCandidates(ANY_FAMILY, []).find((q) => q.eligibility?.dimension === dimension)!
-      .itemId;
-
-  const closingClaim = (itemId: string): ClaimRecord => ({
-    id: discoveryClaimId(itemId),
-    semantic_key: discoveryClaimId(itemId),
-    field_key: null,
-    field_value: null,
-    field_label: null,
-    role: "profile",
-    text: "x",
-    machine_touch: "verbatim",
-    classification: "Verified",
-    source_quote: "x",
-    needs_grill: false,
-    grill_hint: null,
-    decision: "negative",
-    origin: "user-authored",
-  });
-
+// #339: a question is closed by a stored eligibility fact and by nothing else — the claims store is
+// no longer consulted, so a decline ("Ask me later"), which stores nothing, leaves its question open
+// (the route-level proof that it is served again lives in discovery.test.ts's "#106" block).
+describe("#106 unresolvedEligibilityQuestions — never re-asked once a fact is stored", () => {
   it("both are unresolved when nothing has been asked", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [], []);
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], []);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights", "language"]);
   });
 
-  it("a claims-store decline (confirmed, negative, or rejected — #35's three-way union) never returns, on any bucket", () => {
-    const declined = closingClaim(candidateItemId("work-rights"));
-    const inConfirmed = unresolvedEligibilityQuestions(ANY_FAMILY, [], [declined], [], [], []);
-    const inNegatives = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [declined], [], []);
-    const inRejected = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [declined], []);
-    for (const qs of [inConfirmed, inNegatives, inRejected]) {
-      expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["language"]);
-    }
-  });
-
   it("a stored eligibility fact (a real answer) also closes its question, with no claim involved", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [
       { dimension: "language", familyId: "English" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights"]);
@@ -214,7 +153,7 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   // re-asked, the same accepted-pre-launch outcome LANGUAGE_ITEM_ID's own doc records for the itemId
   // change itself.
   it("a language fact at ANY scope (including one recorded under a different language name) closes the one languages question", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [
       { dimension: "language", familyId: "Mandarin" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights"]);
@@ -223,16 +162,16 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   // #182 (#180's falsifiable checks), at this seam: a work-rights fact stored for one city never
   // closes another city's question, and switching back finds the original answer again. `familyId`
   // below is the SLUG a real write actually stores (QA round 3 must-fix) — the raw display city
-  // ("Hong Kong"/"Paris") only ever appears in `city` (this fn's 4th arg) and in question text.
+  // ("Hong Kong"/"Paris") only ever appears in `markets` (this fn's 2nd arg) and in question text.
   it("#182 AC1: a Paris work-rights answer leaves Hong Kong's question open (unknown, not borrowed)", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Hong Kong"], [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Hong Kong"], [
       { dimension: "work-rights", familyId: "paris" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toContain("work-rights");
   });
 
   it("#182 AC2: switching back to Paris finds the stored Paris answer and does not re-ask it", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Paris"], [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Paris"], [
       { dimension: "work-rights", familyId: "paris" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).not.toContain("work-rights");
@@ -364,57 +303,34 @@ describe("#123/#165 languagesUnion / languageDeclarationPlan / isValidLanguageSe
   });
 });
 
-// #106 round 3's funnel-regression rule, as a direct unit case. Before the 2026-08-12 architecture
-// pass this ordering lived in a route-local closure post-processing discoveryState()'s output, so
-// the ONLY way to assert it was to walk the HTTP funnel (discovery.test.ts). The rule is: eligibility
-// questions land after the essential band and BEFORE the standard one — the ask dock renders
-// questions[0] one at a time with no skip, so putting eligibility last forced a visitor through every
-// standard item to reach the questions that actually gate the deck.
-describe("#106 applyEligibilityQuestions — band interleaving", () => {
-  const floorItems = INTERLEAVING_FAMILY.items;
-  const standardIds = new Set(floorItems.filter((i) => i.rankBand === "standard").map((i) => i.id));
-  const bandOf = (itemId: string) =>
-    isEligibilityItemId(itemId) ? "eligibility" : standardIds.has(itemId) ? "standard" : "leading";
+// #339: the eligibility questions are the only ones discovery still asks — the floor questions and
+// #106 round 3's band interleaving went with them. discoveryState() returns no questions and stage
+// "deck" once a role exists; this layer is what holds the visitor in discovery while one is open.
+describe("#106/#339 applyEligibilityQuestions — the whole question list", () => {
+  it("the eligibility questions are the whole list, and they keep the visitor in discovery", () => {
+    const state = discoveryState(ROLE, [], [], null);
+    expect(state).toMatchObject({ stage: "deck", questions: [] }); // guard: nothing else is asked
 
-  it("places every eligibility question after the essential band and before the standard one", () => {
-    const state = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
-    expect(state.questions.some((q) => standardIds.has(q.itemId))).toBe(true); // guard: the fixture has standard items
+    applyEligibilityQuestions(state, [], ["Paris"]);
 
-    applyEligibilityQuestions(state, [], [], [], [], ["Paris"], floorItems);
-
-    const bands = state.questions.map((q) => bandOf(q.itemId));
-    expect(bands).toContain("eligibility");
-    // No standard item may precede any eligibility question, and no leading item may follow one.
-    expect(bands.indexOf("eligibility")).toBeLessThan(bands.indexOf("standard"));
-    expect(bands.lastIndexOf("leading")).toBeLessThan(bands.indexOf("eligibility"));
-    expect(bands.lastIndexOf("eligibility")).toBeLessThan(bands.indexOf("standard"));
-  });
-
-  it("keeps the visitor in discovery while any eligibility question is still open", () => {
-    const state = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
-    applyEligibilityQuestions(state, [], [], [], [], ["Paris"], floorItems);
+    expect(state.questions.length).toBeGreaterThan(0);
+    expect(state.questions.every((q) => isEligibilityItemId(q.itemId))).toBe(true);
     expect(state.stage).toBe("discovery");
   });
 
-  it("leaves the question order and stage untouched once every eligibility fact is resolved", () => {
+  it("adds nothing and leaves the stage at deck once every eligibility fact is resolved", () => {
     // The facts are derived from the questions this function itself asks, never from a hand-written
-    // familyId: two of the three dimensions are family-scoped, and a fact stored at a DIFFERENT scope
-    // silently resolves nothing (the same mismatch resolveUserYears's doc warns about). Deriving them
-    // is also the only way this test stays true if the scope derivation ever changes.
-    const probe = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
-    applyEligibilityQuestions(probe, [], [], [], [], ["Paris"], floorItems);
-    const facts = probe.questions
-      .filter((q) => q.eligibility)
-      .map((q) => ({ dimension: q.eligibility!.dimension, familyId: q.eligibility!.familyId }));
+    // familyId: work-rights is market-scoped, and a fact stored at a DIFFERENT scope silently resolves
+    // nothing. Deriving them is also the only way this test stays true if the scope derivation changes.
+    const probe = discoveryState(ROLE, [], [], null);
+    applyEligibilityQuestions(probe, [], ["Paris"]);
+    const facts = probe.questions.map((q) => ({ dimension: q.eligibility!.dimension, familyId: q.eligibility!.familyId }));
     expect(facts).not.toHaveLength(0);
 
-    const resolved = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
-    const before = [...resolved.questions];
-    const stageBefore = resolved.stage;
+    const resolved = discoveryState(ROLE, [], [], null);
+    applyEligibilityQuestions(resolved, facts, ["Paris"]);
 
-    applyEligibilityQuestions(resolved, [], [], [], facts, ["Paris"], floorItems);
-
-    expect(resolved.questions).toEqual(before);
-    expect(resolved.stage).toBe(stageBefore);
+    expect(resolved.questions).toEqual([]);
+    expect(resolved.stage).toBe("deck");
   });
 });

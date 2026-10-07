@@ -9,6 +9,7 @@ import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { loadAdRequirements } from "../src/e5stub.js";
 import type { LlmClient } from "../src/llm.js";
 import { tailorClaimId } from "../src/tailor.js";
+import type { CandidateClaim } from "@jobcrush/contracts";
 
 const ROLE = "IT project manager in Paris";
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -34,19 +35,37 @@ async function signIn(app: App, cookie: string, email: string): Promise<void> {
   await post(app, cookie, "/auth/verify", { token });
 }
 
-/** Discovery → sign in → retrieval → want: the same walk tailor.test.ts makes. */
-async function reachTailor(app: App, cookie: string, email: string) {
+type Claims = ReturnType<typeof buildServer>["claims"];
+/** One discovery answer exactly as the pre-#339 answer route wrote it: id `discovery-<item>`,
+ *  semantic_key the bare item id, the visitor's own words as the line. */
+const floorClaim = (itemId: string, text: string, answer: string): CandidateClaim => ({
+  id: `discovery-${itemId}`,
+  semantic_key: itemId,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "profile",
+  text,
+  machine_touch: "verbatim",
+  classification: "Verified",
+  source_quote: answer,
+  needs_grill: false,
+  grill_hint: null,
+});
+
+/** Discovery → sign in → retrieval → want: the same walk tailor.test.ts makes. #339: discovery no
+ *  longer asks the floor and the deck no longer waits on it, so the four answers the drafts read
+ *  (three facts + the RISKS "No") are planted in the claims store as the old route wrote them. */
+async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie: string, email: string) {
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: STAKEHOLDERS,
-    answer: "Business, engineering, and vendors",
-  });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
-  await post(app, cookie, "/onboarding/discovery/answer", {
-    itemId: COMMUNICATION,
-    answer: "Weekly steering updates",
-  });
+  const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+  await claims.add(sid, floorClaim(END_TO_END, "Owned delivery from planning through completion.", "Yes"));
+  await claims.add(sid, floorClaim(STAKEHOLDERS, "Business, engineering, and vendors.", "Business, engineering, and vendors"));
+  await claims.answerNegative(
+    sid,
+    floorClaim(RISKS, "Not applicable — Have you acted on delivery risks, dependencies, timelines, or budgets?", "No"),
+  );
+  await claims.add(sid, floorClaim(COMMUNICATION, "Weekly steering updates.", "Weekly steering updates"));
   await signIn(app, cookie, email);
   await warmRetrieval(app, cookie);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
@@ -117,18 +136,18 @@ describe("#310 POST /onboarding/tailor/draft — guards", () => {
   });
 
   it("503s honestly when no model client is wired — never an invented draft", async () => {
-    const { app } = buildServer();
+    const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-unwired@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-unwired@example.com");
     const res = await post(app, cookie, "/onboarding/tailor/draft");
     expect(res.statusCode).toBe(503);
     expect(res.json().error.code).toBe("draft_unavailable");
   });
 
   it("GET before any draft exists is an honest 404, not an empty document", async () => {
-    const { app } = buildServer({ tailorLlm: draftingLlm().llm });
+    const { app, claims } = buildServer({ tailorLlm: draftingLlm().llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-none-yet@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-none-yet@example.com");
     const res = await get(app, cookie, "/onboarding/tailor/draft");
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe("no_draft");
@@ -138,9 +157,9 @@ describe("#310 POST /onboarding/tailor/draft — guards", () => {
 describe("#310 the draft is the CV brain's, checkpointed, and the ending can read it", () => {
   it("draft → checkpoint → read: one model call, then reuse for free, exit costs nothing", async () => {
     const { prompts, llm } = draftingLlm();
-    const { app } = buildServer({ tailorLlm: llm });
+    const { app, claims } = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-happy@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-happy@example.com");
 
     const started = await post(app, cookie, "/onboarding/tailor/draft");
     expect(started.statusCode).toBe(202);
@@ -180,9 +199,9 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
 
   it("a supported answer changes the facts, so the next draft is a fresh one — never the stale checkpoint", async () => {
     const { prompts, llm } = draftingLlm();
-    const { app } = buildServer({ tailorLlm: llm });
+    const { app, claims } = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-redraft@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-redraft@example.com");
 
     const first = await post(app, cookie, "/onboarding/tailor/draft");
     await awaitJob(app, cookie, first.json().jobId);
@@ -207,9 +226,9 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
 
   it("a 'No' and an open gap ride as context — never as claims the engine may render from (#66/#287)", async () => {
     const { prompts, llm } = draftingLlm();
-    const { app } = buildServer({ tailorLlm: llm });
+    const { app, claims } = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-negative@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-negative@example.com");
 
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
     const advertQuestions = state.questions.filter((q: { kind?: string }) => q.kind !== "profile");
@@ -240,7 +259,7 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     const { prompts, llm } = draftingLlm();
     const server = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(server.app);
-    await reachTailor(server.app, cookie, "draft-header@example.com");
+    await reachTailor(server, cookie, "draft-header@example.com");
     // What the pipeline's extract step persists at mine time (server.ts's persistContact default,
     // extract.ts's extractContact.header) — written directly here because reachTailor's walk has
     // no CV upload in it.
@@ -261,9 +280,9 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
 
   it("GET never serves a draft the facts have outgrown — a stale checkpoint reads as no draft", async () => {
     const { llm } = draftingLlm();
-    const { app } = buildServer({ tailorLlm: llm });
+    const { app, claims } = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-stale-get@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-stale-get@example.com");
 
     const started = await post(app, cookie, "/onboarding/tailor/draft");
     await awaitJob(app, cookie, started.json().jobId);
@@ -282,9 +301,9 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
 
   it("a draft that still fails the lint after its retry ships WITH its plain-words notices", async () => {
     const { prompts, llm } = draftingLlm({ citeUnknownId: true });
-    const { app } = buildServer({ tailorLlm: llm });
+    const { app, claims } = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "draft-lossy@example.com");
+    await reachTailor({ app, claims }, cookie, "draft-lossy@example.com");
 
     const started = await post(app, cookie, "/onboarding/tailor/draft");
     await awaitJob(app, cookie, started.json().jobId);
@@ -301,9 +320,9 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
 describe("#311 the never-print list is session-wide, not advert-scoped", () => {
   it("the prompt's never-print block carries the discovery 'No', scaffolding stripped", async () => {
     const { prompts, llm } = draftingLlm();
-    const { app } = buildServer({ tailorLlm: llm });
+    const { app, claims } = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "denied-in-prompt@example.com"); // records the RISKS discovery "No"
+    await reachTailor({ app, claims }, cookie, "denied-in-prompt@example.com"); // records the RISKS discovery "No"
     const res = await post(app, cookie, "/onboarding/tailor/draft");
     expect(res.statusCode).toBe(202);
     await awaitJob(app, cookie, res.json().jobId);

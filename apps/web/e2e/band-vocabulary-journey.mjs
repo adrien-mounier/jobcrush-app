@@ -80,7 +80,7 @@ await qa.goto('/discovery', 'onboarding: discovery — establishes the anonymous
 await page.waitForTimeout(700);
 await qa.expectVisible('body', 'discovery is up on the live API (no mocks anywhere in this flow)');
 
-await qa.note('seed the discovery floor + sign in over the real magic-link path');
+await qa.note('start discovery, bring a CV + sign in over the real magic-link path');
 await page.evaluate(
   async ({ role }) => {
     await fetch('/api/onboarding/discovery/start', {
@@ -91,11 +91,11 @@ await page.evaluate(
   },
   { role: ROLE },
 );
-// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note on
-// seedFloorAnswers records why. `no: true` keeps the closed-with-a-No fact this journey needs.
-const seededItems = await qa.seedFloorAnswers({ yes: 'Yes, over $1M', no: true });
-if (seededItems.length === 0) throw new Error('no floor questions were served - the session was never placed');
-await qa.note(`seeded the floor her placed family actually asks: ${seededItems.join(', ')}`);
+// #339: the floor answers that used to give the deck its facts are gone; her read, reviewed CV
+// gives them now, so the cards score against real evidence and carry met/unmet lists to read.
+const facts = await qa.factsFromCv();
+if (!(facts > 0)) throw new Error(`her CV gave the session no facts (${facts})`);
+await qa.note(`her CV was read and reviewed — ${facts} facts on her record`);
 const seeded = await page.evaluate(
   async ({ email }) => {
     const post = (url, body) =>
@@ -122,6 +122,9 @@ await qa.note('signed in — the deck is now reachable');
 // 1. The reveal -> the deck. The first surface the migration touched.
 // -------------------------------------------------------------------------------------------
 await qa.goto('/deck', 'the reveal');
+// The reveal paints once the deck read settles (her CV's facts are judged first) — wait for it
+// rather than asserting into the gap.
+await page.getByRole('heading', { name: /matched you/ }).waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
 await qa.expectVisible(page.getByRole('heading', { name: /matched you/ }), 'the reveal headline');
 await qa.click(page.getByRole('button', { name: 'See them' }), 'See them — into the card deck');
 

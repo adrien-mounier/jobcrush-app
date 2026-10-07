@@ -76,7 +76,10 @@ import { fileURLToPath } from "node:url";
 // #338 lowered it from 664: the date-hole answer branch left the discovery answer route — the
 // question is asked on the job's own card in "Your CV, reviewed" now, whose routes are their own
 // plugin (routes/review.ts) over their own module (cvReview.ts). The spine gained nothing.
-const MAX_LINES = 648;
+// #339 lowered it from 648: discovery stopped asking people to describe their own work. The floor-item
+// and reader-only answer branches and the GET's reader question are gone outright, and what is left of
+// the answer route is eligibility — whose write path already lived in eligibilityDiscovery.ts.
+const MAX_LINES = 536;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

@@ -104,7 +104,8 @@ await qa.goto('/', 'the front door');
 await asVisitor('POST', '/qa/stack', { retrievalOutcome: 'relevant_postings' });
 
 // =============================================================================================
-// 1. WALK HER ALL THE WAY IN, the way a real visitor gets there: intent, CV, floor, sign-in, deck.
+// 1. WALK HER ALL THE WAY IN, the way a real visitor gets there: CV, intent, discovery, sign-in,
+//    deck. (#339: discovery asks no floor any more; her completed review is what opens the deck.)
 // =============================================================================================
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
@@ -116,11 +117,9 @@ await qa.fill('#search-area', AREA, `where she is looking to start with: ${AREA}
 await qa.click('button:has-text("Save and continue")', 'Save and continue');
 await page.waitForTimeout(1200);
 
-await qa.goto('/discovery', 'into discovery — the family floor questions');
+await qa.goto('/discovery', 'into discovery — the sign-up questions');
 // #322: the front door already took the role, so discovery opens on the checklist — no question 1.
 await page.waitForTimeout(2500);
-const asked = await qa.answerFloorOnScreen();
-await qa.note(`the questions her own screen put to her: ${asked.join(', ') || '(none)'}`);
 
 const signIn = await asVisitor('POST', '/auth/request-link', { email: `stale-tailor-${Date.now()}@example.com` });
 const devLink = signIn.json?.devLink;
@@ -132,6 +131,7 @@ await assertTrue(
   earned.retrieval?.outcome === 'relevant_postings' && earned.cards.length > 0,
   `she has earned a real deck to swipe on (${earned.cards.length} cards, ${earned.retrieval?.outcome})`,
 );
+const factsBefore = (await json('/onboarding/discovery'))?.factCount;
 
 // =============================================================================================
 // 2. SHE SWIPES RIGHT. Tailoring starts on a specific advert — this is the job she must not lose.
@@ -206,11 +206,12 @@ await assertTrue(
   `AND SHE CAN SEE THEM — the deck screen offers her jobs, not an error: "${backOnScreen.slice(0, 120)}"`,
 );
 
-// Nothing was reset on the way: her answers are hers, this was a redirect and not a fresh start.
-const record = (await json('/sessions/me'))?.discovery;
+// Nothing was reset on the way: her facts are hers and her review still stands — this was a redirect
+// and not a fresh start. (#339: the floor checkpoint this used to read gates nothing any more.)
+const factsAfter = (await json('/onboarding/discovery'))?.factCount;
 await assertTrue(
-  record?.checkpoint === 'essential_floor_covered',
-  `NOTHING WAS TAKEN FROM HER — everything she answered survived the round trip (${record?.checkpoint})`,
+  factsAfter === factsBefore && reRun.reviewPending !== true,
+  `NOTHING WAS TAKEN FROM HER — her ${factsBefore} facts survived the round trip (${factsAfter} now) and her CV review still stands`,
 );
 
 const ok = await qa.finish();

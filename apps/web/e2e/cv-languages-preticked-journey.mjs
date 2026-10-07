@@ -1,6 +1,6 @@
 // #336 — "languages pre-ticked from the CV's own level", driven the way a person drives it.
 //
-//   front door -> discovery -> role -> the floor -> work-rights -> THE LANGUAGES QUESTION, where
+//   front door -> discovery -> role -> work-rights -> THE LANGUAGES QUESTION, where
 //     * the CV's Native / Fluent / Professional languages arrive already ticked,
 //     * a language at any other level arrives unticked, with the CV's own level word beside it,
 //     * a language the CV gives no level for arrives unticked and bare (never dropped),
@@ -73,11 +73,7 @@ await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going 
 await qa.click(page.getByRole('button', { name: "That's me" }), 'Q1: submit the role');
 await page.waitForTimeout(2000);
 
-// 2. The floor (seeded over the wire — not under test here), then reload onto the eligibility block.
-const seeded = await qa.seedFloorAnswers();
-await qa.note(`floor answers seeded over the wire: ${seeded.length}`);
-await qa.goto('/discovery', 'back onto discovery — the eligibility block');
-await page.waitForTimeout(1500);
+// 2. The eligibility block — #339: the only questions after Q1. Work rights first, then languages.
 for (let i = 0; i < 4; i++) {
   if (await page.locator('.discovery fieldset.elig-group').count()) break;
   if (!(await qa.answerVisibleQuestion({ note: `answer the eligibility question on screen (${i + 1})` }))) break;

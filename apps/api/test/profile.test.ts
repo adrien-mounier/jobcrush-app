@@ -85,6 +85,16 @@ async function mineAndGetJob(server: ReturnType<typeof buildServer>, cookie: str
 const ROLE = "IT project manager in Paris, mostly ERP";
 const END_TO_END = "end-to-end-delivery";
 const END_TO_END_CLAIM = `discovery-${END_TO_END}`;
+// #339: the answer route no longer takes floor answers, so a test that needs one on record plants it
+// in the shape that route used to write.
+const END_TO_END_ANSWER = claim({
+  id: END_TO_END_CLAIM,
+  semantic_key: END_TO_END,
+  role: "profile",
+  text: "Owned delivery from planning through completion.",
+});
+const sessionIdOf = async (server: ReturnType<typeof buildServer>, cookie: string) =>
+  (await get(server.app, cookie, "/sessions/me")).json().id as string;
 
 interface ProfileFact {
   id: string;
@@ -203,11 +213,9 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const cookie = await anonSession(server.app);
     await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    const answered = await post(server.app, cookie, "/onboarding/discovery/answer", {
-      itemId: END_TO_END,
-      answer: "Yes",
-    });
-    expect(answered.json().factCount).toBe(1);
+    await server.claims.add(await sessionIdOf(server, cookie), END_TO_END_ANSWER);
+    // Shown once on the discovery screen, which is what raises the session's floor.
+    expect((await get(server.app, cookie, "/onboarding/discovery")).json().factCount).toBe(1);
 
     await signIn(server.app, cookie, "e2e3@example.com");
     await post(server.app, cookie, `/onboarding/claims/${END_TO_END_CLAIM}/reject`);
@@ -402,10 +410,9 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const server = buildServer();
     const cookie = await anonSession(server.app);
     await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(server.app, cookie, "/onboarding/discovery/answer", {
-      itemId: END_TO_END,
-      answer: "No",
-    });
+    const sessionId = await sessionIdOf(server, cookie);
+    await server.claims.answerNegative(sessionId, { ...END_TO_END_ANSWER, text: "No" });
+    expect((await server.claims.negatives(sessionId)).map((c) => c.id)).toContain(END_TO_END_CLAIM);
 
     const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
     const allIds = domains.flatMap((d) => d.facts.map((f) => f.id));

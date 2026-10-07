@@ -44,11 +44,10 @@ const reqIds = (state) => [
   ...(state.card?.fit ?? []), ...(state.card?.askedClosed ?? []), ...(state.questions ?? []),
 ].map((x) => JSON.stringify(x)).join(' ');
 
-// 0. Seed: discovery floor (no discovery "No" — keeps the only denials the ones under test), sign in.
+// 0. Seed: question 1, sign in. #339: discovery takes no other answer, so the only denials on this
+//    session are the tailor "No"s under test.
 await qa.goto('/discovery', 'land on discovery — establishes the anonymous session');
 await call('/api/onboarding/discovery/start', { role: ROLE });
-const seeded = await qa.seedFloorAnswers({ yes: 'Yes, over $1M' });
-if (seeded.length === 0) throw new Error('no floor questions served');
 const link = (await call('/api/auth/request-link', { email: EMAIL })).json;
 if (!link?.devLink) throw new Error(`sign-in failed: ${JSON.stringify(link)}`);
 await call('/api/auth/verify', { token: new URL('http://x' + link.devLink).searchParams.get('token') });

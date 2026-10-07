@@ -382,7 +382,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
               .status(400)
               .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
           const written = await answerEligibilityItem(
-            { eligibility: deps.eligibility, claims: deps.claims },
+            { eligibility: deps.eligibility },
             session.id,
             [ask.market],
             ask.requirementId,

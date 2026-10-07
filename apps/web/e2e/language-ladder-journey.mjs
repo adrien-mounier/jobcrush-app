@@ -6,7 +6,7 @@
 // that leaving Mandarin unticked REMOVES the Mandarin-mandatory posting, which is exactly the harm
 // #165 was written to delete. This journey proves the promise on the rendered screen:
 //
-//   front door -> discovery -> the floor -> work-rights -> THE LANGUAGES TYPE-AHEAD (a known word
+//   front door -> discovery -> work-rights -> THE LANGUAGES TYPE-AHEAD (a known word
 //   completed from the list, and a word OFF the list kept in the person's own spelling, with
 //   Mandarin and Cantonese deliberately LEFT OUT) -> sign in -> the deck, where
 //     * the Mandarin-MANDATORY posting is STILL THERE (leaving a language out costs nothing),
@@ -109,27 +109,8 @@ await qa.click(page.getByRole('button', { name: "That's me" }), 'Q1: submit the 
 await page.waitForTimeout(1800);
 
 // -------------------------------------------------------------------------------------------
-// 3. The discovery floor, until the eligibility block opens.
-// -------------------------------------------------------------------------------------------
-let floorAnswered = 0;
-for (let i = 0; i < 14; i++) {
-  if (await eligDim()) break;
-  const opt = page.locator('.discovery .opts .opt').first();
-  if (await opt.count()) {
-    const label = (await opt.textContent()).trim();
-    await qa.click(opt, `floor answer ${i + 1}: "${label}"`);
-  } else if (await page.locator('#floor-free').count()) {
-    await qa.fill('#floor-free', 'Owned a $2M budget at Acme from 2021 to 2024', `floor answer ${i + 1}: typed`);
-    await qa.click('.discovery .field .go', `floor answer ${i + 1}: Continue`);
-  } else break;
-  await page.waitForTimeout(2100);
-  floorAnswered++;
-  if (!page.url().includes('/discovery')) break;
-}
-await qa.note(`REGRESSION: answered ${floorAnswered} floor questions before the eligibility block opened`);
-
-// -------------------------------------------------------------------------------------------
-// 4. work-rights — the eligibility question #165 did not touch.
+// 4. work-rights — the eligibility question #165 did not touch. #339: it comes straight after
+//    question 1; there is no floor to walk through first.
 // -------------------------------------------------------------------------------------------
 await assert((await eligDim()) === 'work-rights', `REGRESSION: work-rights is still asked (got "${await eligDim()}")`);
 await qa.click(page.locator('.discovery .opts .opt').first(), 'answer work-rights with the first option');

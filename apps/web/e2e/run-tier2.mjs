@@ -38,7 +38,8 @@ const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 // auth's 5-per-15-min limiter budget.
 // eligibility-questions-journey.mjs added 2026-08-13 (#205), and it earns its slot on the same rule:
 // it is the ONLY journey that walks the eligibility block as a person does — answer, correct the
-// answer, retract it to "ask me later", and reach the deck — against real stores. It had been red
+// answer, retract it to "ask me later", reach the deck, and (#339) be asked the put-off questions
+// again on a later visit — against real stores. It had been red
 // for weeks precisely because it was in no tier: Tier 1 globs *.spec.ts and never sees a .mjs
 // journey, so the single end-to-end proof of the gate questions rotted unwatched. Measured cost:
 // ~3.5min, no sign-in, so it spends none of auth's 5-per-15-min limiter budget (it does mint two
@@ -95,10 +96,10 @@ export const JOURNEYS = [
   // #322: the front door's role is question 1 answered — discovery opens on the checklist, a reload
   // re-asks nothing, and a role-less visitor is still asked. Measured 2026-10-02: under a minute.
   "front-door-role-handoff-journey.mjs",
-  // #324 (left by the QA gate, adopted): "a non-answer is never stored as a fact" on the rendered
-  // screen — the skip and a typed "I don't know" close the question with no CV line, no fact-count
-  // move, nothing on the profile, and the deck still opens. No sign-in.
-  "non-answer-skip-journey.mjs",
+  // non-answer-skip-journey.mjs (#324) was retired by #339: every claim it made was about the
+  // free-text floor question and its "Not sure — skip", both gone. "Ask me later stores nothing" is
+  // now proven on screen by eligibility-questions-journey.mjs and server-side by
+  // apps/api/test/discoveryStopsAsking.test.ts.
   "master-cv-dates-note-journey.mjs",
   // #222: the only journey that can catch the family-scoped years reading going dead on the
   // shipped journey — the exact regression its own QA gate found once already (a production
@@ -106,20 +107,16 @@ export const JOURNEYS = [
   // unmapped one falls back to the career total. ~3 min against the fake-model API.
   "family-years-scope-journey.mjs",
   // #216 (over #234): the only journey that walks the shipped discovery screen and then reads back
-  // the record HER OWN answers wrote - the plan pinned to her session and the coverage checkpoint
-  // the reveal is gated on. It is the guard against the two engines growing back (it asserts the
-  // retired /onboarding/discovery/production/* routes are gone) and against #235's word search
-  // regressing into a refusal for the visitor no published family covers. ~2 min against the
-  // fake-model API; one magic-link sign-in.
+  // the plan pinned to her session (#339: floors kept for matching, never asked; a floor answer is
+  // refused). It is the guard against the two engines growing back (it asserts the retired
+  // /onboarding/discovery/production/* routes are gone, and that #59's fixture seam writes nothing)
+  // and against #235's word search regressing into a refusal for the visitor no published family
+  // covers. ~1 min against the fake-model API; one magic-link sign-in.
   "discovery-plan-split-journey.mjs",
-  // #216: the only journey that answers every floor question by PRESSING THE SCREEN'S OWN BUTTONS
-  // (option buttons and the free-text items alike) and then reads back the record those presses
-  // wrote. That is the ticket's whole claim - the questions she is asked are the questions the
-  // reveal is earned from - and a payload-level POST cannot prove it, which is exactly why the
-  // defect survived a green suite for so long. Also drives BOTH ends of the labeler in real
-  // browsers and probes #59's fixture seam for a reveal it must not be able to authorize.
-  // Measured ~3 min against the fake-model API; one magic-link sign-in.
-  "discovery-earns-reveal-gate.mjs",
+  // discovery-earns-reveal-gate.mjs (#216) was retired by #339: its claim — the floor answers she
+  // presses are what earn the reveal — is gone with the floor questions. Its surviving checks (the
+  // retired production routes, the fixture seam, the unplaceable role served) live in
+  // discovery-plan-split-journey.mjs.
   // #282, added on its own QA gate's finding: the industry axis's real-stack journeys were in NO
   // tier, so the only end-to-end proof of the second label axis ran when somebody remembered to run
   // it. That is the fourth time this repo has hit the same shape (see lessons.md), and it bit here
@@ -132,9 +129,10 @@ export const JOURNEYS = [
   //                         the correction's response STATUS, which the older journey could not see.
   "job-blocks-industry-journey.mjs",
   "job-blocks-industry-lookup-journey.mjs",
-  // #248: the only journey that attacks the reveal authorization instead of walking it. It plants a
-  // real, fresh, fingerprint-matching advert snapshot on a session whose floor is NOT covered - the
-  // state #246 creates on purpose - and then tries every door onto the posting pool: the deck, a
+  // #248: the only journey that attacks the reveal authorization instead of walking it. It holds a
+  // real, fresh, fingerprint-matching advert snapshot on a session that has NOT earned its deck (#339:
+  // a brought CV not yet reviewed) - the state #246 creates on purpose - and then tries every door
+  // onto the posting pool: the deck, a
   // guessed advert id at the want route, the tailor target, and her own session record. The guard
   // was wrong once in exactly this way (it covered the deck's status field but not its cards), so
   // the property needs a journey that would go red rather than a reviewer who happens to look.
@@ -164,7 +162,7 @@ export const JOURNEYS = [
   // enforce would ship guarded by nothing, which is the exact rot this file's header describes. It
   // proves the sentence names no job family, vocabulary, research or place, for a MAPPED visitor and
   // for a word-search visitor alike; that the number she is promised is the one her own search
-  // returned and holds across four answers and a reload; and that an empty search and a provider
+  // returned and holds across her answers and a reload; and that an empty search and a provider
   // outage each leave no promise line at all rather than a broken one or a zero. ~2 min against the
   // fake-model API; no sign-in, so it spends none of auth's 5-per-15-min limiter budget.
   "promise-counts-her-own-search-journey.mjs",

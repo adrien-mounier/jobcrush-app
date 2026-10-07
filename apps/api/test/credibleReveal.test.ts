@@ -13,7 +13,7 @@ import { loadPostings } from "../src/preview.js";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
 import {
   buildDeckServer,
-  coverEssentialFloor,
+  discoveryFact,
   fixtureRetriever,
   getCardsWhenRetrieved,
   injectSettled,
@@ -57,7 +57,7 @@ describe("#63 fixtures can never authorize a reveal", () => {
   // open by definition — an empty floor list is covered, and her typed words are the query. It is
   // deliberately the weakest gate in the product, which makes it the sharpest test of this ticket:
   // even where nothing has to be earned, a card still cannot exist without a retrieval result. The
-  // family path's own refusal is the next test down.
+  // family path is the next test down.
   it("reveals a count built only from retrieved adverts once retrieval succeeds", async () => {
     const { app } = buildDeckServer();
     const cookie = await anonSession(app);
@@ -67,10 +67,11 @@ describe("#63 fixtures can never authorize a reveal", () => {
     expect(body.cards.every((card) => card.adId.startsWith("posting:"))).toBe(true);
   });
 
-  // AC2: the gate is the SERVER's. A session whose essential floor is still open is refused, and no
-  // amount of asking again changes it — there is no client-side flag to flip, because the refusal
-  // is computed from session state the client does not own.
-  it("refuses the reveal while the essential floor is open, and grants it once she covers it", async () => {
+  // AC2: the gate is the SERVER's. #339 removed the essential-floor gate this test used to refuse on
+  // (discovery no longer asks the floor, so nothing could cover it): a family-path session with
+  // nothing answered past question 1 is revealed retrieved adverts, never `floor_not_covered`. The
+  // gate that remains — #338's completed review — is driven over HTTP in cvReview.test.ts.
+  it("reveals a family-path deck with no floor answered — the floor gates nothing any more", async () => {
     const { app } = buildItProjectDeliveryServer({ retrievePostings: fixtureRetriever() });
     const cookie = await anonSession(app);
     await app.inject({
@@ -80,16 +81,10 @@ describe("#63 fixtures can never authorize a reveal", () => {
       payload: { role: "IT project manager in Hong Kong" },
     });
 
-    const refused = await deck(app, cookie);
-    expect(refused.cards).toEqual([]);
-    expect(refused.retrieval).toMatchObject({ outcome: "invalid_request", code: "floor_not_covered" });
-    // Asking again is still a refusal — the server is not holding a deck back behind a flag.
-    expect((await deck(app, cookie)).cards).toEqual([]);
-
-    await coverEssentialFloor(app, cookie);
     const earned = await deck(app, cookie);
     expect(earned.retrieval.outcome).toBe("relevant_postings");
     expect(earned.cards.length).toBeGreaterThan(0);
+    expect(earned.cards.every((card) => card.adId.startsWith("posting:"))).toBe(true);
   });
 
   // AC3: a search that finished and found nothing is a real, honest zero — no cards, and no reward
@@ -129,25 +124,31 @@ describe("#63 fixtures can never authorize a reveal", () => {
   // done. Only the dependent result — the deck — invalidates.
   it("keeps evidence and discovery when intent changes; only the deck re-runs", async () => {
     let calls = 0;
-    const { app } = buildItProjectDeliveryServer({
+    const { app, claims } = buildItProjectDeliveryServer({
       retrievePostings: async (...args) => {
         calls += 1;
         return fixtureRetriever()(...(args as []));
       },
     });
-    const cookie = await anonSession(app);
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const sessionId = created.json().id as string;
+    const cookie = `jc_session=${created.cookies.find((c) => c.name === "jc_session")!.value}`;
     await app.inject({
       method: "POST",
       url: "/onboarding/discovery/start",
       headers: { cookie },
       payload: { role: "IT project manager in Hong Kong" },
     });
-    await coverEssentialFloor(app, cookie);
+    // #339: discovery no longer asks for these, so plant one answer of each kind straight into the
+    // store — the facts the intent change below must not throw away.
+    await claims.add(sessionId, discoveryFact("end-to-end-delivery", "Led delivery end to end."));
+    await claims.answerNegative(sessionId, discoveryFact("delivery-communication", "No"));
     expect((await deck(app, cookie)).cards.length).toBeGreaterThan(0);
     const callsAfterFirstDeck = calls;
     const coveredBefore = (
       await injectSettled(app, { method: "GET", url: "/onboarding/discovery", headers: { cookie } })
     ).json();
+    expect(coveredBefore.factCount).toBeGreaterThanOrEqual(2);
 
     // She changes where she is looking. That is a different search.
     const changed = await injectSettled(app, {

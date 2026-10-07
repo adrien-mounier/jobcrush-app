@@ -794,11 +794,11 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     });
   });
 
-  // #248: `floor_not_covered` left the table above because it is no longer a fetch-time refusal.
-  // The deck answers it itself, on the spot — so there is no background retrieval, no claim and no
-  // in-progress round trip to wait for. Strictly better than the dance the other arms still do, and
-  // a different enough shape that sharing their body would have meant a branch inside it.
-  it("refuses an uncovered floor on the spot, without starting any retrieval", async () => {
+  // #248 moved `floor_not_covered` out of the table above into an on-the-spot deck refusal; #339
+  // removed that refusal (discovery no longer asks the floor, so nothing could cover it). An
+  // uncovered floor now starts the retrieval like any other session, and its answer is the
+  // retriever's own — never `floor_not_covered`.
+  it("an uncovered floor no longer refuses: the deck starts the retrieval like any other", async () => {
     const productionFamilyFloors = initialProductionFamilyFloors();
     const retrievePostings = vi.fn(
       makePostingRetriever({
@@ -823,13 +823,20 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const response = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().retrieval).toEqual({
-      schemaVersion: "5",
-      outcome: "invalid_request",
-      code: "floor_not_covered",
+    expect(response.json().retrieval).toMatchObject({
+      outcome: "provider_unavailable",
+      reason: "posting retrieval is in progress",
     });
-    // Nothing fetched, nothing claimed, nothing stored: an unearned deck does not start work.
-    expect(retrievePostings).not.toHaveBeenCalled();
-    expect((await built.sessions.getById(id))?.retrieval).toBeNull();
+    // The uncovered checkpoint still travels in the request (it is part of the fingerprint)...
+    expect(retrievePostings).toHaveBeenCalledOnce();
+    expect(retrievePostings.mock.calls[0]![0]).toMatchObject({ checkpoint: "family_confirmed" });
+    // ...and what lands is the retriever's answer — this test's empty registry covers no area.
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.result).toEqual({
+        schemaVersion: "5",
+        outcome: "invalid_request",
+        code: "search_area_not_covered",
+      }),
+    );
   });
 });

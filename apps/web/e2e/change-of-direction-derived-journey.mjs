@@ -139,8 +139,6 @@ async function visitor({ moveFamily, label }) {
   await qa.fill('#q1-role', ROLE, 'the role she is going for — this pins the deck to her TARGET family');
   await qa.click('button.go.wide', 'answer the role question');
   await page.waitForTimeout(2500);
-  const seeded = await qa.seedFloorAnswers({ yes: 'Yes, across three vendor teams' });
-  qa.note(`${label}: answered the floor — ${seeded.join(', ') || 'nothing left to answer'}`);
 
   // Wanting a job requires an account; the wall stands between "See them" and the cards, and this
   // journey is about what the deck SAYS, not about the wall.

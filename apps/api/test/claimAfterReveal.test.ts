@@ -8,7 +8,7 @@
 // claim about the whole flow, not about one store's update statement.
 import { describe, expect, it } from "vitest";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
-import { coverEssentialFloor, fixtureRetriever, getCardsWhenRetrieved } from "./fixtureDeck.js";
+import { discoveryFact, fixtureRetriever, getCardsWhenRetrieved } from "./fixtureDeck.js";
 
 type Built = ReturnType<typeof buildItProjectDeliveryServer>;
 type App = Built["app"];
@@ -24,8 +24,8 @@ const deck = async (app: App, cookie: string) =>
     authed: boolean;
   };
 
-/** A visitor at the reveal, exactly as she arrives there: an upload of her own, a typed intent, a
- *  covered family floor with one explicit "no" among her answers, and a deck of retrieved adverts.
+/** A visitor at the reveal, exactly as she arrives there: an upload of her own, a typed intent,
+ *  answers with one explicit "no" among them, and a deck of retrieved adverts.
  *  `retrievals` counts every trip to the provider seam — the replay detector. */
 async function visitorAtTheReveal() {
   const retrieve = fixtureRetriever();
@@ -54,8 +54,12 @@ async function visitorAtTheReveal() {
     payload: { role: "IT project manager in Hong Kong" },
   });
   // One "no" among the answers: an explicit negative is a fact she gave us like any other, and it is
-  // named in AC2's list of what must survive the claim.
-  await coverEssentialFloor(app, cookie, { "delivery-communication": "No" });
+  // named in AC2's list of what must survive the claim. #339: discovery no longer asks the floor, so
+  // her answers are planted straight into the claims store — and no floor stands between her and
+  // the deck any more.
+  const sessionId = (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id;
+  await built.claims.add(sessionId, discoveryFact("end-to-end-delivery", "Led delivery end to end."));
+  await built.claims.answerNegative(sessionId, discoveryFact("delivery-communication", "No"));
 
   const earned = await deck(app, cookie);
   expect(earned.cards.length).toBeGreaterThan(0);

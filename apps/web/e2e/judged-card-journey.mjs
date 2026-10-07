@@ -44,9 +44,10 @@ const judgeDelta = (before, after) =>
       .filter(([, v]) => v !== 0),
   );
 
-// 1) Land, and seed the essential discovery band over the real API — the deck must score against
-//    genuine confirmed facts, not an empty profile (with no facts at all judge.ts short-circuits
-//    the model call entirely and every requirement honestly grades 0, which proves nothing here).
+// 1) Land, start discovery, and bring a CV over the real API — the deck must score against genuine
+//    confirmed facts, not an empty profile (with no facts at all judge.ts short-circuits the model
+//    call entirely and every requirement honestly grades 0, which proves nothing here). #339: the
+//    floor answers that used to supply those facts are gone; a read, reviewed CV supplies them now.
 await qa.goto("/discovery", "land on discovery — the anonymous session is created here");
 await qa.scrollThrough("read the discovery screen the way a first-time visitor does");
 
@@ -58,12 +59,8 @@ const seed = await page.evaluate(async (role) => {
   codes.push(await post("/api/onboarding/discovery/start", { role }));
   return codes;
 }, ROLE);
-// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note
-// on seedFloorAnswers records what hard-coding them cost the last time.
-// The answers stay deliberately in the candidate's OWN words, never the adverts' phrasing - the
-// exact shape the old token-overlap scorer scored 0 on and a meaning-aware judge should recognise.
-const seededItems = await qa.seedFloorAnswers({ yes: "Yes, over $1M across cross-functional teams" });
-qa.note(`seeded discovery over the real API — start ${seed.join(", ")}, floor answered: ${seededItems.join(", ") || "nothing"}`);
+const facts = await qa.factsFromCv();
+qa.note(`seeded over the real API — discovery start ${seed.join(", ")}, her CV read and reviewed: ${facts} facts`);
 
 // 2) Sign in (magic-link dev token): wanting a job is post-wall (S2), and this journey ends in the
 //    tailor.

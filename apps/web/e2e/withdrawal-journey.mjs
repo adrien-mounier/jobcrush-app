@@ -55,31 +55,10 @@ await qa.goto('/discovery', 'into discovery');
 await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going for/ }), ROLE, 'Q1: type the role');
 await qa.click(page.getByRole('button', { name: "That's me" }), "Q1: submit the role");
 await page.waitForTimeout(1800);
-await qa.expectVisible('.discovery .countdown', 'the countdown appears with the first question');
+await qa.scrollThrough('read the screen question 1 leaves her on');
 
 // ---------------------------------------------------------------------------------------------
-// 3. Walk the discovery floor until the eligibility block opens.
-// ---------------------------------------------------------------------------------------------
-let floorAnswered = 0;
-for (let i = 0; i < 14; i++) {
-  if (await eligDim()) break;
-  const opt = page.locator('.discovery .opts .opt').first();
-  if (await opt.count()) {
-    const label = (await opt.textContent()).trim();
-    await qa.click(opt, `floor answer ${i + 1}: "${label}"`);
-  } else if (await page.locator('#floor-free').count()) {
-    await qa.fill('#floor-free', 'Owned a $2M budget at Acme from 2021 to 2024', `floor answer ${i + 1}: typed`);
-    await qa.click('.discovery .field .go', `floor answer ${i + 1}: Continue`);
-  } else break;
-  await page.waitForTimeout(2100);
-  floorAnswered++;
-  if (!page.url().includes('/discovery')) break;
-}
-await qa.note(`answered ${floorAnswered} floor questions before the eligibility block opened`);
-await qa.scrollThrough('read the CV the floor answers wrote, then back to the dock');
-
-// ---------------------------------------------------------------------------------------------
-// 4. The work-rights question. #162: years-experience is NO LONGER ASKED — it is worked out from
+// 4. The work-rights question — #339: straight after question 1, with no floor in between. #162: years-experience is NO LONGER ASKED — it is worked out from
 //    the dated job records (ADR-0008 clause 2), so the block opens on work-rights now.
 // ---------------------------------------------------------------------------------------------
 await assert((await eligDim()) === 'work-rights', `the eligibility block opens on work-rights (got "${await eligDim()}")`);
@@ -149,6 +128,8 @@ await assert(
   state.ok === true && (state.eligibilityOpen ?? []).length === 0,
   `#107 KEY REGRESSION: no eligibility question is re-asked by the API (still open: ${JSON.stringify(state.eligibilityOpen)})`,
 );
+// #339: both questions were ANSWERED above (not put off), which is why nothing comes back — a put-off
+// question would be asked again on this reload (eligibility-questions-journey.mjs proves that half).
 await qa.note(
   'Note on evidence: GET /onboarding/discovery only returns questions still in play, so an ANSWERED ' +
   'eligibility item is absent from it by design. The proof that the #107 scope change did not break ' +

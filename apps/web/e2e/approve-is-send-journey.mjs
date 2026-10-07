@@ -76,12 +76,15 @@ async function watchSendBlock() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 0. Seed: discovery floor + real magic-link sign-in (the document goes to HIS address).
+// 0. Seed: discovery + his CV's facts + real magic-link sign-in (the document goes to HIS address).
+//    #339: the floor answers that used to give the draft its facts are gone; a read, reviewed CV
+//    is where his facts come from now.
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/discovery', 'land on discovery — establishes the anonymous session');
 await postJson('/api/onboarding/discovery/start', { role: ROLE });
-const seededItems = await qa.seedFloorAnswers({ yes: 'Yes, over $1M' });
-if (seededItems.length === 0) throw new Error('no floor questions were served - the session was never placed');
+const facts = await qa.factsFromCv();
+if (!(facts > 0)) throw new Error(`his CV gave the session no facts (${facts})`);
+await qa.note(`his CV was read and reviewed — ${facts} facts on his record`);
 const link = await postJson('/api/auth/request-link', { email: EMAIL });
 if (!link.body?.devLink) throw new Error(`sign-in failed (${link.status}): ${JSON.stringify(link.body)}`);
 await postJson('/api/auth/verify', { token: new URL('http://x' + link.body.devLink).searchParams.get('token') });

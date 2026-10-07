@@ -8,7 +8,7 @@ import { buildDeckCards, hasOpenDiscoveryQuestions, newToFamily, orderCardsForRe
 // #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
 // corpus wired at that seam — same adverts, same requirement sets, reached the way production
 // reaches them. See fixtureDeck.ts.
-import { buildDeckServer as buildServer, coverEssentialFloor, fixtureReadAd, injectSettled, liveIdFor, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
+import { buildDeckServer as buildServer, discoveryFact, fixtureReadAd, injectSettled, liveIdFor, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
 import { listAdRequirements } from "../src/e5stub.js";
 import type { Posting } from "../src/preview.js";
@@ -21,8 +21,6 @@ import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 import { answerLanguageLevel } from "../src/languageLevel.js";
 import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
 import { discoveryClaimId } from "../src/discovery.js";
-import { initialProductionFamilyFloors, productionDiscoveryFamily } from "../src/familyFloors.js";
-import type { ClaimRecord } from "../src/claims.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -40,15 +38,28 @@ const post = (
 
 const ROLE = "IT project manager in Paris";
 const VALID_AD_ID = liveIdFor("2026-07-05_endava-vietnam_senior-project-manager");
-// #255: pinned by reference — the registry holds more than one family now, and this suite's
-// sessions live in it-project-delivery.
-const DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors(), [
-  { familyId: "it-project-delivery", version: 1 },
-])!;
 const END_TO_END = "end-to-end-delivery";
 const STAKEHOLDERS = "stakeholder-coordination";
 const RISKS = "risk-dependency-control";
 const COMMUNICATION = "delivery-communication";
+
+/** #339: discovery no longer asks the floor, so the answers the #19 tests stand on are planted where
+ *  the answer route used to write them — the same `discovery-<itemId>` ids and the very lines it
+ *  composed from "Yes" / "Business, engineering, and vendors" / "No" / "Yes" (the characterization
+ *  test pins scores off them). No floor gates the deck any more, so nothing else is needed. */
+async function plantFloorAnswers(
+  built: Pick<ReturnType<typeof buildServer>, "app" | "claims">,
+  cookie: string,
+): Promise<void> {
+  const sessionId = (await get(built.app, cookie, "/sessions/me")).json().id as string;
+  await built.claims.add(sessionId, discoveryFact(END_TO_END, "Owned delivery from planning through completion."));
+  await built.claims.add(sessionId, discoveryFact(STAKEHOLDERS, "Business, engineering, and vendors."));
+  await built.claims.answerNegative(
+    sessionId,
+    discoveryFact(RISKS, "Not applicable — Have you acted on delivery risks, dependencies, timelines, or budgets?"),
+  );
+  await built.claims.add(sessionId, discoveryFact(COMMUNICATION, "Yes."));
+}
 
 async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
   const link = await post(app, cookie, "/auth/request-link", { email });
@@ -213,31 +224,14 @@ describe("#19 GET /onboarding/cards", () => {
   });
 
   it("card shape, score-sorted order, and a recorded 'no' surfacing in askedClosed", async () => {
-    const { app } = buildItProjectDeliveryServer();
+    const built = buildItProjectDeliveryServer();
+    const { app } = built;
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
 
     // Two essential "yes" answers → confirmed facts (fit); one essential "no" → a negative
     // (askedClosed).
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: END_TO_END,
-      answer: "Yes",
-    });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: STAKEHOLDERS,
-      answer: "Business, engineering, and vendors",
-    });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: RISKS,
-      answer: "No",
-    });
-    // #63: the reveal is now refused outright until the whole essential floor is answered, so the
-    // last item is answered here too. It was always part of the floor; before #63 an uncovered
-    // session was quietly served the fixture pool anyway, which is exactly what this ticket closes.
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: COMMUNICATION,
-      answer: "Yes",
-    });
+    await plantFloorAnswers(built, cookie);
 
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200);
@@ -338,28 +332,11 @@ describe("#19 GET /onboarding/cards", () => {
   // the scorer and is EXPECTED to move them on purpose — that forced, conscious re-baseline is the
   // point of this test, not a maintenance cost to avoid.
   it("characterization: pins the exact matchPct and breakdown per card for the known fixture deck", async () => {
-    const { app } = buildItProjectDeliveryServer();
+    const built = buildItProjectDeliveryServer();
+    const { app } = built;
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: END_TO_END,
-      answer: "Yes",
-    });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: STAKEHOLDERS,
-      answer: "Business, engineering, and vendors",
-    });
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: RISKS,
-      answer: "No",
-    });
-    // #63: the reveal is now refused outright until the whole essential floor is answered, so the
-    // last item is answered here too. It was always part of the floor; before #63 an uncovered
-    // session was quietly served the fixture pool anyway, which is exactly what this ticket closes.
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: COMMUNICATION,
-      answer: "Yes",
-    });
+    await plantFloorAnswers(built, cookie);
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const byAdId = Object.fromEntries(
       body.cards.map((c) => [c.adId, { matchPct: c.matchPct, breakdown: c.breakdown }]),
@@ -409,9 +386,6 @@ describe("#19 GET /onboarding/cards", () => {
     const { app } = buildItProjectDeliveryServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    for (const itemId of DISCOVERY_FAMILY.items.map((item) => item.id)) {
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: "Yes, definitely" });
-    }
     await signIn(app, cookie, "tailor-no-hides-gap@example.com"); // the want/tailor routes are post-wall
 
     const cardOf = async (adId: string): Promise<JobCard> => {
@@ -1772,6 +1746,7 @@ describe("#107 D5 — the years shortfall (AC4)", () => {
 
 // #235 — the empty deck's own question: is another discovery question genuinely still open? The
 // deck's "answer a few more questions and I'll widen the net" line may only be shown when one is.
+// #339: the only questions discovery still asks are question 1 and the eligibility questions.
 describe("#235 hasOpenDiscoveryQuestions", () => {
   const ROLE = "IT project manager";
   const session = (
@@ -1779,74 +1754,42 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
   ): Parameters<typeof hasOpenDiscoveryQuestions>[0] => ({
     targetTitles: [ROLE],
     intent: { targetRole: ROLE, searchAreas: [] },
-    discovery: {
-      questionFloors: [],
-      searchFamily: null,
-      coveredItemIds: [],
-      checkpoint: null,
-      fallback: { declined: false, family: null },
-    },
     ...over,
   });
-  const answered = (itemId: string): ClaimRecord => ({
-    id: discoveryClaimId(itemId),
-    role: "profile",
-    text: `${itemId} answered`,
-    machine_touch: "verbatim",
-    classification: "Verified",
-    source_quote: "answer",
-    needs_grill: false,
-    grill_hint: null,
-    decision: "confirmed",
-    origin: "user-authored",
+  const eligibilityClosed: EligibilityFact[] = [
+    { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
+    { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
+  ];
+
+  // #339: an uncovered production question floor used to count as an open question; discovery no
+  // longer asks the floor, so promising "a few more questions" over it would send her to an empty
+  // ask screen. The floor record still sits on the session — it is simply not a question.
+  it("an uncovered production question floor is NOT an open question", () => {
+    const uncovered = {
+      ...session(),
+      discovery: {
+        questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
+        searchFamily: null,
+        coveredItemIds: [],
+        fallback: { declined: false, family: null },
+        checkpoint: "family_confirmed",
+      },
+    };
+    expect(hasOpenDiscoveryQuestions(uncovered, eligibilityClosed)).toBe(false);
   });
 
-  it("an uncovered production question floor is an open question", () => {
-    expect(
-      hasOpenDiscoveryQuestions(
-        session({
-          discovery: {
-            questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
-            searchFamily: null,
-            coveredItemIds: [],
-            fallback: { declined: false, family: null },
-            checkpoint: "family_confirmed",
-          },
-        }),
-        [], [], [], [], DISCOVERY_FAMILY,
-      ),
-    ).toBe(true);
-  });
-
-  it("a fresh role still has its floor and eligibility questions open", () => {
-    expect(hasOpenDiscoveryQuestions(session(), [], [], [], [], DISCOVERY_FAMILY)).toBe(true);
+  it("a fresh role still has its eligibility questions open", () => {
+    expect(hasOpenDiscoveryQuestions(session(), [])).toBe(true);
   });
 
   it("no role means question 1 itself is open", () => {
     expect(
-      hasOpenDiscoveryQuestions(
-        session({ targetTitles: [], intent: { targetRole: null, searchAreas: [] } }),
-        [], [], [], [], DISCOVERY_FAMILY,
-      ),
+      hasOpenDiscoveryQuestions(session({ targetTitles: [], intent: { targetRole: null, searchAreas: [] } }), []),
     ).toBe(true);
   });
 
-  it("with every floor item answered and eligibility closed, nothing is open", () => {
-    const items = DISCOVERY_FAMILY.items;
-    const confirmed = items.map((item) => answered(item.id));
-    const facts: EligibilityFact[] = [
-      { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
-      { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
-    ];
-    expect(hasOpenDiscoveryQuestions(session(), confirmed, [], [], facts, DISCOVERY_FAMILY)).toBe(false);
-  });
-
-  it("a floorless plan with eligibility closed has no phantom questions open", () => {
-    const facts: EligibilityFact[] = [
-      { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
-      { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
-    ];
-    expect(hasOpenDiscoveryQuestions(session(), [], [], [], facts, null)).toBe(false);
+  it("with eligibility closed, nothing is open — no phantom questions", () => {
+    expect(hasOpenDiscoveryQuestions(session(), eligibilityClosed)).toBe(false);
   });
 });
 

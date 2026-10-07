@@ -1,17 +1,16 @@
 "use client";
 
-// #16 discovery (screen 1a): Q1 (free-text role) -> the promise -> a tap-first floor loop, the
-// answer -> reward core loop. Reuses the front door's typewriter/keepInView mechanics (page.tsx,
-// first-question.prototype.html) against the pinned DiscoveryState contract.
+// #16 discovery (screen 1a): Q1 (free-text role) -> the promise -> the eligibility questions. Reuses
+// the front door's typewriter/keepInView mechanics (page.tsx, first-question.prototype.html) against
+// the pinned DiscoveryState contract.
 //
-// composeCvLine runs server-side now (ticket #16's reconciliation note, overriding design spec
-// §4d/§7's client-local composition): every line typed here is the exact DiscoveryCvLine.text the
-// API returned for that answer — never computed in this file. That puts a network round trip in
-// front of the animation, so the per-answer sequencing (design §4d/§5) is staged across two
-// moments instead of one: the next question + the new (empty) line's container land the instant
-// the response arrives (no per-answer lockout); the rail fill/countdown/bullet/announcement wait
-// for that line to finish typing, so "filling a bar and filling a section" still reads as one
-// event even though the data was already known a beat earlier.
+// #339: discovery no longer asks people to describe their own work — the floor questions, the
+// reader-only question, the "N answers until your next jobs" countdown and the section rail they fed
+// are gone. What is asked after question 1 is work rights per chosen market and languages, each with
+// its "Ask me later", which stores nothing: the server keeps serving a declined question, so this
+// screen moves past it for the rest of the visit (`passed`) and a later visit asks again.
+//
+// The role line Q1 writes is the exact DiscoveryCvLine.text the API returned — never computed here.
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import "../discovery.css";
@@ -26,7 +25,6 @@ import {
   startDiscovery,
   type CvSection,
   type DiscoveryCvLine,
-  type DiscoveryPromise,
   type DiscoveryQuestion,
   type DiscoveryState,
   type CvLanguage,
@@ -38,7 +36,6 @@ const CV_TYPE_SPEED = 26; // ms/char, design spec §2 (CV body — distinct from
 const TYPE_SETTLE = 300; // ms — scroll first, then type (design §5)
 const FAMILY_DEBOUNCE = 250; // ms, design spec §4a
 const FAMILY_LOADING_DELAY = 400; // ms before the lookup shows its own loading affordance (§4b)
-const NOTICE_MS = 3000; // how long the "saved to your profile" notice (C13) stays up
 
 const SECTIONS: { key: CvSection; label: string }[] = [
   { key: "summary", label: "Summary" },
@@ -56,11 +53,9 @@ const C5 = "That's me";
 const C6 = "same kind of job";
 const C7 = "Finding jobs like yours…";
 const C10 = "Keep going and I'll score them against you.";
-const C13 = "Saved to your profile — kept for when a job needs it.";
 const C14 = "Answer the question below and this page starts writing itself.";
-// #18 discovery (screen 1b): in-flow correction + the deck-transition placeholder + the bare-"no"
-// notice — verbatim from discovery-1b-design-spec.md's copy table.
-const C15 = "Noted — one less thing to ask.";
+// #18 discovery (screen 1b): in-flow correction + the deck-transition placeholder — verbatim from
+// discovery-1b-design-spec.md's copy table.
 const C16 = "Fix that?";
 const C17 = "Change your answer.";
 const C18 = "Leave it as is";
@@ -71,13 +66,12 @@ const C21 = "Changing your answer.";
 // are — the deck only sends her here while a question genuinely remains, and this says what that is
 // worth without promising adverts it cannot produce.
 const C22 = "I scored the three closest — tell me more and I'll score them better";
-// #106: eligibility questions at the tail of the floor loop (design spec §2 "Shared") — the
+// #106: the eligibility questions (design spec §2 "Shared") — the
 // confirmation pair and the fix-button label for a declined answer. C16 ("Fix that?") is reused for
 // a real answer's fix button, unchanged.
 const C23 = "Locked in — I'll use that on every job, so I won't ask again.";
 const C24 = "No problem — I'll ask again when a job needs it.";
 const C26 = "Answer it now";
-const C27 = "Not sure — skip"; // #324: declines a free-text question without typing
 
 // C8/C9's tail — the count renders beside it in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against), so the two pieces read as
@@ -98,36 +92,6 @@ const C27 = "Not sure — skip"; // #324: declines a free-text question without 
 // and it is his call. If a freshness signal ever reaches the posting record, this is the line that
 // should start earning the word rather than assuming it.
 const C8 = "new jobs are open right now.";
-// #106: the countdown must read as one continuous meter across the floor questions and the
-// eligibility block that follows (design spec §6). The server includes eligibility questions in
-// `questions` from the start, ordered last (the ask dock only ever renders `questions[0]`, so they
-// still surface after the floor) — essentialRemaining counts floor items only, so it and eligLeft
-// each count down independently and monotonically. Summing them is what keeps the meter from
-// climbing back up the moment the floor finishes (a fallback/max of the two would do exactly that,
-// since eligLeft is already the true remaining count from the first render, not something that
-// only appears once essentialRemaining hits 0).
-function eligLeft(s: DiscoveryState): number {
-  return s.questions.filter((q) => q.eligibility).length;
-}
-function remaining(s: DiscoveryState): number {
-  return s.essentialRemaining + eligLeft(s);
-}
-function countdownCopy(n: number): string {
-  return n === 1 ? "1 answer until your next jobs" : `${n} answers until your next jobs`;
-}
-// Mirrors the server's isNoAnswer (design-1b-spec.md §3) so a bare "no" gets the noted-and-closed
-// C15 branch instead of the generic "saved to your profile" C13 one.
-function isNoAnswer(answer: string): boolean {
-  return /^no[.!]?$/i.test(answer.trim());
-}
-// #324: mirrors the server's isNonAnswer — a typed "I don't know" closes the question as a skip
-// (noted-and-closed, C15), never "saved to your profile". SKIP is what the Skip button sends.
-const SKIP = "Not sure";
-// Kept byte-identical to the server's NON_ANSWER — apps/api/test/discovery.test.ts fails if they drift.
-const NON_ANSWER = /^(?:(?:i )?(?:do ?n[o']?t|dont) (?:know|remember|recall)|(?:i have )?no (?:idea|clue)|idk|dunno|(?:i'?m )?(?:not sure|unsure)(?: yet)?|n\.?\/?a\.?|not applicable|none|nothing|skip|pass|\?+|-+)$/;
-function isNonAnswer(answer: string): boolean {
-  return NON_ANSWER.test(answer.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/[.!]+$/, "").replace(/\s+/g, " "));
-}
 // #123: joins a ticked-language list in `options` order for L3/L4 (design spec §6's join rule) —
 // sentence case, no quotes, no bold, and never an Oxford comma before "and".
 function joinList(items: string[]): string {
@@ -160,6 +124,13 @@ function multiSelectLockedIn(ticked: string[]): string {
 function eligibilitySub(elig: EligibilityAsk): string {
   if (elig.dimension === "work-rights") return "Either answer is useful — it just changes which jobs I show you.";
   return ""; // unreachable — see comment above
+}
+// #339: the state this visit asks from — the server's, minus the questions "Ask me later" moved past.
+// With none left after question 1, the visit is done asking and hands off.
+function withoutPassed(s: DiscoveryState, passed: ReadonlySet<string>): DiscoveryState {
+  if (passed.size === 0) return s;
+  const questions = s.questions.filter((q) => !passed.has(q.itemId));
+  return { ...s, questions, stage: s.role !== null && questions.length === 0 ? "deck" : s.stage };
 }
 function highlightMatch(title: string, query: string): ReactNode {
   const idx = query ? title.toLowerCase().indexOf(query.toLowerCase()) : -1;
@@ -227,52 +198,10 @@ type TypingInfo = {
   lineText: string;
   fullNextState: DiscoveryState;
   bag: ReturnType<typeof setTimeout>[];
-  focusAfter?: string; // a correction's itemId — refocus its .cv-line button once typing completes
 };
 
-// The progress rail: one overall bar that fills as you answer anything (so the active section
-// never reads as "empty/broken" just because its own questions haven't been answered yet), plus
-// the four section labels underneath — the active one in gold, completed ones with a tick.
-function Rail({
-  railFill,
-  activeSection,
-}: {
-  railFill: Record<CvSection, number>;
-  activeSection: CvSection | null;
-}) {
-  const overall = Math.round(
-    (SECTIONS.reduce((sum, s) => sum + (railFill[s.key] ?? 0), 0) / SECTIONS.length) * 100,
-  );
-  return (
-    <div className="rail" aria-hidden="true">
-      <div className="rail-track">
-        {/* Progress fill: a scaleX() fraction, not a width percentage — discovery.css transitions
-            `transform` with transform-origin: left, at the same 620ms curve. */}
-        <i style={{ transform: `scaleX(${overall / 100})` }} />
-      </div>
-      <div className="rail-steps">
-        {SECTIONS.map((s) => {
-          const done = (railFill[s.key] ?? 0) >= 1;
-          return (
-            <span
-              key={s.key}
-              className={`step${s.key === activeSection ? " active" : ""}${done ? " done" : ""}`}
-            >
-              {s.label}
-              {done && " ✓"}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function DiscoveryScreen() {
-  // AC6: a CV read via the front-door shortcut lands here as /discovery?job=<jobId> — the server
-  // composes a reader-only first question from it when present; unchanged otherwise.
   const searchParams = useSearchParams();
-  const jobId = searchParams.get("job");
   const loopbackFromDeck = searchParams.get("loop") === "deck-exhausted";
   const router = useRouter();
 
@@ -291,29 +220,22 @@ function DiscoveryScreen() {
 
   const [typingId, setTypingId] = useState<string | null>(null);
   const [picked, setPicked] = useState<{ itemId: string; answer: string } | null>(null);
-  const [freeAnswer, setFreeAnswer] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
-  // #18 in-flow correction (design-1b-spec §1) + the bare-"no" undo (§3), generalised by #106 to
-  // also cover an eligibility answer — both are "no CV line" outcomes that still need a persistent
-  // notice and a way back in (design spec §5.3/§5.4).
+  // #18 in-flow correction (design-1b-spec §1), generalised by #106 to an eligibility answer — it
+  // writes no CV line, so it keeps a persistent notice and a way back in (design spec §5.3/§5.4).
   const [correcting, setCorrecting] = useState<{ itemId: string } | null>(null);
-  // #106 code review: "eligibility or bare-no" is not stored as its own field — eligibilityFor(itemId)
-  // (via seenQuestionsRef) is already the one source of truth for that, so a second `kind` tag here
-  // would just be a cache of the same fact that could drift from it.
+  // #339: the questions "Ask me later" moved past on this visit. Nothing was stored for them, so the
+  // server still serves them; `view` below leaves them out until the next visit asks again.
+  const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
   // #123: `answers` is only ever populated for a multi-select confirm (never a decline, never a
   // single-select answer) — renderNotice reads it to build L3/L4's `{list}`, and a correction
   // re-entry reads it to pre-tick the previously confirmed languages (design spec §7 point 2).
   const [noticeSlot, setNoticeSlot] = useState<{ itemId: string; answer: string; answers?: string[] } | null>(
     null,
   );
-  // #24: an itemId to focus once its `.cv-line` button lands in the DOM as the real, enabled
-  // control — set by a correction's resolution (commit or cancel) instead of calling .focus()
-  // immediately, which can race a still-typing (aria-hidden) or still-disabled (picked) button.
-  const [focusLineId, setFocusLineId] = useState<string | null>(null);
-  // #24: same deferral, for the bare-"no" cancel branch — "Fix that?" unmounts while `correcting`
-  // is active (renderAsk shows the re-ask instead), so it isn't in the DOM yet when cancel fires.
+  // #24: "Fix that?" unmounts while `correcting` is active (renderAsk shows the re-ask instead), so a
+  // cancel or commit focuses it once it is back in the DOM, not immediately.
   const [focusFixNotice, setFocusFixNotice] = useState(false);
   // #17 the profile badge: the parent owns the data (the loaded/answered count, monotonically
   // clamped) and the click origin; FactBadge owns all the motion.
@@ -383,13 +305,13 @@ function DiscoveryScreen() {
     setLoadError(null);
     try {
       await ensureSession();
-      const s = await getDiscovery(jobId ?? undefined);
+      const s = await getDiscovery();
       setDiscovery(s);
       setBadgeCount((c) => Math.max(c, s.factCount)); // the monotone clamp, at every write
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "couldn't load your progress");
     }
-  }, [jobId]);
+  }, []);
 
   useEffect(() => {
     loadDiscovery();
@@ -423,27 +345,22 @@ function DiscoveryScreen() {
     };
   }, []);
 
-  // C13 is transient (design §4d).
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), NOTICE_MS);
-    return () => clearTimeout(t);
-  }, [notice]);
-
   // Focus follows the current ask target: the Q1 textarea on load, then each new question's
   // first control as it renders — no per-answer lockout (design §6 a11y). #18 folds in an
   // in-flow correction's re-ask (design-1b-spec §1 a11y: "moves focus to the re-ask's first
   // option on entry"); #25 folds in the deck handoff, which navigates instead of focusing here —
   // see the "deck" branch below.
-  const askKey = !discovery
+  const view = discovery && withoutPassed(discovery, passed);
+  const firstAsk = view?.questions[0];
+  const askKey = !view
     ? null
-    : discovery.stage === "deck" && !loopbackFromDeck
+    : view.stage === "deck" && !loopbackFromDeck
       ? "deck"
       : correcting
         ? `fix:${correcting.itemId}`
-        : discovery.role === null
+        : view.role === null
           ? "q1"
-          : (discovery.questions[0]?.itemId ?? (loopbackFromDeck ? "loopback" : null));
+          : (view.questions[0]?.itemId ?? (loopbackFromDeck ? "loopback" : null));
   const reviewPending = discovery?.reviewPending === true;
   useEffect(() => {
     if (!askKey) return;
@@ -472,16 +389,6 @@ function DiscoveryScreen() {
     }
   }, [askKey, reviewPending, router]);
 
-  // #24: focuses a corrected `.cv-line` button once it has actually re-rendered as the real,
-  // enabled control (not the aria-hidden typing placeholder, not disabled mid-request) — decoupled
-  // from the askKey effect above so a correction's commit/cancel never races the "next question"
-  // auto-focus.
-  useEffect(() => {
-    if (!focusLineId) return;
-    focusCvLineButton(focusLineId);
-    setFocusLineId(null);
-  }, [focusLineId]);
-
   useEffect(() => {
     if (!focusFixNotice) return;
     fixNoticeButtonRef.current?.focus();
@@ -493,12 +400,10 @@ function DiscoveryScreen() {
   // cancel button.
   const cancelCorrection = useCallback(() => {
     if (!correcting) return;
-    const { itemId } = correcting;
     setCorrecting(null);
     setAskError(null);
-    if (noticeSlot?.itemId === itemId) setFocusFixNotice(true);
-    else setFocusLineId(itemId);
-  }, [correcting, noticeSlot]);
+    setFocusFixNotice(true);
+  }, [correcting]);
 
   useEffect(() => {
     if (!correcting) return;
@@ -514,11 +419,10 @@ function DiscoveryScreen() {
   // proposal on screen only: nothing is stored until they submit.
   const langSeededRef = useRef(false);
   useEffect(() => {
-    const q = discovery?.questions[0];
-    if (!q?.cvLanguages || askKey !== q.itemId || langSeededRef.current) return;
+    if (!firstAsk?.cvLanguages || askKey !== firstAsk.itemId || langSeededRef.current) return;
     langSeededRef.current = true;
-    setLangSelected(new Set(q.cvLanguages.filter((l) => l.preTicked).map((l) => l.language)));
-  }, [askKey, discovery]);
+    setLangSelected(new Set(firstAsk.cvLanguages.filter((l) => l.preTicked).map((l) => l.language)));
+  }, [askKey, firstAsk]);
 
   // #123: entering the language question's correction pre-ticks whatever was last confirmed
   // (design spec §7 point 2) — a prior decline pre-ticks nothing, since noticeSlot.answers is only
@@ -567,17 +471,16 @@ function DiscoveryScreen() {
       typingRef.current = null;
       setTypingId(null);
       setDiscovery(t.fullNextState);
-      setLiveMessage(`${t.lineText} ${countdownCopy(remaining(t.fullNextState))}`);
-      if (t.focusAfter) setFocusLineId(t.focusAfter);
+      setLiveMessage(t.lineText);
     });
     return () => {
       t.bag.forEach(clearTimeout);
     };
   }, [typingId]);
 
-  // Cuts short whatever line is mid-type, committing its already-known text + numbers instantly
-  // (design §4d step 3 / §5 "never silently rewritten" — a cut-short line still lands with its
-  // full, correct text, just without the letter-by-letter).
+  // Cuts short whatever line is mid-type, committing its already-known text instantly (design §4d
+  // step 3 / §5 "never silently rewritten" — a cut-short line still lands with its full, correct
+  // text, just without the letter-by-letter).
   function finalizeInFlight() {
     const t = typingRef.current;
     if (!t) return;
@@ -585,163 +488,91 @@ function DiscoveryScreen() {
     typingRef.current = null;
     setTypingId(null);
     setDiscovery(t.fullNextState);
-    setLiveMessage(`${t.lineText} ${countdownCopy(remaining(t.fullNextState))}`);
+    setLiveMessage(t.lineText);
   }
 
-  // Shared by Q1 submit, every floor answer, and a correction that turns a "no" into a positive
-  // (design-1b-spec's boundary note: that's a brand-new line, so this diff-by-new-id already
-  // finds it — unchanged). Structural bits (the next question, the new line's now-empty
-  // container) apply immediately; the rail fill/countdown wait for that line to finish typing
-  // (see the file banner comment for why). `isCorrection` (only true from commitCorrection's
-  // no-to-positive branch) asks the typing-completion callback to return focus to this new line
-  // (#24 AC1) instead of leaving it to the normal next-question auto-focus.
-  function applyAnswerResult(
-    next: DiscoveryState,
-    rawAnswer: string,
-    answeredItemId?: string,
-    isCorrection?: boolean,
-    // #123: only ever populated for a multi-select confirm — carried into noticeSlot so a
-    // correction re-entry can pre-tick it, and read here to render L3/L4 instead of C23.
-    answersList?: string[],
-  ) {
+  // #339: "Ask me later" stores nothing, so the response still carries the question it declined —
+  // this visit moves past it (`passed`), whether it came from the first ask or a correction.
+  function passIfDeclined(itemId: string, answer: string) {
+    if (answer !== eligibilityFor(itemId)?.declineOption) return;
+    setPassed((p) => new Set(p).add(itemId));
+  }
+
+  // Shared by Q1 submit and every eligibility answer. Q1 writes the role line, typed in before the
+  // state settles; an eligibility answer writes no line and gets its notice slot instead (design
+  // spec §5.3) — `answersList` only for a multi-select confirm, for L3/L4.
+  function applyAnswerResult(next: DiscoveryState, rawAnswer: string, answeredItemId?: string, answersList?: string[]) {
     finalizeInFlight();
-    setFreeAnswer("");
-    // #17: unconditional — factCount grows on a bare "no" too (no new CV line, but the pile still
-    // grows), and FactBadge's own guard (fly only if it actually exceeds what's shown) makes a
-    // correction's zero-delta a silent no-op, so this needs no branching here. `flyFromRef` was set
-    // by the root's capture-phase click/keydown that triggered this very call.
+    // #17: unconditional — FactBadge's own guard (fly only if it actually exceeds what's shown) makes
+    // a zero-delta a silent no-op. `flyFromRef` was set by the root's capture-phase click/keydown.
     setBadgeCount((c) => Math.max(c, next.factCount));
     if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: rawAnswer });
     const prevIds = new Set((discovery?.cvLines ?? []).map((l) => l.itemId));
     const newLine = next.cvLines.find((l) => !prevIds.has(l.itemId)) ?? null;
 
-    if (!newLine) {
-      // No line to type, nothing to gate on — either a profile-only answer (design §4d/§8.1,
-      // C13), a bare "no" (design-1b-spec §3: noted-and-closed, never a failure — C15), or #106's
-      // eligibility answer (checked first: it never produces a line either, and must never fall
-      // into the bare-"no" branch just because a future decline label happened to read like one).
-      setDiscovery(next);
-      const seen = answeredItemId ? seenQuestionsRef.current.get(answeredItemId) : undefined;
-      const elig = seen?.eligibility;
-      if (answeredItemId && elig) {
-        const declined = rawAnswer === elig.declineOption;
-        const line = seen?.multiSelect && !declined ? multiSelectLockedIn(answersList ?? []) : declined ? C24 : C23;
-        setNotice(null);
-        setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
-        setLiveMessage(`${line} ${countdownCopy(remaining(next))}`);
-      } else if (answeredItemId && rawAnswer && (isNoAnswer(rawAnswer) || isNonAnswer(rawAnswer))) {
-        setNotice(null);
-        setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer });
-        setLiveMessage(`${C15} ${countdownCopy(remaining(next))}`);
-      } else {
-        setNotice(C13);
-        setLiveMessage(`${C13} ${countdownCopy(remaining(next))}`);
-      }
+    if (answeredItemId && eligibilityFor(answeredItemId)) {
+      landNotice(answeredItemId, next, rawAnswer, answersList);
       return;
     }
-
-    setNotice(null);
-    setDiscovery((s) => {
-      const prev = s ?? next;
-      return { ...next, railFill: prev.railFill, essentialRemaining: prev.essentialRemaining };
-    });
-    typingRef.current = {
-      itemId: newLine.itemId,
-      lineText: newLine.text,
-      fullNextState: next,
-      bag: [],
-      focusAfter: isCorrection ? newLine.itemId : undefined,
-    };
+    if (!newLine) {
+      setDiscovery(next);
+      return;
+    }
+    setDiscovery((s) => s ?? next);
+    typingRef.current = { itemId: newLine.itemId, lineText: newLine.text, fullNextState: next, bag: [] };
     setTypingId(newLine.itemId);
   }
 
-  // The 1A/1B correction commit path for a same-id edit that applyAnswerResult's new-id diff can't
-  // see (design-1b-spec §1A: "applyAnswerResult's new-line diff would miss it"). Re-types the line
-  // in place when its text actually changed; a same-option re-pick (or a positive corrected away
-  // to a "no", which isn't a flow this slice's spec designs a notice for) just syncs state quietly.
-  function applyCorrectionResult(
-    itemId: string,
-    next: DiscoveryState,
-    rawAnswer: string,
-    // #123: same purpose as applyAnswerResult's — only populated for a multi-select re-confirm.
-    answersList?: string[],
-  ) {
+  // A correction re-answers an eligibility question already in the notice slot: re-set the slot with
+  // the new answer and return focus to its fix button (design spec §5.4 point 3).
+  function applyCorrectionResult(itemId: string, next: DiscoveryState, rawAnswer: string, answersList?: string[]) {
     finalizeInFlight();
-    setFreeAnswer("");
-    // #17: same unconditional attempt as applyAnswerResult — a correction is normally a zero-delta
-    // no-op (FactBadge's own guard), built as specified rather than special-cased away.
     setBadgeCount((c) => Math.max(c, next.factCount));
     if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: rawAnswer });
-    const updatedLine = next.cvLines.find((l) => l.itemId === itemId);
-    const prevText = discovery?.cvLines.find((l) => l.itemId === itemId)?.text;
-
-    if (updatedLine && updatedLine.text !== prevText) {
-      setDiscovery((s) => {
-        const prev = s ?? next;
-        return { ...next, railFill: prev.railFill, essentialRemaining: prev.essentialRemaining };
-      });
-      typingRef.current = { itemId, lineText: updatedLine.text, fullNextState: next, bag: [], focusAfter: itemId };
-      setTypingId(itemId);
-    } else {
-      setDiscovery(next);
-      // #106: an eligibility correction never gets a line to focus — re-set the notice slot with
-      // the new answer and return focus to its fix button (design spec §5.4 point 3), the same
-      // mechanism the bare-"no" notice already uses.
-      const elig = eligibilityFor(itemId);
-      if (elig) {
-        const declined = rawAnswer === elig.declineOption;
-        const multi = seenQuestionsRef.current.get(itemId)?.multiSelect;
-        const line = multi && !declined ? multiSelectLockedIn(answersList ?? []) : declined ? C24 : C23;
-        setNoticeSlot({ itemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
-        setLiveMessage(`${line} ${countdownCopy(remaining(next))}`);
-        setFocusFixNotice(true);
-      } else {
-        setFocusLineId(itemId);
-      }
-    }
+    landNotice(itemId, next, rawAnswer, answersList);
+    setFocusFixNotice(true);
   }
 
-  function focusCvLineButton(itemId: string) {
-    bandRef.current?.querySelector<HTMLElement>(`[data-item="${itemId}"]`)?.focus();
+  // An eligibility answer writes no line: it lands in the notice slot (design spec §5.3), and a
+  // decline is moved past for this visit.
+  function landNotice(itemId: string, next: DiscoveryState, rawAnswer: string, answersList?: string[]) {
+    passIfDeclined(itemId, rawAnswer);
+    setDiscovery(next);
+    setNoticeSlot({ itemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
+    setLiveMessage(noticeLine(itemId, rawAnswer, answersList));
   }
 
   // #106: the only source of an answered eligibility item's dimension/declineOption once it has
-  // left `questions` — mirrors focusCvLineButton's itemId-keyed lookup just above.
+  // left `questions`.
   function eligibilityFor(itemId: string): EligibilityAsk | undefined {
     return seenQuestionsRef.current.get(itemId)?.eligibility;
   }
 
-  // 1A entry (tap a written line) and 1B entry (tap "Fix that?" on a bare-no notice) both land
-  // here — client-side-first, no server call, so the real line/notice stays intact until commit.
+  // The notice slot's sentence: C24 for a decline, L3/L4 for a languages confirm, C23 otherwise.
+  function noticeLine(itemId: string, answer: string, answers?: string[]): string {
+    if (answer === eligibilityFor(itemId)?.declineOption) return C24;
+    return seenQuestionsRef.current.get(itemId)?.multiSelect ? multiSelectLockedIn(answers ?? []) : C23;
+  }
+
+  // 1B entry (tap "Fix that?" / "Answer it now" on the notice slot) — client-side-first, no server
+  // call, so the notice stays intact until commit.
   function enterCorrection(itemId: string) {
     if (picked) return;
     setAskError(null);
-    setFreeAnswer("");
     setCorrecting({ itemId });
     setLiveMessage(C21);
   }
 
   // The correction re-ask's commit (design-1b-spec §1): re-answering an item is idempotent
-  // server-side now (upsert), so this reuses answerDiscovery — no separate correct/reopen route.
+  // server-side (upsert), so this reuses answerDiscovery — no separate correct/reopen route.
   async function commitCorrection(itemId: string, answer: string) {
     if (picked) return;
     setPicked({ itemId, answer });
     setAskError(null);
     try {
       const next = await answerDiscovery(itemId, answer);
-      const hadLine = discovery?.cvLines.some((l) => l.itemId === itemId) ?? false;
-      const hasLine = next.cvLines.some((l) => l.itemId === itemId);
       setCorrecting(null);
-      // #106: an eligibility slot is replaced, not dropped, by applyCorrectionResult below — only
-      // clear it here for a bare-"no" item (design spec §5.4 point 4).
-      if (noticeSlot && noticeSlot.itemId === itemId && !eligibilityFor(itemId)) setNoticeSlot(null);
-      if (!hadLine && hasLine) {
-        // A no -> positive correction is a brand-new line — the normal floor-answer path, but
-        // still a correction commit (#24 AC1: focus returns to it once typed).
-        applyAnswerResult(next, answer, itemId, true);
-      } else {
-        applyCorrectionResult(itemId, next, answer);
-      }
+      applyCorrectionResult(itemId, next, answer);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
     } finally {
@@ -749,9 +580,7 @@ function DiscoveryScreen() {
     }
   }
 
-  // #123: the correction re-ask's commit for the multi-select question — mirrors commitCorrection,
-  // but this item never produces a CV line (it's an eligibility answer), so it always lands in
-  // applyCorrectionResult, never the no-to-positive branch commitCorrection has to distinguish.
+  // #123: the correction re-ask's commit for the multi-select question — mirrors commitCorrection.
   async function commitMultiCorrection(itemId: string, answers: string[]) {
     if (picked) return;
     const label = answers.length > 0 ? joinList(answers) : "no languages listed";
@@ -784,12 +613,11 @@ function DiscoveryScreen() {
     }
   }
 
-  async function answerFloor(item: DiscoveryQuestion, answer: string) {
+  async function answerQuestion(item: DiscoveryQuestion, answer: string) {
     if (picked) return;
     setPicked({ itemId: item.itemId, answer });
     setAskError(null);
-    setNotice(null);
-    setNoticeSlot(null); // the undo reaches one question past a "no"/decline (design-1b-spec §3, #106), then clears
+    setNoticeSlot(null); // the undo reaches one question past an answer (#106), then clears
     try {
       applyAnswerResult(await answerDiscovery(item.itemId, answer), answer, item.itemId);
     } catch (e) {
@@ -799,18 +627,16 @@ function DiscoveryScreen() {
     }
   }
 
-  // #123: the language question's multi-select confirm — `answers` can legally be `[]` (the
-  // empty tap). The fly/notice label is the ticked list itself so it can
-  // never collide with the decline string, which travels its own path (answerFloor, unchanged).
+  // #123: the language question's multi-select confirm. The fly/notice label is the ticked list itself
+  // so it can never collide with the decline string, which travels its own path (answerQuestion).
   async function answerMultiSelect(item: DiscoveryQuestion, answers: string[]) {
     if (picked) return;
     const label = answers.length > 0 ? joinList(answers) : "no languages listed";
     setPicked({ itemId: item.itemId, answer: label });
     setAskError(null);
-    setNotice(null);
     setNoticeSlot(null);
     try {
-      applyAnswerResult(await answerDiscoveryMulti(item.itemId, answers), label, item.itemId, false, answers);
+      applyAnswerResult(await answerDiscoveryMulti(item.itemId, answers), label, item.itemId, answers);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
     } finally {
@@ -878,36 +704,13 @@ function DiscoveryScreen() {
     );
   }
 
+  // #339: past the role line, a line here is one a session answered before discovery stopped asking
+  // the floor — shown as written, never re-asked or corrected here.
   function renderCvLine(line: DiscoveryCvLine) {
-    if (line.itemId === typingId) {
-      return (
-        <p key={line.itemId} className="cv-line" aria-hidden="true">
-          <span ref={typingSpanRef} />
-          <span className="caret" />
-        </p>
-      );
-    }
-    // Correctable iff asked this load (design-1b-spec §1): seenQuestions is the only source of an
-    // answered item's question/options, and a resumed-from-reload line was never seen this load.
-    if (!seenQuestionsRef.current.has(line.itemId)) {
-      return (
-        <p key={line.itemId} className="cv-line done">
-          {line.text}
-        </p>
-      );
-    }
     return (
-      <button
-        key={line.itemId}
-        type="button"
-        className={`cv-line done${correcting?.itemId === line.itemId ? " fixing" : ""}`}
-        data-item={line.itemId}
-        disabled={!!picked}
-        aria-label={`Fix this line: ${line.text}`}
-        onClick={() => enterCorrection(line.itemId)}
-      >
+      <p key={line.itemId} className="cv-line done">
         {line.text}
-      </button>
+      </p>
     );
   }
 
@@ -925,42 +728,29 @@ function DiscoveryScreen() {
     return <p className="cv-role">{role.text}</p>;
   }
 
-  // Ask-dock notice slot (design-1b-spec §3, generalised by #106): the bare-"no"/eligibility undo
-  // takes precedence over the generic profile-saved notice — the two never truly coexist
-  // (answerFloor clears noticeSlot the instant a new answer starts, before that answer's own
-  // outcome is known).
+  // Ask-dock notice slot (design-1b-spec §3, generalised by #106): an eligibility answer's pair —
+  // C23/C16 for a real answer, L3/L4 for a languages confirm, C24/C26 for a decline (design spec
+  // §4/§5.3/§6).
   function renderNotice() {
-    if (noticeSlot) {
-      // #106: the same slot now backs both the bare-"no" notice (C15/C16, unchanged) and an
-      // eligibility answer's pair — C23/C16 for a real answer, C24/C26 for a decline (design
-      // spec §4/§5.3).
-      const elig = eligibilityFor(noticeSlot.itemId);
-      const multi = seenQuestionsRef.current.get(noticeSlot.itemId)?.multiSelect;
-      const declined = !!elig && noticeSlot.answer === elig.declineOption;
-      // #123: L3/L4 replace C23 for the multi-select question only (design spec §6) — C23 never
-      // states a removal, and this is the one answer that removes jobs.
-      const line = !elig ? C15 : declined ? C24 : multi ? multiSelectLockedIn(noticeSlot.answers ?? []) : C23;
-      const fixLabel = !elig ? C16 : declined ? C26 : C16;
-      return (
-        <p className="notice">
-          {line}{" "}
-          <button
-            type="button"
-            disabled={!!picked}
-            onClick={() => enterCorrection(noticeSlot.itemId)}
-            ref={fixNoticeButtonRef}
-          >
-            {fixLabel}
-          </button>
-        </p>
-      );
-    }
-    if (notice) return <p className="notice">{notice}</p>;
-    return null;
+    if (!noticeSlot) return null;
+    const declined = noticeSlot.answer === eligibilityFor(noticeSlot.itemId)?.declineOption;
+    return (
+      <p className="notice">
+        {noticeLine(noticeSlot.itemId, noticeSlot.answer, noticeSlot.answers)}{" "}
+        <button
+          type="button"
+          disabled={!!picked}
+          onClick={() => enterCorrection(noticeSlot.itemId)}
+          ref={fixNoticeButtonRef}
+        >
+          {declined ? C26 : C16}
+        </button>
+      </p>
+    );
   }
 
-  // The correction re-ask (design-1b-spec §1): reuses .q/.sub/.opts/.opt or the free-text .field,
-  // exactly like the normal ask below — just re-asking a seen question instead of the next one.
+  // The correction re-ask (design-1b-spec §1): reuses .q/.sub/.opts/.opt exactly like the normal
+  // ask below — just re-asking a seen question instead of the next one.
   function renderCorrectionAsk() {
     if (!correcting) return null;
     const seen = seenQuestionsRef.current.get(correcting.itemId);
@@ -972,8 +762,7 @@ function DiscoveryScreen() {
     const slotAnswer = noticeSlot && noticeSlot.itemId === correcting.itemId ? noticeSlot.answer : null;
 
     // #123: the language question's correction re-ask — same fieldset, pre-ticked by the effect
-    // above (design spec §7). Checked before the free-text/options branches below since it has its
-    // own shape entirely.
+    // above (design spec §7). Checked before the options branch below since it has its own shape.
     if (seen.multiSelect && seen.eligibility) {
       const elig = seen.eligibility;
       return renderMultiSelect(
@@ -990,58 +779,6 @@ function DiscoveryScreen() {
           onConfirm: (answers) => commitMultiCorrection(correcting.itemId, answers),
           onDecline: () => commitCorrection(correcting.itemId, elig.declineOption),
         },
-      );
-    }
-
-    if (seen.options.length === 0) {
-      return (
-        <>
-          <label htmlFor="fix-free" className="q">
-            {seen.question}
-          </label>
-          <p className="sub">{C17}</p>
-          <div className="field">
-            <input
-              id="fix-free"
-              ref={setFirstControl}
-              type="text"
-              value={freeAnswer}
-              disabled={isAnswering}
-              onChange={(e) => setFreeAnswer(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const a = freeAnswer.trim();
-                  if (a) commitCorrection(correcting.itemId, a);
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="go"
-              disabled={isAnswering || freeAnswer.trim().length < 1}
-              onClick={() => {
-                const a = freeAnswer.trim();
-                if (a) commitCorrection(correcting.itemId, a);
-              }}
-            >
-              Continue
-            </button>
-          </div>
-          <p className="notice">
-            <button type="button" disabled={isAnswering} onClick={() => commitCorrection(correcting.itemId, SKIP)}>
-              {C27}
-            </button>{" "}
-            <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
-              {C18}
-            </button>
-          </p>
-          {askError && (
-            <p className="err" role="alert">
-              {askError}
-            </p>
-          )}
-        </>
       );
     }
 
@@ -1083,45 +820,6 @@ function DiscoveryScreen() {
     );
   }
 
-  // #51: a permanent free-text box alongside the option buttons — the visitor can always answer in
-  // their own words, not just pick. Submits via the same answerFloor path the options use (the
-  // server already accepts any string for an item); applyAnswerResult clears freeAnswer on every
-  // answer, so the box never carries stale text into the next question. Ctrl/Cmd+Enter submits, to
-  // match Q1's own textarea convention and let a multi-line answer breathe.
-  function renderFreeText(item: DiscoveryQuestion, isAnswering: boolean) {
-    return (
-      <div className="freetext">
-        <p className="ft-label">Or type your own answer — we'll read it</p>
-        <div className="field">
-          <textarea
-            placeholder="Anything else worth knowing?"
-            value={freeAnswer}
-            disabled={isAnswering}
-            onChange={(e) => setFreeAnswer(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                const a = freeAnswer.trim();
-                if (a) answerFloor(item, a);
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="go"
-            disabled={isAnswering || freeAnswer.trim().length < 1}
-            onClick={() => {
-              const a = freeAnswer.trim();
-              if (a) answerFloor(item, a);
-            }}
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // #123: the language question's checkbox-group UI (design spec §1/§3/§4/§5) — shared by the
   // normal ask and its correction re-ask via the onConfirm/onDecline callbacks, so this never needs
   // to know which one it's in beyond the copy/notice differences `isCorrection` controls.
@@ -1160,10 +858,9 @@ function DiscoveryScreen() {
       .filter((name) => query.length === 0 || name.toLowerCase().includes(query.toLowerCase()))
       .slice(0, 5);
     const exactMatch = languages.some((name) => name.toLowerCase() === query.toLowerCase());
-    // #165: with nothing listed there is nothing to store, so `answers: []` would leave the question
-    // open and ask again forever. An empty confirm therefore takes the DECLINE path — which is what
-    // it now means ("not now"), and the one path that genuinely closes the question. Both outcomes
-    // are identical for the person either way: nothing stored, nothing removed from the deck.
+    // #165: with nothing listed there is nothing to store, so an empty confirm takes the DECLINE path
+    // ("not now"). #339: a decline stores nothing either, so this visit moves past the question
+    // (`passed`) and a later one asks again. Nothing is stored, nothing removed from the deck.
     const confirmEmpty = !anyTicked;
     const confirmLabel = anyTicked ? "That's all of them" : "I'd rather not list any";
     return (
@@ -1391,7 +1088,15 @@ function DiscoveryScreen() {
       return (
         <>
           <p className="q">Tell me one more thing and I'll score more jobs.</p>
-          <button type="button" className="go wide" ref={setFirstControl} onClick={loadDiscovery}>
+          <button
+            type="button"
+            className="go wide"
+            ref={setFirstControl}
+            onClick={() => {
+              setPassed(new Set()); // #339: she asked for more — the questions she put off come back
+              loadDiscovery();
+            }}
+          >
             Answer more questions
           </button>
         </>
@@ -1407,72 +1112,8 @@ function DiscoveryScreen() {
         isAnswering,
         isCorrection: false,
         onConfirm: (answers) => answerMultiSelect(item, answers),
-        onDecline: () => answerFloor(item, elig.declineOption),
+        onDecline: () => answerQuestion(item, elig.declineOption),
       });
-    }
-
-    if (item.options.length === 0) {
-      // A free-text floor item (e.g. headline-focus) — the design spec doesn't pin exact copy for
-      // this path (§4e only specifies the mechanic), so "Continue" is a judgment call.
-      //
-      // #162 QA NO-GO: a free-text question may carry a `consequence` too, and until this it was the
-      // ONLY question shape that dropped it. The date-hole question ("When did you leave X?") put its
-      // whole reason for existing in that field — an end date I don't have makes your experience read
-      // shorter and drops you out of jobs — and the person saw a bare question and a Continue button.
-      // Rendered here in the same `.conseq` shape the multi-select uses, and wired to the input by
-      // aria-describedby so it reaches a screen reader too.
-      return (
-        <>
-          <label htmlFor="floor-free" className="q">
-            {item.question}
-          </label>
-          {item.consequence && (
-            <p className="conseq" id="floor-free-why">
-              {item.consequence}
-            </p>
-          )}
-          <div className="field">
-            <input
-              id="floor-free"
-              ref={setFirstControl}
-              type="text"
-              value={freeAnswer}
-              disabled={isAnswering}
-              aria-describedby={item.consequence ? "floor-free-why" : undefined}
-              onChange={(e) => setFreeAnswer(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const a = freeAnswer.trim();
-                  if (a) answerFloor(item, a);
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="go"
-              disabled={isAnswering || freeAnswer.trim().length < 1}
-              onClick={() => {
-                const a = freeAnswer.trim();
-                if (a) answerFloor(item, a);
-              }}
-            >
-              Continue
-            </button>
-          </div>
-          <p className="notice">
-            <button type="button" disabled={isAnswering} onClick={() => answerFloor(item, SKIP)}>
-              {C27}
-            </button>
-          </p>
-          {renderNotice()}
-          {askError && (
-            <p className="err" role="alert">
-              {askError}
-            </p>
-          )}
-        </>
-      );
     }
 
     return (
@@ -1496,16 +1137,13 @@ function DiscoveryScreen() {
                 type="button"
                 className={cls}
                 disabled={isAnswering}
-                onClick={() => answerFloor(item, opt)}
+                onClick={() => answerQuestion(item, opt)}
               >
                 {opt}
               </button>
             );
           })}
         </div>
-        {/* #106: tap-first by design — the numeric store rejects an uncomparable free-text string
-            at the write, so this box would offer an action that fails (design spec §5.1). */}
-        {!item.eligibility && renderFreeText(item, isAnswering)}
         {renderNotice()}
         {askError && (
           <p className="err" role="alert">
@@ -1579,29 +1217,12 @@ function DiscoveryScreen() {
 
             <div className="ask-column">
               <div className="disc-head">
-                <div className="session-strip">
-                  {discovery.role !== null && remaining(discovery) > 0 && (
-                    <p className="countdown">{countdownCopy(remaining(discovery))}</p>
-                  )}
-
-                  <Rail
-                    railFill={discovery.railFill}
-                    activeSection={
-                      discovery.stage === "deck" && !loopbackFromDeck
-                        ? null
-                        : discovery.questions[0]?.eligibility
-                          ? null
-                          : (discovery.questions[0]?.cvSection ?? null)
-                    }
-                  />
-                </div>
-
                 {renderPromise(discovery)}
               </div>
 
               <div className="ask">
                 {loopbackFromDeck && <p className="notice">{C22}</p>}
-                {renderAsk(discovery)}
+                {view && renderAsk(view)}
               </div>
             </div>
           </div>

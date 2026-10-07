@@ -1,22 +1,17 @@
-// #16 discovery (screen 1a) — the answer→CV-line→section-bar core loop, server side.
+// #16 discovery (screen 1a), server side. #339: discovery no longer asks people to describe their own
+// work — the floor questions and the reader-only question are gone, and only eligibility is asked
+// (eligibilityDiscovery.ts). The CV itself is reviewed instead ("Your CV, reviewed", cvReview.ts).
 //
 // The screen is a pure function of persisted state (spec story #76: answers persist server-side from
 // question 1, never localStorage). This module holds the pure helpers the routes call:
-//   - composeCvLine / composeRoleLine — cheap, deterministic CV text from an answer (spec §8.2:
-//     "composed cheaply from my answer, polished later" — a later audit pass rewrites; prior art
-//     grill.ts's answerToClaim, which composes claim text locally the same way).
-//   - parseCity — #184 SUBORDINATED, not deleted: discoveryState/the eligibility questions no longer
-//     call it (the ONE location signal is now the resolved search area — routes/onboarding.ts passes
-//     it in, resolved via postingRetrieval.ts's resolveSearchArea over session.intent.searchArea).
-//     Still exported and still tested as its own small text utility; nothing production reaches it.
+//   - composeRoleLine — the role the visitor typed, as the CV's lead line.
+//   - parseCity — #184 SUBORDINATED, not deleted: nothing production reaches it (the ONE location
+//     signal is the resolved search area). Still exported and tested as its own small text utility.
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
-//     discovery answers (confirmed positives + negatives + #35's deck-rejected, all of which close a
-//     question), so GET /discovery resumes with no client state.
+//     facts, so GET /discovery resumes with no client state.
 import type { CvLanguage } from "./cvLanguages.js";
-import type { CandidateClaim, FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
+import type { CandidateClaim, FloorItem, CvSection, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
-
-export const CV_SECTIONS = ["summary", "experience", "skills", "education"] as const;
 
 // A discovery answer is persisted as a claim under this deterministic id, so answered-tracking and
 // resume derive from the store alone (item answered ⇔ a `discovery-<itemId>` claim exists).
@@ -76,41 +71,10 @@ export function composeRoleLine(role: string): string {
   return head.charAt(0).toUpperCase() + head.slice(1);
 }
 
-const stripAnswerLead = (answer: string) => answer.replace(/^(yes|no)\b[,\s]*/i, "").trim();
-const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-
-/** A free-text answer becomes the CV line verbatim (period-terminated). Shared by composeCvLine's
- *  no-options branch and #18's reader-only question (AC6), which has no FloorItem to key off. */
+/** A free-text answer becomes the CV line verbatim (period-terminated). */
 export function freeTextLine(answer: string): string {
   const trimmed = answer.trim();
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
-}
-
-/** A cheap, deterministic CV line from a floor answer. Not grammatically perfect by design — the spec
- *  wants it instant and unpolished, with a later audit pass doing the rewrite (§8.2). Three shapes:
- *    - a free-text item (no options): the answer IS the line (the visitor's own words, e.g. a headline).
- *    - a "Which/What X …?" item: "X: <answer>".
- *    - a "Have you / Do you …?" item: "<verb phrase> — <qualifier>." (dash form, like answerToClaim). */
-export function composeCvLine(item: FloorItem, answer: string): string {
-  if (item.options.length === 0) return freeTextLine(answer);
-
-  const trimmed = answer.trim();
-  const qualifier = stripAnswerLead(answer);
-  if (/^(which|what)\b/i.test(item.question)) {
-    const noun = item.question
-      .replace(/^(which|what)\s+/i, "")
-      .replace(/\b(have|do|did|are|were)\s+you\b.*$/i, "")
-      .replace(/[?.]+$/, "")
-      .trim();
-    return `${cap(noun)}: ${qualifier || trimmed}.`;
-  }
-  const verbPhrase = item.question
-    .replace(/^(have you|do you|did you|are you|were you|can you|could you)\b/i, "")
-    .replace(/[?.]+$/, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  const stem = cap(verbPhrase);
-  return qualifier ? `${stem} — ${qualifier}.` : `${stem}.`;
 }
 
 // --- the DiscoveryState the screen renders (the pinned contract shared with the web client) ---
@@ -172,14 +136,12 @@ export interface DiscoveryPromise {
   count: number;
 }
 export interface DiscoveryState {
-  stage: "discovery" | "deck"; // #18 AC1: the essential band fully asked (yes or no) opens the deck
+  stage: "discovery" | "deck"; // #339: every eligibility question closed opens the deck
   role: string | null;
   family: string | null;
   city: string | null;
   promise: DiscoveryPromise | null;
   questions: DiscoveryQuestion[];
-  railFill: Record<CvSection, number>;
-  essentialRemaining: number;
   cvLines: DiscoveryCvLine[];
   factCount: number;
   /** #338: once `stage` is "deck", where the screen hands off — "Your CV, reviewed" while a brought
@@ -198,40 +160,11 @@ export function factCount(confirmed: ClaimRecord[], negatives: ClaimRecord[]): n
   return confirmed.length + negatives.length;
 }
 
-const emptyRail = (): Record<CvSection, number> =>
-  ({ summary: 0, experience: 0, skills: 0, education: 0 });
-
-const toQuestion = (i: FloorItem): DiscoveryQuestion => ({
-  itemId: i.id,
-  question: i.question,
-  options: i.options,
-  cvSection: i.cvSection,
-});
-
-// #18 AC6: the one reader-only question — over CV facts only a reader of the uploaded CV could ask
-// (bounded stub: derives from the first mined role only; the broader "CV auto-answers" mechanism,
-// spec stories #8-11, is out of scope). Not a floor item, so it's never in essentialRemaining/railFill.
-export const READER_ROLE_ITEM_ID = "reader-role";
-
-export function readerQuestion(role: MinedRole): DiscoveryQuestion {
-  return {
-    itemId: READER_ROLE_ITEM_ID,
-    question: `Your CV mentions "${role.title}" — what was your actual role there?`,
-    options: [],
-    cvSection: "experience",
-  };
-}
-
-/** Discovery asks the leading bands (essential + standard); nice-to-have never gates the deck or the
- *  bars (spec: "the essential band alone is the discovery gate"). */
-const asked = (i: FloorItem) => i.rankBand === "essential" || i.rankBand === "standard";
-
 /** The CV lines discovery alone contributes: the role lead line, then each floor item's answered line
- *  in floor rank order, then any reader-only positive (#18 AC6 — synthetic, not a floor item). Split
+ *  in floor rank order, then any reader-only positive. #339: discovery no longer asks either, so such
+ *  a line exists only where a session answered one before — kept, because it is her own answer. Split
  *  out of discoveryState (#23 B2 / standards finding): callers that only need cvLines — tailor is the
- *  first — get exactly this, not the full discoveryState rebuild (railFill, essentialRemaining,
- *  question/triggeredBy filtering, the promise) for fields they can't use. `floor` is passed in rather
- *  than re-derived so discoveryState itself doesn't load+parse the family floor twice. */
+ *  first — get exactly this. `floor` is passed in rather than re-derived. */
 export function discoveryCvLines(
   role: string,
   floor: readonly FloorItem[],
@@ -254,108 +187,33 @@ export function discoveryCvLines(
   return cvLines;
 }
 
-/** Rebuild the whole screen state from persisted facts. `role` is the Q1 text (null before Q1);
- *  `confirmed`/`negatives`/`rejected` are this session's recorded answers — `rejected` (#35: a claim
- *  the S2 deck rejected) still closes its question (the visitor was asked and answered; only the
- *  machine's phrasing of it was rejected), so it counts into `answeredIds` alongside negatives, but
- *  never into `positives` — no CV line (cvLines stays confirmed-only, unaffected) and no trigger
- *  (isTriggered keys off `positives`, so a rejected trigger does not surface an UNanswered triggered
- *  item — an already-answered one stays askable; see the isTriggered comment).
- *
- *  #184: `resolvedCity` — the ONE location signal, the visitor's confirmed search area RESOLVED to a
- *  display name (postingRetrieval.ts's resolveSearchArea; `null` when unset or uncovered) — replaces
- *  the old internal parseCity(role) guess. The caller (routes/onboarding.ts) resolves it once from
- *  session.intent.searchArea and passes it in; this function does no resolving of its own, same as it
- *  never did any of its own IO. Pure + deterministic → GET resumes.
+/** Rebuild the whole screen state from persisted facts. `role` is the Q1 text (null before Q1).
+ *  #339: discovery asks no floor question any more — the eligibility questions are layered on by
+ *  eligibilityDiscovery.ts's applyEligibilityQuestions, which also holds `stage` at "discovery" while
+ *  one is open. Pure + deterministic → GET resumes.
  *
  *  #246: `openJobs` — how many adverts HER OWN search returned (preview.ts's
- *  retrievedPostingCount), passed in for the same reason `resolvedCity` is. It used to be counted
- *  here, off the fixture pool, for the family the INTERVIEW asks about; for a word-search visitor
- *  that is not the family her deck searches, so the promise stated a count the deck could never
- *  keep. `null` means we could not look — the promise falls silent rather than guessing. */
+ *  retrievedPostingCount), passed in so the promise counts the search her deck is built from. `null`
+ *  means we could not look — the promise falls silent rather than guessing. */
 export function discoveryState(
   role: string | null,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
-  rejected: ClaimRecord[] = [],
-  resolvedCity: string | null = null,
   family: DiscoveryFamily | null = null,
   openJobs: number | null = null,
 ): DiscoveryState {
-  if (!role) {
-    return {
-      stage: "discovery",
-      role: null,
-      family: null,
-      city: null,
-      promise: null,
-      questions: [],
-      railFill: emptyRail(),
-      essentialRemaining: 0,
-      cvLines: [],
-      factCount: factCount(confirmed, negatives),
-      reviewPending: false,
-    };
-  }
-
-  const city = resolvedCity;
-  const floor = family?.items ?? [];
-  const byId = new Map(floor.map((i) => [i.id, i]));
-
-  // An item is answered by a positive, a "no", OR a deck-rejected claim (#35 — all three close it).
-  // Positives also carry a CV line; rejected does not (it's excluded from `positives` on purpose).
-  const positives = confirmed.filter((c) => isDiscoveryClaim(c.id));
-  const answeredIds = new Set(
-    [
-      ...positives,
-      ...negatives.filter((c) => isDiscoveryClaim(c.id)),
-      ...rejected.filter((c) => isDiscoveryClaim(c.id)),
-    ].map((c) => itemIdOf(c.id)),
-  );
-
-  // #18 AC5: a triggered item is only askable once its trigger has a POSITIVE answer — a "no" on the
-  // trigger does not surface it. Untriggered items are always askable. "askable" gates BOTH questions
-  // and railFill, so an un-surfaced triggered item sits in neither's numerator nor denominator.
-  // #35: `|| answeredIds.has(i.id)` — an already-answered item can never be un-asked. Without it,
-  // rejecting the TRIGGER claim (moving it out of `positives`) would evict its already-answered
-  // follow-up from `askable` too, dropping it from railFill's numerator AND denominator — the same
-  // regression this ticket forbids, one step removed from the trigger claim itself.
-  const isTriggered = (i: FloorItem) =>
-    !i.triggeredBy || positives.some((c) => itemIdOf(c.id) === i.triggeredBy) || answeredIds.has(i.id);
-  const askable = floor.filter((i) => asked(i) && isTriggered(i));
-
-  const questions = askable.filter((i) => !answeredIds.has(i.id)).map(toQuestion);
-
-  // rail fill: per section, the share of that section's askable items answered.
-  const railFill = emptyRail();
-  for (const section of CV_SECTIONS) {
-    const inSection = askable.filter((i) => i.cvSection === section);
-    if (inSection.length === 0) continue;
-    const done = inSection.filter((i) => answeredIds.has(i.id)).length;
-    railFill[section] = done / inSection.length;
-  }
-
-  // essentialRemaining is the discovery gate — the essential band alone, never a triggered item
-  // (triggered items are always rankBand "standard"; see the family-floor stub).
-  const essential = floor.filter((i) => i.rankBand === "essential");
-  const essentialRemaining = essential.filter((i) => !answeredIds.has(i.id)).length;
-
-  const cvLines = discoveryCvLines(role, floor, confirmed);
-
   return {
-    stage: essentialRemaining === 0 ? "deck" : "discovery",
+    stage: role ? "deck" : "discovery",
     role,
-    family: family?.label ?? null,
-    city,
+    family: role ? (family?.label ?? null) : null,
+    city: null, // #214: the promise names no place; kept on the wire as null
     // #246: no longer gated on a family — a visitor the product cannot name yet has a real search
     // and a real count, and gets the same sentence as everyone. A zero is not shown: silence is
     // honest, "0 new jobs are open right now" on question 1 is a verdict on a search she has not
     // finished describing (design §4c already drops the line rather than print a broken one).
-    promise: openJobs !== null && openJobs > 0 ? { count: openJobs } : null,
-    questions,
-    railFill,
-    essentialRemaining,
-    cvLines,
+    promise: role && openJobs !== null && openJobs > 0 ? { count: openJobs } : null,
+    questions: [],
+    cvLines: role ? discoveryCvLines(role, family?.items ?? [], confirmed) : [],
     factCount: factCount(confirmed, negatives),
     reviewPending: false,
   };
@@ -363,13 +221,12 @@ export function discoveryState(
 
 /** True only for a BARE "no" — it closes the item but adds nothing to the CV (persisted as a negative
  *  via #13's answerNegative). A hedged option like "No, but a related certification" is NOT a "no": it
- *  asserts a real fact, so it must fall through to composeCvLine and be conserved (never dropped as a
- *  negative — CLAUDE.md conservation). The full "no" treatment — asked-and-closed, correction — is #18. */
+ *  asserts a real fact, so it is conserved (never dropped as a negative — CLAUDE.md conservation). */
 export function isNoAnswer(answer: string): boolean {
   return /^no[.!]?$/i.test(answer.trim());
 }
 
-/** #324: a typed non-answer ("I don't know", "not sure", "n/a", "idk", the Skip button's "Not sure")
+/** #324: a typed non-answer ("I don't know", "not sure", "n/a", "idk")
  *  — it closes the question but is never a fact about the person. Whole-answer match only: "Not sure
  *  which, but the CFO and IT" asserts something and is conserved like any other answer. */
 export const NON_ANSWER = /^(?:(?:i )?(?:do ?n[o']?t|dont) (?:know|remember|recall)|(?:i have )?no (?:idea|clue)|idk|dunno|(?:i'?m )?(?:not sure|unsure)(?: yet)?|n\.?\/?a\.?|not applicable|none|nothing|skip|pass|\?+|-+)$/;

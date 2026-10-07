@@ -14,11 +14,9 @@ const unavailable: PostingRetrievalResultV1 = {
   retryable: true,
 };
 
-// #248: ensureRetrieval no longer passes this through untouched. It READS the coverage fields first,
-// to decide whether this deck may be served at all — before it so much as looks at the snapshot.
-// This fixture is an AUTHORIZED request (#235's empty plan, covered by definition), so the tests
-// below stay about claiming, coalescing and spending rather than about authorization. The
-// unauthorized case has its own test at the bottom of this file.
+// #248 made ensureRetrieval read the coverage fields first, to refuse an uncovered deck; #339 removed
+// that floor gate, so the coverage fields now only feed the fingerprint. This fixture is #235's empty
+// plan; the uncovered family plan below has its own test at the bottom of this file.
 const request: RetrievalRequest = {
   targetRole: "IT project manager",
   searchAreas: ["Hong Kong"],
@@ -31,7 +29,7 @@ const request: RetrievalRequest = {
 };
 
 /** A visitor who has not covered her floor: a family plan whose checkpoint has not got there. */
-const unauthorizedRequest: RetrievalRequest = {
+const uncoveredRequest: RetrievalRequest = {
   ...request,
   family: { familyId: "it-project-delivery", version: 1 },
   questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
@@ -138,42 +136,18 @@ describe("makeRetrievalCoordinator", () => {
     expect(calls.begin).toBe(0);
     expect(calls.retrieve).toBe(0);
   });
-  // #248 — the property the move exists for. A snapshot is DATA, not permission: it can now be
-  // fetched before she has earned anything (#246 fetches at question 1 so the promise can state a
-  // true count), so the deck has to refuse on its own account, every read, snapshot or no. While the
-  // coverage test lived inside the fetch this was unwritable — nothing could put a snapshot there.
-  it("refuses an uncovered deck even when a reusable snapshot is already sitting there", () => {
+  // #339 — the floor gate #248 put here is gone: discovery no longer asks the floor, so nothing could
+  // ever cover it, and an uncovered family plan is served its reusable snapshot like any other —
+  // never `floor_not_covered`, and with no store or provider traffic. The one gate left (#338's
+  // completed review) is asked before this seam, and the cards by preview.ts's sessionPostings.
+  it("serves an uncovered family plan its reusable snapshot as-is — the floor gates nothing", () => {
     const { deps, calls } = makeDeps();
     const c = makeRetrievalCoordinator(deps);
-    // The SAME snapshot shape the reusable-snapshot test above proves is honoured — otherwise this
-    // test would pass for the boring reason that there was nothing usable there anyway.
     const snapshot = { requestFingerprint: "fp-1", recordedAt: new Date().toISOString(), result: unavailable };
-    expect(c.ensureRetrieval(session({ retrieval: snapshot }), request, "fp-1")).toBe(unavailable);
 
-    const result = c.ensureRetrieval(session({ retrieval: snapshot }), unauthorizedRequest, "fp-1");
+    const result = c.ensureRetrieval(session({ retrieval: snapshot }), uncoveredRequest, "fp-1");
 
-    expect(result).toEqual({
-      schemaVersion: "5",
-      outcome: "invalid_request",
-      code: "floor_not_covered",
-    });
-    // And it spends nothing to say so: no claim, no provider call.
+    expect(result).toBe(unavailable);
     expect(calls).toMatchObject({ begin: 0, retrieve: 0 });
-  });
-
-  it("serves the same session the moment its floor is covered", () => {
-    const { deps } = makeDeps();
-    const c = makeRetrievalCoordinator(deps);
-    const snapshot = { requestFingerprint: "fp-1", recordedAt: new Date().toISOString(), result: unavailable };
-
-    const covered = c.ensureRetrieval(
-      session({ retrieval: snapshot }),
-      { ...unauthorizedRequest, checkpoint: "essential_floor_covered" },
-      "fp-1",
-    );
-
-    // The very same snapshot the previous test refused to serve — coverage is the only thing that
-    // changed, which is what makes it the authorization and not the snapshot.
-    expect(covered).toBe(unavailable);
   });
 });

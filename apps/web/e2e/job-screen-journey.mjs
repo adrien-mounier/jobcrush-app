@@ -143,8 +143,8 @@ const started = await page.evaluate(
     }).then((r) => r.status),
   ROLE,
 );
-const seeded = await qa.seedFloorAnswers({ yes: "Yes, over EUR 4M across cross-functional teams" });
-await qa.note(`discovery started (HTTP ${started}); essential floor answered: ${seeded.join(", ") || "nothing"}`);
+// #339: question 1 is all it takes — no floor to answer, and no CV here to be reviewed first.
+await qa.note(`discovery started (HTTP ${started})`);
 
 const signIn = await page.evaluate(async () => {
   const linkRes = await fetch("/api/auth/request-link", {

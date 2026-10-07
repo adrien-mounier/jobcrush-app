@@ -14,8 +14,6 @@ import {
   type SessionStore,
 } from "./sessions.js";
 import {
-  deckReadIsAuthorized,
-  floorNotCoveredResult,
   isReusableRetrievalSnapshot,
   logPostingRetrievalFailure,
   type RetrievalRequest,
@@ -175,11 +173,9 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
     retrievalRequest: RetrievalRequest,
     requestFingerprint: string,
   ): PostingRetrievalResultV1 {
-    // #248: FIRST, before the snapshot is even looked at, so an early snapshot cannot report itself
-    // as a finished retrieval. This is only HALF the guard, and on its own it would be decoration:
-    // it decides the payload's `retrieval` field, never the cards. The cards are gated in
-    // preview.ts's sessionPostings, which every posting reader passes through.
-    if (!deckReadIsAuthorized(retrievalRequest)) return floorNotCoveredResult();
+    // #339: the floor gate that stood here is gone. The one gate left — the completed review — is
+    // asked by the deck route before it gets here (deck.ts's buildDeckResponse), and the cards
+    // themselves by preview.ts's sessionPostings, which every posting reader passes through.
     return beginRetrieval(session, retrievalRequest, requestFingerprint).now;
   }
 
@@ -192,8 +188,7 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
    *  pays the provider latency §2.6 forbids the cards route from paying. Its caller
    *  (discoveryEngine.ts's searchAtQuestionOne) bounds that wait.
    *
-   *  The missing reveal check is #248: she has answered nothing at question 1 and would fail
-   *  `deckReadIsAuthorized`, and #248 split fetching from being allowed to see precisely so that
+   *  The missing reveal check is #248, which split fetching from being allowed to see so that
    *  fetching is legal here. What still refuses her the CARDS is preview.ts's sessionPostings, which
    *  every posting reader passes through — never this. A failed background task degrades to whatever
    *  the immediate answer was, so the promise goes quiet rather than wrong. */

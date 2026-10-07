@@ -14,7 +14,7 @@
 //   BASE_URL=http://127.0.0.1:34100 node apps/web/e2e/not-sure-yet-detour-journey.mjs
 //
 // Uses qa-main.ts's canned language adverts (armed for this run, put back at the end), the same
-// knob language-ladder-journey.mjs uses. The visitor's side is never seeded beyond the floor.
+// knob language-ladder-journey.mjs uses. The visitor's side is never seeded beyond question 1.
 import { createSession } from './qa-driver.mjs';
 import { liveAdId } from './live-ad-id.mjs';
 
@@ -66,12 +66,11 @@ const armed = await setLanguageAdverts(true);
 await assert(armed === 200, `the QA stack armed the language adverts (HTTP ${armed})`);
 
 try {
-  // 1. Earn a signed-in session — floor answered, NO language declared.
+  // 1. Earn a signed-in session — question 1 answered, NO language declared.
   await qa.goto('/discovery', 'land on discovery');
   await page.waitForTimeout(700);
   await api('/api/onboarding/discovery/start', 'POST', { role: ROLE });
-  const seeded = await qa.seedFloorAnswers();
-  await qa.note(`floor seeded: ${seeded.join(', ')} — languages deliberately left undeclared`);
+  await qa.note('discovery started — languages deliberately left undeclared');
   const link = await api('/api/auth/request-link', 'POST', { email: `not-sure-detour-${Date.now()}@example.com` });
   await assert(!!link.json?.devLink, `sign-in link issued (HTTP ${link.status})`);
   const token = new URL('http://x' + link.json.devLink).searchParams.get('token');

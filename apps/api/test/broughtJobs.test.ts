@@ -12,7 +12,7 @@
 // Time is faked throughout, because every rule here is about the passage of days.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdRequirementsV1, type PostingRetrievalResultV1 } from "@jobcrush/contracts";
-import { buildDeckServer, coverEssentialFloor, fixtureRetriever, injectSettled } from "./fixtureDeck.js";
+import { buildDeckServer, fixtureRetriever, injectSettled } from "./fixtureDeck.js";
 import { IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
 import { InMemoryJobStore } from "../src/jobs.js";
 import { InMemoryPasteRecordStore } from "../src/pasteRecordStore.js";
@@ -173,7 +173,6 @@ async function deck(app: App, cookie: string): Promise<{ cards: DeckCard[]; sear
 async function readyForDeck(app: App): Promise<string> {
   const cookie = await anonSession(app);
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await coverEssentialFloor(app, cookie);
   return cookie;
 }
 

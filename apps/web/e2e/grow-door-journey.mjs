@@ -42,7 +42,8 @@ async function readThrough(note) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 0. Seed: discovery floor (last item answered "No" — a session-wide denial), real magic-link sign-in.
+// 0. Seed: discovery, his CV's facts, real magic-link sign-in. #339: discovery takes no "No" any
+//    more (it asks no floor), so every denial in this run is a tailor "No" — §2 makes the first.
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/discovery', 'land on discovery — establishes the anonymous session');
 await page.evaluate(
@@ -54,9 +55,8 @@ await page.evaluate(
     }).then(() => undefined),
   { role: ROLE },
 );
-const seededItems = await qa.seedFloorAnswers({ yes: 'Yes, over $1M', no: true });
-if (seededItems.length === 0) throw new Error('no floor questions were served - the session was never placed');
-await qa.note(`seeded the floor (last item answered "No"): ${seededItems.join(', ')}`);
+const facts = await qa.factsFromCv();
+await qa.note(`his CV was read and reviewed — ${facts} facts for the draft to work from`);
 const signedIn = await page.evaluate(async ({ email }) => {
   const post = (url, body) =>
     fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -69,21 +69,18 @@ const signedIn = await page.evaluate(async ({ email }) => {
 if (signedIn !== 'ok') throw new Error(signedIn);
 
 // ---------------------------------------------------------------------------------------------
-// 1. The deck: the discovery "No" is named only on postings that ask for it — never on every card.
+// 1. The deck: the door belongs with the questions, never on a deck card.
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/deck', 'the reveal');
 await qa.click(page.getByRole('button', { name: 'See them' }), 'See them');
 await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'the deck card renders');
-const cards = (await api('/api/onboarding/cards')).cards ?? [];
-const naming = cards.filter((c) => (c.askedClosed ?? []).length > 0).length;
-await qa.note(`deck: ${naming} of ${cards.length} cards name a denial (#311: only where the posting asks)`);
-await assert(cards.length === 0 || naming < cards.length, `the denial is not recited on every card (${naming}/${cards.length})`);
 await qa.expectVisible(page.locator('.jobdeck'), `the deck card carries no "${DOOR}" door (count: ${await page.getByRole('button', { name: DOOR }).count()})`);
 await assert((await page.getByRole('button', { name: DOOR }).count()) === 0, 'no door on the deck — it belongs with the questions');
 await qa.scrollThrough('read the deck card top to bottom');
 
 await qa.click(page.getByRole('button', { name: 'I want this one, tailor this job' }), 'swipe right — I want this one');
 await page.waitForURL('**/tailor', { timeout: 15_000 });
+await page.locator('.tailor .q').waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
 await qa.expectVisible('.tailor .q', 'the Tailor step asks its first question');
 
 // ---------------------------------------------------------------------------------------------
@@ -96,6 +93,11 @@ await qa.expectVisible(page.getByRole('heading', { name: DENIED_H }), `the headi
 const deniedRow = page.locator('.tailor .row.settled').filter({ hasText: grown });
 await qa.expectVisible(deniedRow, 'the "No" is named on this card as a dim-dot row');
 await qa.expectVisible(deniedRow.getByRole('button', { name: DOOR }), `the row carries its "${DOOR}" door`);
+// #311: that "No" is named only on postings that ask for it — never recited on every deck card.
+const cards = (await api('/api/onboarding/cards')).cards ?? [];
+const naming = cards.filter((c) => (c.askedClosed ?? []).length > 0).length;
+await qa.note(`deck after the "No": ${naming} of ${cards.length} cards name a denial (#311: only where the posting asks)`);
+await assert(cards.length > 0 && naming < cards.length, `the denial is not recited on every card (${naming}/${cards.length})`);
 
 // ---------------------------------------------------------------------------------------------
 // 3. Open the door: the row becomes a question in the same dock; answer a coarse date.
@@ -155,14 +157,12 @@ await readThrough('read the finished draft');
 
 const draft = await api('/api/onboarding/tailor/draft');
 const html = String(draft.html ?? '').toLowerCase();
-const discoveryNo = seededItems.length ? (await api('/api/onboarding/discovery')) : null;
 await qa.note(`draft status=${draft.status ?? '?'} · html length=${html.length} · notices=${JSON.stringify(draft.conservationNotices ?? [])}`);
 if (kept) {
   await assert(!html.includes(kept.toLowerCase()), `the kept denial's words "${kept}" are NOT on the draft page`);
 }
 await assert(!html.includes('not applicable'), 'no answer scaffolding ("Not applicable") on the draft page');
 await qa.note(`the grown fact "(since ${year})" on the draft page: ${html.includes(`since ${year}`)}`);
-await qa.note(`discovery state read for the record: ${discoveryNo ? 'ok' : 'n/a'}`);
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

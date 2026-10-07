@@ -7,15 +7,16 @@
 // fresh, fingerprint-matching snapshot exists for a session that has earned nothing, and the only
 // thing standing between it and her deck is this check.
 //
-// What this journey adds that no other journey covers: it drives the UNCOVERED half from a real
-// browser and asks the server, over her own session cookie, on every door that can put a retrieved
-// posting in front of her. discovery-earns-reveal-gate.mjs proves she EARNS the checkpoint by
-// pressing buttons; this one proves what the checkpoint is worth while it is still unearned — and
-// that the refusal is answered on the spot, with no provider call and nothing stored.
+// #339 changed WHAT she earns her deck with, not the property. The floor-coverage gate is gone with
+// the floor questions; the one gate left is a brought CV's completed "Your CV, reviewed" (#338,
+// ADR-0016 clause 6). So the visitor here brings a CV, gets a real question-1 search (the promise
+// on her screen counts it), and is refused on every door until she confirms her review.
 //
-// The half this cannot reach from a browser is planting a live snapshot at an uncovered checkpoint
-// (no HTTP surface writes one). That is covered at the server level by
-// apps/api/test/postingRetrieval.test.ts "#248 a snapshot is data, not permission".
+// What this journey adds that no other journey covers: it drives the UNEARNED half from a real
+// browser and asks the server, over her own session cookie, on every door that can put a retrieved
+// posting in front of her, while a live snapshot exists — and proves the refusal is answered on the
+// spot, with no provider call and nothing stored. cv-review-gate-doors-journey.mjs walks the same
+// gate from the review screen's side.
 //
 // Run it:
 //   OPS_KEY=qa-ops-key node apps/api/dist/qa-main.js                       # fake-model API on :34101
@@ -31,10 +32,9 @@ import { createSession } from './qa-driver.mjs';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:34878';
 // The fake labeler (qaFamilyAnswer.ts) places project|programme|delivery|scrum|pm into the one
-// published family, so this visitor gets a real question floor to be gated on.
+// published family, so this visitor's question-1 search runs on a real family.
 const PLACED_ROLE = 'IT project manager';
 const AREA = 'Singapore';
-const FAMILY = 'it-project-delivery';
 
 const CV_TEXT = [
   'Marta Kowalska',
@@ -93,14 +93,6 @@ async function callAsVisitor(method, path, data) {
   );
 }
 const getJson = async (path) => (await callAsVisitor('GET', path)).json;
-const record = async () => (await getJson('/sessions/me'))?.discovery;
-// #248 D1: `/sessions/me` no longer hands out `retrieval` at all — it carried the whole live advert
-// list to a visitor who had not earned it, which is the very leak this journey exists to catch. So
-// "did an unearned read start work?" is asked of the DECK's own retrieval status instead: refused on
-// the spot reads `invalid_request`, whereas work that started reads `provider_unavailable` with
-// "in progress". Asking the session record would now answer null whatever happened - a probe that
-// cannot fail is not a probe.
-const deckRetrievalStatus = async () => (await getJson('/onboarding/cards'))?.retrieval ?? null;
 
 // =============================================================================================
 // 1. WALK HER IN. Placed target role, a CV the product has actually read, into discovery.
@@ -110,7 +102,7 @@ await qa.scrollThrough('read the front door top to bottom, the way a first-time 
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'she pastes her CV — two dated jobs and one degree');
-await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
+// Her review is left OPEN on purpose: it is the one gate #339 left standing, and §2 attacks it.
 await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
 await qa.fill('#search-area', AREA, 'where she wants to work');
@@ -128,25 +120,25 @@ await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a real visitor would');
 
 // She signs in now, so the post-wall doors (/want, /tailor) are reachable and their refusal below
-// is about the floor, not about the sign-in wall.
+// is about her unreviewed CV, not about the sign-in wall.
 const signIn = await callAsVisitor('POST', '/auth/request-link', { email: `snapshot-gate-${Date.now()}@example.com` });
 const devLink = signIn.json?.devLink;
 await assertTrue(!!devLink, 'the sign-in link was issued over the real magic-link path');
 await callAsVisitor('POST', '/auth/verify', { token: new URL(`http://x${devLink}`).searchParams.get('token') });
 
 // =============================================================================================
-// 2. THE UNCOVERED MOMENT. She has a pinned family floor and has answered none of it.
-//    This is exactly the state #246's question-1 search will hold a live snapshot in.
+// 2. THE UNEARNED MOMENT. #246's question-1 search has run — a live snapshot exists — and she has
+//    not reviewed her CV.
 // =============================================================================================
-const before = await record();
-await qa.note(`her durable record before she answers her floor: ${JSON.stringify(before)}`);
+const discoveryNow = await getJson('/onboarding/discovery');
+await qa.note(`her discovery state: promise ${JSON.stringify(discoveryNow?.promise)}, reviewPending ${discoveryNow?.reviewPending}`);
 await assertTrue(
-  before?.searchFamily?.familyId === FAMILY && (before?.questionFloors?.length ?? 0) > 0,
-  `she has a real question floor to be gated on — a search family and floors are pinned (${JSON.stringify(before?.questionFloors)})`,
+  (discoveryNow?.promise?.count ?? 0) > 0,
+  `a real search already ran at question 1 — her screen promises ${discoveryNow?.promise?.count} jobs, so a live snapshot exists`,
 );
 await assertTrue(
-  before?.checkpoint !== 'essential_floor_covered',
-  `and she has NOT earned her reveal yet (checkpoint: ${before?.checkpoint})`,
+  discoveryNow?.reviewPending === true,
+  `and she has NOT earned her deck yet — her CV review is still open (reviewPending ${discoveryNow?.reviewPending})`,
 );
 
 // The deck read, THREE times. #248's own words: "the test runs on EVERY deck read, whether or not a
@@ -160,31 +152,21 @@ const generationBeforeReads = sessionBeforeReads?.retrievalGeneration;
 const fingerprintBeforeReads = sessionBeforeReads?.retrievalCoordinationFingerprint;
 for (const attempt of [1, 2, 3]) {
   const cards = await callAsVisitor('GET', '/onboarding/cards');
-  const retrieval = cards.json?.retrieval;
   await assertTrue(
-    cards.status === 200 &&
-      retrieval?.outcome === 'invalid_request' &&
-      retrieval?.code === 'floor_not_covered',
-    `deck read ${attempt} of 3 is refused with the unchanged wire code (${cards.status} ${JSON.stringify(retrieval)})`,
+    cards.status === 200 && cards.json?.reviewPending === true && (cards.json?.cards ?? []).length === 0,
+    `deck read ${attempt} of 3 is refused — no cards, reviewPending (${cards.status} ${cards.body.slice(0, 160)})`,
   );
+  // Answered on the spot: the refusal comes back before retrieval is even consulted, so it carries
+  // no retrieval status and no postings — nothing to leak, and no work started.
   await assertTrue(
-    !('postings' in (retrieval ?? {})),
-    `deck read ${attempt} of 3 carries no retrieved postings at all — the refusal has no payload to leak (keys: ${Object.keys(retrieval ?? {}).join(', ')})`,
+    !('retrieval' in (cards.json ?? {})) && cards.json?.searching === false,
+    `deck read ${attempt} of 3 carries no retrieval at all and is not "still searching" — refused on the spot, not queued (keys: ${Object.keys(cards.json ?? {}).join(', ')})`,
   );
 }
 
-// Answered on the spot: no provider call, no claim, nothing persisted against her session. If an
-// uncovered read ever started work, this is where it would show up.
-const statusWhileUncovered = await deckRetrievalStatus();
-await qa.note(`what her deck says about retrieval while uncovered: ${JSON.stringify(statusWhileUncovered)}`);
-await assertTrue(
-  statusWhileUncovered?.outcome === 'invalid_request' && statusWhileUncovered?.code === 'floor_not_covered',
-  `an unearned deck is refused on the spot, not queued — no provider call, no claim (${JSON.stringify(statusWhileUncovered)})`,
-);
-
 // #248 D1, closed: the session record she can read in her own browser must not carry the advert
 // pool. Nothing renders it, so this would never have shown on screen — it would just have been
-// sitting in devtools for every uncovered visitor the moment #246 starts searching early.
+// sitting in devtools for every unearned visitor the moment #246 starts searching early.
 const ownSession = await getJson('/sessions/me');
 await assertTrue(
   ownSession !== null && !('retrieval' in ownSession),
@@ -198,7 +180,7 @@ await assertTrue(
 // Two false premises have been corrected here, both the same mistake: reading a value that ALREADY
 // MOVED on her way to the deck as if it proved something about the deck.
 //   - `retrievalGeneration === 0` — wrong when it was written; the generation is bumped by her
-//     intent write and by her floor being pinned, both on the discovery screen above.
+//     intent write and by her plan being pinned, both on the discovery screen above.
 //   - `retrievalCoordinationFingerprint === null` — wrong since #246, and note the comment fifteen
 //     lines up already saw it coming ("the moment #246 starts searching early"). Question 1 now buys
 //     one real search so the promise on her first screen can state a true count, and that search
@@ -232,39 +214,30 @@ await assertTrue(
   `and the tailor surface has nothing to show her either (${tailorWhileUncovered.status} ${tailorWhileUncovered.body})`,
 );
 
-// What she SEES at the reveal while the floor is uncovered: the product asks for more, it does not
+// What she SEES at the reveal while her review is open: the deck sends her to the review, it does not
 // hand her a retrieved deck.
-await qa.goto('/deck', 'the reveal, while her floor is still uncovered');
-await qa.scrollThrough('read the uncovered reveal top to bottom');
+await qa.goto('/deck', 'the reveal, while her CV review is still open');
+await page.waitForURL(/\/review/, { timeout: 20000 }).catch(() => {});
+await qa.scrollThrough('read the screen she gets instead of a deck');
 const uncoveredDeck = await getJson('/onboarding/cards');
 await qa.note(
-  `the uncovered reveal: retrieval ${JSON.stringify(uncoveredDeck?.retrieval)}, ` +
+  `the unearned reveal: at ${page.url()}, reviewPending=${uncoveredDeck?.reviewPending}, ` +
   `moreQuestions=${uncoveredDeck?.moreQuestions}, searching=${uncoveredDeck?.searching}`,
 );
 await assertTrue(
-  uncoveredDeck?.searching !== true,
-  'she is not shown a spinner she can never get past — the refusal is a settled answer, not "still searching"',
+  page.url().includes('/review') && uncoveredDeck?.searching !== true,
+  `she is sent to her CV review, not shown a spinner she can never get past — the refusal is a settled answer (${page.url()})`,
 );
 
 // =============================================================================================
-// 3. SHE EARNS IT, ON THE SCREEN. Nothing about the served half may have regressed.
+// 3. SHE EARNS IT. She confirms her CV review, and nothing about the served half may have regressed.
 // =============================================================================================
-await qa.goto('/discovery', 'back into discovery — she answers her floor');
-const asked = await qa.answerFloorOnScreen();
-await qa.note(`the questions her own screen put to her: ${asked.join(', ') || '(none)'}`);
-await assertTrue(asked.length >= 3, `she was asked her family's researched floor (${asked.length} items)`);
-
-const earned = await record();
-await assertTrue(
-  earned?.checkpoint === 'essential_floor_covered',
-  `pressing the buttons on her screen is what earned the checkpoint (${earned?.checkpoint})`,
-);
-
+await qa.completeReview(); // #338: "Your CV, reviewed" confirmed — the one gate #339 left
 const servedDeck = await callAsVisitor('GET', '/onboarding/cards');
-await qa.note(`the same deck read, now that she has earned it: ${JSON.stringify(servedDeck.json?.retrieval)}`);
+await qa.note(`the same deck read, now that she has earned it: reviewPending ${servedDeck.json?.reviewPending}, retrieval ${JSON.stringify(servedDeck.json?.retrieval)?.slice(0, 160)}`);
 await assertTrue(
-  servedDeck.json?.retrieval?.code !== 'floor_not_covered',
-  `the SAME read that was refused three times is no longer refused — coverage is the only thing that changed (${JSON.stringify(servedDeck.json?.retrieval)})`,
+  servedDeck.json?.reviewPending !== true && 'retrieval' in (servedDeck.json ?? {}),
+  `the SAME read that was refused three times is no longer refused — the completed review is the only thing that changed`,
 );
 
 await qa.goto('/deck', 'the reveal she has now earned');

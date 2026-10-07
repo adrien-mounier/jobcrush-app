@@ -2,7 +2,8 @@
 //
 // What this journey exists to catch, in the words of the ticket it gates:
 //   AC1  a truthful current match count may be revealed once the gates pass and retrieval succeeds
-//   AC2  any gate absent -> the server refuses, and no client can talk it round
+//   AC2  any gate absent -> the server refuses, and no client can talk it round (#339: the one gate
+//        left is a brought CV's completed review; the floor-coverage gate is gone)
 //   AC3  a search that found nothing shows no zero-match reward, and offers her a way to adjust
 //   AC4  adjusting her intent re-runs the search without costing her the answers she already gave
 //
@@ -122,9 +123,9 @@ async function freshVisitor(label, { withCv = false } = {}) {
   await page.context().clearCookies();
   if (withCv) {
     // #271: her CV goes in first, through the front door's paste tile — the order a person walks
-    // (the deleted /paste side entrance used to let the CV arrive mid-journey instead).
+    // (the deleted /paste side entrance used to let the CV arrive mid-journey instead). Her review
+    // is left OPEN on purpose: #339 made it the one gate left, and §1 attacks it.
     await qa.frontDoorPaste(CV_TEXT, `${label} — the front door: she pastes her CV, two dated jobs and one degree`);
-    await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
     await qa.frontDoorContinueToIntent();
   } else {
     await qa.goto('/', `${label} — the front door`);
@@ -145,26 +146,28 @@ async function freshVisitor(label, { withCv = false } = {}) {
 }
 
 // =============================================================================================
-// 1. AC2 — THE REFUSAL. She has been placed in a family but has answered none of its questions.
-//    She goes straight to the deck, then tries every client-side lever there is.
+// 1. AC2 — THE REFUSAL. She brought a CV and has not reviewed it yet — #339 made the completed
+//    "Your CV, reviewed" the one gate left (the floor gate is gone). She goes straight to the deck,
+//    then tries every client-side lever there is.
 // =============================================================================================
-await armRetrieval('relevant_postings'); // the provider is healthy: the ONLY thing missing is her floor
+await armRetrieval('relevant_postings'); // the provider is healthy: the ONLY thing missing is her review
 await freshVisitor('a visitor who has not earned anything yet', { withCv: true });
 
 const refused = await cardsState();
-await qa.note(`the server's answer with her floor still open: ${JSON.stringify(refused.retrieval)}`);
+await qa.note(`the server's answer with her review still open: ${JSON.stringify({ reviewPending: refused.reviewPending, retrieval: refused.retrieval })}`);
 await assertTrue(
-  refused.cards.length === 0 && refused.retrieval?.outcome === 'invalid_request',
-  `AC2 — the server refuses outright while a gate is absent: ${refused.cards.length} cards, outcome ${refused.retrieval?.outcome} (${refused.retrieval?.code})`,
+  refused.cards.length === 0 && refused.reviewPending === true,
+  `AC2 — the server refuses outright while a gate is absent: ${refused.cards.length} cards, reviewPending ${refused.reviewPending}`,
 );
 
 await qa.goto('/deck', 'she jumps straight to the deck anyway');
+await page.waitForURL(/\/review/, { timeout: 20000 }).catch(() => {});
 await qa.scrollThrough('read the screen she gets instead of a reveal');
-const refusedText = await deckScreenText();
-await qa.note(`what the screen says: "${refusedText}"`);
+const refusedText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+await qa.note(`she is at ${page.url()}; the screen says: "${refusedText.slice(0, 200)}"`);
 await assertTrue(
-  !/just matched you/i.test(refusedText),
-  `AC2 — no reveal number is on the screen: "${refusedText}"`,
+  page.url().includes('/review') && !/just matched you/i.test(refusedText),
+  `AC2 — the deck sends her to her CV review, and no reveal number is on the screen (${page.url()})`,
 );
 
 // Every lever a client actually has: the URL, a header, and the shape of the request.
@@ -172,38 +175,36 @@ const bypasses = [
   ['GET', '/onboarding/cards?reveal=1'],
   ['GET', '/onboarding/cards?checkpoint=essential_floor_covered'],
   ['GET', '/onboarding/cards?force=true&fixtures=1'],
+  ['GET', '/onboarding/cards?reviewed=1'],
 ];
 for (const [method, path] of bypasses) {
   const res = await asVisitor(method, path);
   await assertTrue(
     (res.json?.cards ?? []).length === 0,
-    `AC2 — client bypass refused: ${method} ${path} -> ${res.status}, ${(res.json?.cards ?? []).length} cards, ${res.json?.retrieval?.outcome}`,
+    `AC2 — client bypass refused: ${method} ${path} -> ${res.status}, ${(res.json?.cards ?? []).length} cards, reviewPending ${res.json?.reviewPending}`,
   );
 }
-const forged = await asVisitor('POST', '/onboarding/discovery/answer', { itemId: 'essential_floor_covered', answer: 'Yes' });
+// #339: discovery takes nothing but eligibility answers, so a forged "coverage" answer or a floor
+// answer is not even a question it knows.
+for (const itemId of ['essential_floor_covered', 'end-to-end-delivery']) {
+  const forged = await asVisitor('POST', '/onboarding/discovery/answer', { itemId, answer: 'Yes' });
+  await assertTrue(forged.status === 404, `AC2 — a forged answer for "${itemId}" is rejected, not recorded (${forged.status})`);
+}
+const stillRefused = await cardsState();
 await assertTrue(
-  forged.status === 404,
-  `AC2 — a forged coverage answer is rejected, not recorded (${forged.status})`,
-);
-const recordAfterForgery = (await json('/sessions/me'))?.discovery;
-await assertTrue(
-  recordAfterForgery?.checkpoint !== 'essential_floor_covered',
-  `AC2 — nothing the client sent moved her durable record (checkpoint ${recordAfterForgery?.checkpoint})`,
+  stillRefused.cards.length === 0 && stillRefused.reviewPending === true,
+  `AC2 — nothing the client sent opened her deck (${stillRefused.cards.length} cards, reviewPending ${stillRefused.reviewPending})`,
 );
 
 // =============================================================================================
-// 2. AC1 — THE EARNED REVEAL. She answers the questions her own screen puts to her, and the count
-//    she is shown is built out of retrieved adverts and nothing else.
+// 2. AC1 — THE EARNED REVEAL. She completes her CV review, and the count she is shown is built out
+//    of retrieved adverts and nothing else.
 // =============================================================================================
 // #271: her CV came in on the front door when she arrived — nothing left to paste here.
-
-await qa.goto('/discovery', 'back into discovery — the family floor questions');
-const asked = await qa.answerFloorOnScreen();
-await qa.note(`the questions her own screen put to her: ${asked.join(', ') || '(none)'}`);
-await assertTrue(asked.length >= 4, `she was asked her family's researched floor (${asked.length} items)`);
+await qa.completeReview(); // #338: confirming "Your CV, reviewed" — the gate #339 left standing
 
 const earned = await cardsState();
-await qa.note(`the server's answer once she has covered the floor: ${JSON.stringify(earned.retrieval?.outcome)}`);
+await qa.note(`the server's answer once her review is complete: ${JSON.stringify(earned.retrieval?.outcome)}`);
 await assertTrue(
   earned.retrieval?.outcome === 'relevant_postings' && earned.cards.length > 0,
   `AC1 — the gates passed and retrieval succeeded, so a count may be revealed (${earned.cards.length} cards)`,
@@ -275,18 +276,18 @@ await assertTrue(
   factsAfter === factsBefore,
   `AC4 — everything she told the product survived the re-run (${factsBefore} facts before, ${factsAfter} after)`,
 );
-const record = (await json('/sessions/me'))?.discovery;
+const reviewHeld = await cardsState();
 await assertTrue(
-  record?.checkpoint === 'essential_floor_covered',
-  `AC4 — her discovery is still covered; only the dependent result re-ran (${record?.checkpoint})`,
+  reviewHeld.reviewPending !== true,
+  `AC4 — her completed review survived the re-run; only the dependent result re-ran (reviewPending ${reviewHeld.reviewPending})`,
 );
 
 // =============================================================================================
 // 4. AC3 — WE ASKED AND THERE WAS NOTHING. No reward, no fake count, and a way to change it.
 // =============================================================================================
 await armRetrieval('empty_pool');
+// #339: a visitor with no CV has nothing to review, so nothing holds her deck back.
 await freshVisitor('a visitor whose search finds nothing');
-await qa.answerFloorOnScreen();
 const empty = await cardsState();
 await assertTrue(
   empty.retrieval?.outcome === 'empty_pool' && empty.cards.length === 0,
@@ -315,7 +316,6 @@ await assertTrue(
 // =============================================================================================
 await armRetrieval('provider_unavailable');
 await freshVisitor('a visitor who arrives while our one supplier is down');
-await qa.answerFloorOnScreen();
 const down = await cardsState();
 await assertTrue(
   down.retrieval?.outcome === 'provider_unavailable' && down.cards.length === 0,

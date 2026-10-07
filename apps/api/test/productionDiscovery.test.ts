@@ -10,15 +10,21 @@ import {
 } from "../src/familyFloors.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { buildServer } from "../src/server.js";
+import { recordDiscoveryAnswer } from "../src/discovery.js";
 import type { RetrievalRequest } from "../src/postingRetrieval.js";
 
 // #216 — discovery over the PUBLISHED family floors, driven through the routes the web client
 // actually calls. Until this ticket there were two engines: the shipped screen asked one question
 // set, and a parallel /onboarding/discovery/production/* surface (which no client ever called) was
 // the only thing that could write `session.discovery`. That surface is gone and the shipped routes
-// reconcile, so every assertion below drives POST /onboarding/discovery/start,
-// GET /onboarding/discovery and POST /onboarding/discovery/answer — the visitor's own path — and
-// reads the durable record off the session.
+// reconcile, so every assertion below drives POST /onboarding/discovery/start and
+// GET /onboarding/discovery — the visitor's own path — and reads the durable record off the session.
+//
+// #339: the floors are no longer ASKED — the screen serves eligibility questions only, and the
+// answer route takes nothing else. The plan is still pinned and the coverage her claims earn is
+// still recorded (it gates nothing now), so coverage below is earned by claims put in the store
+// directly: mined evidence (`claims.seed`), or an earlier answer through the one write path that
+// still records one (`recordDiscoveryAnswer` — a "no" or a skip).
 
 const placement = {
   schemaVersion: "2" as const,
@@ -95,21 +101,12 @@ const start = (app: App, cookie: string, role = ROLE) =>
 const resume = (app: App, cookie: string) =>
   app.inject({ method: "GET", url: "/onboarding/discovery", headers: { cookie } });
 
-const answer = (app: App, cookie: string, itemId: string, answerText: string) =>
-  app.inject({
-    method: "POST",
-    url: "/onboarding/discovery/answer",
-    headers: { cookie },
-    payload: { itemId, answer: answerText },
-  });
-
 const stored = async (
   sessions: Awaited<ReturnType<typeof setup>>["sessions"],
   sessionId: string,
 ) => (await sessions.getById(sessionId))!.discovery;
 
-/** The floor items still on screen, in order — eligibility, date-hole and reader questions ride the
- *  same list (eligibilityDiscovery.ts / yearsWorked.ts) and are not what this file is about. */
+/** The floor items on screen — #339: always none; the eligibility questions are the whole list. */
 const floorAsks = (body: { questions: Array<{ itemId: string; eligibility?: unknown }> }) =>
   body.questions.filter((question) => !question.eligibility).map((question) => question.itemId);
 
@@ -131,18 +128,18 @@ describe("#61/#216 discovery over the published family floors", () => {
     expect(resumed.json()).toEqual(started.json());
   });
 
-  // The screen's "answered" test and the checkpoint's "covered" test are deliberately different
-  // rules: the screen asks anything she has not answered HERE, coverage counts any source-supported
-  // evidence (#235). Mined CV evidence therefore covers an item that is still on her screen — she is
-  // asked a question she has already proven, never the other way round.
-  it("counts imported evidence as coverage while the screen still asks the question", async () => {
+  // Coverage counts any source-supported evidence (#235), so mined CV evidence covers an item.
+  // #339: and the screen asks no floor item at all — covered or not.
+  it("counts imported evidence as coverage, and the screen asks no floor question (#339)", async () => {
     const { app, sessions, cookie, sessionId } = await setup(["end-to-end-delivery"]);
 
     const started = await start(app, cookie);
-    expect(floorAsks(started.json())).toContain("end-to-end-delivery");
+    expect(floorAsks(started.json())).toEqual([]);
     expect((await stored(sessions, sessionId)).coveredItemIds).toEqual(["end-to-end-delivery"]);
   });
 
+  // #339: coverage is still counted against the PINNED version — v2's replacement item earns
+  // nothing, v1's own item does — though neither is asked any more.
   it("continues an open interview on its pinned version after a newer version is published", async () => {
     const v1 = initialProductionFamilyFloors().get("it-project-delivery", 1)!;
     const v2 = {
@@ -174,14 +171,13 @@ describe("#61/#216 discovery over the published family floors", () => {
 
     await start(built.app, cookie);
     active = v2;
+    await built.claims.seed(sessionId, [imported("stakeholder-coordination"), imported("v2-only-question")]);
 
     const reentered = await resume(built.app, cookie);
-    const answered = await answer(built.app, cookie, "stakeholder-coordination", "Yes");
 
-    expect([reentered.statusCode, answered.statusCode]).toEqual([200, 200]);
-    // v2's replacement item is never asked: the pinned version 1 is the interview she is inside.
-    expect(floorAsks(reentered.json())).not.toContain("v2-only-question");
-    expect(floorAsks(reentered.json())).toContain("stakeholder-coordination");
+    expect(reentered.statusCode).toBe(200);
+    expect(floorAsks(reentered.json())).toEqual([]);
+    // v2's replacement item is never covered: the pinned version 1 is the interview she is inside.
     expect((await built.sessions.getById(sessionId))!.discovery).toMatchObject({
       ...mappedPlan,
       coveredItemIds: ["end-to-end-delivery", "stakeholder-coordination"],
@@ -190,7 +186,7 @@ describe("#61/#216 discovery over the published family floors", () => {
   });
 
   it("writes essential_floor_covered only when every item has allowed coverage", async () => {
-    const { app, sessions, cookie, sessionId } = await setup([
+    const { app, sessions, claims, cookie, sessionId } = await setup([
       "end-to-end-delivery",
       "stakeholder-coordination",
       "risk-dependency-control",
@@ -199,7 +195,8 @@ describe("#61/#216 discovery over the published family floors", () => {
     await start(app, cookie);
     expect((await stored(sessions, sessionId)).checkpoint).toBe("family_confirmed");
 
-    await answer(app, cookie, "delivery-communication", "Yes, weekly to the steering group");
+    await claims.seed(sessionId, [imported("delivery-communication")]);
+    await resume(app, cookie);
     expect((await stored(sessions, sessionId)).checkpoint).toBe("essential_floor_covered");
   });
 
@@ -228,7 +225,7 @@ describe("#61/#216 discovery over the published family floors", () => {
     );
     const response = await start(app, cookie);
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ family: null, essentialRemaining: 0 });
+    expect(response.json()).toMatchObject({ family: null });
     expect(floorAsks(response.json())).toEqual([]);
     expect(await stored(sessions, sessionId)).toEqual({
       questionFloors: [],
@@ -277,9 +274,14 @@ describe("#61/#216 discovery over the published family floors", () => {
       const before = (await built.sessions.getById(created.json().id))!.discovery;
 
       await start(built.app, cookie);
-      const answered = await answer(built.app, cookie, "end-to-end-delivery", answerText);
+      const answered = await built.app.inject({
+        method: "POST",
+        url: "/onboarding/discovery/answer",
+        headers: { cookie },
+        payload: { itemId: "end-to-end-delivery", answer: answerText },
+      });
 
-      // No floor is servable, so there is no item to answer — and the pinned record is untouched.
+      // No floor item is answerable (#339: none ever is) — and the pinned record is untouched.
       expect(answered.statusCode).toBe(404);
       expect(await built.claims.list(created.json().id)).toEqual([]);
       expect(await built.claims.negatives(created.json().id)).toEqual([]);
@@ -304,32 +306,17 @@ describe("#61/#216 discovery over the published family floors", () => {
     },
   );
 
-  it("uses the persisted version for answers and durably advances coverage", async () => {
-    const { app, sessions, cookie, sessionId } = await setup();
-    const started = await start(app, cookie);
-    expect(floorAsks(started.json())).toEqual([
-      "end-to-end-delivery",
-      "stakeholder-coordination",
-      "risk-dependency-control",
-      "delivery-communication",
-    ]);
-
-    const answered = await answer(app, cookie, "end-to-end-delivery", "Yes, across two programmes");
-    expect(answered.statusCode).toBe(200);
-    expect(answered.json()).toMatchObject({ essentialRemaining: 3 });
-    expect(floorAsks(answered.json())[0]).toBe("stakeholder-coordination");
-    expect((await stored(sessions, sessionId)).coveredItemIds).toEqual(["end-to-end-delivery"]);
-  });
-
+  // An explicit "no" closes an item without evidence (#324's closedBy), so it is allowed coverage.
   it("treats an explicit negative as allowed coverage and writes completion", async () => {
-    const { app, sessions, cookie, sessionId } = await setup([
+    const { app, sessions, claims, cookie, sessionId } = await setup([
       "end-to-end-delivery",
       "stakeholder-coordination",
       "risk-dependency-control",
     ]);
     await start(app, cookie);
 
-    const completed = await answer(app, cookie, "delivery-communication", "No");
+    await recordDiscoveryAnswer(claims, sessionId, imported("delivery-communication"), "No");
+    const completed = await resume(app, cookie);
     expect(completed.statusCode).toBe(200);
     // The "no" is a real answer, not a gap: it closes the item and carries no CV line.
     expect(completed.json().cvLines.map((line: { itemId: string }) => line.itemId)).not.toContain(
@@ -340,17 +327,18 @@ describe("#61/#216 discovery over the published family floors", () => {
     expect(discovery.coveredItemIds).toContain("delivery-communication");
   });
 
-  // #324: a skip ("I don't know") stores no fact but is still an answer — it must close the item for
-  // the deck gate too, or the screen stops asking while the deck stays refused.
+  // #324: a skip ("I don't know") stores no fact but is still her answer — recorded rejected, it
+  // closes the item for coverage too.
   it("treats a skipped question as allowed coverage and writes completion", async () => {
-    const { app, sessions, cookie, sessionId } = await setup([
+    const { app, sessions, claims, cookie, sessionId } = await setup([
       "end-to-end-delivery",
       "risk-dependency-control",
       "delivery-communication",
     ]);
     await start(app, cookie);
 
-    const completed = await answer(app, cookie, "stakeholder-coordination", "I don't know");
+    await recordDiscoveryAnswer(claims, sessionId, imported("stakeholder-coordination"), "I don't know");
+    const completed = await resume(app, cookie);
     expect(completed.statusCode).toBe(200);
     expect(completed.json().cvLines.map((line: { itemId: string }) => line.itemId)).not.toContain(
       "stakeholder-coordination",
@@ -435,7 +423,8 @@ describe("#61/#216 discovery over the published family floors", () => {
 
   // #216 AC5 — the state #63 is built on. Before this ticket the shipped screen wrote nothing, so
   // every visitor reached the deck on a word search: family null, checkpoint null. She now walks her
-  // own interview and the deck retrieves on the family she was interviewed on.
+  // own interview and the deck retrieves on the family she was interviewed on. #339: the coverage
+  // arrives as mined evidence and is reconciled on her next discovery load.
   it("hands /onboarding/cards a non-null family and a covered checkpoint once discovery completes", async () => {
     const requests: RetrievalRequest[] = [];
     const built = buildServer({
@@ -461,14 +450,13 @@ describe("#61/#216 discovery over the published family floors", () => {
     });
 
     await start(built.app, cookie);
-    for (const itemId of [
-      "end-to-end-delivery",
-      "stakeholder-coordination",
-      "risk-dependency-control",
-      "delivery-communication",
-    ]) {
-      await answer(built.app, cookie, itemId, "Yes, on several programmes");
-    }
+    await built.claims.seed(
+      created.json().id,
+      ["end-to-end-delivery", "stakeholder-coordination", "risk-dependency-control", "delivery-communication"].map(
+        (itemId) => imported(itemId),
+      ),
+    );
+    await resume(built.app, cookie);
 
     const deck = await built.app.inject({
       method: "GET",
@@ -496,7 +484,7 @@ describe("#61/#216 discovery over the published family floors", () => {
   it.each([
     ["POST", "/onboarding/discovery/start", { role: ROLE }],
     ["GET", "/onboarding/discovery", undefined],
-    ["POST", "/onboarding/discovery/answer", { itemId: "end-to-end-delivery", answer: "Yes" }],
+    ["POST", "/onboarding/discovery/answer", { itemId: "eligibility-languages", answers: ["English"] }],
   ])("requires a session for %s %s", async (method, url, payload) => {
     const { app } = buildServer({ placeFamily: async () => placement });
     const response = await app.inject({
@@ -558,8 +546,9 @@ describe("#61/#216 discovery over the published family floors", () => {
   });
 });
 
-// #235 — the word-search interview: an unmapped target role is asked the floors her own dated job
-// records prove (at most two), de-duplicated by item id, with coverage spanning every floor.
+// #235 — the word-search interview: an unmapped target role is pinned to the floors her own dated
+// job records prove (at most two), de-duplicated by item id, with coverage spanning every floor.
+// #339: those floors are no longer asked; the pin and the coverage remain.
 describe("#235 the word-search interview", () => {
   const REAL = initialProductionFamilyFloors().get("it-project-delivery", 1)!;
   const ITEM_IDS = REAL.floor.essentialItems.map((item) => item.id);
@@ -657,7 +646,6 @@ describe("#235 the word-search interview", () => {
 
     const started = await start(built.app, cookie);
     expect(started.statusCode).toBe(200);
-    expect(started.json()).toMatchObject({ essentialRemaining: 5 });
     expect(await stored(built.sessions, sessionId)).toMatchObject({
       questionFloors: [
         { familyId: "alpha", version: REAL.floor.version },
@@ -667,14 +655,17 @@ describe("#235 the word-search interview", () => {
       checkpoint: "family_confirmed",
     });
 
-    for (const itemId of ITEM_IDS) await answer(built.app, cookie, itemId, "Yes");
-    const completed = await answer(built.app, cookie, "beta-only-item", "No");
+    // Alpha's items alone leave beta's own item open — the checkpoint spans the union.
+    await built.claims.seed(sessionId, ITEM_IDS.map((itemId) => imported(itemId)));
+    await resume(built.app, cookie);
+    expect((await stored(built.sessions, sessionId)).checkpoint).toBe("family_confirmed");
 
-    expect(completed.json()).toMatchObject({ essentialRemaining: 0 });
+    await recordDiscoveryAnswer(built.claims, sessionId, imported("beta-only-item"), "No");
+    await resume(built.app, cookie);
     expect((await stored(built.sessions, sessionId)).checkpoint).toBe("essential_floor_covered");
   });
 
-  it("asks her CV's floors, de-duplicates items across them, and covers the checkpoint over all of them", async () => {
+  it("pins her CV's floors, de-duplicates items across them, and covers the checkpoint over all of them", async () => {
     const betaOnly = { ...REAL.floor.essentialItems[1]!, id: "beta-only-item" };
     const { built, cookie, sessionId } = await wordSetup(
       catalog(
@@ -690,8 +681,7 @@ describe("#235 the word-search interview", () => {
 
     const started = await start(built.app, cookie);
     expect(started.statusCode).toBe(200);
-    // 4 alpha items + beta's one own item; beta's shared first item is de-duplicated, never asked twice.
-    expect(floorAsks(started.json())).toEqual([...ITEM_IDS, "beta-only-item"]);
+    expect(floorAsks(started.json())).toEqual([]); // #339: pinned, never asked
     expect(await stored(built.sessions, sessionId)).toMatchObject({
       questionFloors: [
         { familyId: "alpha", version: REAL.floor.version },
@@ -700,14 +690,15 @@ describe("#235 the word-search interview", () => {
       searchFamily: null,
     });
 
-    // The shared item, answered once, is covered for BOTH floors.
-    const shared = await answer(built.app, cookie, ITEM_IDS[0]!, "Yes, across two programmes");
-    expect(shared.json()).toMatchObject({ essentialRemaining: 4 });
+    // The shared item, evidenced once, is covered for BOTH floors — and counted once.
+    await built.claims.seed(sessionId, [imported(ITEM_IDS[0]!)]);
+    await resume(built.app, cookie);
+    expect((await stored(built.sessions, sessionId)).coveredItemIds).toEqual([ITEM_IDS[0]]);
 
-    for (const itemId of ITEM_IDS.slice(1)) await answer(built.app, cookie, itemId, "Yes");
+    await built.claims.seed(sessionId, ITEM_IDS.slice(1).map((itemId) => imported(itemId)));
     // An explicit negative covers too — the checkpoint spans every floor's items.
-    const last = await answer(built.app, cookie, "beta-only-item", "No");
-    expect(last.json()).toMatchObject({ essentialRemaining: 0 });
+    await recordDiscoveryAnswer(built.claims, sessionId, imported("beta-only-item"), "No");
+    await resume(built.app, cookie);
     expect((await stored(built.sessions, sessionId)).checkpoint).toBe("essential_floor_covered");
   });
 
@@ -725,8 +716,8 @@ describe("#235 the word-search interview", () => {
       searchFamily: null,
     });
 
-    // Her role is published as a family. Re-entering discovery re-derives the better plan; she
-    // answers ITS floor before the family search runs (the checkpoint resets with the plan).
+    // Her role is published as a family. Re-entering discovery re-derives the better plan (the
+    // checkpoint resets with the plan).
     placementNow = confirmedInto("it-project-delivery");
     const upgraded = await start(built.app, cookie, "delivery lead");
     expect(upgraded.statusCode).toBe(200);

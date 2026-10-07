@@ -31,7 +31,7 @@ import { cvLanguages, isKnownLanguageName } from "./cvLanguages.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
-import { isReusableRetrievalSnapshot, reviewOpensJobs, sessionDeckIsAuthorized } from "./postingRetrieval.js";
+import { isReusableRetrievalSnapshot, reviewOpensJobs } from "./postingRetrieval.js";
 // #305: type-only, and it has to stay that way — broughtJobs.ts reads `Posting` from here, so a value
 // import in this direction would close a runtime cycle. TS erases this one.
 import type { BroughtJob } from "./broughtJobs.js";
@@ -117,9 +117,10 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
  * is the one door all three posting readers pass through — the deck, the want route and the tailor
  * target — so a guard here cannot be forgotten by a caller, and it is what keeps #246 honest: once
  * the promise fetches at question 1, a real relevant-postings snapshot exists BEFORE she has earned
- * anything, and only this stops it becoming her deck. */
+ * anything, and only this stops it becoming her deck. #339: what she earns it with is a completed
+ * review (reviewOpensJobs); the floor coverage this also asked for is no longer asked of anyone. */
 export function sessionPostings(
-  session: Pick<SessionRecord, "retrieval" | "discovery" | "importProof" | "reviewCompletedAt">,
+  session: Pick<SessionRecord, "retrieval" | "importProof" | "reviewCompletedAt">,
   requestFingerprint: string,
   // #305: the adverts HE BROUGHT, stitched in here — at the one door all three posting readers pass
   // through, so no caller can forget them and no caller can apply the snapshot's rules to them. They
@@ -140,9 +141,9 @@ export function sessionPostings(
   // matched against it exactly as a fetched one is — so an unreviewed CV holds every row, his own
   // included. The job's own screen (routes/paste.ts) refuses on the same predicate.
   if (!reviewOpensJobs(session)) return [];
-  const authorized =
-    sessionDeckIsAuthorized(session) && isReusableRetrievalSnapshot(session.retrieval, requestFingerprint);
-  const retrieved = authorized ? retrievedPostings(session.retrieval?.result ?? null) : [];
+  const retrieved = isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)
+    ? retrievedPostings(session.retrieval?.result ?? null)
+    : [];
   if (brought.length === 0) return retrieved;
   // His own first, and a fetched record for the same job dropped rather than shown twice: the ids are
   // canonical, so one advert we ALSO found is the same card, and it is his copy that carries the

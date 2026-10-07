@@ -1,20 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CardsResponse, CvSection, DiscoveryState, JobCard, ScoredJobCard } from "../lib/api";
+import type { CardsResponse, DiscoveryState, JobCard, ScoredJobCard } from "../lib/api";
 
-// #19 the reveal + the job card (screen 2a), end to end over the real API. GET /onboarding/cards
-// and the whole discovery answer pipeline for a known role are deterministic, non-LLM (matchtick.ts
-// is pure arithmetic) — so this rides the real backend instead of stubbing at the route layer,
-// reusing apps/api/test/cards.test.ts's own fixture (role + itemIds) to get a non-trivial card: two
-// confirmed "yes" facts (-> gold checks) and one recorded "no" (-> a dim, never-a-cross dot) so all
-// three mark states are actually exercised, not just asserted absent.
-//
-// `/deck` is not server-gated (the client decides when to show it — design-19-reveal-card.md §1.3),
-// so this seeds the session's discovery answers via direct API calls (and, since #22, signs the
-// session in so the reveal's wall lets the card through), then navigates to /deck straight,
-// mirroring errors.spec.ts's direct-navigation pattern.
-const ROLE = "IT project manager in Paris";
-
-const RAIL_ZERO: Record<CvSection, number> = { summary: 0, experience: 0, skills: 0, education: 0 };
+// #19 the reveal + the job card (screen 2a). Every card is stubbed at the route layer. #339: the 2a
+// anatomy test used to ride the real API and plant its facts by answering the discovery floor; the
+// floor is no longer asked, so its card carries all three mark states itself — a render test, which
+// is what "all three marks, never a cross" needs.
 
 // #117: ScoredJobCard, not the JobCard union — these fixtures stub the network response directly,
 // so nothing here rides the real fallback-scorer path; "judged" is simply a normal already-scored
@@ -161,18 +151,19 @@ async function stubLoopbackDiscovery(page: Page, overrides: Partial<DiscoverySta
     promise: { count: 142 },
     questions: [
       {
-        itemId: "budget",
-        question: "Have you managed a budget?",
-        options: ["Yes", "No"],
+        itemId: "eligibility-work-rights-france",
+        question: "Can you already work in France without visa sponsorship?",
+        options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
         cvSection: "experience",
+        eligibility: {
+          dimension: "work-rights",
+          familyId: "france",
+          scopeLabel: null,
+          declineOption: "Ask me later",
+        },
       },
     ],
-    railFill: RAIL_ZERO,
-    essentialRemaining: 1,
-    cvLines: [
-      { itemId: "role", section: "summary", text: "IT Project Manager" },
-      { itemId: "years", section: "experience", text: "5 to 10 years of experience as a project manager." },
-    ],
+    cvLines: [{ itemId: "role", section: "summary", text: "IT Project Manager" }],
     factCount: 2,
     ...overrides,
   };
@@ -181,52 +172,18 @@ async function stubLoopbackDiscovery(page: Page, overrides: Partial<DiscoverySta
   });
 }
 
-async function seedNonTrivialCard(page: Page) {
-  // ensureSession() is called client-side on mount — visiting a page that calls it is the simplest
-  // way to establish the anonymous session cookie before driving the same endpoints directly.
-  const bootstrapped = page.waitForResponse(
-    (res) => res.url().endsWith("/api/onboarding/discovery") && res.request().method() === "GET",
-  );
-  await page.goto("/discovery");
-  await bootstrapped;
-
-  // In-page fetch, not page.request: the session cookie is Secure, and Playwright's page.request is
-  // a plain Node HTTP client that (correctly) won't attach a Secure cookie over http://127.0.0.1 —
-  // only the real browser page context gets the loopback "potentially trustworthy origin" exception
-  // that lets it ride along, same as every other client-side call this app makes.
-  await page.evaluate(async (role) => {
-    const post = (url: string, body: unknown) =>
-      fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    await post("/api/onboarding/discovery/start", { role });
-    // #216: the floor items are READ off the live state, never hard-coded. This spec used to name
-    // the retired seven-item stub's ids; every one answered 404 `unknown_item`, so no fact was
-    // recorded and the card below rendered with an empty "Where you fit". The floor is the placed
-    // family's published research now, and it changes when the research does.
-    const state = await (await fetch("/api/onboarding/discovery")).json();
-    const floor = (state.questions ?? [])
-      .filter((q: { eligibility?: unknown }) => !q.eligibility)
-      .map((q: { itemId: string }) => q.itemId);
-    for (let i = 0; i < floor.length; i += 1) {
-      // The last item answered "No" keeps this spec's asked-and-closed fact.
-      await post("/api/onboarding/discovery/answer", {
-        itemId: floor[i],
-        answer: i === floor.length - 1 ? "No" : "Yes, over $1M across multiple teams",
-      });
-    }
-    // #22: the reveal now walls an anonymous "See them" (that gate is covered by wall.spec.ts). This
-    // is the 2a card-anatomy test, so it must reach the card — claim THIS session (which holds the
-    // answers above) via the real magic-link path so GET /onboarding/cards returns authed:true. Done
-    // in-page so the Secure session cookie rides along, same reason as the discovery calls above.
-    const link = await (await post("/api/auth/request-link", { email: "deck-e2e@example.com" })).json();
-    const token = new URL("http://x" + (link.devLink as string)).searchParams.get("token");
-    await post("/api/auth/verify", { token });
-  }, ROLE);
-}
-
 test("screen 2a: the reveal, then the top card's ring, all three marks, and the folded ad — never a cross", async ({
   page,
 }) => {
-  await seedNonTrivialCard(page);
+  await stubSession(page);
+  await stubCards(page, [
+    {
+      ...CARD_BASE,
+      fit: [{ id: "end-to-end-delivery", text: "Owned delivery from planning through completion." }],
+      dontYet: [{ id: "sap", band: "essential", requirement: "SAP S/4HANA migration" }],
+      askedClosed: [{ id: "risk-dependency-control", text: "Not applicable — risk and dependency control" }],
+    },
+  ]);
   await page.goto("/deck");
 
   // AC1: one line, one button — the deck itself isn't mounted yet.
@@ -241,10 +198,7 @@ test("screen 2a: the reveal, then the top card's ring, all three marks, and the 
   await expect(page.getByRole("img", { name: /% match/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Where you fit" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Where you don't — yet" })).toBeVisible();
-  // #311 (#287 c4): the recorded "no" is no longer recited on every card — the denial's section
-  // appears only on a posting that asks for it in the denial's own words, which this live deck's
-  // top card may or may not. Its anatomy (heading, · mark, no door on the deck) is pinned by the
-  // stubbed "#311: a named denial" test below; what this live test still owes is "never a cross".
+  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
 
   // The ad is folded shut, last.
   await expect(page.getByText("Read the ad in full")).toBeVisible();
@@ -327,15 +281,14 @@ test("screen 2b: exhausting the deck loops back to discovery with the widen-net 
   await page.waitForURL("/discovery?loop=deck-exhausted");
   expect(postedStage()).toBe("discovery");
   await expect(page.getByText("I scored the three closest — tell me more and I'll score them better")).toBeVisible();
-  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Yes", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Yes — no sponsorship needed" })).toBeFocused();
 });
 
 test("screen 2b: deck-exhausted discovery stage still shows an answering retry, not the old handoff", async ({
   page,
 }) => {
   await stubSession(page);
-  await stubLoopbackDiscovery(page, { stage: "deck", questions: [], essentialRemaining: 0 });
+  await stubLoopbackDiscovery(page, { stage: "deck", questions: [] });
 
   await page.goto("/discovery?loop=deck-exhausted");
 

@@ -1,15 +1,16 @@
 // #17 the profile badge — the full answer-stream journey, human-paced, over a REAL stack.
 //
-// Nothing is stubbed: discovery (0 facts -> the first fact -> a "no" -> a correction -> reload)
-// -> /profile -> the deck -> /tailor (the word collapse, more answers, a round trip), all against
-// the live Fastify API. The flying chip is caught with a MutationObserver rather than a screenshot
-// race, so the assertions are about whether a chip existed at all, not whether we photographed it.
+// Nothing is stubbed: discovery (0 facts, and #339: question 1 and the eligibility answers add none)
+// -> /tailor (the first fact -> a "no" -> reload) -> /profile -> discovery and back -> the word
+// collapse, more answers, a round trip through the deck — all against the live Fastify API. The
+// flying chip is caught with a MutationObserver rather than a screenshot race, so the assertions are
+// about whether a chip existed at all, not whether we photographed it.
 //
-// Shape of the real fixtures this rides: discovery's essential floor is 3 items, so /discovery can
-// only reach 3 facts before it hands off to /deck (which deliberately carries no badge, spec §11).
-// Counts of 4+ — and therefore the word collapse — are reached on /tailor.
+// #339 moved where the badge is born: discovery no longer asks the floor, so a visitor with no CV
+// tells us her first fact in the tailor step. The delta-0 "a correction flies nothing" step went
+// with discovery's correctable CV lines ("Fix this line"), which #339 removed.
 //
-//   PORT=30181 node apps/api/dist/main.js
+//   OPS_KEY=qa-ops-key PORT=30181 node apps/api/dist/qa-main.js
 //   cd apps/web && API_URL=http://127.0.0.1:30181 npx next build && npx next start -p 30180
 //   BASE_URL=http://127.0.0.1:30180 node apps/web/e2e/factbadge-journey.mjs
 //
@@ -90,45 +91,80 @@ await qa.note(
 );
 
 // ---------------------------------------------------------------------------------------------
-// 3. AC1 — the first FLOOR answer: 0 -> 1. The answer the badge is born on.
+// 3. #339: an eligibility answer is not a fact either. After Q1 discovery asks work rights and
+//    languages only — neither is counted — so the badge stays unborn and no chip flies.
 // ---------------------------------------------------------------------------------------------
 await resetChips();
-const firstOpt = page.locator('.discovery .opts .opt').first();
-const firstOptText = (await firstOpt.textContent()).trim();
-await qa.click(firstOpt, `the first floor answer: "${firstOptText}"`);
+const eligOpt = page.locator('.discovery .opts .opt').first();
+await eligOpt.waitFor({ state: 'visible', timeout: 15000 });
+const eligText = (await eligOpt.textContent()).trim();
+await qa.click(eligOpt, `answer the work-rights question: "${eligText}"`);
 await page.waitForTimeout(1800);
+await assert(
+  (await page.locator('a.prof').count()) === 0 && (await chips()).length === 0,
+  `#339: an eligibility answer mints no fact — still no badge, no chip (chips=${(await chips()).length})`,
+);
+
+// ---------------------------------------------------------------------------------------------
+// 4. Sign in and reach /tailor — where a visitor without a CV now tells us facts.
+// ---------------------------------------------------------------------------------------------
+const signedIn = await page.evaluate(async (email) => {
+  const post = (u, b) => fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+  const res = await post('/api/auth/request-link', { email });
+  const link = await res.json();
+  if (!link.devLink) return `sign-in failed (${res.status}) — /auth/request-link is 5 per 15 min per IP; restart the API`;
+  await post('/api/auth/verify', { token: new URL('http://x' + link.devLink).searchParams.get('token') });
+  // #63: adverts reach a session through retrieval, and the FIRST deck read returns an empty deck
+  // while that is still in flight (#245). Before #63 the fixture pool answered instantly and this
+  // read never had to wait; now an unwaited read makes cards[0] undefined.
+  let cards = null;
+  for (const deadline = Date.now() + 20000; Date.now() < deadline; ) {
+    cards = await (await fetch('/api/onboarding/cards')).json();
+    if (cards.searching !== true) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  if (!cards?.cards?.length) return `no deck to want from (${JSON.stringify(cards?.retrieval)})`;
+  await fetch(`/api/onboarding/cards/${encodeURIComponent(cards.cards[0].adId)}/want`, { method: 'POST' });
+  return 'ok';
+}, `badge-journey-${Date.now()}@example.com`);
+if (signedIn !== 'ok') throw new Error(signedIn);
+
+await qa.goto('/tailor', 'open the tailor screen');
+await watchChips();
+await page.waitForTimeout(1600);
+await assert((await page.locator('a.prof').count()) === 0, 'still 0 facts on /tailor — no badge there either (spec §6)');
+// A profile-level question (a language ladder, when an earlier journey left the QA stack's language
+// adverts armed) has no Yes/No and adds no counted fact — put it off so a Yes/No requirement is up.
+for (let i = 0; i < 3 && !(await page.getByRole('button', { name: 'Yes', exact: true }).count()); i++) {
+  const notNow = page.getByRole('button', { name: 'Not now', exact: true });
+  if (!(await notNow.count())) break;
+  await qa.click(notNow.first(), 'a profile-level question first — "Not now", it adds no counted fact');
+  await page.waitForTimeout(1200);
+}
+
+// ---------------------------------------------------------------------------------------------
+// 5. AC1 — the first answer that IS a fact: 0 -> 1. The answer the badge is born on.
+// ---------------------------------------------------------------------------------------------
+await resetChips();
+await qa.click(page.getByRole('button', { name: 'Yes', exact: true }).first(), 'the first fact: "Yes" to a requirement');
+await page.waitForTimeout(1900);
 const c1 = await chips();
 const b1 = await badge();
 await qa.note(`0->1: chips=${JSON.stringify(c1)} badge=${JSON.stringify(b1)}`);
 await assert(c1.length === 1, `AC1 (0->1): exactly one chip flew on the very first fact (flew ${c1.length})`);
-await assert(c1[0]?.text === `+ ${firstOptText}`, `AC1: the chip carries the visitor's own answer — ${JSON.stringify(c1[0]?.text)}`);
+await assert(c1[0]?.text === '+ Yes', `AC1: the chip carries the visitor's own answer — ${JSON.stringify(c1[0]?.text)}`);
 await assert(b1?.count === 1, `AC1: the badge was born and reads ${b1?.count}`);
 await assert(b1?.unit === 'fact' && !b1.unitGone, `AC2: at 1 it reads the singular "fact"`);
 await assert(b1?.layers === 1, `AC3: 1 fact draws 1 layer`);
 await qa.expectVisible('a.prof', 'the badge at 1 fact — count plus the word "fact"');
 
 // ---------------------------------------------------------------------------------------------
-// 4. AC1 on a "no" — it types no CV line, so the chip is its only reward.
+// 6. AC1 on a "no" — a recorded "No" counts too, so the chip flies and the pile grows by one.
 // ---------------------------------------------------------------------------------------------
-// #216: this step needs a "No" specifically, and the researched floor alternates shapes - items 1
-// and 3 are tap-an-option (Yes/No), items 2 and 4 are type-your-own. After item 1 the question on
-// screen is a free-text one with no buttons at all, so waiting for a "No" here timed out at 8s and
-// took three dependent assertions down with it. Clear the free-text item first - and only THEN
-// reset the chips and read the badge, because this step's assertions are that ONE "no" flew ONE
-// chip and grew the pile by exactly one. Counting the clearing answer would break both.
-let noBtn = page.getByRole('button', { name: 'No', exact: true });
-if ((await noBtn.count()) === 0) {
-  await qa.answerVisibleQuestion({
-    freeText: 'I ran the weekly steering update myself',
-    note: 'clear the type-your-own question to reach the next yes/no one',
-  });
-  await page.waitForTimeout(1800);
-  noBtn = page.getByRole('button', { name: 'No', exact: true });
-}
 await resetChips();
 const beforeNo = (await badge()).count;
-await qa.click(noBtn, 'answer "No" - no CV line types, so the chip is the whole reward');
-await page.waitForTimeout(1800);
+await qa.click(page.getByRole('button', { name: 'No', exact: true }).first(), 'answer "No" — it still counts as something she told us');
+await page.waitForTimeout(1900);
 const cNo = await chips();
 const bNo = await badge();
 await assert(cNo.length === 1, `AC1: a "no" flew a chip (flew ${cNo.length}) — the badge is what pays for a "no"`);
@@ -137,40 +173,10 @@ await assert(bNo.unit === 'facts' && !bNo.unitGone, `AC2: at ${bNo.count} the pl
 await qa.expectVisible('a.prof', `the badge at ${bNo.count} facts, grown by a "no"`);
 
 // ---------------------------------------------------------------------------------------------
-// 5. A correction must fly NOTHING (delta 0) — a chip here would lie about the count.
-// ---------------------------------------------------------------------------------------------
-await resetChips();
-const fixLine = page.getByRole('button', { name: /Fix this line/i }).first();
-if (await fixLine.count()) {
-  const beforeC = (await badge()).count;
-  await qa.click(fixLine, 'open a correction on an answered CV line');
-  // #216: the researched floor mixes tap-an-option and type-your-own items, so the control this
-  // correction reopens is whichever shape the answered line used. A bare option click stalls 8s and
-  // aborts the run on a free-text line.
-  const alt = page.locator('.discovery .opts .opt').nth(1);
-  if (await alt.count()) {
-    await qa.click(alt, 'commit the correction with a different option');
-  } else {
-    await qa.answerVisibleQuestion({
-      freeText: 'Corrected: two programmes, not one',
-      note: 'commit the correction by retyping the answer',
-    });
-  }
-  await page.waitForTimeout(2000);
-  const cC = await chips();
-  const bC = await badge();
-  await assert(cC.length === 0, `a correction flies NO chip (flew ${cC.length}) — nothing was added, so nothing may fly`);
-  await assert(bC.count === beforeC, `a correction leaves the count alone and never lowers it (${beforeC} -> ${bC.count})`);
-  await qa.expectVisible('a.prof', 'the badge, untouched by the correction');
-} else {
-  await qa.note('no correctable CV line on the dock at this point — the API probe covers the delta-0 case');
-}
-
-// ---------------------------------------------------------------------------------------------
-// 6. Reload — the count holds and no stale chip replays (spec §6, the resume state).
+// 7. Reload — the count holds and no stale chip replays (spec §6, the resume state).
 // ---------------------------------------------------------------------------------------------
 const beforeReload = (await badge()).count;
-await qa.goto('/discovery', 'reload mid-flow');
+await qa.goto('/tailor', 'reload mid-flow');
 await watchChips();
 await page.waitForTimeout(1500);
 const afterReload = await badge();
@@ -179,7 +185,7 @@ await assert(afterReload?.count >= beforeReload, `the count held across a reload
 await assert(reloadChips.length === 0, `a resume replays no chip and no pulse (chips=${reloadChips.length})`);
 
 // ---------------------------------------------------------------------------------------------
-// 7. AC5 — tapping the badge opens the profile as its own screen.
+// 8. AC5 — tapping the badge opens the profile as its own screen.
 // ---------------------------------------------------------------------------------------------
 await assert(
   /^Your profile — \d+ facts? about you$/.test(afterReload?.label ?? ''),
@@ -204,54 +210,17 @@ await qa.click(page.getByRole('button', { name: 'Back' }), 'Back returns to the 
 await page.waitForTimeout(1400);
 
 // ---------------------------------------------------------------------------------------------
-// 8. Finish discovery's floor, then sign in and reach /tailor.
+// 9. Both screens — the badge renders on discovery too, at the count tailor reached.
 // ---------------------------------------------------------------------------------------------
-await qa.goto('/discovery', 'back to discovery to finish the floor');
-await watchChips();
-await page.waitForTimeout(1200);
-let discPeak = (await badge())?.count ?? 0;
-for (let i = 0; i < 5; i++) {
-  await resetChips();
-  // #216: answer whichever shape is on screen - the old option-only click quietly stopped the loop
-  // at the first free-text item, so the floor was never finished and the peak was under-reported.
-  if (!(await qa.answerVisibleQuestion({ note: `finish the floor (step ${i + 1})` }))) break;
-  await page.waitForTimeout(2200);
-  if (!page.url().includes('/discovery')) break; // the floor is done — discovery hands off to /deck
-  const b = await badge();
-  if (b) discPeak = Math.max(discPeak, b.count);
-}
-await qa.note(`discovery's floor tops out at ${discPeak} facts, then it hands off to /deck (which carries no badge, spec §11)`);
-
-const signedIn = await page.evaluate(async (email) => {
-  const post = (u, b) => fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
-  const res = await post('/api/auth/request-link', { email });
-  const link = await res.json();
-  if (!link.devLink) return `sign-in failed (${res.status}) — /auth/request-link is 5 per 15 min per IP; restart the API`;
-  await post('/api/auth/verify', { token: new URL('http://x' + link.devLink).searchParams.get('token') });
-  // #63: adverts reach a session through retrieval, and the FIRST deck read returns an empty deck
-  // while that is still in flight (#245). Before #63 the fixture pool answered instantly and this
-  // read never had to wait; now an unwaited read makes cards[0] undefined.
-  let cards = null;
-  for (const deadline = Date.now() + 20000; Date.now() < deadline; ) {
-    cards = await (await fetch('/api/onboarding/cards')).json();
-    if (cards.searching !== true) break;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  if (!cards?.cards?.length) return `no deck to want from (${JSON.stringify(cards?.retrieval)})`;
-  await fetch(`/api/onboarding/cards/${encodeURIComponent(cards.cards[0].adId)}/want`, { method: 'POST' });
-  return 'ok';
-}, `badge-journey-${Date.now()}@example.com`);
-if (signedIn !== 'ok') throw new Error(signedIn);
-
-// ---------------------------------------------------------------------------------------------
-// 9. Both screens — the badge renders and animates on /tailor too.
-// ---------------------------------------------------------------------------------------------
-await qa.goto('/tailor', 'open the tailor screen');
+await qa.goto('/discovery', 'over to discovery');
+await page.waitForTimeout(1500);
+const bD = await badge();
+await assert(!!bD && bD.count >= afterReload.count, `the badge renders on discovery too, without falling (${afterReload.count} -> ${bD?.count})`);
+await qa.goto('/tailor', 'back to tailor');
 await watchChips();
 await page.waitForTimeout(1600);
 const bT = await badge();
-await assert(!!bT, `the badge renders on /tailor too, at ${bT?.count}`);
-await assert(bT?.count >= discPeak, `the count carried across discovery -> tailor without falling (${discPeak} -> ${bT?.count})`);
+await assert(bT?.count >= (bD?.count ?? 0), `the count carried across discovery -> tailor without falling (${bD?.count} -> ${bT?.count})`);
 await assert((await chips()).length === 0, 'arriving on /tailor replays no chip');
 await qa.expectVisible('a.prof', `the badge in the tailor topbar at ${bT?.count}`);
 

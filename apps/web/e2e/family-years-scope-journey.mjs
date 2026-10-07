@@ -48,18 +48,9 @@ const AREA = 'Singapore';
 // The corrections that make the two readings disagree: a few months in the family, a long career.
 const FAMILY_START = { year: 2026, month: 1, precision: 'month' };
 const CAREER_START = { year: 1998, month: 1, precision: 'month' };
-// #216: the floor is READ, not hard-coded. Identical RULE in both arms of the A/B - two positives
-// then a "No" - applied to whichever floor each arm is actually served, so the typed role stays the
-// only variable between them even though the two arms are placed into different families.
-// qa-driver's seedFloorAnswers note records what hard-coding these ids cost the last time.
-const answerFloorWith = async (fetchState, post) => {
-  const state = await fetchState();
-  const ids = (state?.questions ?? []).filter((q) => !q.eligibility).map((q) => q.itemId);
-  for (let i = 0; i < ids.length; i += 1) {
-    await post({ itemId: ids[i], answer: i === ids.length - 1 ? 'No' : 'Yes, over $1M' });
-  }
-  return ids;
-};
+// #339: both arms of the A/B used to answer the same discovery floor; discovery asks none now. Both
+// arms paste the SAME CV and confirm the same review, so their fact sets are still identical and the
+// typed role stays the only variable between them.
 // The motivating advert (spec #219): "8+ years of IT experience including 5+ years as a Project
 // Manager" — since #222 that is TWO scoped bars, total >= 8 and family >= 5.
 // #63: the card carries the id retrieval delivered, not the pool's own key - see live-ad-id.mjs.
@@ -175,21 +166,13 @@ await qa.goto('/discovery', 'into discovery — the sign-up questions');
 await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a real visitor would');
 
-// Answer the discovery floor over the product's own endpoint, on the browser's own session cookie.
-// These exact three answers are replayed verbatim by the CONTROL visitor below: the A/B is only
-// worth anything if the fact set is identical in both arms and the typed ROLE is the sole variable.
-// (Prior art: band-vocabulary-journey seeds discovery the same way.)
-const answeredFloor = await answerFloorWith(
-  () => json('/onboarding/discovery'),
-  (body) => api('POST', '/onboarding/discovery/answer', body),
-);
+// #339: discovery asks her eligibility only — nothing here adds a fact, so her CV's facts are the
+// whole set, exactly as for the CONTROL visitor below.
+const asked = (await json('/onboarding/discovery'))?.questions ?? [];
 await assertTrue(
-  answeredFloor.length > 0,
-  `the placed arm was served a real family floor to answer (${answeredFloor.join(', ') || 'nothing'})`,
+  asked.every((q) => q.eligibility),
+  `discovery asks the placed arm eligibility only, no floor (${asked.map((q) => q.itemId).join(', ') || 'nothing'})`,
 );
-await qa.note(`answered the discovery floor her placed family asks: ${answeredFloor.join(', ')}`);
-await qa.goto('/discovery', 'back to discovery — the answers are in');
-await qa.scrollThrough('read the answered discovery screen');
 
 await qa.goto('/deck', 'the reveal');
 await qa.expectVisible('.jobdeck', 'the reveal screen — the deck is behind the sign-in wall (#21)');
@@ -276,10 +259,6 @@ const ctlUnmapped = ctlBlocks.find((b) => b.family?.value?.outcome === 'unmapped
 if (ctlPlaced) await cjson(`/job-blocks/${ctlPlaced.id}/correct`, 'POST', { key: 'start', value: FAMILY_START });
 if (ctlUnmapped) await cjson(`/job-blocks/${ctlUnmapped.id}/correct`, 'POST', { key: 'start', value: CAREER_START });
 await cjson('/onboarding/discovery/start', 'POST', { role: UNPLACEABLE_ROLE });
-await answerFloorWith(
-  () => cjson('/onboarding/discovery'),
-  (body) => cjson('/onboarding/discovery/answer', 'POST', body),
-);
 // Waited for, not read once. The FIRST uncached deck read answers `searching: true` with no cards
 // while the retrieval runs in the background — that is deckRetrieval.ts's documented fail-closed
 // behaviour (#245), which #305 made reliable by pinning what a response observed before its first

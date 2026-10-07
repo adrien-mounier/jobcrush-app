@@ -113,23 +113,25 @@ const DIFF_262 = [
   "docs/vocabulary-proposals/it-project-delivery-product-ownership-widening-REJECTED/summary.md",
 ];
 
-// The five that were genuinely red in #262's first QA gate run. If selection ever stops picking
-// these, it would have let that change deploy while reporting green.
+// The five that were genuinely red in #262's first QA gate run — four of them, since #339 retired
+// the fifth (discovery-earns-reveal-gate.mjs: its floor-earns-the-reveal claim went with the floor
+// questions, and the file is gone). If selection ever stops picking these, it would have let that
+// change deploy while reporting green.
 const RED_IN_262 = [
   "family-years-scope-journey.mjs",
   "discovery-plan-split-journey.mjs",
-  "discovery-earns-reveal-gate.mjs",
   "family-placement-journey.mjs",
   "change-of-direction-derived-journey.mjs",
 ];
 
-// AC5 says "the 9 family-reachable journeys". It is TEN here, and the extra one is deliberate:
+// AC5 says "the 9 family-reachable journeys". It was TEN, and the extra one is deliberate:
 // unmapped-label-feed-journey.mjs asserts that a word no published family covers reaches the
 // vocabulary feed, and the registry is exactly what decides whether a word is covered — a review of
 // this map caught the omission. Selecting it is the fail-open direction (safety rule 1), it costs
-// ~2 minutes, and AC5's actual substance is untouched: all five journeys that went red in #262 are
-// still selected. If the owner wants the count held at 9, drop FAMILY_REGISTRY from that entry.
-check("#262's own diff selects the 10 family-reachable journeys and skips the other 14", () => {
+// ~2 minutes, and AC5's actual substance is untouched: every journey that went red in #262 and is
+// still in the gate is still selected. #339 retired discovery-earns-reveal-gate.mjs, so it is NINE
+// now. If the owner wants the AC's own count back, drop FAMILY_REGISTRY from unmapped-label-feed.
+check("#262's own diff selects the 9 family-reachable journeys and skips the rest", () => {
   const r = run(DIFF_262);
   assert.equal(r.unmatched.length, 0, `unmapped: ${r.unmatched.join(", ")}`);
   assert.deepEqual(
@@ -137,7 +139,6 @@ check("#262's own diff selects the 10 family-reachable journeys and skips the ot
     [
       "change-of-direction-derived-journey.mjs",
       "deck-family-fit-journey.mjs",
-      "discovery-earns-reveal-gate.mjs",
       "discovery-plan-split-journey.mjs",
       "eligibility-questions-journey.mjs",
       "family-placement-journey.mjs",
@@ -147,7 +148,7 @@ check("#262's own diff selects the 10 family-reachable journeys and skips the ot
       "unmapped-label-feed-journey.mjs",
     ],
   );
-  assert.equal(r.skipped.length, JOURNEYS.length - 10);
+  assert.equal(r.skipped.length, JOURNEYS.length - 9);
 });
 
 // The map must be RIGHT, not merely present. #262's diff edits exactly the journey files it can
@@ -160,11 +161,11 @@ check("#262's source paths alone select the family journeys, with no help from s
     "apps/api/research/it-project-delivery-v2.json",
   ]);
   assert.equal(r.unmatched.length, 0);
-  assert.equal(r.selected.length, 10);
+  assert.equal(r.selected.length, 9);
   for (const j of RED_IN_262) assert.ok(r.selected.includes(j), `${j} must be reachable by the map alone`);
 });
 
-check("#262's five genuinely red journeys are all inside the selected set", () => {
+check("#262's genuinely red journeys still in the gate are all inside the selected set", () => {
   const { selected } = run(DIFF_262);
   for (const j of RED_IN_262) {
     assert.ok(selected.includes(j), `${j} went red in #262 and selection must not skip it`);
@@ -198,12 +199,12 @@ check("every shared e2e helper a gate journey imports is in SELECTS_ALL", () => 
 // #271 — the replay its AC demands. Every gate journey re-pointed at the front door must be
 // SELECTED by a front-door diff: a journey that enters through the front door but is skipped on a
 // front-door change is a hole in the gate, not a saving. The list is the 13 gate journeys #271
-// re-pointed (job-blocks-no-family-question-journey.mjs was re-pointed too, but is in no tier).
+// re-pointed (job-blocks-no-family-question-journey.mjs was re-pointed too, but is in no tier) —
+// twelve now: #339 retired discovery-earns-reveal-gate.mjs.
 const REPOINTED_271 = [
   "change-of-direction-derived-journey.mjs",
   "contact-fact-journey.mjs",
   "credible-reveal-journey.mjs",
-  "discovery-earns-reveal-gate.mjs",
   "discovery-plan-split-journey.mjs",
   "family-years-scope-journey.mjs",
   "job-blocks-confirm-journey.mjs",

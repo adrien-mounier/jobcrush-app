@@ -50,10 +50,10 @@ await qa.scrollThrough("she reads the first screen");
 await qa.fill("#q1-role", ROLE, `she types the job she is after — "${ROLE}"`);
 await qa.click("button.go.wide", "\"That's me\" — she sends the role");
 
-await qa.expectVisible("#ask-q", "the first question of her family's floor is asked");
-// Keep answering whatever is on screen — the family floor first, then the eligibility questions
-// that follow it — until the closing languages group appears. Which questions those are is the
-// server's business and changes with the researched floor, so this reads the screen, never a list.
+await qa.expectVisible("#ask-q", "the first question after the role is asked");
+// Keep answering whatever is on screen until the closing languages group appears — #339: after
+// question 1 that is the eligibility questions only (work rights per market, then languages). Which
+// questions those are is the server's business, so this reads the screen, never a list.
 let asked = 0;
 for (let i = 0; i < 14 && !(await page.locator("fieldset.elig-group").count()); i += 1) {
   if (!(await qa.answerVisibleQuestion())) break;

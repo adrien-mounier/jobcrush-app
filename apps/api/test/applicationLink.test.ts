@@ -10,7 +10,7 @@
 // apps/web/e2e/job-screen-journey.mjs.
 import { describe, expect, it, vi } from "vitest";
 import { AdRequirementsV1 } from "@jobcrush/contracts";
-import { buildDeckServer, coverEssentialFloor } from "./fixtureDeck.js";
+import { buildDeckServer } from "./fixtureDeck.js";
 import { InMemoryJobStore } from "../src/jobs.js";
 import { InMemoryPasteRecordStore } from "../src/pasteRecordStore.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
@@ -121,7 +121,6 @@ const addLink = (app: App, cookie: string, adId: string, applicationUrl: string)
 async function readyToPaste(app: App): Promise<string> {
   const cookie = await anonSession(app);
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await coverEssentialFloor(app, cookie);
   return cookie;
 }
 

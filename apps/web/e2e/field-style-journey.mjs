@@ -147,27 +147,34 @@ await check(
 // ================================================================================================
 
 await qa.goto('/discovery', 'discovery — the questions that build her record');
-await page.locator('#q1-role').waitFor({ state: 'visible', timeout: 60000 });
-await auditField('#q1-role', 'Discovery · answer box (Q1)');
-await qa.fill('#q1-role', 'IT project manager', 'she types the role she is going for');
-await qa.click('button.go.wide', 'she answers the role question');
-await page.waitForTimeout(3000);
+// #322: the role she typed on the front door IS question 1 answered, so discovery opens past it. The
+// Q1 box is audited when it is on screen; it is the same .discovery .field rule as the box below.
+await page.locator('#q1-role, .discovery .opts').first().waitFor({ state: 'visible', timeout: 60000 });
+if (await page.locator('#q1-role').count()) {
+  await auditField('#q1-role', 'Discovery · answer box (Q1)');
+  await qa.fill('#q1-role', 'IT project manager', 'she types the role she is going for');
+  await qa.click('button.go.wide', 'she answers the role question');
+  await page.waitForTimeout(3000);
+} else {
+  await qa.note('#322: the front door already took her role — discovery opened past question 1, so its box is not on screen');
+}
 await qa.scrollThrough('reads the discovery screen the way a real visitor would');
 
-// Walk to the first free-text floor item so the audited box is the real long-answer one.
-for (let i = 0; i < 6; i += 1) {
-  if (await page.locator('#floor-free').count()) break;
+// #339: the free-text floor box is gone with the floor questions. The one other typed field left on
+// discovery is the languages type-ahead — walk past work rights to it and audit that box.
+for (let i = 0; i < 4; i += 1) {
+  if (await page.locator('#lang-input').count()) break;
   if (!(await qa.answerVisibleQuestion())) break;
   await page.waitForTimeout(1500);
 }
-if (await page.locator('#floor-free').count()) {
-  await auditField('#floor-free', 'Discovery · long free-text answer box');
-  await qa.fill('#floor-free', 'Yes, across three vendor teams', 'she types her own answer');
-  await qa.click('.ask button.go', 'Continue — she sends her typed answer');
-  await page.waitForTimeout(2000);
-  await qa.note('the discovery answer box submitted — the field still does what it did');
+if (await page.locator('#lang-input').count()) {
+  await auditField('#lang-input', 'Discovery · languages type-ahead box');
+  await qa.fill('#lang-input', 'English', 'she types a language');
+  await qa.click('.discovery .lang-typeahead .field .go', 'Add — the language joins her list');
+  await page.waitForTimeout(800);
+  await qa.note('the languages box added her word — the field still does what it did');
 } else {
-  await qa.note('no free-text floor item surfaced in this session — Q1 above is the same .discovery .field input rule');
+  await qa.note('the languages type-ahead did not surface in this session — Q1 above is the same .discovery .field input rule');
 }
 
 // ================================================================================================

@@ -129,7 +129,7 @@ await check(!!baltic, `her dated job records were read (${blocks.length})`);
 const END_Q = `When did you leave ${baltic.employer.value}?`;
 await postJson(`/job-blocks/${baltic.id}/correct`, { key: 'end', value: { state: 'unknown' } });
 
-await qa.seedFloorAnswers();
+// #339: what is left to ask is eligibility — work rights for her market, then languages.
 await qa.goto('/discovery', 'the questions the CV cannot answer');
 for (let i = 0; i < 8 && !/\/review/.test(page.url()); i += 1) {
   await page.waitForTimeout(1500);
