@@ -2,6 +2,18 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-07 — #339: discovery stops asking (c520a1d)
+
+Discovery now asks question 1, then work rights once per chosen market and languages once — the floor
+questions, the reader-only question, the countdown and its section rail are gone (web + wire). "Ask me
+later" stores nothing (no claim, no fact): the screen moves past it for the visit, a later visit asks again
+— owner confirmed 2026-10-08 that re-asking is fine. The floor-coverage jobs gate is deleted; the completed
+review is the one gate, and coverage left the retrieval fingerprint so it can't buy a paid search.
+Ratchet 648 → 536. ~90 API tests and ~45 journeys moved onto real fact sources (CV via `factsFromCv`,
+tailor answers); discovery-earns-reveal-gate and non-answer-skip deleted. QA gate GO (46/46 live checks).
+The push hit GitHub "Internal Server Error" on every route for ~1 h (status page green), then went through.
+**Next:** `/implement #341` (Fable, xhigh). Owner: #354 empty-profile copy.
+
 ## 2026-10-07 — CI red five pushes on one journey; cause found from the report, staging deployed (9e9bf04)
 
 Four pushes to `main` (f7fd59c → 28235df) failed `discovery-plan-split-journey` on "the deck is in the same
