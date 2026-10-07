@@ -189,9 +189,13 @@ const settledDeck = async (what) => {
   let last = null;
   let same = 0;
   let cards = [];
+  let blocks = [];
+  let placed = false;
+  let rounds = 0;
   for (let i = 0; i < 45; i += 1) {
-    const blocks = (await json('/job-blocks'))?.blocks ?? []; // also kicks the labelers' retry
-    const placed = blocks.length > 0 && blocks
+    rounds = i + 1;
+    blocks = (await json('/job-blocks'))?.blocks ?? []; // also kicks the labelers' retry
+    placed = blocks.length > 0 && blocks
       .filter((b) => b.countsTowardExperience)
       .every((b) => b.family?.value != null && b.industry?.value != null);
     cards = (await json('/onboarding/cards'))?.cards ?? [];
@@ -204,6 +208,11 @@ const settledDeck = async (what) => {
   }
   const provenance = cards.reduce((acc, c) => ({ ...acc, [c.scored]: (acc[c.scored] ?? 0) + 1 }), {});
   await qa.note(`${what}: ${cards.length} cards — ${cards.map((c) => `${c.adId}=${c.matchPct}%`).slice(0, 4).join(', ')}${cards.length > 4 ? ', …' : ''} (scored: ${JSON.stringify(provenance)}; settled after ${same} identical re-reads)`);
+  // Diagnostics for the next time the two reads differ: what the score was built from, and whether
+  // the wait ended because the deck settled or because it ran out of rounds.
+  const me = await json('/sessions/me');
+  const placements = blocks.map((b) => `${b.employer?.value}: counts=${b.countsTowardExperience} family=${b.family?.value?.outcome ?? 'none'} industry=${b.industry?.value?.outcome ?? 'none'}`);
+  await qa.note(`${what} — after ${rounds} rounds, placed=${placed}; searchFamily=${JSON.stringify(me?.discovery?.searchFamily)}; blocks: ${placements.join(' | ')}; first card breakdown=${JSON.stringify(cards[0]?.breakdown)}, dontYet=${JSON.stringify((cards[0]?.dontYet ?? []).map((d) => d.id))}`);
   return cards;
 };
 const deckBefore = await settledDeck('the deck she reached');
