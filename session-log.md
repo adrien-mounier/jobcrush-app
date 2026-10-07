@@ -2,6 +2,20 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-07 — CI red five pushes on one journey; cause found from the report, staging deployed (9e9bf04)
+
+Four pushes to `main` (f7fd59c → 28235df) failed `discovery-plan-split-journey` on "the deck is in the same
+order" — 59% before, 49% after, never reproducible locally (both 49%, even CPU-saturated). Two fixes built on
+reasoning were wrong (c5d0cd4: wait for the labelers; d9de015: wait for a settled deck). The diagnostics
+pushed in 28235df found it: when a session's facts grow, `judge.ts` re-grades only the still-unmet
+requirements (#117), and the fake judge covers the FIRST requirement it is handed — each partial re-grade adds
+one met requirement; the journey's own answers grow the facts. The real judge grades content; the product is
+unaffected (QA gate asked that question directly: no defect). 9e9bf04 asserts membership + search family, the
+ticket's claim; the lesson is rewritten; #353 (years-fact race) closed as a disproven hypothesis. The other
+session's front-door focus fix (17efba2) rode along. **CI green, staging on 9e9bf04** — the first deploy since
+524cc55: #338, #340, the Fireworks streaming fix. Cost: ~6 pushes ≈ 6 h of CI minutes on one test.
+**Next:** `/implement #339` (Opus, high); first real paste on staging checks the Fireworks labeler streams.
+
 ## 2026-10-06 — #340: the review prompt (R1–R6) + blind-test script, proven on the owner's real CV
 
 The CV review's brain is in: `apps/api/prompts/cv-review.md` reviews the whole CV job by job — fixes,
@@ -163,82 +177,3 @@ compiled app boots, CLI fallback and one Fireworks call ran live (~$0.0001). **N
 Fable/Opus streamed call, because there is no Anthropic key locally. #340 (blind test) is the first
 real run. Fable's `refusal` stop reason is not handled yet; it would come back as empty text, so #341
 must handle it. The endpoints' own `fallbacks` option was not enabled.
-
-## 2026-10-04 — #333: ADR-0016 + glossary — the CV is reviewed, not asked
-
-Docs only. **ADR-0016** records the "Your CV, reviewed" design: discovery keeps only work rights and
-languages; the review (fixes, quality-only untick suggestions, drafted lines under R1–R6, vague-phrase
-choices); ticked/kept line states with a server-side print gate; the jobs gate becomes "review
-completed"; drafted lines generated once and stored. It amends ADR-0011 clause 2, ADR-0013 clause 2 and
-ADR-0002 clause 2, each now carrying a pointer at the clause; it states ADR-0007 stands whole and notes
-ADR-0015's "the floor gates the reveal" is superseded. `CONTEXT.md` gains **review**, **drafted line**,
-**ticked line**, **kept line**; **family floor** no longer gates the reveal — it feeds the drafter and
-keeps matching/scoring. Next frontier: #334, #335, #336, #337.
-
-## 2026-10-04 — #326 grilling: discovery stops asking, the CV is reviewed instead
-
-`/grilling` on **#326**, five rounds, every branch decided and confirmed by the owner. **The
-decision:** the four family-checklist questions are removed. After the CV read, the app reviews the
-CV job by job: it fixes spelling and grammar (applied, listed, undo each), suggests unticking weak
-lines (quality only — weak, duplicate, aim without result; fit is decided per advert), and **drafts**
-one line per must-have a job does not show, under six rules (duties only; every word true for anyone
-at that level, variable duties as their own OPTIONAL line; seniority verbs; industry guesses flagged;
-never repeat; never pad, max 10). Vague phrases in a drafted line carry CV-first suggestions plus a
-text box. Nothing prints until ticked (server-side). Journey: CV read → job and area → work rights →
-languages (pre-ticked only at Native/Fluent/Professional) → mandatory "Your CV, reviewed" →
-reveal/wall/deck → tailor. The countdown and "your CV saved you N questions" are removed.
-
-**Evidence, blind.** The session model's first simulation was contaminated — written after reading
-the real BRED lines — and is kept, labelled as such. The re-run hid the BRED lines from every
-generator: 16 Claude runs and 10 Fireworks open models, scored against the real lines. Only Fable 5.1
-max and Opus 5.5 max never stated a guess as a fact; Fable max also recovered the owner's distinctive
-BRED facts; no open model matched it (best open: Kimi K3). **Model:** Fable 5.1 max for the product at
-≈ $1.40 per CV (the full review measured on Opus 5.5 max at $1.39–1.41 and ~10 min; Fable estimated,
-because the Fable week was 97% used); tests run on Opus 5.5. Fireworks spend: 10 calls, ≈ USD 0.25.
-**Found on the way:** the language conservation check only looks for a Languages line, not each
-language (owner: every language prints, always); the app's Anthropic call disables thinking, which
-Fable rejects. Everything is in `docs/cv-brain/research/2026-10-03_thin-job-line-generation/`.
-Next: `/to-spec`.
-
-## 2026-10-03 — #323: two degrees are two facts — the false import conflict, and the silent drop
-
-`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**, first run) on **#323**. The owner's
-CV showed its Master's as a "question": the miner tagged two education entries with one field key,
-the proof read that as a contradiction, and reconciliation kept only the last of the two. Three
-cuts: (1) the miner's repair step strips field tags from any claim of a kind that can repeat (the
-prompt's own `edu-`/`cert-`/`lang-`/`skill-` ids), so neither reader can misfire whatever the model
-tags — and the prompt rule now says so (v3.1); (2) reconciliation keeps two claims that share a
-field key with different values — a genuine contradiction is two facts for the deck, not one fact
-read twice — under stable value-named ids (`search-area-london`), collapsing only to the person's
-own stored answer; (3) a conflict on the record reads as a question naming both values ("Search
-area: your CV says Bangkok and also London. Which one is right?") with the values carried as the
-choices. **Decision inherited from #325 and taken here:** no screen asks the conflict; both claims
-go to the deck, where the person's review decides. The import-resolution route stays, server-side
-only, ready for a screen if one is ever wanted. **Live proof, no API money:** the owner's real CV
-mined twice through the local CLI — both degrees as plain facts, no conflict, 49 of 49 kept.
-Written-only gap: jobs have no id prefix, so only the prompt protects them from a field tag.
-
-## 2026-10-02 — #325: a good CV read goes straight to the job-and-area question
-
-`/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO on AC4, then **GO**) on **#325**.
-The front door's import proof screen (counts, "From your CV" lines, conflict field, "Ask me what's
-missing") is gone: a good read keeps "Reading your CV…" up until the job question opens, with a
-retry if that hand-off fails. Kept: could-not-read, nothing-useful and read-in-part screens, each
-with its retry. A reload after a good read lands on the job question, and never pulls a later stage
-back (spec-review catch). API: always-zero `skippedQuestionCount` deleted; the other proof fields
-and the import-resolution route stay, with their readers named on the `ImportProof` type — the
-conflict question is now asked nowhere, and #323 inherits that. **Fake-stack caveat:** the fake
-miner's recorded read always comes back "partial", so Tier 2 journeys walk the partial screen; the
-QA-left `import-straight-to-intent.mjs` relabels the outcome to drive the good-read path live.
-
-## 2026-10-02 — Skill-guidance pass: contents lists on long docs, QA checklist (no ticket)
-
-Studied Anthropic's updated skill best practices (via the Simon Scrapes video of 2026-10-01) and
-applied two of its rules. **Contents lists** added to the 17 agent-read docs over 100 lines (every
-ADR, `CONTEXT.md`, `cv-brain/` rules, reasoning and the IT-PM research note); `CLAUDE.md` left
-without one on purpose (see `lessons.md`). **QA tester brief** (`~/.claude/agents/qa-tester.md`,
-outside the repo) now carries a copy-and-tick checklist and a go-back line: a failed browser step
-cannot be ticked and sends the tester back to the gates. Rule still under design, not applied: a
-**self-correcting CV brain** — a failed draft proposes the missing authoring rule for the owner to
-approve. Docs-only; no CI, no deploy.
-

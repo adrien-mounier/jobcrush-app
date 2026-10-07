@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-06_
+_Last updated: 2026-10-07_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -24,6 +24,7 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 5. [#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves, then [#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) (Opus) and [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable)
 6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what
 7. ~~#346 grilling — talk to the product to improve your CV~~ decided 2026-10-06 (ADR-0017).
+8. **Owner decision** (from #340): confirm or veto the review prompt's two calls — R6 read as "a missing must-have always earns its line, OPTIONAL/INDUSTRY GUESS extras stop at 10", and a fact under another job only ever OPTIONAL with its quote. Confirmed → ADR-0016 clause 4 updated to match (docs-only).
 
 **Next: Chat with JobCrush** (spec [#350](https://github.com/adrien-mounier/jobcrush-app/issues/350),
 owner call: right after #332, ahead of the rest of the spine): talk to improve the master CV; it replaces
@@ -38,22 +39,16 @@ owner call: right after #332, ahead of the rest of the spine): talk to improve t
 every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
 Never point `/implement` at a parent or spec issue (#54, #86, #127, #301, #332).
 **Build mode (2026-10-06):** finish #332 with `/implement`, one ticket at a time (per-ticket model
-rule; #340 and #345 need the owner mid-ticket). From the next spec on, `/implement-spec <spec>`
-builds a whole spec in parallel; #301 is wired for it (sub-issues linked).
+rule; #345 needs the owner mid-ticket). From the next spec on, `/implement-spec <spec>` builds a whole
+spec in parallel; #301 is wired for it (sub-issues linked).
 
 ## Milestones
 
-- S0–S2.5 — foundation, magic mirror, own your facts, UX cleanup: **done** 2026-07-17 → 07-19.
-- S2.75 — CV quality: question A **done** (#11); question B (how `cv-authoring-rules.md` is fed) **open, unticketed**.
-- Phase 1 — make the live deck honest: **done** Aug 2026 (only #250 left, parked).
+- S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
 - V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 half done (#312, #313); #314–#317 open.
 - V6 — discovery redesign (#326 decided, spec #332): **in progress**, 7 of 13.
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
-- Phase 2 — the profile gets rich (#127 fan-out): parked 2026-09-26, not cancelled — see archive.
-- Phase 3 — the deck gets cheap and trustworthy: parked 2026-09-26, not cancelled — see archive.
-- Phase 4 — finish the live-jobs chain (#54): parked 2026-09-26, not cancelled — see archive.
-- Phase 5 — where the jobs come from: parked 2026-09-26, not cancelled — see archive.
-- Phase 6 — the next products: parked 2026-09-26, not cancelled — see archive.
+- Phases 2–6 — the profile gets rich (#127), the deck gets cheap and trustworthy, the live-jobs chain (#54), where the jobs come from, the next products: **parked 2026-09-26, not cancelled** — see archive.
 
 A parked item comes back only by the **pull rule** (one of the owner's real drafts shows the lack;
 first candidates #171, #168, #203) or when real visitors return, and then #288 goes first.
@@ -65,7 +60,7 @@ first candidates #171, #168, #203) or when real visitors return, and then #288 g
 
 ## Live risks / ops notes
 
-- **CI minutes:** private repo, metered, $0 limit; a code push costs ~60 Actions-minutes, so ~33–50 pushes a month. Owner decision open (pay overage ~$0.48/run, run the slow journeys less often, or go public). Until then, budget pushes; docs-only pushes run nothing.
+- **CI minutes:** private repo, metered, $0 limit; a code push costs ~60 Actions-minutes, so ~33–50 pushes a month (2026-10-06/07 spent six on one flaky journey — `lessons.md`, Testing traps). Owner decision open (pay overage ~$0.48/run, run the slow journeys less often, or go public). Until then, budget pushes; docs-only pushes run nothing.
 - **Real visitors gate:** #288 (sign-in refusal reads as a crash) and #298 (warm machine, $7.23/month) un-park before anyone but the owner is let in.
 - **Tablet widths are untested:** no browser check drives 641–899px (#318). Un-park it on the first slice that restyles a top bar.
 
