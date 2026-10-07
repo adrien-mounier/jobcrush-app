@@ -11,8 +11,11 @@ later" stores nothing (no claim, no fact): the screen moves past it for the visi
 review is the one gate, and coverage left the retrieval fingerprint so it can't buy a paid search.
 Ratchet 648 → 536. ~90 API tests and ~45 journeys moved onto real fact sources (CV via `factsFromCv`,
 tailor answers); discovery-earns-reveal-gate and non-answer-skip deleted. QA gate GO (46/46 live checks).
-The push hit GitHub "Internal Server Error" on every route for ~1 h (status page green), then went through.
-**Next:** `/implement #341` (Fable, xhigh). Owner: #354 empty-profile copy.
+The push hit GitHub "Internal Server Error" on every route (both protocols, any branch) for ~1 h with the
+status page green; a plain retry later went through. Owner decisions: re-asking a put-off question each
+visit is fine (only work rights + languages can come back); #354 empty profile points to the CV
+("Add your CV"), ready-for-agent. Filed #355 (journey hygiene).
+**Next:** `/implement #341` (Fable, xhigh); `/implement #354` (Opus, medium) is small and independent.
 
 ## 2026-10-07 — CI red five pushes on one journey; cause found from the report, staging deployed (9e9bf04)
 
@@ -174,18 +177,3 @@ section. CV-brain rule added (`cv-authoring-rules.md`). QA: first NO-GO (About y
 lines), fixed. New journey `apps/web/e2e/ticked-kept-lines-journey.mjs`. Three older profile
 journeys (constellation-sky, list-style-b, shape-a) crash on fixture data stale since #188 — outside
 every CI tier, not fixed here.
-
-## 2026-10-04 — #334: per-step AI configuration (provider, model, reasoning, limits, streaming)
-
-Each AI step now reads its provider, model, reasoning level, output cap and deadline from
-`apps/api/data/ai-steps.json`; main.ts builds every step with `llmForStep(step)`. Existing steps are
-configured to their old values (sonnet-5, thinking off, 32k, Fireworks MiniMax M3 at 8k/60s);
-`JUDGE_MODEL` / `FAMILY_PLACEMENT_MODEL` still override. The Anthropic call now **streams** and sends
-the configured level as adaptive thinking + effort ("off" keeps thinking disabled). A stream that
-errors or ends before `message_stop` fails the call. A **review** step exists: Fable 5.1 at max, or
-Opus 5.5 at max under `AI_PROFILE=test`. The settings file is checked at boot: a Claude step must name
-a reasoning level and a Fireworks step must not. QA GO: 1850 API tests, 8 mutations all went red, the
-compiled app boots, CLI fallback and one Fireworks call ran live (~$0.0001). **Not proven:** a real
-Fable/Opus streamed call, because there is no Anthropic key locally. #340 (blind test) is the first
-real run. Fable's `refusal` stop reason is not handled yet; it would come back as empty text, so #341
-must handle it. The endpoints' own `fallbacks` option was not enabled.

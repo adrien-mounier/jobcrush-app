@@ -19,7 +19,7 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 1. ~~[#338](https://github.com/adrien-mounier/jobcrush-app/issues/338) the review screen (layout C, the marked-up CV)~~ done 2026-10-06
 2. ~~[#340](https://github.com/adrien-mounier/jobcrush-app/issues/340) review prompt + blind test on the owner's real CV~~ done 2026-10-06 — measured $1.0–1.4 / 3.5–5 min per CV on Fable 5.1 max
-3. ~~[#339](https://github.com/adrien-mounier/jobcrush-app/issues/339) discovery stops asking~~ done 2026-10-07 — owner OK'd that "Ask me later" re-asks each visit; follow-ups #354 (empty-profile copy, owner) and #355 (journey hygiene)
+3. ~~[#339](https://github.com/adrien-mounier/jobcrush-app/issues/339) discovery stops asking~~ done 2026-10-07 — owner OK'd that "Ask me later" re-asks each visit; follow-ups [#354](https://github.com/adrien-mounier/jobcrush-app/issues/354) empty profile points to the CV (decided, `/implement`, Opus, medium) and #355 (journey hygiene)
 4. [#341](https://github.com/adrien-mounier/jobcrush-app/issues/341) the review runs in the background — `/implement`, Fable, xhigh
 5. [#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves, then [#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) (Opus) and [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable)
 6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what

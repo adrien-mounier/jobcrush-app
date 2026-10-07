@@ -210,6 +210,12 @@ file that must ship and one that must not.
 `git rev-parse X^` / `rev-list A ^B` through `execSync` silently become `X` / `A B` — no error, wrong
 answer (bit the QA gate twice, 2026-10-06). Write `X~1` and `rev-list A --not B`.
 
+### Python text mode writes CRLF here, and Git Bash's `grep $'\r'` can miss it
+A Python edit script using `open(p, 'w')` rewrites every LF file as CRLF on this machine; git only
+warns ("CRLF will be replaced by LF"). `grep -c $'\r'` in Git Bash once reported 0 on such files, so a
+"normalise" loop built on it fixed nothing (#339). Edit with `newline=''` both ways, and check bytes:
+`python -c "print(open(p,'rb').read().count(b'\r'))"`.
+
 ## CI, deploy and ops
 
 ### CI: what's filtered, what blocks it, and how to deploy without it
