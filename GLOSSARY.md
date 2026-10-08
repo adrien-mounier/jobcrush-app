@@ -41,6 +41,7 @@ with job requirements.
   - [Drafted line](#drafted-line)
   - [Ticked line](#ticked-line)
   - [Kept line](#kept-line)
+  - [Fix](#fix)
   - [Master CV](#master-cv)
   - [CV chat](#cv-chat)
   - [Chat proposal](#chat-proposal)
@@ -290,6 +291,13 @@ _Avoid_: Confirmed line, approved line
 A CV line the person unticked: held in the profile under "kept for when a job needs it", never printed,
 never deleted, and re-tickable at any time. Unticking is always the person's tap, never the machine's.
 _Avoid_: Deleted line, removed line, hidden line
+
+**Fix**:
+A spelling, grammar or punctuation correction the **review** makes to one line: applied by default,
+listed original → corrected, and undoable — undo restores the exact original, and the fix can be used
+again. A fix changes nothing else about the line: not its meaning, its tick, or whether the person has
+confirmed it. The person's own rewording is an edit, not a fix.
+_Avoid_: Edit, correction, rewrite
 
 **Master CV**:
 The person's one base CV — every job, line and letterhead detail they have confirmed. Each tailored

@@ -2,6 +2,24 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-08 — #341: the review runs in the background — fixes with undo, untick suggestions
+
+The CV review (`cv-review.md`, the "review" step) now starts from the import the moment the lines are
+stored and the jobs placed: one call per job in parallel, the sections on the first, checkpointed per job
+in a new store (`cvReviewStore.ts`), retried once, resumed after a restart for unfinished jobs only, never
+re-asked once answered; a run that fails after its retries leaves the lines as read and says nothing. On
+the paper: fixes applied by default to the line's own text (undo restores the exact original), the
+corrected word green; untick suggestions as an amber band with their reason, the line ticked until the
+person acts; a progress card while it runs, unanswered jobs greyed, the confirm locked (409 server-side).
+Code review: `start()` never rejects into the pipeline; one fake reviewer (`qaReviewAnswer.ts`) for the
+QA stack and the HTTP tests; the review deadline 30 → 10 min (a hung provider locked the jobs for an hour).
+QA gate **GO** (API 1937, spec 12/12, journeys 65/0 + 23/0, Postgres probe); it found #356 ("Next ↓" never
+leaves the letterhead, shipped with #338) and a journey-hold hygiene item (noted on #355). **Owner to
+confirm:** a partly failed run keeps the finished jobs' marks (spec says "no fixes"); per-job calls may cost
+more than #340's one-call $1.0–1.4 — measure the first real run on staging; the marks' colours and the
+band's amber edge are the prototype's, outside DESIGN.md (the design hook flags them).
+**Next:** `/implement #342` (Fable, xhigh): drafted lines; `/implement #354` (Opus, medium) is independent.
+
 ## 2026-10-07 — #339: discovery stops asking (c520a1d)
 
 Discovery now asks question 1, then work rights once per chosen market and languages once — the floor
@@ -159,21 +177,3 @@ case. Discovery reads moved from the onboarding route to `discoveryEngine.ts` (r
 Local e2e: run against `qa-main.js`, not `main.js`, or the 12/hour anonymous-session limit fails
 the spec halfway. New journey `apps/web/e2e/cv-languages-preticked-journey.mjs` (not in Tier 2: it
 injects the CV languages, so the route-mocked spec already covers it).
-
-## 2026-10-04 — #335: ticked and kept CV lines, enforced by the server-side print gate
-
-Every claim now carries `lineState` (`ticked` | `kept`, a text column defaulting to `ticked`, so
-existing rows backfill and keep printing). The print rule is `prints` (confirmed AND ticked) inside
-`claims.confirmed()`, the one list the master CV, the tailored draft and the export all read, so a
-kept line reaches none of them. **Owner-visible consequence:** a kept line also stops counting as
-evidence for job matching and tailoring, and an untick changes the deck's search fingerprint (one
-fresh search on the next deck read), the same as a confirm or reject does today. `PUT /cv/lines/:id`
-`{state}` records the person's tap (session-scoped, 404 for unknown/foreign). Confirming, editing,
-re-seeding or re-answering never re-ticks a kept line. The correction sweep (`heldSentences.ts`) now
-scans kept lines too, otherwise a re-tick brought back a superseded value. **Owner decision:** the
-profile's not-yet-confirmed grey reads "Not on your CV yet" (captions, detail, hero line, sorted-list
-note); "Kept for when a job needs it" now means only an unticked line, shown last in its job or
-section. CV-brain rule added (`cv-authoring-rules.md`). QA: first NO-GO (About you didn't split kept
-lines), fixed. New journey `apps/web/e2e/ticked-kept-lines-journey.mjs`. Three older profile
-journeys (constellation-sky, list-style-b, shape-a) crash on fixture data stale since #188 — outside
-every CI tier, not fixed here.

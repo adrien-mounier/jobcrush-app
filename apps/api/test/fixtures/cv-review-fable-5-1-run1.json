@@ -1,0 +1,411 @@
+{
+  "letterhead": {
+    "checks": [
+      "No email address, phone number, LinkedIn or location appears in the letterhead as read (only the name and the title 'SENIOR PROJECT MANAGER'); check whether the contact block was dropped when the CV was read."
+    ]
+  },
+  "sections": [
+    {
+      "section": "summary",
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "s1",
+          "verdict": "keep"
+        }
+      ]
+    },
+    {
+      "section": "projects",
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "p1",
+          "verdict": "keep"
+        },
+        {
+          "line": "p2",
+          "verdict": "keep"
+        },
+        {
+          "line": "p3",
+          "verdict": "keep"
+        }
+      ]
+    },
+    {
+      "section": "skills",
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "k1",
+          "verdict": "keep"
+        },
+        {
+          "line": "k2",
+          "verdict": "keep"
+        },
+        {
+          "line": "k3",
+          "verdict": "keep"
+        },
+        {
+          "line": "k4",
+          "verdict": "keep"
+        },
+        {
+          "line": "k5",
+          "verdict": "keep"
+        },
+        {
+          "line": "k6",
+          "verdict": "keep"
+        },
+        {
+          "line": "k7",
+          "verdict": "keep"
+        },
+        {
+          "line": "k8",
+          "verdict": "keep"
+        },
+        {
+          "line": "k9",
+          "verdict": "keep"
+        },
+        {
+          "line": "k10",
+          "verdict": "keep"
+        },
+        {
+          "line": "k11",
+          "verdict": "keep"
+        },
+        {
+          "line": "k12",
+          "verdict": "keep"
+        },
+        {
+          "line": "k13",
+          "verdict": "keep"
+        },
+        {
+          "line": "k14",
+          "verdict": "keep"
+        },
+        {
+          "line": "k15",
+          "verdict": "keep"
+        },
+        {
+          "line": "k16",
+          "verdict": "keep"
+        },
+        {
+          "line": "k17",
+          "verdict": "keep"
+        },
+        {
+          "line": "k18",
+          "verdict": "keep"
+        },
+        {
+          "line": "k19",
+          "verdict": "keep"
+        },
+        {
+          "line": "k20",
+          "verdict": "keep"
+        }
+      ]
+    },
+    {
+      "section": "education",
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "e1",
+          "verdict": "keep"
+        },
+        {
+          "line": "e2",
+          "verdict": "keep"
+        }
+      ]
+    },
+    {
+      "section": "additional",
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "a1",
+          "verdict": "keep"
+        },
+        {
+          "line": "a2",
+          "verdict": "keep"
+        }
+      ]
+    }
+  ],
+  "jobs": [
+    {
+      "job": "bred",
+      "family": "it-project-delivery",
+      "complete": false,
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "b1",
+          "verdict": "keep"
+        },
+        {
+          "line": "b2",
+          "verdict": "keep"
+        },
+        {
+          "line": "b3",
+          "verdict": "keep"
+        },
+        {
+          "line": "b4",
+          "verdict": "keep"
+        },
+        {
+          "line": "b5",
+          "verdict": "keep"
+        },
+        {
+          "line": "b6",
+          "verdict": "keep"
+        },
+        {
+          "line": "b7",
+          "verdict": "keep"
+        },
+        {
+          "line": "b8",
+          "verdict": "keep"
+        },
+        {
+          "line": "b9",
+          "verdict": "keep"
+        },
+        {
+          "line": "b10",
+          "verdict": "keep"
+        },
+        {
+          "line": "b11",
+          "verdict": "keep"
+        },
+        {
+          "line": "b12",
+          "verdict": "keep"
+        },
+        {
+          "line": "b13",
+          "verdict": "keep"
+        },
+        {
+          "line": "b14",
+          "verdict": "keep"
+        },
+        {
+          "line": "b15",
+          "verdict": "untick",
+          "kind": "aim-without-result",
+          "reason": "Says the log-triage workflow was 'intended to streamline' analysts' log processing but gives no delivered result — no deployment, use or effect is stated."
+        }
+      ],
+      "mustHaves": [
+        {
+          "id": "end-to-end-delivery",
+          "shownBy": [
+            "b1",
+            "b9"
+          ]
+        },
+        {
+          "id": "stakeholder-coordination",
+          "shownBy": [
+            "b2",
+            "b3"
+          ]
+        },
+        {
+          "id": "risk-dependency-control",
+          "shownBy": [
+            "b2",
+            "b6"
+          ]
+        },
+        {
+          "id": "delivery-communication",
+          "shownBy": [
+            "b3",
+            "b5"
+          ]
+        }
+      ],
+      "drafted": [],
+      "endDateMissing": false,
+      "conflicts": []
+    },
+    {
+      "job": "okoone",
+      "family": null,
+      "complete": true,
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "o1",
+          "verdict": "keep"
+        },
+        {
+          "line": "o2",
+          "verdict": "keep"
+        },
+        {
+          "line": "o3",
+          "verdict": "keep"
+        },
+        {
+          "line": "o4",
+          "verdict": "keep"
+        },
+        {
+          "line": "o5",
+          "verdict": "keep"
+        },
+        {
+          "line": "o6",
+          "verdict": "keep"
+        },
+        {
+          "line": "o7",
+          "verdict": "keep"
+        },
+        {
+          "line": "o8",
+          "verdict": "keep"
+        },
+        {
+          "line": "o9",
+          "verdict": "keep"
+        },
+        {
+          "line": "o10",
+          "verdict": "keep"
+        },
+        {
+          "line": "o11",
+          "verdict": "keep"
+        },
+        {
+          "line": "o12",
+          "verdict": "keep"
+        }
+      ],
+      "mustHaves": [],
+      "drafted": [],
+      "endDateMissing": false,
+      "conflicts": []
+    },
+    {
+      "job": "socgen",
+      "family": "it-project-delivery",
+      "complete": true,
+      "fixes": [],
+      "judgements": [
+        {
+          "line": "g1",
+          "verdict": "keep"
+        },
+        {
+          "line": "g2",
+          "verdict": "keep"
+        },
+        {
+          "line": "g3",
+          "verdict": "keep"
+        },
+        {
+          "line": "g4",
+          "verdict": "keep"
+        },
+        {
+          "line": "g5",
+          "verdict": "keep"
+        },
+        {
+          "line": "g6",
+          "verdict": "keep"
+        },
+        {
+          "line": "g7",
+          "verdict": "keep"
+        },
+        {
+          "line": "g8",
+          "verdict": "keep"
+        }
+      ],
+      "mustHaves": [
+        {
+          "id": "end-to-end-delivery",
+          "shownBy": [
+            "g1",
+            "g8"
+          ]
+        },
+        {
+          "id": "stakeholder-coordination",
+          "shownBy": [
+            "g3",
+            "g7"
+          ]
+        },
+        {
+          "id": "risk-dependency-control",
+          "shownBy": [
+            "g2"
+          ]
+        },
+        {
+          "id": "delivery-communication",
+          "shownBy": [
+            "g2",
+            "g4",
+            "g6"
+          ]
+        }
+      ],
+      "drafted": [],
+      "endDateMissing": false,
+      "conflicts": []
+    }
+  ],
+  "refused": [
+    {
+      "job": "bred",
+      "what": "Any drafted line: the job already carries 15 lines (b1–b15), so it is not thin, and all four must-haves are shown by existing lines.",
+      "rule": "R6"
+    },
+    {
+      "job": "socgen",
+      "what": "A junior-register line on supporting project planning and schedule tracking from kick-off through completion (end-to-end-delivery); g1 already states 'Delivered IT projects using Agile / Scrum, supporting delivery execution' and g6 states 'contributing to project tracking'.",
+      "rule": "R5"
+    },
+    {
+      "job": "socgen",
+      "what": "A line on tracking dependencies between teams for risk-dependency-control; g2 already shows the must-have ('escalated risks and issues to prevent delays').",
+      "rule": "R5"
+    },
+    {
+      "job": "socgen",
+      "what": "An INDUSTRY GUESS line on following the bank's IT governance and change-approval process; no must-have is missing, so the line would only pad the job.",
+      "rule": "R6"
+    }
+  ]
+}

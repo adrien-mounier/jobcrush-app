@@ -164,9 +164,13 @@ describe("#338 the paper", () => {
       ["Baltic Software House", "Project Coordinator"],
     ]);
     expect(jobs[0]!.dates).toEqual({ start: "Mar 2021", end: "now" });
+    // No review model wired on this server: the lines as read, no marks, no run — the state #341's
+    // silent failure also shows.
+    expect(state.progress).toBeNull();
+    expect(jobs[0]!.checking).toBe(false);
     expect(jobs[0]!.lines).toEqual([
-      { id: "nrg-led-checkout", text: "Led the checkout replatform.", state: "ticked" },
-      { id: "nrg-managed-budget", text: "Managed a budget of EUR 1.2M across 3 vendor teams.", state: "ticked" },
+      { id: "nrg-led-checkout", text: "Led the checkout replatform.", state: "ticked", fix: null, suggestion: null },
+      { id: "nrg-managed-budget", text: "Managed a budget of EUR 1.2M across 3 vendor teams.", state: "ticked", fix: null, suggestion: null },
     ]);
     expect(jobs[1]!.lines.map((l) => l.id)).toEqual(["bsh-coordinated-releases"]);
     expect(linesOf(state, "edu").map((l) => l.id)).toEqual(["edu-msc-mis-warsaw"]);

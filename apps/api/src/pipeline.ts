@@ -84,6 +84,11 @@ export interface PipelineDeps {
    *  vocabularies, two grids, two calls. Optional; absent → jobs stay unplaced, which reads as
    *  unmapped and moves no number. */
   labelJobBlockIndustries?: (sessionId: string) => Promise<void>;
+  /** #341: starts the CV review run (cvReviewRun.ts) the moment the lines are stored and the jobs
+   *  placed — fire-and-forget, so it overlaps the questions discovery still asks. The run records
+   *  its own outcome; nothing it does can fail the upload. Optional like the steps above; absent →
+   *  no review runs and the review screen shows the lines as read. */
+  startReview?: (sessionId: string) => void;
   /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
   recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
@@ -292,6 +297,12 @@ export async function runOnboardingJob(
         );
       }
     }
+
+    // Step 2.1 — the CV review (#341, ADR-0016 clause 2): everything it needs is now stored — the
+    // lines (step 2) and each job's family placement (step 1.6) — so it starts here and runs in the
+    // background while the person answers what the CV cannot tell us. Not awaited: the front door
+    // waits for THIS job, and the review must not hold it.
+    if (deps.startReview && job?.sessionId) deps.startReview(job.sessionId);
 
     // Step 2.5 — industry labels (#281): what kind of BUSINESS each dated job's employer was.
     // AFTER the claim miner on purpose, unlike the family half at 1.6: this labeler's strongest

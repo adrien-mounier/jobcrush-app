@@ -1,16 +1,20 @@
 // #338 — "Your CV, reviewed" (ADR-0016 clauses 2, 5 and 6): the CV as read, on paper, before any
-// jobs. This module assembles the screen and owns its three writes; routes/review.ts is the thin
-// entry. The AI's part of the review (fixes, suggestions, drafted lines) arrives with #341/#342 and
-// lands on this same payload — what this ticket builds is the state the person sees when the AI
-// review has not run or has failed: every line as read, ticked, and the questions reading the CV
-// itself raises (a missing end date, an import conflict).
+// jobs. This module assembles the screen and owns its writes; routes/review.ts is the thin entry.
+// What #338 built is the state the person sees when the AI review has not run or has failed: every
+// line as read, ticked, and the questions reading the CV itself raises (a missing end date, an
+// import conflict). #341 lays the AI's first marks on that same paper — spelling and grammar fixes
+// (applied, each undoable) and untick suggestions (shown, never applied) — read off the run's
+// checkpoints (cvReviewStore.ts), with the progress of a run still going. Drafted lines (#342) and
+// word choices (#343) land on this payload next.
 //
-// Three stores meet here, none of them new: the lines are the claims (ticked/kept is #335's line
-// state on the claim), the jobs' dates are the job-block records (#162), the letterhead is the
-// contact store's as-read header plus phone/email (#190/#310). The review adds ONE fact of its own,
-// `reviewCompletedAt` on the session, and that is what the jobs gate reads.
+// Four stores meet here, one of them new: the lines are the claims (ticked/kept is #335's line
+// state on the claim; a fix is the claim's own text, #341), the jobs' dates are the job-block
+// records (#162), the letterhead is the contact store's as-read header plus phone/email (#190/#310),
+// and the review run is cvReviewStore.ts. The review adds ONE fact of its own to the session,
+// `reviewCompletedAt`, and that is what the jobs gate reads.
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import type { ContactStore, ContactValue } from "./contact.js";
+import type { CvReviewStore, ResolvedFix, ResolvedSuggestion, ReviewRunRecord } from "./cvReviewStore.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
 import type { JobBlockStore, JobBlockView } from "./jobBlockStore.js";
@@ -19,10 +23,25 @@ import type { SessionRecord, SessionStore } from "./sessions.js";
 import { answerJobDateHole, dateHoleQuestions, JOB_DATE_ITEM_PREFIX, type JobDateAnswerResult } from "./yearsWorked.js";
 import type { MinedDate, MinedEndValue } from "@jobcrush/contracts";
 
+/** A fix as the screen shows it: the line's text before and after, and whether the line currently
+ *  reads the corrected text. `applied: false` is the person's undo; the sheet then offers "Use fix". */
+export interface ReviewFix {
+  original: string;
+  corrected: string;
+  applied: boolean;
+}
+export interface ReviewSuggestion {
+  kind: ResolvedSuggestion["kind"];
+  reason: string;
+}
 export interface ReviewLine {
   id: string;
   text: string;
   state: LineState;
+  fix: ReviewFix | null;
+  /** The review's untick suggestion, with its one-sentence reason. The line stays ticked until the
+   *  person acts (ADR-0016 clause 3). */
+  suggestion: ReviewSuggestion | null;
 }
 export interface ReviewJob {
   /** The job-block id when the lines matched a dated record, else the role heading's own key. */
@@ -35,6 +54,9 @@ export interface ReviewJob {
   dates: { start: string; end: string | null } | null;
   /** "When did you leave {employer}?" — present only while this job's end date is unknown. */
   endDateQuestion: string | null;
+  /** #341: true while the review run is going and this job's answer has not landed yet — the
+   *  screen greys the job and says it is still being checked. */
+  checking: boolean;
   lines: ReviewLine[];
 }
 export type ReviewSection =
@@ -43,6 +65,13 @@ export type ReviewSection =
 export interface ReviewLetterheadField {
   value: string;
   origin: ContactValue["origin"];
+}
+/** #341: the run while it is still going. Null once it has finished — or failed, which the person
+ *  is never told (the "never show the kitchen" rule): both read the same here. */
+export interface ReviewProgress {
+  done: number;
+  total: number;
+  minutesLeft: number;
 }
 export interface ReviewState {
   completed: boolean;
@@ -54,6 +83,7 @@ export interface ReviewState {
   };
   /** #323: a field the CV gave two values for, asked once here. Null once settled or when none. */
   conflict: { fieldId: string; question: string; values: string[] } | null;
+  progress: ReviewProgress | null;
   /** The paper, in the master CV's own print order (rootcv.ts's SECTIONS). */
   sections: ReviewSection[];
 }
@@ -64,7 +94,17 @@ export interface ReviewDeps {
   jobBlocks: JobBlockStore;
   eligibility: EligibilityStore;
   contact: Pick<ContactStore, "get" | "getRecord">;
+  reviews: CvReviewStore;
+  /** #341: the run, when one is wired (main.ts, qa-main.ts, tests). Absent — a build with no
+   *  review model — the paper shows the lines as read, exactly as #338 shipped it. */
+  runner?: { ensure(sessionId: string): void };
+  now?: () => number;
 }
+
+/** The whole-CV review measured 3.5–5 minutes on the product model (#340, 2026-10-06); the
+ *  per-job calls this run makes overlap, so a run is about as long as its slowest job. "About N
+ *  minutes left" counts down from here and never reaches zero while the run is going. */
+export const EXPECTED_RUN_MINUTES = 5;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dateText = (d: MinedDate): string =>
@@ -75,7 +115,7 @@ const endText = (end: MinedEndValue): string | null =>
 /** The lines a person can see on the paper: everything read or said, minus what they rejected or
  *  answered "no" to — the same cut the profile makes. In CV order (seq). */
 const onPaper = (c: ClaimRecord) => c.decision === "pending" || c.decision === "confirmed";
-const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState });
+const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null });
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -111,6 +151,7 @@ function jobsOf(experience: ClaimRecord[], blocks: readonly JobBlockView[]): Rev
     employer: block.employer.value,
     dates: { start: dateText(block.start.value), end: endText(block.end.value) },
     endDateQuestion: holes.get(block.id) ?? null,
+    checking: false,
     lines,
   });
   const taken = new Set<string>();
@@ -124,7 +165,7 @@ function jobsOf(experience: ClaimRecord[], blocks: readonly JobBlockView[]): Rev
     }
     // "Title - Employer" is how the miner writes the heading.
     const [title = role, employer = ""] = role.split(/\s+[-–—]\s+/, 2);
-    jobs.push({ id: role, blockId: null, title, employer, dates: null, endDateQuestion: null, lines: lines.map(toLine) });
+    jobs.push({ id: role, blockId: null, title, employer, dates: null, endDateQuestion: null, checking: false, lines: lines.map(toLine) });
   }
   // A dated job the lines did not name is still on the paper, with its own date question when its
   // end is unknown: the hole is on the record, not on the lines, and the review is the one place it
@@ -135,12 +176,26 @@ function jobsOf(experience: ClaimRecord[], blocks: readonly JobBlockView[]): Rev
   return jobs;
 }
 
-export async function buildReviewState(deps: ReviewDeps, session: SessionRecord): Promise<ReviewState> {
+/** The paper as read, before any mark: what the screen shows and what the review run reviews. */
+export interface Paper {
+  letterhead: ReviewState["letterhead"];
+  sections: ReviewSection[];
+  /** Every job on the paper, with its family placement — the run's units and its JOB PLACEMENTS. */
+  jobs: Array<{ job: ReviewJob; block: JobBlockView | null }>;
+}
+
+export interface PaperDeps {
+  claims: Pick<ClaimStore, "list">;
+  jobBlocks: Pick<JobBlockStore, "list">;
+  contact: Pick<ContactStore, "get" | "getRecord">;
+}
+
+export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Paper> {
   const [claims, blocks, header, record] = await Promise.all([
-    deps.claims.list(session.id),
-    deps.jobBlocks.list(session.id),
-    deps.contact.get(session.id, "header"),
-    deps.contact.getRecord(session.id),
+    deps.claims.list(sessionId),
+    deps.jobBlocks.list(sessionId),
+    deps.contact.get(sessionId, "header"),
+    deps.contact.getRecord(sessionId),
   ]);
   // list() already returns CV order (seq) on both drivers; the sort only pins it for a hand-built record.
   const visible = claims.filter(onPaper).sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
@@ -151,32 +206,119 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   }
   const field = (v: ContactValue | null): ReviewLetterheadField | null =>
     v ? { value: v.value, origin: v.origin } : null;
-  const conflict = session.importProof?.conflict ?? null;
+  const jobs = jobsOf(byTag.get("experience") ?? [], blocks);
   return {
-    completed: session.reviewCompletedAt !== null,
     letterhead: { header: header?.value ?? null, phone: field(record.phone), email: field(record.email) },
-    conflict: conflict ? { fieldId: conflict.fieldId, question: conflict.label, values: conflict.values } : null,
     sections: SECTIONS.map(([tag, heading]) =>
       tag === "experience"
-        ? { tag, heading, jobs: jobsOf(byTag.get(tag) ?? [], blocks) }
+        ? { tag, heading, jobs }
         : { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine) },
+    ),
+    jobs: jobs.map((job) => ({ job, block: blocks.find((b) => b.id === job.blockId) ?? null })),
+  };
+}
+
+export const running = (run: ReviewRunRecord | null): run is ReviewRunRecord => run !== null && run.outcome === null;
+
+/** The marks a run's checkpoints lay on a line. A fix wears its mark only while the line reads
+ *  the corrected text (applied) or the original (undone): a line that reads neither has been
+ *  changed since, and the fix no longer describes it. */
+function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: ResolvedSuggestion | undefined): ReviewLine {
+  const wearsFix = fix && (line.text === fix.corrected || line.text === fix.original);
+  return {
+    ...line,
+    fix: wearsFix ? { original: fix.original, corrected: fix.corrected, applied: line.text === fix.corrected } : null,
+    suggestion: suggestion ? { kind: suggestion.kind, reason: suggestion.reason } : null,
+  };
+}
+
+function lineMarks(run: ReviewRunRecord) {
+  const fixes = new Map<string, ResolvedFix>();
+  const suggestions = new Map<string, ResolvedSuggestion>();
+  for (const unit of run.units) {
+    for (const fix of unit.result?.fixes ?? []) fixes.set(fix.line, fix);
+    for (const s of unit.result?.suggestions ?? []) suggestions.set(s.line, s);
+  }
+  return { fixes, suggestions };
+}
+
+export async function buildReviewState(deps: ReviewDeps, session: SessionRecord): Promise<ReviewState> {
+  const [paper, run] = await Promise.all([readPaper(deps, session.id), deps.reviews.get(session.id)]);
+  // A run left going by a process that restarted mid-way resumes here, on the first read that
+  // finds it — spending only on the units with no answer yet.
+  if (running(run)) deps.runner?.ensure(session.id);
+  const { fixes, suggestions } = run ? lineMarks(run) : { fixes: new Map<string, ResolvedFix>(), suggestions: new Map<string, ResolvedSuggestion>() };
+  const mark = (line: ReviewLine) => markLine(line, fixes.get(line.id), suggestions.get(line.id));
+  const landed = new Set(run?.units.filter((u) => u.result !== null).map((u) => u.unit) ?? []);
+  const conflict = session.importProof?.conflict ?? null;
+  const minutesLeft = (startedAt: string) =>
+    Math.max(1, Math.ceil(EXPECTED_RUN_MINUTES - ((deps.now?.() ?? Date.now()) - Date.parse(startedAt)) / 60_000));
+  return {
+    completed: session.reviewCompletedAt !== null,
+    letterhead: paper.letterhead,
+    conflict: conflict ? { fieldId: conflict.fieldId, question: conflict.label, values: conflict.values } : null,
+    progress: running(run)
+      ? { done: landed.size, total: run.units.length, minutesLeft: minutesLeft(run.startedAt) }
+      : null,
+    sections: paper.sections.map((section) =>
+      "jobs" in section
+        ? {
+            ...section,
+            jobs: section.jobs.map((job) => ({
+              ...job,
+              checking: running(run) && run.units.some((u) => u.unit === job.id) && !landed.has(job.id),
+              lines: job.lines.map(mark),
+            })),
+          }
+        : { ...section, lines: section.lines.map(mark) },
     ),
   };
 }
+
+export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running"; message: string };
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
  *  IS the look at each line the old confirm deck asked for — in the state it is in (a kept line
  *  stays kept, so it still does not print). The one exception is an open conflict: "Not sure" stored
  *  nothing, so the two readings stay pending and neither prints until the person picks — the
  *  machine never turns a reading the person left open into a printed line. Then the one fact the
- *  jobs gate reads. */
-export async function completeReview(deps: ReviewDeps, session: Pick<SessionRecord, "id" | "importProof">): Promise<void> {
+ *  jobs gate reads.
+ *
+ *  Refused while the review run is still going (#341, layout decision on #338): a fix landing after
+ *  the confirm would change a line the person already signed off without their having seen it. The
+ *  screen keeps the confirm locked for the same reason; this is the gate behind the lock. */
+export async function completeReview(deps: ReviewDeps, session: Pick<SessionRecord, "id" | "importProof">): Promise<CompleteReviewResult> {
+  if (running(await deps.reviews.get(session.id)))
+    return { ok: false, code: "review_running", message: "Your jobs open when the check is finished." };
   const openConflict = session.importProof?.conflict?.fieldId ?? null;
   for (const c of await deps.claims.list(session.id)) {
     if (c.decision !== "pending" || (openConflict !== null && c.field_key === openConflict)) continue;
     await deps.claims.confirm(session.id, c.id);
   }
   await deps.sessions.completeReview(session.id);
+  return { ok: true };
+}
+
+export type SetFixResult = { ok: true; text: string } | { ok: false; code: "not_found"; message: string };
+
+/** #341: the person's undo of a fix, or their "Use fix" after an undo. The fix is found on the run's
+ *  checkpoints; the line's text is set to the exact original or the corrected text — nothing else
+ *  about the line moves (claims.ts setText). A line with no fix, or one that no longer reads either
+ *  text, has nothing to undo. */
+export async function setReviewFixApplied(
+  deps: ReviewDeps,
+  sessionId: string,
+  lineId: string,
+  applied: boolean,
+): Promise<SetFixResult> {
+  const run = await deps.reviews.get(sessionId);
+  const fix = run ? lineMarks(run).fixes.get(lineId) : undefined;
+  const line = fix ? (await deps.claims.list(sessionId)).find((c) => c.id === lineId) : undefined;
+  if (!fix || !line || (line.text !== fix.original && line.text !== fix.corrected))
+    return { ok: false, code: "not_found", message: "no fix on that line" };
+  const text = applied ? fix.corrected : fix.original;
+  await deps.claims.setText(sessionId, lineId, text);
+  return { ok: true, text };
 }
 
 export type SettleConflictResult = { ok: true } | { ok: false; status: 404 | 400; code: string; message: string };

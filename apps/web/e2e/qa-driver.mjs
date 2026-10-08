@@ -165,9 +165,15 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *  needs a fact gets it from the CV it reads, or from the tailor step's own questions. */
     completeReview: async () =>
       page.evaluate(async () => {
-        const res = await fetch('/api/review/complete', { method: 'POST', credentials: 'same-origin' });
-        if (!res.ok) throw new Error(`review completion refused: ${res.status}`);
-        return res.json();
+        // #341: the confirm is refused (409) while the review run is still going; on the fake stack
+        // that is milliseconds, but a journey confirming right after the read lands can meet it.
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+          const res = await fetch('/api/review/complete', { method: 'POST', credentials: 'same-origin' });
+          if (res.ok) return res.json();
+          if (res.status !== 409) throw new Error(`review completion refused: ${res.status}`);
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        throw new Error('review completion refused: the review run never finished');
       }),
 
     /** #339 - give a session confirmed facts the way a real visitor now gets them: she brings a CV,

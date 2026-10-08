@@ -13,6 +13,7 @@ import { PgJudgementStore } from "../src/judgementStore.js";
 import { PgUsageLedgerStore } from "../src/usageLedgerStore.js";
 import { PgPasteRecordStore } from "../src/pasteRecordStore.js";
 import { PgTailorDraftStore } from "../src/tailorDraftStore.js";
+import { PgCvReviewStore } from "../src/cvReviewStore.js";
 import { runPurge } from "../src/purge.js";
 
 describe("JC-20 runPurge", () => {
@@ -26,6 +27,8 @@ describe("JC-20 runPurge", () => {
     await new PgUsageLedgerStore(pool).init();
     await new PgPasteRecordStore(pool).init();
     await new PgTailorDraftStore(pool).init();
+    const cvReviews = new PgCvReviewStore(pool);
+    await cvReviews.init();
 
     const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
     // stale + unclaimed → purged (and its claim)
@@ -97,6 +100,12 @@ describe("JC-20 runPurge", () => {
       [old],
     );
 
+    // #341: the CV review's run and its per-job checkpoints are session-keyed CV content and join
+    // the sweep — the stale visitor's go with their profile, the claimed owner's stay.
+    await cvReviews.create("stale", old, ["j1", "j2"]);
+    await cvReviews.recordResult("stale", "j1", { answer: {}, fixes: [], suggestions: [] });
+    await cvReviews.create("owned", old, ["j1"]);
+
     const { sessions } = await runPurge(pool, 14);
     expect(sessions).toBe(1); // only 'stale' deleted
 
@@ -119,5 +128,10 @@ describe("JC-20 runPurge", () => {
 
     const survivingDrafts = (await pool.query(`SELECT session_id FROM tailor_drafts ORDER BY session_id`)).rows;
     expect(survivingDrafts.map((r) => r.session_id)).toEqual(["owned"]);
+
+    expect((await pool.query(`SELECT session_id FROM cv_reviews ORDER BY session_id`)).rows.map((r) => r.session_id)).toEqual(["owned"]);
+    expect((await pool.query(`SELECT session_id FROM cv_review_units ORDER BY session_id`)).rows.map((r) => r.session_id)).toEqual(["owned"]);
+    expect(await cvReviews.get("stale")).toBeNull();
+    expect((await cvReviews.get("owned"))?.units).toHaveLength(1);
   });
 });

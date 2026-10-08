@@ -63,6 +63,8 @@ import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerSt
 import { InMemoryPostingStore, type PostingStore } from "./postingStore.js";
 import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
 import { InMemoryTailorDraftStore, type TailorDraftStore } from "./tailorDraftStore.js";
+import { InMemoryCvReviewStore, type CvReviewStore } from "./cvReviewStore.js";
+import { makeReviewRunner, type ReviewRunDeps } from "./cvReviewRun.js";
 import type { LlmClient } from "./llm.js";
 import type { ReadPastedAdvert } from "./pastedAdvert.js";
 import { makeBroughtJobs } from "./broughtJobs.js";
@@ -192,6 +194,16 @@ export interface BuildOptions {
    *  rule); main.ts wires the real browser (chrome-headless-shell in the API image), qa-main.ts
    *  and tests the stand-in, so CI never downloads a browser. */
   documentMaker?: DocumentMaker;
+  /** #341 — the review run's checkpoints (one run per session, one row per job). Session-keyed CV
+   *  content, swept with the session; absent → a fresh in-memory store. */
+  cvReviews?: CvReviewStore;
+  /** #341: the model client behind the CV review (the "review" step). Absent → no review runs and
+   *  the screen shows the lines as read, exactly as #338 shipped it — every pre-#341 test stays
+   *  valid, and nothing here makes a paid call unless main.ts wires the metered real client;
+   *  qa-main.ts wires its stage-aware fake, tests their own. */
+  reviewLlm?: LlmClient;
+  /** #341: the run's attempt count, retry pause and clock — test-only in practice. */
+  reviewRun?: Pick<ReviewRunDeps, "maxAttempts" | "retryDelayMs" | "now">;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -245,6 +257,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const postings = opts.postings ?? new InMemoryPostingStore();
   const pasteRecords = opts.pasteRecords ?? new InMemoryPasteRecordStore();
   const tailorDrafts = opts.tailorDrafts ?? new InMemoryTailorDraftStore();
+  const cvReviews = opts.cvReviews ?? new InMemoryCvReviewStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
@@ -255,6 +268,7 @@ export function buildServer(opts: BuildOptions = {}) {
   postings.init().catch((err) => app.log.error(err, "posting store init failed"));
   pasteRecords.init().catch((err) => app.log.error(err, "paste record store init failed"));
   tailorDrafts.init().catch((err) => app.log.error(err, "tailor draft store init failed"));
+  cvReviews.init().catch((err) => app.log.error(err, "cv review store init failed"));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(cookie);
@@ -500,9 +514,30 @@ export function buildServer(opts: BuildOptions = {}) {
 
   // A completed upload starts the onboarding pipeline job (extract → mine).
   // Every run leaves one durable line in the guestbook (recordVisit).
+  // #341: the review run, when a review model is wired. It starts from the pipeline the moment the
+  // CV is read and its jobs placed, and the review screen resumes one a restart left going.
+  const reviewRunner = opts.reviewLlm
+    ? makeReviewRunner({
+        llm: opts.reviewLlm,
+        reviews: cvReviews,
+        sessions,
+        claims,
+        jobBlocks,
+        contact,
+        floors: productionFamilyFloors,
+        ...opts.reviewRun,
+      })
+    : undefined;
   const pipelineDeps: PipelineDeps = {
     ...(opts.pipeline ?? {}),
     recordVisit: opts.pipeline?.recordVisit ?? guestbook.record,
+    startReview:
+      opts.pipeline?.startReview ??
+      (reviewRunner
+        ? (sessionId) => {
+            void reviewRunner.start(sessionId);
+          }
+        : undefined),
     // #270: bound here, for BOTH intake paths — a person who pastes their CV is not a different
     // kind of visitor. ADR-0002: a correction the person already made outranks whatever this re-read
     // found; the rule itself is importReconciliation.ts (pure, directly tested), this is its IO shell.
@@ -562,7 +597,9 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(cvRoutes({ store, pipeline: pipelineDeps, claims }));
   app.register(contactRoutes({ contact }));
   // #338: "Your CV, reviewed" — the screen between the last question and the jobs.
-  app.register(reviewRoutes({ claims, sessions, jobBlocks, eligibility, contact }));
+  app.register(
+    reviewRoutes({ claims, sessions, jobBlocks, eligibility, contact, reviews: cvReviews, runner: reviewRunner, now: opts.reviewRun?.now }),
+  );
   // #221: the same production registry the labeler places against backs the review screen's choices
   // and the family-correction check — one closed vocabulary, read in one place.
   app.register(
@@ -766,5 +803,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims, eligibility, contact, auth, familyLearning, usageLedger, unmappedLabels };
+  return { app, store, sessions, blobs, uploads, claims, eligibility, contact, auth, familyLearning, usageLedger, unmappedLabels, cvReviews };
 }

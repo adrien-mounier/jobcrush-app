@@ -15,7 +15,7 @@
     "model": "claude-fable-5-1",
     "reasoning": "max",
     "maxTokens": 128000,
-    "timeoutMs": 1800000,
+    "timeoutMs": 600000,
     "test": { "model": "claude-opus-5-5" }
   }
 }

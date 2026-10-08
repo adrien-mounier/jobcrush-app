@@ -17,6 +17,9 @@
   --ink-mute: #6b6455;
   --rule: #d9d0bd;
   --kept: #a59d8c; /* the prototype's kept-line grey on paper (no DESIGN.md token yet) */
+  --fix: #3fb950; /* #341: a fix, the prototype's green (no DESIGN.md token yet) */
+  --warn: #d29922; /* #341: a suggestion, the prototype's amber */
+  --warn-bg: rgba(210, 153, 34, 0.12);
   --sans:
     "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
     sans-serif;
@@ -408,4 +411,163 @@
 }
 .review .sheet .dateask input {
   width: 84px;
+}
+
+/* ---------- #341: the run's progress, and the AI's first marks ---------- */
+.review .prog {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--hud-1);
+  border: 1px solid var(--hud-line);
+}
+.review .prog p {
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.review .prog small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--hud-mute);
+}
+.review .bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hud-2);
+  overflow: hidden;
+}
+.review .bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  animation: review-breathe 2.4s ease-in-out infinite;
+}
+@keyframes review-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .review .bar i {
+    animation: none;
+  }
+}
+
+/* the legend: what a mark on the paper means (never color alone) */
+.review .legend {
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 10px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  color: var(--hud-mute);
+}
+.review .legend span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.review .legend .l1::before {
+  background: var(--fix);
+}
+.review .legend .l2::before {
+  background: var(--warn);
+}
+
+/* a job still being checked: its lines as read, greyed, with the note */
+.review .pjob.busy .h,
+.review .pjob.busy .e,
+.review .pjob.busy ul {
+  opacity: 0.55;
+}
+.review .pchecking {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-mute);
+}
+.review .spin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule);
+  border-top-color: var(--ink-mute);
+  animation: review-spin 0.9s linear infinite;
+}
+@keyframes review-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .review .spin {
+    animation: none;
+  }
+}
+
+/* the fix: corrected words highlighted green on the paper */
+.review .paper mark.fx {
+  background: rgba(63, 185, 80, 0.2);
+  color: inherit;
+  border-bottom: 1.5px solid var(--fix);
+  padding: 0 1px;
+}
+
+/* the suggestion: an amber band on the line */
+.review .paper li.sg {
+  background: rgba(210, 153, 34, 0.13);
+  box-shadow: -8px 0 0 -5px var(--warn);
+  border-radius: 3px;
+}
+
+/* in the sheet: the fix row (original struck → corrected, Undo / Use fix) and the suggestion */
+.review .sheet .fixrow {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--hud-2);
+}
+.review .sheet .fixrow .fixhead {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fix);
+}
+.review .sheet .fixrow .fixdiff {
+  margin: 0 0 6px;
+  font-family: var(--serif);
+  font-size: 14px;
+}
+.review .sheet .fixrow s {
+  color: var(--hud-mute);
+}
+.review .sheet .fixrow .to {
+  color: var(--fix);
+}
+.review .sheet .sugg {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn);
+  font-size: 12.5px;
+}
+.review .sheet .sugg b {
+  color: var(--warn);
+}
+.review .btn-s.warn {
+  background: none;
+  border-color: var(--warn);
+  color: var(--warn);
 }

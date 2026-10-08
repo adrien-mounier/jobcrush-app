@@ -11,6 +11,14 @@
 //      opens after "I'm done — show my jobs" (AC6);
 //   7. she comes back to the review after confirming; a change made there persists (AC7).
 //
+// #341 — the review runs in the background, walked in the same pass: the run is HELD on the QA
+// stack (POST /qa/stack reviewHold) from before the paste, so when she lands on the review it is
+// still going — the progress card, the jobs greyed and "still being checked", the confirm locked;
+// released, the card goes and the marks land: the fix (its word green on the paper, original →
+// corrected and Undo / Use fix in the sheet, undo surviving a reload), and the amber suggestion
+// band with its reason, unticked in one tap. Both marks come from the REVIEWCHECK recording
+// (qa-main.ts): a misspelt word and an aim with no result on two of her lines.
+//
 // The import conflict (AC5) is not walked here: the fake miner's recording reads no field twice.
 // apps/api/test/cvReview.test.ts proves it over HTTP and review.spec.ts proves the screen.
 //
@@ -40,10 +48,17 @@ const CV_TEXT = [
   '',
   'EDUCATION',
   'MSc Management Information Systems, University of Warsaw, 2017',
+  '',
+  // #341: the marker that makes the fake miner read two of her lines with a mistake in them.
+  'REVIEWCHECK',
 ].join('\n');
 
-// The fake miner's recorded lines (apps/api/test/eval/recordings/clean-pdf.json).
+// The fake miner's recorded lines (apps/api/test/eval/recordings/clean-pdf.json), as the
+// REVIEWCHECK recording reads them: the budget line misspelt (the review fixes it back to the
+// recorded text), the steering line stating an aim with no result (the review suggests unticking it).
 const JOB_LINE = 'Managed a budget of EUR 1.2M across 3 vendor teams.';
+const JOB_LINE_AS_READ = 'Managed a budget of EUR 1.2M accross 3 vendor teams.';
+const AIM_LINE = 'Set up steering committee reporting intended to keep the CIO informed.';
 
 const qa = await createSession(`cv-review-journey-${WIDTH}`, {
   baseURL: BASE,
@@ -65,11 +80,19 @@ const json = (path, init) =>
 const reviewJobs = async () => (await json('/review')).body.sections.find((s) => s.tag === 'experience').jobs;
 const lineState = async (id) =>
   (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.id === id)?.state ?? null;
+const lineText = async (id) =>
+  (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.id === id)?.text ?? null;
 const sheet = page.getByRole('dialog');
+// #341: the review run's hold on the QA stack. Armed before the paste, released once she has seen
+// the progress card, and put back at the end whatever happened (run-tier2.mjs's one-owner rule).
+const holdReview = (on) =>
+  json('/qa/stack', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reviewHold: on }) });
 
 // ---------------------------------------------------------------------------------------------
 // 1. The CV, the job she is going for, and the questions the CV cannot answer.
 // ---------------------------------------------------------------------------------------------
+await qa.goto('/', 'the front door');
+await assert((await holdReview(true)).status === 200, 'the QA stack holds the review run until she has seen it running');
 const jobId = await qa.frontDoorPaste(CV_TEXT, 'the front door — she pastes her CV');
 await qa.waitForJobDone(jobId);
 await qa.frontDoorContinueToIntent();
@@ -111,6 +134,76 @@ for (let i = 0; i < 8 && !/\/review/.test(page.url()); i += 1) {
 await page.waitForURL(/\/review/, { timeout: 20_000 });
 await assert(/\/review/.test(page.url()), `AC1 — after the last question she lands on the review (${new URL(page.url()).pathname})`);
 await qa.expectText('h1', 'Your CV, reviewed', 'the screen names itself');
+
+// ---------------------------------------------------------------------------------------------
+// 2b. #341 — the review is still running: the progress card, the jobs greyed, the confirm locked.
+// ---------------------------------------------------------------------------------------------
+const progress = page.getByRole('status');
+await qa.expectText(progress, 'Checking your CV…', 'the progress card: the review runs in the background');
+await qa.expectText(progress, 'jobs ready', 'it counts the jobs that are ready');
+await qa.expectText(progress, 'You can start with the parts that are ready.', 'and says she can start');
+const busyJobs = page.locator('.paper .pjob.busy');
+await assert((await busyJobs.count()) > 0, `her jobs are greyed while they are checked (${await busyJobs.count()} of ${await page.locator('.paper .pjob').count()})`);
+await qa.expectText(busyJobs.first(), 'Still checking this job', 'each says it is still being checked');
+await qa.expectText(busyJobs.first(), JOB_LINE_AS_READ, 'with its lines as read, meanwhile — the misspelling included');
+const cta = page.getByRole('button', { name: "I'm done — show my jobs" });
+await assert(await cta.isDisabled(), 'the confirm is locked while the check runs');
+await qa.expectText('.foot p', 'Your jobs open when the check is finished.', 'and says why');
+const refused = await json('/review/complete', { method: 'POST' });
+await assert(refused.status === 409 && refused.body?.error?.code === 'review_running', `the server refuses the confirm too (${refused.status} ${refused.body?.error?.code})`);
+await qa.scrollThrough('she reads her CV on paper while it is checked');
+
+await assert((await holdReview(false)).status === 200, 'the review run is let through');
+await progress.waitFor({ state: 'detached', timeout: 20_000 });
+await qa.note('the progress card goes when the check is finished');
+await assert((await page.locator('.paper .pjob.busy').count()) === 0, 'no job is greyed any more');
+await assert(await cta.isEnabled(), 'the confirm opens');
+await qa.expectText('.foot p', 'You can come back to this page at any time.', 'the footer says so');
+
+// ---------------------------------------------------------------------------------------------
+// 2c. #341 — the fix: its word green on the paper, original → corrected in the sheet, Undo, Use fix.
+// ---------------------------------------------------------------------------------------------
+await qa.expectText('.legend', 'fixed', 'the legend names the marks');
+const fixedLine = page.getByRole('button', { name: JOB_LINE });
+await qa.expectVisible(fixedLine, 'the budget line reads correctly now: the fix was applied for her');
+await qa.expectText(fixedLine.locator('mark.fx'), 'across', 'the corrected word is marked');
+const budgetId = (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.text === JOB_LINE)?.id;
+await assert(!!budgetId && (await lineText(budgetId)) === JOB_LINE, 'the server holds the corrected text');
+await qa.click(fixedLine, 'taps the mark');
+await qa.expectText(sheet, 'We fixed a small mistake', 'the sheet shows the fix');
+await qa.expectText(sheet.locator('.fixdiff s'), 'accross', 'the original, struck');
+await qa.expectText(sheet.locator('.fixdiff .to'), 'across', 'the correction');
+await qa.click(sheet.getByRole('button', { name: 'Undo' }), 'undoes it');
+await qa.expectText(sheet.locator('.quote'), JOB_LINE_AS_READ, 'the line reads her exact original again');
+await assert((await lineText(budgetId)) === JOB_LINE_AS_READ, 'the server stored the undo, to the letter');
+await qa.click(sheet.getByRole('button', { name: 'Close' }), 'closes the sheet');
+await qa.goto('/review', 'she reloads');
+await qa.expectVisible(page.getByRole('button', { name: JOB_LINE_AS_READ }), 'still her original after the reload');
+await assert((await page.locator('.paper mark.fx').count()) === 0, 'and no fix mark on it');
+await qa.click(page.getByRole('button', { name: JOB_LINE_AS_READ }), 'taps the line');
+await qa.click(sheet.getByRole('button', { name: 'Use fix' }), 'uses the fix after all');
+await qa.expectText(sheet.locator('.quote'), JOB_LINE, 'the line reads the correction again');
+await qa.click(sheet.getByRole('button', { name: 'Close' }), 'closes the sheet');
+await assert((await lineText(budgetId)) === JOB_LINE, 'the server stored that too');
+
+// ---------------------------------------------------------------------------------------------
+// 2d. #341 — the suggestion: the amber band, the reason in the sheet, one tap unticks.
+// ---------------------------------------------------------------------------------------------
+const band = page.locator('.paper li.sg');
+await qa.expectVisible(band, 'one line wears the amber band: the review suggests unticking it');
+await qa.expectText(band, AIM_LINE, 'the line that states an aim and no result');
+const aimId = (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.text === AIM_LINE)?.id;
+await assert((await lineState(aimId)) === 'ticked', 'it is still ticked: the machine removed nothing');
+await qa.click(band.getByRole('button', { name: AIM_LINE }), 'taps the band');
+await qa.expectText(sheet.locator('.sugg'), 'Suggestion: untick this line.', 'the sheet says what it suggests');
+await qa.expectText(sheet.locator('.sugg'), 'States an aim and no delivered result.', 'and why, in one sentence');
+await qa.click(sheet.getByRole('button', { name: 'Untick — keep it for when a job needs it' }), 'she unticks it');
+await assert((await lineState(aimId)) === 'kept', 'the server stored her untick');
+await assert((await page.locator('.paper li.sg').count()) === 0, 'the band is gone; the line is kept, grey');
+// Unticking is never a one-way door: she puts it back, and the suggestion is there again for her to judge.
+await qa.click(page.locator('.paper li.kept .line'), 'taps the kept line');
+await qa.click(sheet.getByRole('button', { name: 'Tick — put it back on my CV' }), 're-ticks it');
+await assert((await lineState(aimId)) === 'ticked' && (await page.locator('.paper li.sg').count()) === 1, 'the line is back on her CV, the band with it');
 await qa.scrollThrough('she reads her CV on paper, top to bottom');
 
 // ---------------------------------------------------------------------------------------------
@@ -198,5 +291,6 @@ await assert((await lineState(lineId)) === 'kept', 'the server stored the change
 const stillOpen = await qa.cardsWhenRetrieved();
 await assert((stillOpen?.cards ?? []).length > 0 && stillOpen?.reviewPending === undefined, 'and the jobs stay open');
 
+await holdReview(false); // put the knob back for the next journey, whatever happened above
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

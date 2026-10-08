@@ -61,6 +61,11 @@ export interface ClaimStore {
   /** #335: the person's untick (→ kept) or re-tick. Touches nothing else. False when the session has
    *  no such line. */
   setLineState(sessionId: string, id: string, state: LineState): Promise<boolean>;
+  /** #341: the review's spelling/grammar fix, applied or undone — the text alone moves. Unlike
+   *  edit(), nobody vouched for anything: decision, origin and tick are untouched, so a fix on a
+   *  pending line leaves it pending and a fix on a kept line leaves it kept. False when the session
+   *  has no such line. */
+  setText(sessionId: string, id: string, text: string): Promise<boolean>;
 }
 
 /** #335: the one rule for what prints — the in-memory confirmed() and the profile's gold.
@@ -203,6 +208,12 @@ export class InMemoryClaimStore implements ClaimStore {
   async setLineState(sessionId: string, id: string, state: LineState): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
     if (c) c.lineState = state;
+    return c !== undefined;
+  }
+
+  async setText(sessionId: string, id: string, text: string): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (c) c.text = text;
     return c !== undefined;
   }
 }
@@ -400,6 +411,14 @@ export class PgClaimStore implements ClaimStore {
     const { rowCount } = await this.pool.query(
       `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2`,
       [sessionId, id, state],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async setText(sessionId: string, id: string, text: string): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET text = $3 WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, text],
     );
     return (rowCount ?? 0) > 0;
   }

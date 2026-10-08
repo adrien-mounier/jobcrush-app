@@ -682,10 +682,25 @@ export interface ContactRecord {
 
 // --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
 export type ReviewLineState = "ticked" | "kept";
+/** #341: a spelling/grammar fix on a line — applied (the line reads `corrected`) or undone by the
+ *  person (the line reads the exact `original`). */
+export interface ReviewFix {
+  original: string;
+  corrected: string;
+  applied: boolean;
+}
+/** #341: the review's untick suggestion — quality only, never fit — with its one-sentence reason.
+ *  The line stays ticked until the person acts. */
+export interface ReviewSuggestion {
+  kind: "weak" | "duplicate" | "aim-without-result";
+  reason: string;
+}
 export interface ReviewLine {
   id: string;
   text: string;
   state: ReviewLineState;
+  fix: ReviewFix | null;
+  suggestion: ReviewSuggestion | null;
 }
 export interface ReviewJob {
   id: string;
@@ -694,11 +709,20 @@ export interface ReviewJob {
   employer: string;
   dates: { start: string; end: string | null } | null;
   endDateQuestion: string | null;
+  /** #341: still being checked — the run is going and this job's answer has not landed. */
+  checking: boolean;
   lines: ReviewLine[];
 }
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
   | { tag: string; heading: string; lines: ReviewLine[] };
+/** #341: the run while it is going; null once finished (a failed run reads the same — the person
+ *  is never told). */
+export interface ReviewProgress {
+  done: number;
+  total: number;
+  minutesLeft: number;
+}
 export interface ReviewState {
   completed: boolean;
   letterhead: {
@@ -707,7 +731,14 @@ export interface ReviewState {
     email: ProfileContactField | null;
   };
   conflict: { fieldId: string; question: string; values: string[] } | null;
+  progress: ReviewProgress | null;
   sections: ReviewSection[];
+}
+
+// #341: undo a fix (applied: false) or use it again (applied: true). The text comes back as the
+// server now holds it.
+export function setFixApplied(lineId: string, applied: boolean): Promise<{ id: string; text: string; applied: boolean }> {
+  return jfetch(`/api/review/fixes/${encodeURIComponent(lineId)}`, { method: "PUT", body: JSON.stringify({ applied }) });
 }
 
 export function getReview(): Promise<ReviewState> {

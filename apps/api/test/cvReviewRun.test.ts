@@ -1,0 +1,460 @@
+// #341 — the review runs in the background (ADR-0016 clauses 2, 3, 5 and 7). Driven over HTTP (the
+// spec's main seam) with the QA stack's own fake writer (qaReviewAnswer.ts), which derives every
+// answer from the prompt it is handed: a line containing "accross" gets a fix, a line containing
+// "intended to" gets an untick suggestion, everything else is kept. What it proves:
+//   - the run starts from the pipeline, once the lines and placements are stored, before anyone
+//     opens the review — one call per job, the sections riding on the first;
+//   - fixes are applied by default, listed original → corrected, undone to the EXACT original and
+//     usable again; suggestions show their reason and move nothing; a job in no published family
+//     gets both;
+//   - generated once: later reads, the confirm and a reopen never re-call the writer;
+//   - a mid-run failure is retried for that job alone; a writer that stays down leaves the lines
+//     as read, the person can finish, and nothing on the wire says so;
+//   - the confirm is refused while the run is going, and the progress counts the jobs that landed;
+//   - a fix or judgement naming a line the model was not shown is dropped;
+//   - a run a restart left going is resumed on the first read, for its unfinished units only.
+import { readFileSync } from "node:fs";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { CandidateClaim, MinedJobBlock } from "@jobcrush/contracts";
+import { buildItProjectDeliveryServer as buildServer, IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
+import { getCardsWhenRetrieved } from "./fixtureDeck.js";
+import { isTerminal } from "../src/jobs.js";
+import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
+import { InMemoryEligibilityStore } from "../src/eligibility.js";
+import type { LlmClient } from "../src/llm.js";
+import type { ReviewState } from "../src/cvReview.js";
+import { parseReviewAnswer } from "../src/cvReviewRun.js";
+import { parseReviewPrompt, qaReviewAnswer } from "../src/qaReviewAnswer.js";
+import { readCounters, resetCountersForTest } from "../src/counters.js";
+
+type Server = ReturnType<typeof buildServer>;
+type App = Server["app"];
+
+const ROLE = "IT project manager in Paris";
+const NOW = Date.parse("2026-10-08T09:00:00.000Z");
+
+const CV_TEXT = [
+  "Jane Doe",
+  "+33 6 00 00 00 00 | jane.doe.341@example.com",
+  "Paris, France",
+  "",
+  "EXPERIENCE",
+  "IT Project Manager, Nordic Retail Group — Mar 2021 - Present",
+  "- Led the checkout replatform.",
+  "- Managed a budget of EUR 1.2M accross 3 vendor teams.",
+  "",
+  "Project Coordinator, Baltic Software House — Jun 2017 - Feb 2021",
+  "- Coordinated releases for 4 agile squads.",
+  "- Set up a release calendar intended to cut slippage.",
+  "",
+  "SKILLS",
+  "Jira, MS Projcet",
+].join("\n");
+
+const claim = (over: Partial<CandidateClaim> & Pick<CandidateClaim, "id" | "text">): CandidateClaim => ({
+  semantic_key: over.id,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "profile",
+  machine_touch: "verbatim",
+  classification: "Verified",
+  source_quote: over.text.slice(0, 200),
+  needs_grill: false,
+  grill_hint: null,
+  ...over,
+});
+const NRG = "IT Project Manager - Nordic Retail Group";
+const BSH = "Project Coordinator - Baltic Software House";
+const TYPO_LINE = "Managed a budget of EUR 1.2M accross 3 vendor teams.";
+const FIXED_LINE = "Managed a budget of EUR 1.2M across 3 vendor teams.";
+const AIM_LINE = "Set up a release calendar intended to cut slippage.";
+const MINED: CandidateClaim[] = [
+  claim({ id: "sum-pm", text: "Delivery-accountable project manager." }),
+  claim({ id: "nrg-led-checkout", role: NRG, text: "Led the checkout replatform." }),
+  claim({ id: "nrg-managed-budget", role: NRG, text: TYPO_LINE }),
+  claim({ id: "bsh-coordinated-releases", role: BSH, text: "Coordinated releases for 4 agile squads." }),
+  claim({ id: "bsh-release-calendar", role: BSH, text: AIM_LINE }),
+  claim({ id: "skill-tools", text: "Has skills in Jira and MS Projcet." }),
+];
+
+const decision = (value: string) => ({ value, source_quote: value, machine_touch: "verbatim" as const, classification: "Verified" as const });
+function block(id: string, employer: string, title: string, startYear: number, end: MinedJobBlock["end"]["value"]): MinedJobBlock {
+  return {
+    id,
+    employer: decision(employer),
+    title: decision(title),
+    start: { value: { year: startYear, month: 3, precision: "month" }, source_quote: `Mar ${startYear}`, machine_touch: "verbatim", classification: "Verified" },
+    end: { value: end, source_quote: "x", machine_touch: "verbatim", classification: "Verified" },
+    kind: decision("job") as MinedJobBlock["kind"],
+  };
+}
+const BLOCKS: MinedJobBlock[] = [
+  block("nrg", "Nordic Retail Group", "IT Project Manager", 2021, { state: "ongoing" }),
+  block("bsh", "Baltic Software House", "Project Coordinator", 2017, { state: "ended", date: { year: 2021, month: 2, precision: "month" } }),
+];
+
+// ---------------------------------------------------------------------------------------------
+// The fake writer: the QA stack's own answer (qaReviewAnswer.ts — one dialect for both), wrapped
+// with what a test needs — a call log, a hold per job, a failure on the first attempt or on every one.
+// ---------------------------------------------------------------------------------------------
+interface WriterOpts {
+  /** Prompt job ids (j1, j2) whose FIRST attempt fails. */
+  failFirst?: string[];
+  failAlways?: boolean;
+  /** Also name a line the model was never shown — the guard against it is what the test watches. */
+  bogus?: boolean;
+}
+function fakeWriter(opts: WriterOpts = {}) {
+  const calls: string[] = [];
+  const attempts = new Map<string, number>();
+  const gates = new Map<string, { wait: Promise<void>; open: () => void }>();
+  const llm: LlmClient = {
+    model: "fake-review",
+    async complete(prompt) {
+      calls.push(prompt);
+      const asked = parseReviewPrompt(prompt).toReview.filter((id) => id !== "sections");
+      const key = asked[0] ?? "sections";
+      const n = (attempts.get(key) ?? 0) + 1;
+      attempts.set(key, n);
+      const gate = gates.get(key);
+      if (gate) await gate.wait;
+      if (opts.failAlways || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down");
+      return qaReviewAnswer(prompt, { bogus: opts.bogus });
+    },
+  };
+  return {
+    llm,
+    calls,
+    /** Holds every call for `key` until release(key). */
+    hold(key: string) {
+      let open!: () => void;
+      const wait = new Promise<void>((r) => (open = r));
+      gates.set(key, { wait, open });
+    },
+    release(key: string) {
+      gates.get(key)?.open();
+      gates.delete(key);
+    },
+    asked: () => calls.map((p) => /=== JOBS TO REVIEW ===\n(.+)/.exec(p)![1]),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// HTTP helpers.
+// ---------------------------------------------------------------------------------------------
+const get = (app: App, cookie: string, url: string) => app.inject({ method: "GET", url, headers: { cookie } });
+const post = (app: App, cookie: string, url: string, payload?: unknown) =>
+  app.inject({ method: "POST", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
+const put = (app: App, cookie: string, url: string, payload: unknown) => app.inject({ method: "PUT", url, headers: { cookie }, payload });
+const review = async (app: App, cookie: string) => (await get(app, cookie, "/review")).json() as ReviewState;
+const jobsOf = (state: ReviewState) => {
+  const experience = state.sections.find((s) => s.tag === "experience");
+  return experience && "jobs" in experience ? experience.jobs : [];
+};
+const linesOf = (state: ReviewState, tag: string) => {
+  const section = state.sections.find((s) => s.tag === tag);
+  return section && "lines" in section ? section.lines : [];
+};
+const allLines = (state: ReviewState) => [...jobsOf(state).flatMap((j) => j.lines), ...state.sections.flatMap((s) => ("lines" in s ? s.lines : []))];
+
+async function anonSession(app: App): Promise<string> {
+  const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+  return `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
+}
+async function signIn(app: App, cookie: string, email: string): Promise<void> {
+  const link = await post(app, cookie, "/auth/request-link", { email });
+  const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
+  await post(app, cookie, "/auth/verify", { token });
+}
+/** Polls on setImmediate (fixtureDeck.ts's rule: never a timer a test may fake). */
+async function until<T>(read: () => Promise<T> | T, ok: (value: T) => boolean, what: string): Promise<T> {
+  for (let attempt = 0; attempt < 2000; attempt += 1) {
+    const value = await read();
+    if (ok(value)) return value;
+    await new Promise((r) => setImmediate(r));
+  }
+  throw new Error(`never happened: ${what}`);
+}
+const reviewed = (app: App, cookie: string) => until(() => review(app, cookie), (s) => s.progress === null, "the run finished");
+
+/** A session that brought a CV: pasted → mined (fake) → dated job records mined and the first one
+ *  placed (fake) → the review run started by the pipeline over the fake writer. */
+async function withCv(writer: ReturnType<typeof fakeWriter>) {
+  const jobBlocks = new InMemoryJobBlockStore();
+  const eligibility = new InMemoryEligibilityStore();
+  await jobBlocks.init();
+  const server = buildServer({
+    pipeline: {
+      mine: async () => ({ doc: null, claims: MINED, roles: 2, needsGrill: 0 }),
+      mineJobBlocks: async () => ({ doc: { schemaVersion: "1", blocks: BLOCKS, parser_flags: [] }, rawOutput: "{}" }),
+      labelJobBlocks: async (sessionId) => {
+        await jobBlocks.label(sessionId, "nrg", IT_PROJECT_DELIVERY_PLACEMENT);
+      },
+    },
+    jobBlocks,
+    eligibility,
+    reviewLlm: writer.llm,
+    reviewRun: { retryDelayMs: 0, now: () => NOW },
+  });
+  const { app } = server;
+  const cookie = await anonSession(app);
+  const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+  const { jobId } = (await post(app, cookie, "/cv/paste", { text: CV_TEXT })).json();
+  await until(async () => (await get(app, cookie, `/jobs/${jobId}`)).json(), (job) => isTerminal(job.status), "the paste settled");
+  return { server, app, cookie, sessionId };
+}
+
+beforeEach(() => resetCountersForTest());
+
+describe("#341 the run", () => {
+  it("starts from the pipeline — before anyone opens the review — one call per job, sections on the first; fixes applied, suggestions shown, a job with no family included", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    // Nothing has read /review yet: the writer was asked anyway, once per job.
+    await until(() => writer.calls.length, (n) => n === 2, "two writer calls");
+    expect(writer.asked().sort()).toEqual(["j2", "sections, j1"]);
+
+    const first = writer.calls.find((p) => p.includes("sections, j1"))!;
+    expect(first).toContain("=== JOB FAMILIES ===\n- id: it-project-delivery\n  label: IT Project Manager");
+    expect(first).toContain("  - end-to-end-delivery: Have you owned delivery from planning through completion?");
+    expect(first).toContain("- j1: IT Project Manager — Nordic Retail Group → it-project-delivery");
+    expect(first).toContain("- j2: Project Coordinator — Baltic Software House → none");
+    expect(first).toContain("# Jane Doe");
+    expect(first).toContain("### IT Project Manager — Nordic Retail Group (j1)\n**Mar 2021 – now**\n\n- [nrg-led-checkout] Led the checkout replatform.\n- [nrg-managed-budget] " + TYPO_LINE);
+    expect(first).toContain("## Skills\n\n- [skill-tools] Has skills in Jira and MS Projcet.");
+    expect(first.startsWith("You review a candidate's CV, job by job")).toBe(true); // the shipped prompt, header comment stripped
+
+    const state = await reviewed(app, cookie);
+    const [nrg, bsh] = jobsOf(state);
+    expect(nrg!.checking).toBe(false);
+    // The fix: applied by default — the line reads the corrected text — and listed original → corrected.
+    expect(nrg!.lines[1]).toEqual({
+      id: "nrg-managed-budget",
+      text: FIXED_LINE,
+      state: "ticked",
+      fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: true },
+      suggestion: null,
+    });
+    expect(nrg!.lines[0]!.fix).toBeNull();
+    // The suggestion, on a job placed in no family: shown with its reason, the line still ticked.
+    expect(bsh!.lines[1]).toEqual({
+      id: "bsh-release-calendar",
+      text: AIM_LINE,
+      state: "ticked",
+      fix: null,
+      suggestion: { kind: "aim-without-result", reason: "States an aim and no delivered result." },
+    });
+    // A fix outside the jobs — the skills section — lands where the line sits.
+    expect(linesOf(state, "skill")[0]).toMatchObject({ text: "Has skills in Jira and MS Project.", fix: { applied: true } });
+    expect(linesOf(state, "profile")[0]!.fix).toBeNull();
+  });
+
+  it("generated once: later reads, the confirm and a reopen never re-call the writer", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    await reviewed(app, cookie);
+    const spent = writer.calls.length;
+    await review(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-once@example.com");
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    expect((await review(app, cookie)).completed).toBe(true);
+    expect(writer.calls.length).toBe(spent);
+    // The fix reaches the master CV: what prints is the corrected line.
+    const built = (await post(app, cookie, "/onboarding/build")).json();
+    expect(built.rootCv.markdown).toContain(FIXED_LINE);
+    expect(built.rootCv.markdown).not.toContain("accross");
+  });
+
+  it("a mid-run failure is retried for that job alone — the other job's answer is never re-asked", async () => {
+    const writer = fakeWriter({ failFirst: ["j2"] });
+    const { app, cookie } = await withCv(writer);
+    const state = await reviewed(app, cookie);
+    expect(writer.asked().sort()).toEqual(["j2", "j2", "sections, j1"]);
+    expect(jobsOf(state)[0]!.lines[1]!.fix?.applied).toBe(true);
+    expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+  });
+
+  it("when the writer stays down, the lines show as read, the person can finish, and nothing on the wire says so", async () => {
+    const writer = fakeWriter({ failAlways: true });
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    const state = await reviewed(app, cookie);
+    expect(writer.asked().sort()).toEqual(["j2", "j2", "sections, j1", "sections, j1"]); // two attempts each, then no more
+    expect(allLines(state).every((l) => l.fix === null && l.suggestion === null && l.state === "ticked")).toBe(true);
+    expect(jobsOf(state)[0]!.lines[1]!.text).toBe(TYPO_LINE); // as read
+    expect(jobsOf(state).every((j) => !j.checking)).toBe(true);
+    expect(JSON.stringify(state)).not.toMatch(/fail|error|retry/i);
+    // The store knows the difference — found nothing, did not run and failed are different states.
+    expect((await server.cvReviews.get(sessionId))?.outcome).toBe("failed");
+
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-down@example.com");
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBeGreaterThan(0);
+  });
+
+  it("while the run is going: progress counts the jobs that landed, an unanswered job is still being checked, and the confirm waits", async () => {
+    const writer = fakeWriter();
+    writer.hold("j1");
+    writer.hold("j2");
+    const { app, cookie } = await withCv(writer);
+    await until(() => writer.calls.length, (n) => n === 2, "both calls in flight");
+
+    let state = await review(app, cookie);
+    expect(state.progress).toEqual({ done: 0, total: 2, minutesLeft: 5 });
+    expect(jobsOf(state).map((j) => j.checking)).toEqual([true, true]);
+    expect(jobsOf(state)[0]!.lines[1]!.text).toBe(TYPO_LINE); // the lines as read, meanwhile
+    const refused = await post(app, cookie, "/review/complete");
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe("review_running");
+
+    writer.release("j1");
+    state = await until(() => review(app, cookie), (s) => s.progress?.done === 1, "the first job landed");
+    expect(state.progress).toEqual({ done: 1, total: 2, minutesLeft: 5 });
+    expect(jobsOf(state).map((j) => j.checking)).toEqual([false, true]);
+    expect(jobsOf(state)[0]!.lines[1]!.fix?.applied).toBe(true); // the finished job opens as it arrives
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(409);
+
+    writer.release("j2");
+    state = await reviewed(app, cookie);
+    expect(jobsOf(state).map((j) => j.checking)).toEqual([false, false]);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-wait@example.com");
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+  });
+
+  it("undo restores the exact original and persists; Use fix applies it again; a line with no fix has nothing to undo", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    await reviewed(app, cookie);
+
+    const undone = await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: false });
+    expect(undone.statusCode).toBe(200);
+    expect(undone.json()).toEqual({ id: "nrg-managed-budget", text: TYPO_LINE, applied: false });
+    let line = jobsOf(await review(app, cookie))[0]!.lines[1]!;
+    expect(line.text).toBe(TYPO_LINE);
+    expect(line.fix).toEqual({ original: TYPO_LINE, corrected: FIXED_LINE, applied: false });
+    expect(line.state).toBe("ticked"); // undoing a fix is not an untick
+
+    expect((await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: true })).json().text).toBe(FIXED_LINE);
+    line = jobsOf(await review(app, cookie))[0]!.lines[1]!;
+    expect(line).toMatchObject({ text: FIXED_LINE, fix: { applied: true } });
+
+    expect((await put(app, cookie, "/review/fixes/nrg-led-checkout", { applied: false })).statusCode).toBe(404);
+    expect((await put(app, cookie, "/review/fixes/no-such-line", { applied: false })).statusCode).toBe(404);
+    expect(jobsOf(await review(app, cookie))[0]!.lines[0]!.text).toBe("Led the checkout replatform.");
+    expect(writer.calls.length).toBe(2); // none of this asked the writer anything
+  });
+
+  it("an undone fix stays undone through the confirm: the master CV prints the person's original", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    await reviewed(app, cookie);
+    await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: false });
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-undone@example.com");
+    await post(app, cookie, "/review/complete");
+    const built = (await post(app, cookie, "/onboarding/build")).json();
+    expect(built.rootCv.markdown).toContain(TYPO_LINE);
+    expect(jobsOf(await review(app, cookie))[0]!.lines[1]!.fix?.applied).toBe(false);
+  });
+
+  it("a fix or judgement naming a line the model was not shown is dropped and counted; the real ones still land", async () => {
+    const writer = fakeWriter({ bogus: true });
+    const { app, cookie } = await withCv(writer);
+    const state = await reviewed(app, cookie);
+    expect(jobsOf(state)[0]!.lines[0]).toMatchObject({ text: "Led the checkout replatform.", fix: null, suggestion: null });
+    expect(jobsOf(state)[0]!.lines[1]!.fix?.applied).toBe(true);
+    expect(allLines(state).some((l) => l.id === "ghost")).toBe(false);
+    expect(readCounters()["cvReview.fix_dropped"]).toBe(2); // one bogus fix per job
+    expect(readCounters()["cvReview.judgement_dropped"]).toBe(2);
+  });
+
+  it("a run a restart left going is resumed on the first read, for its unfinished units only", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await reviewed(app, cookie);
+    const spent = writer.calls.length;
+    // The process died right after the run opened and the first job landed: the store says so and
+    // nothing in this process is driving it any more.
+    const landed = (await server.cvReviews.get(sessionId))!.units.find((u) => u.unit === "nrg")!.result!;
+    await server.cvReviews.create(sessionId, new Date(NOW).toISOString(), ["nrg", "bsh"]);
+    await server.cvReviews.recordResult(sessionId, "nrg", landed);
+
+    const first = await review(app, cookie);
+    expect(first.progress).toEqual({ done: 1, total: 2, minutesLeft: 5 }); // read as still going — and resumed
+    const state = await reviewed(app, cookie);
+    expect(writer.asked().slice(spent)).toEqual(["j2"]); // the finished job was never re-asked
+    expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+    expect((await server.cvReviews.get(sessionId))?.outcome).toBe("done");
+  });
+
+  it("a review confirmed over the wire before the read finished is left as confirmed: no run starts, no line moves", async () => {
+    // Only the wire can confirm before the read lands (the screen waits for it); several journeys
+    // do. The run must not then change lines the person has already signed off, unseen.
+    const writer = fakeWriter();
+    writer.hold("j1");
+    writer.hold("j2");
+    const jobBlocks = new InMemoryJobBlockStore();
+    const eligibility = new InMemoryEligibilityStore();
+    await jobBlocks.init();
+    let releaseMiner!: () => void;
+    const minerGate = new Promise<void>((r) => (releaseMiner = r));
+    const { app } = buildServer({
+      pipeline: {
+        mine: async () => {
+          await minerGate; // the read is still going while the person confirms
+          return { doc: null, claims: MINED, roles: 2, needsGrill: 0 };
+        },
+      },
+      jobBlocks,
+      eligibility,
+      reviewLlm: writer.llm,
+      reviewRun: { retryDelayMs: 0, now: () => NOW },
+    });
+    const cookie = await anonSession(app);
+    const { jobId } = (await post(app, cookie, "/cv/paste", { text: CV_TEXT })).json();
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    releaseMiner();
+    await until(async () => (await get(app, cookie, `/jobs/${jobId}`)).json(), (job) => isTerminal(job.status), "the paste settled");
+    await new Promise((r) => setImmediate(r));
+    const state = await review(app, cookie);
+    expect(state.progress).toBeNull();
+    expect(writer.calls).toEqual([]);
+    expect(jobsOf(state)[0]!.lines[1]!.text).toBe(TYPO_LINE); // as read, as confirmed
+  });
+
+  it("a session with no CV has no run and no progress", async () => {
+    const writer = fakeWriter();
+    const { app } = buildServer({ reviewLlm: writer.llm });
+    const cookie = await anonSession(app);
+    const state = await review(app, cookie);
+    expect(state.progress).toBeNull();
+    expect(writer.calls).toEqual([]);
+  });
+});
+
+describe("#341 the answer, as the product model wrote it", () => {
+  const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
+
+  it("parses the whole-CV run and the thin-job run of Fable 5.1 max (#340's scored runs)", () => {
+    const whole = parseReviewAnswer(fixture("cv-review-fable-5-1-run1.json"));
+    expect(whole.jobs.map((j) => j.job)).toEqual(["bred", "okoone", "socgen"]);
+    expect(whole.sections?.map((s) => s.section)).toEqual(["summary", "projects", "skills", "education", "additional"]);
+    const untick = whole.jobs[0]!.judgements.find((j) => j.verdict === "untick");
+    expect(untick).toMatchObject({ line: "b15", kind: "aim-without-result" });
+    expect(whole.jobs[1]).toMatchObject({ family: null, mustHaves: [], drafted: [] }); // the Product Owner job: no published family
+    expect(whole.refused).toHaveLength(4);
+
+    const thin = parseReviewAnswer(fixture("cv-review-fable-5-1-thin-run1.json"));
+    expect(thin.jobs[0]!.drafted.length).toBe(8);
+    expect(thin.jobs[0]!.drafted[0]!.vague[0]!.options[0]).toMatchObject({ from: "CV" });
+  });
+
+  it("tolerates a code fence and refuses anything that is not the one JSON object", () => {
+    expect(parseReviewAnswer("```json\n" + fixture("cv-review-fable-5-1-run1.json") + "\n```").jobs).toHaveLength(3);
+    expect(() => parseReviewAnswer("Here is my review: {}")).toThrow();
+    expect(() => parseReviewAnswer(JSON.stringify({ jobs: [] }))).toThrow(); // letterhead/sections/refused missing
+  });
+});

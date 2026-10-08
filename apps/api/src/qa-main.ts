@@ -93,6 +93,7 @@ import { createGuestbook } from "./guestbook.js";
 import { IpRateLimiter } from "./sessions.js";
 import type { LlmClient } from "./llm.js";
 import { qaFamilyAnswer, roleFromLabelerPrompt } from "./qaFamilyAnswer.js";
+import { qaReviewAnswer, REVIEW_PROMPT_OPENING } from "./qaReviewAnswer.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -111,6 +112,20 @@ const MINED_UNDATED_ROLE = (() => {
   const last = doc.roles[doc.roles.length - 1]!;
   last.dates_as_written = "";
   last.dates_missing = true;
+  return JSON.stringify(doc);
+})();
+
+// #341: the SAME recorded doc with two lines changed, returned when the pasted CV carries the
+// marker "REVIEWCHECK" — a misspelt word on one job line and an aim-with-no-result on another, so a
+// browser journey can watch the review's fix and its untick suggestion land on the paper. Derived
+// from the recording the same way MINED_UNDATED_ROLE is (one field each), never a second doc. The
+// fake reviewer below finds both by the text alone.
+const MINED_REVIEWCHECK = (() => {
+  const doc = JSON.parse(MINED) as { claims: Array<{ id: string; text: string }> };
+  const budget = doc.claims.find((c) => c.id === "nrg-managed-budget")!;
+  budget.text = budget.text.replace("across", "accross");
+  const steering = doc.claims.find((c) => c.id === "nrg-steering-committee-reporting")!;
+  steering.text = "Set up steering committee reporting intended to keep the CIO informed.";
   return JSON.stringify(doc);
 })();
 
@@ -144,7 +159,7 @@ const DRAFT: Draft = {
   additional: [{ label: "Languages", value: "Polish (Native), English (Fluent), German (B1)" }],
 };
 
-const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, unknown: 0 };
+const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, review: 0, unknown: 0 };
 
 // A canned, contract-valid MinedJobBlocks doc (#161): three dated blocks exercising the shapes the
 // confirm deck cares about — a month-precision ended job, a year-precision ongoing job, and an
@@ -251,6 +266,12 @@ function trailingArrayLength(prompt: string): number {
 //
 // QA_JUDGE_DELAY_MS sets the starting value for a run that wants it on from the first request.
 let judgeDelayMs = Number(process.env.QA_JUDGE_DELAY_MS ?? 0);
+// #341: the fake reviewer answers instantly, which makes the review's progress card unobservable —
+// the same reason the fake judge is paced. A HOLD rather than a delay, because a journey cannot
+// know how long its own walk from the paste to the review screen takes: `reviewHold: true` on the
+// arming door makes every review call wait, `reviewHold: false` lets them all answer. Off by
+// default; one owner at a time (run-tier2.mjs runs journeys sequentially), who puts it back.
+let reviewGate: { wait: Promise<void>; open: () => void } | null = null;
 
 // #116 — the read-delay knob, the judge knob's twin for the OTHER half of a cold deck. The canned
 // reader below answers instantly, so no journey could ever see what a brand-new visitor on staging
@@ -287,8 +308,19 @@ const fakeLlm: LlmClient = {
       if (prompt.includes("SECOND UPLOAD")) return JOB_BLOCKS_REREAD;
       return JOB_BLOCKS;
     }
+    // #341 — cv-review.md's own opening line. The answer itself lives in qaReviewAnswer.ts, shared
+    // with the HTTP tests' fake writer and parsed by the real parser there: a fix for a line with
+    // "accross", an untick suggestion for a line with "intended to", every other line kept — all
+    // derived from the text the fake is handed; the REVIEWCHECK recording above is what puts them
+    // on a line. Held by reviewHold so a journey can watch the progress card.
+    if (prompt.includes(REVIEW_PROMPT_OPENING)) {
+      seen.review += 1;
+      if (reviewGate) await reviewGate.wait;
+      return qaReviewAnswer(prompt);
+    }
     if (prompt.includes("===CV-TEXT===")) {
       seen.mine += 1;
+      if (prompt.includes("REVIEWCHECK")) return MINED_REVIEWCHECK;
       return prompt.includes("DATESMISSING") ? MINED_UNDATED_ROLE : MINED;
     }
     if (prompt.includes("===JOB-POSTING===")) {
@@ -936,6 +968,10 @@ const { app } = buildServer({
   // answers a conserving draft, so a browser journey can watch the CV brain's ending, free. The
   // checkpoint store stays buildServer's in-memory default, like every other QA store.
   tailorLlm: fakeLlm,
+  // #341: the CV review over the SAME stage-aware fake, started by the pipeline like production —
+  // so a journey walks the real run, its checkpoints and its marks, free. Its checkpoint store stays
+  // buildServer's in-memory default, like every other QA store.
+  reviewLlm: fakeLlm,
   // #312: the stand-in stands where the browser goes — this stack runs in CI on every push, and
   // the one thing it must never do is download a 114MB browser to print a deterministic fixture.
   // The real browser making a real PDF is the release gate (scripts/print-gate.mjs), not a test.
@@ -972,6 +1008,7 @@ app.post<{
   Body: {
     judgeDelayMs?: number;
     readDelayMs?: number;
+    reviewHold?: boolean;
     languageAdverts?: boolean;
     workRightsAdverts?: boolean;
     retrievalOutcome?: string;
@@ -984,6 +1021,21 @@ app.post<{
       return reply.status(400).send({ error: { code: "bad_request", message: "judgeDelayMs must be a number" } });
     }
     judgeDelayMs = Math.max(0, Math.min(ms, 60_000));
+  }
+  // #341: same boolean discipline as languageAdverts — a junk value refuses, never disarms (a hold
+  // that silently let go would walk the journey past a progress card it never saw).
+  if (req.body?.reviewHold !== undefined) {
+    if (typeof req.body.reviewHold !== "boolean") {
+      return reply.status(400).send({ error: { code: "bad_request", message: "reviewHold must be a boolean" } });
+    }
+    if (req.body.reviewHold && !reviewGate) {
+      let open!: () => void;
+      const wait = new Promise<void>((resolve) => (open = resolve));
+      reviewGate = { wait, open };
+    } else if (!req.body.reviewHold && reviewGate) {
+      reviewGate.open();
+      reviewGate = null;
+    }
   }
   // #116: same number discipline as judgeDelayMs — a junk value refuses, never disarms. Re-arming
   // forgets which adverts were already slowed, so a second journey gets its own cold deck.
@@ -1040,6 +1092,7 @@ app.post<{
     ok: true,
     judgeDelayMs,
     readDelayMs,
+    reviewHold: reviewGate !== null,
     languageAdverts: languageAdvertsOn,
     workRightsAdverts: workRightsAdvertsOn,
     retrievalOutcome: qaRetrievalOutcome,

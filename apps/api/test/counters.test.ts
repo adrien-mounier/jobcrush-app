@@ -87,6 +87,10 @@ describe("#103 posting-pool counters", () => {
       "employerLookup.empty": 0,
       "employerLookup.cache_read_failed": 0,
       "employerLookup.cache_write_failed": 0,
+      // #341 — the CV review run: dropped marks and failed attempts.
+      "cvReview.fix_dropped": 0,
+      "cvReview.judgement_dropped": 0,
+      "cvReview.unit_attempt_failed": 0,
       "usageLedger.pricing_override_rejected": 0,
       // #117 — see counters.ts's own header for what these mean.
       "judge.subset_reused": 0,

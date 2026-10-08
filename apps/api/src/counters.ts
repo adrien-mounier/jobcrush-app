@@ -375,6 +375,11 @@ const counts = {
   // fails a placement, which is exactly why they need a number: without one they are invisible.
   "employerLookup.cache_read_failed": 0,
   "employerLookup.cache_write_failed": 0,
+  // #341 — the CV review run. A fix or judgement naming a line the paper does not have is dropped,
+  // never applied; an attempt that failed (call, parse, coverage) is retried once, then the unit fails.
+  "cvReview.fix_dropped": 0,
+  "cvReview.judgement_dropped": 0,
+  "cvReview.unit_attempt_failed": 0,
 };
 
 export type CounterName = keyof typeof counts;

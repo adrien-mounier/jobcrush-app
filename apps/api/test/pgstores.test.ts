@@ -36,6 +36,7 @@ import {
   type TailorDraftStore,
 } from "../src/tailorDraftStore.js";
 import type { Draft } from "../src/preview.js";
+import { InMemoryCvReviewStore, PgCvReviewStore, type CvReviewStore } from "../src/cvReviewStore.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 function pgPool() {
@@ -872,6 +873,22 @@ for (const [name, make] of claimDrivers) {
       expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
     });
 
+    // #341 — a review fix moves the text and nothing else: a pending line stays pending (nobody
+    // vouched), a kept line stays kept, origin stays mined. edit() is the person's path; this is not.
+    it("setText changes the text alone — decision, origin and tick untouched; unknown line reported", async () => {
+      await store.seed(sid, [claim({ id: "a", text: "Led teh migration." }), claim({ id: "k", text: "Kept line." })]);
+      await store.setLineState(sid, "k", "kept");
+      expect(await store.setText(sid, "a", "Led the migration.")).toBe(true);
+      expect(await store.setText(sid, "k", "Kept line, fixed.")).toBe(true);
+      const [a, k] = await store.list(sid);
+      expect(a).toMatchObject({ text: "Led the migration.", decision: "pending", origin: "mined", lineState: "ticked" });
+      expect(k).toMatchObject({ text: "Kept line, fixed.", decision: "pending", origin: "mined", lineState: "kept" });
+      expect(await store.confirmed(sid)).toEqual([]);
+      expect(await store.setText(sid, "nope", "x")).toBe(false);
+      expect(await store.setText("other-session", "a", "x")).toBe(false);
+      expect((await store.list(sid))[0]!.text).toBe("Led the migration.");
+    });
+
     // #13 — the "no" write path + fact correction, proven on both drivers.
     it("answerNegative persists a negative — distinct from rejected, absent from confirmed, present in negatives", async () => {
       await store.answerNegative(sid, claim({ id: "grill-1", text: "No PMP certification." }));
@@ -1634,6 +1651,82 @@ for (const [name, make] of tailorDraftDrivers) {
       // A draft with no experience at all fails Draft.parse (min(1)) — the shape a schema bump leaves behind.
       await store.put("session-1", "ad-1", { ...broken, draft: { ...draftFixture, experience: [] } as unknown as Draft });
       expect(await store.get("session-1", "ad-1")).toBeNull();
+    });
+  });
+}
+
+// #341 — the review run's checkpoint store: one run per session, one row per unit.
+const cvReviewDrivers: [string, () => CvReviewStore][] = [
+  ["in-memory", () => new InMemoryCvReviewStore()],
+  ["postgres (pg-mem)", () => new PgCvReviewStore(pgPool())],
+];
+
+for (const [name, make] of cvReviewDrivers) {
+  describe(`CvReviewStore contract — ${name} (#341)`, () => {
+    let store: CvReviewStore;
+    const sid = "session-1";
+    const result = (fix: string) => ({
+      answer: { jobs: [{ job: fix }] },
+      fixes: [{ line: "l1", original: "teh", corrected: fix }],
+      suggestions: [{ line: "l2", kind: "weak" as const, reason: "Says nothing a reader can use." }],
+    });
+    beforeEach(async () => {
+      store = make();
+      await store.init();
+    });
+
+    it("a new run holds its units in order, nothing spent, nothing answered, still going", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
+      expect(await store.get(sid)).toEqual({
+        startedAt: "2026-10-08T08:00:00.000Z",
+        finishedAt: null,
+        outcome: null,
+        units: [
+          { unit: "j1", attempts: 0, result: null },
+          { unit: "j2", attempts: 0, result: null },
+        ],
+      });
+      expect(await store.get("session-2")).toBeNull();
+    });
+
+    it("attempts and answers land per unit; the other unit is untouched", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
+      await store.recordAttempt(sid, "j1");
+      await store.recordAttempt(sid, "j1");
+      await store.recordAttempt(sid, "j2");
+      await store.recordResult(sid, "j1", result("the"));
+      const run = (await store.get(sid))!;
+      expect(run.units[0]).toEqual({ unit: "j1", attempts: 2, result: result("the") });
+      expect(run.units[1]).toEqual({ unit: "j2", attempts: 1, result: null });
+      expect(run.outcome).toBeNull();
+    });
+
+    it("finish records the outcome and the time; the units stay as they landed", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1"]);
+      await store.recordResult(sid, "j1", result("the"));
+      await store.finish(sid, "done", "2026-10-08T08:04:00.000Z");
+      expect(await store.get(sid)).toMatchObject({ outcome: "done", finishedAt: "2026-10-08T08:04:00.000Z" });
+      expect((await store.get(sid))!.units[0]!.result).toEqual(result("the"));
+    });
+
+    it("a new run for the same session replaces the old one whole", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
+      await store.recordResult(sid, "j1", result("the"));
+      await store.finish(sid, "failed", "2026-10-08T08:04:00.000Z");
+      await store.create(sid, "2026-10-09T08:00:00.000Z", ["j3"]);
+      expect(await store.get(sid)).toEqual({
+        startedAt: "2026-10-09T08:00:00.000Z",
+        finishedAt: null,
+        outcome: null,
+        units: [{ unit: "j3", attempts: 0, result: null }],
+      });
+    });
+
+    it("the in-memory driver hands out a copy, never its own record", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1"]);
+      const read = (await store.get(sid))!;
+      read.units[0]!.attempts = 99;
+      expect((await store.get(sid))!.units[0]!.attempts).toBe(0);
     });
   });
 }

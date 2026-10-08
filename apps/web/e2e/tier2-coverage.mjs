@@ -151,6 +151,11 @@ const YEARS = ["apps/api/src/yearsWorked.ts"];
 // change here can redden each of them; the gate itself lives in postingRetrieval.ts and deck.ts.
 const REVIEW = [
   "apps/api/src/cvReview.ts",
+  // #341: the background run that lays the fixes and suggestions on the paper, its checkpoints,
+  // and the prompt it sends — a change to any of them moves what the review journey sees.
+  "apps/api/src/cvReviewRun.ts",
+  "apps/api/src/cvReviewStore.ts",
+  "apps/api/prompts/cv-review.md",
   "apps/api/src/routes/review.ts",
   "apps/api/src/routes/cv.ts",
   "apps/api/src/claims.ts",

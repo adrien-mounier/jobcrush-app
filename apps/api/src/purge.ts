@@ -71,6 +71,18 @@ export async function runPurge(pool: Pool, ttlDays = 14): Promise<{ sessions: nu
        SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
     [cutoff],
   );
+  // #341: the CV review's run and its per-job checkpoints are session-keyed CV content too — the
+  // model's fixes and suggestions about this person's lines — and go with the profile.
+  await pool.query(
+    `DELETE FROM cv_review_units WHERE session_id IN (
+       SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
+    [cutoff],
+  );
+  await pool.query(
+    `DELETE FROM cv_reviews WHERE session_id IN (
+       SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
+    [cutoff],
+  );
   const { rowCount } = await pool.query(
     `DELETE FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1`,
     [cutoff],

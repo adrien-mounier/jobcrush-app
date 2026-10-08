@@ -1,0 +1,359 @@
+// #341 — the review run (ADR-0016 clauses 2, 3 and 7): the "review" AI step over the whole CV,
+// one call per job, in parallel, checkpointed per job (cvReviewStore.ts). It starts from the
+// pipeline the moment the CV is read and its jobs placed (pipeline.ts step 2), so it overlaps the
+// questions discovery still asks and needs nothing from their answers. Its prompt is
+// prompts/cv-review.md (#340), which answers JSON for exactly the jobs named in JOBS TO REVIEW —
+// the letterhead and the non-job sections ride on the first job's call. A unit that fails is
+// retried; a unit that runs out of attempts fails the run, and the screen then shows that job's
+// lines as read and says nothing (the "never show the kitchen" rule). Finished units are never
+// re-asked: generated once, stored (clause 7). A run the process left going when it restarted is
+// resumed by the first read that finds it, for its unfinished units only.
+//
+// What this ticket reads off the answer: the fixes, applied to the lines' own text (claims.ts
+// setText) with the exact original kept for undo, and the untick suggestions, shown and never
+// applied. The whole validated answer is stored beside them for #342 (drafted lines) and #343 (word
+// choices) to read without a second call.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
+import type { ClaimStore } from "./claims.js";
+import type { ContactStore } from "./contact.js";
+import { incrementCounter } from "./counters.js";
+import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
+import { SUGGESTION_KINDS, type CvReviewStore, type ResolvedFix, type ResolvedSuggestion, type ReviewUnitResult } from "./cvReviewStore.js";
+import type { ProductionFamilyFloorStore } from "./familyFloors.js";
+import type { JobBlockStore } from "./jobBlockStore.js";
+import type { LlmClient } from "./llm.js";
+import type { SessionStore } from "./sessions.js";
+
+const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "cv-review.md");
+
+let cachedPrompt: string | null = null;
+/** The prompt as the model reads it: without the header comment, which is for humans reading the
+ *  repo (preview.ts tailorPrompt and familyLabeler.ts strip it the same way). */
+export function reviewPrompt(): string {
+  if (!cachedPrompt) cachedPrompt = readFileSync(PROMPT_PATH, "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
+  return cachedPrompt;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The answer, as the prompt's OUTPUT section states it. Non-strict objects on purpose (the
+// labeler's rule): a stray key the model adds is dropped, never a reason to fail a read that was
+// otherwise good. No `.default()` on any field the prompt says is required (CODING_STANDARDS).
+// ---------------------------------------------------------------------------------------------
+const Fix = z.object({ line: z.string(), original: z.string(), corrected: z.string() });
+const Judgement = z.discriminatedUnion("verdict", [
+  z.object({ line: z.string(), verdict: z.literal("keep") }),
+  z.object({ line: z.string(), verdict: z.literal("untick"), kind: z.enum(SUGGESTION_KINDS), reason: z.string() }),
+]);
+const VagueOption = z.object({ text: z.string(), from: z.enum(["CV", "TYPICAL"]), quote: z.string().nullish() });
+const DraftedLine = z.object({
+  text: z.string(),
+  mustHave: z.string().nullable(),
+  quote: z.string().nullable(),
+  flags: z.array(z.enum(["OPTIONAL", "INDUSTRY GUESS"])),
+  vague: z.array(z.object({ phrase: z.string(), options: z.array(VagueOption) })),
+});
+const JobReview = z.object({
+  job: z.string(),
+  family: z.string().nullable(),
+  complete: z.boolean(),
+  fixes: z.array(Fix),
+  judgements: z.array(Judgement),
+  mustHaves: z.array(z.object({ id: z.string(), shownBy: z.array(z.string()) })),
+  drafted: z.array(DraftedLine),
+  endDateMissing: z.boolean(),
+  conflicts: z.array(z.object({ what: z.string(), values: z.array(z.string()) })),
+});
+const SectionReview = z.object({ section: z.string(), fixes: z.array(Fix), judgements: z.array(Judgement) });
+export const ReviewAnswer = z.object({
+  letterhead: z.object({ checks: z.array(z.string()) }).nullable(),
+  sections: z.array(SectionReview).nullable(),
+  jobs: z.array(JobReview),
+  refused: z.array(z.object({ job: z.string(), what: z.string(), rule: z.string() })),
+});
+export type ReviewAnswer = z.infer<typeof ReviewAnswer>;
+
+/** The model's text → the validated answer. A code fence around the JSON is tolerated (the
+ *  blind-test renderer does the same); anything else that is not the one JSON object fails. */
+export function parseReviewAnswer(text: string): ReviewAnswer {
+  return ReviewAnswer.parse(JSON.parse(text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, "")));
+}
+
+// ---------------------------------------------------------------------------------------------
+// The input: the four blocks the prompt names, built from the paper the screen shows.
+// ---------------------------------------------------------------------------------------------
+export interface ReviewFamily {
+  familyId: string;
+  label: string;
+  scope: string;
+  mustHaves: Array<{ id: string; meaning: string }>;
+}
+
+/** The job's own placement (ADR-0016 clause 4: each job is drafted from its OWN family, never the
+ *  target role), at the version it was placed under (ADR-0014 decision 7), falling back to the
+ *  active version when that one is no longer held. A family nothing can describe reads as `none`. */
+function familiesOf(paper: Paper, floors: Pick<ProductionFamilyFloorStore, "get" | "active">) {
+  const families = new Map<string, ReviewFamily>();
+  const placements = new Map<string, string[]>();
+  for (const { job, block } of paper.jobs) {
+    const placement = block?.family.value;
+    const ids: string[] = [];
+    if (placement?.outcome === "confirmed") {
+      for (const { familyId, version } of placement.families) {
+        const publication = floors.get(familyId, version) ?? floors.active(familyId);
+        if (!publication) continue;
+        const floor = publication.floor;
+        families.set(familyId, {
+          familyId,
+          label: floor.label,
+          scope: floor.scope,
+          mustHaves: floor.essentialItems.map((item) => ({ id: item.id, meaning: item.question.prompt })),
+        });
+        ids.push(familyId);
+      }
+    }
+    placements.set(job.id, ids);
+  }
+  return { families: [...families.values()], placements };
+}
+
+/** The prompt names jobs by short ids (`j1`, `j2`, …) in paper order; a block id or a role heading
+ *  would be an awkward id for the model to echo back. The map is rebuilt from the paper on each
+ *  call and the answer is translated back to the paper's own ids before it is stored. */
+const promptJobIds = (paper: Paper) => new Map(paper.jobs.map(({ job }, i) => [job.id, `j${i + 1}`]));
+
+export function buildReviewInput(
+  paper: Paper,
+  floors: Pick<ProductionFamilyFloorStore, "get" | "active">,
+  jobsToReview: string[],
+): string {
+  const { families, placements } = familiesOf(paper, floors);
+  const ids = promptJobIds(paper);
+  const line = (l: ReviewLine) => `- [${l.id}] ${l.text}`;
+  const cv: string[] = [];
+  if (paper.letterhead.header) {
+    const [name, ...rest] = paper.letterhead.header.split("\n");
+    cv.push(`# ${name}`, ...rest);
+  }
+  const contact = [paper.letterhead.phone?.value, paper.letterhead.email?.value].filter(Boolean).join(" · ");
+  if (contact) cv.push(contact);
+  for (const section of paper.sections) {
+    if ("jobs" in section) {
+      if (section.jobs.length === 0) continue;
+      cv.push("", `## ${section.heading}`);
+      for (const job of section.jobs) {
+        const dates = job.dates ? `**${job.dates.start} – ${job.dates.end ?? "?"}**` : "**dates not read**";
+        cv.push("", `### ${job.title}${job.employer ? ` — ${job.employer}` : ""} (${ids.get(job.id)})`, dates, "", ...job.lines.map(line));
+      }
+      continue;
+    }
+    if (section.lines.length === 0) continue;
+    cv.push("", `## ${section.heading}`, "", ...section.lines.map(line));
+  }
+  return [
+    "=== JOB FAMILIES ===",
+    ...(families.length
+      ? families.map((f) =>
+          [
+            `- id: ${f.familyId}`,
+            `  label: ${f.label}`,
+            `  scope: ${f.scope}`,
+            "  must-haves:",
+            ...f.mustHaves.map((m) => `  - ${m.id}: ${m.meaning}`),
+          ].join("\n"),
+        )
+      : ["(no job on this CV is placed in a published family)"]),
+    "",
+    "=== JOB PLACEMENTS ===",
+    ...(paper.jobs.length
+      ? paper.jobs.map(({ job }) => {
+          const placed = placements.get(job.id) ?? [];
+          return `- ${ids.get(job.id)}: ${job.title}${job.employer ? ` — ${job.employer}` : ""} → ${placed.length ? placed.join(", ") : "none"}`;
+        })
+      : ["(no jobs)"]),
+    "",
+    "=== JOBS TO REVIEW ===",
+    jobsToReview.map((id) => (id === "sections" ? id : ids.get(id) ?? id)).join(", "),
+    "",
+    "=== THE CANDIDATE'S CV ===",
+    ...cv,
+    "",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Resolving the answer against the paper: a fix or a judgement that names a line the paper does
+// not have is dropped (and counted) — the model is never allowed to move a line it was not shown.
+// ---------------------------------------------------------------------------------------------
+const linesOf = (paper: Paper) =>
+  new Map(
+    paper.sections.flatMap((s) => ("jobs" in s ? s.jobs.flatMap((j) => j.lines) : s.lines)).map((l) => [l.id, l]),
+  );
+
+/** Each fix resolved to the whole line, before and after. The model may name the whole line or
+ *  just the misspelt words as `original`; several fixes on one line compose into one. A fix whose
+ *  `original` is not in the line, or that changes nothing, is dropped. */
+export function resolveFixes(answer: ReviewAnswer, paper: Paper): ResolvedFix[] {
+  const lines = linesOf(paper);
+  const texts = new Map<string, string>();
+  for (const fix of [...answer.jobs.flatMap((j) => j.fixes), ...(answer.sections ?? []).flatMap((s) => s.fixes)]) {
+    const line = lines.get(fix.line);
+    const current = line ? (texts.get(fix.line) ?? line.text) : undefined;
+    if (!line || current === undefined || fix.original === fix.corrected || !current.includes(fix.original)) {
+      incrementCounter("cvReview.fix_dropped");
+      continue;
+    }
+    texts.set(fix.line, current.replace(fix.original, () => fix.corrected));
+  }
+  return [...texts].flatMap(([id, corrected]) => {
+    const original = lines.get(id)!.text;
+    return original === corrected ? [] : [{ line: id, original, corrected }];
+  });
+}
+
+export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): ResolvedSuggestion[] {
+  const lines = linesOf(paper);
+  const out: ResolvedSuggestion[] = [];
+  for (const j of [...answer.jobs.flatMap((j) => j.judgements), ...(answer.sections ?? []).flatMap((s) => s.judgements)]) {
+    if (j.verdict !== "untick") continue;
+    if (!lines.has(j.line)) {
+      incrementCounter("cvReview.judgement_dropped");
+      continue;
+    }
+    out.push({ line: j.line, kind: j.kind, reason: j.reason });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The run.
+// ---------------------------------------------------------------------------------------------
+/** The unit that carries the letterhead and the non-job sections — on the first job's call when
+ *  there are jobs, on its own when the CV has none. */
+export const SECTIONS_UNIT = "sections";
+
+export interface ReviewRunDeps {
+  llm: LlmClient;
+  reviews: CvReviewStore;
+  sessions: Pick<SessionStore, "getById">;
+  claims: Pick<ClaimStore, "list" | "setText">;
+  jobBlocks: Pick<JobBlockStore, "list">;
+  contact: Pick<ContactStore, "get" | "getRecord">;
+  floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
+  /** Attempts per unit before the run fails. Two, like the job-block miner: one retry. */
+  maxAttempts?: number;
+  /** The pause before a retry — a provider that was overloaded a moment ago usually still is. */
+  retryDelayMs?: number;
+  now?: () => number;
+}
+
+export interface ReviewRunner {
+  /** Opens the run for a session that has none yet and drives it to its end — resolves when every
+   *  unit has answered or run out of attempts. A session with a run already is left alone. */
+  start(sessionId: string): Promise<void>;
+  /** Resumes a run left going by a restart, for its unfinished units only. A no-op while the run
+   *  is active in this process, and for a run that has finished. */
+  ensure(sessionId: string): void;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
+  const maxAttempts = deps.maxAttempts ?? 2;
+  const retryDelayMs = deps.retryDelayMs ?? 2000;
+  const stamp = () => new Date(deps.now?.() ?? Date.now()).toISOString();
+  // Runs this process is driving right now — the guard against driving one twice (start racing a
+  // read's ensure, or two reads racing each other). Added synchronously, before the first await.
+  const active = new Set<string>();
+
+  async function runUnit(sessionId: string, unit: string, withSections: boolean, attemptsSoFar: number): Promise<void> {
+    for (let attempt = attemptsSoFar; attempt < maxAttempts; attempt += 1) {
+      if (attempt > attemptsSoFar) await sleep(retryDelayMs);
+      await deps.reviews.recordAttempt(sessionId, unit);
+      try {
+        const paper = await readPaper(deps, sessionId);
+        const jobs = unit === SECTIONS_UNIT ? [] : [unit];
+        if (jobs.length && !paper.jobs.some(({ job }) => job.id === unit)) throw new Error(`job ${unit} is no longer on the paper`);
+        const toReview = withSections ? [SECTIONS_UNIT, ...jobs] : jobs;
+        const text = await deps.llm.complete(`${reviewPrompt()}\n\n${buildReviewInput(paper, deps.floors, toReview)}`);
+        const answer = parseReviewAnswer(text);
+        // Coverage: exactly the jobs asked for, and the sections when they were asked for — an
+        // answer for the wrong job is not an answer (the judge's verifyCoverage rule).
+        const ids = promptJobIds(paper);
+        const asked = jobs.map((id) => ids.get(id)!).sort();
+        const got = answer.jobs.map((j) => j.job).sort();
+        if (asked.join() !== got.join()) throw new Error(`answered for ${got.join(", ") || "no job"}, asked for ${asked.join(", ") || "no job"}`);
+        if (withSections && answer.sections === null) throw new Error("sections were asked for and not answered");
+        const back = new Map([...ids].map(([real, prompt]) => [prompt, real]));
+        const translated: ReviewAnswer = {
+          ...answer,
+          jobs: answer.jobs.map((j) => ({ ...j, job: back.get(j.job) ?? j.job })),
+          refused: answer.refused.map((r) => ({ ...r, job: back.get(r.job) ?? r.job })),
+        };
+        const result: ReviewUnitResult = {
+          answer: translated,
+          fixes: resolveFixes(answer, paper),
+          suggestions: resolveSuggestions(answer, paper),
+        };
+        // Applied by default (ADR-0016 clause 5) — to a line that still reads what the model was
+        // shown; a line changed meanwhile keeps its new text and wears no fix.
+        const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c.text]));
+        for (const fix of result.fixes) {
+          if (current.get(fix.line) === fix.original) await deps.claims.setText(sessionId, fix.line, fix.corrected);
+        }
+        await deps.reviews.recordResult(sessionId, unit, result);
+        return;
+      } catch (err) {
+        incrementCounter("cvReview.unit_attempt_failed");
+        console.error(`[ops] cv review unit ${unit} attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  async function drive(sessionId: string): Promise<void> {
+    const run = await deps.reviews.get(sessionId);
+    if (!running(run)) return;
+    const first = run.units[0]?.unit;
+    const pending = run.units.filter((u) => u.result === null && u.attempts < maxAttempts);
+    await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, u.unit === first, u.attempts)));
+    const final = await deps.reviews.get(sessionId);
+    if (!running(final)) return;
+    await deps.reviews.finish(sessionId, final.units.every((u) => u.result !== null) ? "done" : "failed", stamp());
+  }
+
+  return {
+    async start(sessionId) {
+      if (active.has(sessionId)) return;
+      active.add(sessionId);
+      try {
+        if (await deps.reviews.get(sessionId)) return; // generated once, stored
+        // A review the person already confirmed, before any run existed (only the wire can do that:
+        // the screen waits for the read), is left as they confirmed it — a fix landing on lines
+        // they signed off, unseen, is exactly the silent change ADR-0016 forbids.
+        if ((await deps.sessions.getById(sessionId))?.reviewCompletedAt) return;
+        const paper = await readPaper(deps, sessionId);
+        const hasSections = paper.sections.some((s) => !("jobs" in s) && s.lines.length > 0) || paper.letterhead.header !== null;
+        const units = paper.jobs.length ? paper.jobs.map(({ job }) => job.id) : hasSections ? [SECTIONS_UNIT] : [];
+        if (units.length === 0) return; // nothing was read, nothing to review
+        await deps.reviews.create(sessionId, stamp(), units);
+        await drive(sessionId);
+      } catch (err) {
+        // A store that fails here must never reject into the pipeline that fired this (nothing the
+        // review does can fail the upload), nor leave an unhandled rejection to take the process down.
+        incrementCounter("cvReview.unit_attempt_failed");
+        console.error(`[ops] cv review start failed: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        active.delete(sessionId);
+      }
+    },
+    ensure(sessionId) {
+      if (active.has(sessionId)) return;
+      active.add(sessionId);
+      void drive(sessionId)
+        .catch((err) => console.error(`[ops] cv review resume failed: ${err instanceof Error ? err.message : String(err)}`))
+        .finally(() => active.delete(sessionId));
+    },
+  };
+}

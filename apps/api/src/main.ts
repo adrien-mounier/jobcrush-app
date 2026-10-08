@@ -30,6 +30,7 @@ import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
 import { pasteRecordStoreFromEnv } from "./pasteRecordStore.js";
 import { tailorDraftStoreFromEnv } from "./tailorDraftStore.js";
+import { cvReviewStoreFromEnv } from "./cvReviewStore.js";
 import { makePastedAdvertReader } from "./pastedAdvert.js";
 import { unmappedLabelStoreFromEnv } from "./unmappedLabels.js";
 import { techmapProviderFromEnv } from "./postingProvider.js";
@@ -84,6 +85,9 @@ const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
 const pasteRecords = pasteRecordStoreFromEnv(process.env.DATABASE_URL);
 // #310: the tailored-draft checkpoint — durable so leaving the app never costs him the draft.
 const tailorDrafts = tailorDraftStoreFromEnv(process.env.DATABASE_URL);
+// #341: the CV review's checkpoints — durable so a deploy mid-run resumes the unfinished jobs
+// instead of re-spending the finished ones.
+const cvReviews = cvReviewStoreFromEnv(process.env.DATABASE_URL);
 // #252: the vocabulary-growth feed survives a deploy — one store, shared by both labeler halves
 // and by the ops route that reads it back.
 const unmappedLabels = unmappedLabelStoreFromEnv(process.env.DATABASE_URL);
@@ -150,6 +154,7 @@ try {
   await unmappedLabels.init();
   await employerLookups.init();
   await tailorDrafts.init();
+  await cvReviews.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -261,6 +266,10 @@ const { app } = buildServer({
   // upload-pipeline binding used, so /ops/spend keeps one name for the same work.
   tailorLlm: step("preview-tailor"),
   tailorDrafts,
+  // #341: the CV review over the metered "review" step (Fable 5.1 at max reasoning, per
+  // data/ai-steps.json) — one call per job, in the background, checkpointed in cvReviews.
+  reviewLlm: step("review"),
+  cvReviews,
   // #312: the real document maker — chrome-headless-shell, installed in the API image
   // (Dockerfile) and nowhere else. Constructing it launches nothing; the browser runs only when
   // #313's approve route asks for a document.
