@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-08 — #343: word choices on a drafted line's vague phrase (ddfa8ac)
+
+A vague phrase in an unticked drafted line now wears a dotted gold underline; a tap opens the sheet on
+its choices: From your CV first (with the CV words), then Typical, each tagged, plus "Or type your own".
+A pick or typed words replace the phrase through the draft's edit door, persist, and print once ticked.
+The choices ride on the stored review checkpoint, so opening them makes no request and no AI call; a
+review stored before #343 shows none. A picked choice stays tappable to change (code review caught it
+missing); typed words do not (Edit changes them). QA gate **GO**: API 1945, review.spec 19/19, three
+journeys green incl. the tester's new `word-choices-journey.mjs`. Filed #358: neither review journey
+(#342's, #343's) sits in a CI tier. **Next:** #344 (Fable).
+
 ## 2026-10-08 — #342: drafted lines for missing must-haves — unticked, source-cited, tick to accept
 
 A job's drafted lines now land on the paper as claims in a third line state, `drafted`: on the paper,
@@ -157,38 +168,3 @@ V6g, blocks nothing; on the review screen it can only add a per-job "+ add" door
 Gotcha worth keeping: a worktree **outside** the project folder can't be committed from — the shell
 resets to the project root, so the QA-gate hook reads the main tree (clean) and blocks even an exempt
 prototype commit. A worktree under `.claude/worktrees/` works.
-
-## 2026-10-04 — #337: every language prints; a missing one is a fatal conservation issue
-
-A tailored CV that loses a language the person holds is now refused: the conservation check counts each
-`lang-` claim's language, finds it by name on any "additional" line (the label's wording never decides),
-and a missing one is **fatal**. The draft step refuses it after the retry, and the export gate returns
-409 `lint_failed` through the HTTP path. Lives in `conservationIssues` (`preview.ts`); the name list is
-`isKnownLanguageName` in `cvLanguages.ts`. Brain doc `tailoring-reasoning.md` §6 updated.
-**The hard part was refusing correct CVs, not catching lost languages.** QA gave NO-GO twice: first
-because a line the reader misparses ("Fluent in English, French and German", "Mother tongue: Polish")
-became a junk required name, then because the "clean name" shape test still let "Mothertongue: Polish"
-and "Anglais (courant)" through as required. Final rule: a name is demanded only if it is a real English
-language name from the runtime's own CLDR data (636 names, built once, ~130ms, full ICU confirmed on the
-production `node:22-slim` image); everything else falls back to the old non-fatal "some Languages line
-exists" check. **Declared ceilings** (`ponytail:` comment): a synonym the tailor swaps in (Chinese →
-Mandarin, Norwegian Bokmål → Norwegian, Persian → Farsi) is still demanded and fails the draft if the
-model keeps it on the retry. The fix is an alias table, if a real CV hits it. A line holding two languages
-checks only the first. Any additional line naming the word counts. Not measured: how often the real model
-keeps a synonym on both tries (no live calls made).
-
-## 2026-10-04 — #336: languages pre-ticked from the CV's own level
-
-The languages question now carries the CV's languages (`cvLanguages` on the question), each with the
-CV's own level word. Native / Fluent / Professional (plus bilingual, mother tongue) are pre-ticked;
-"limited", "semi", "not", "non", "basic", "elementary" pull a level back below working; any other
-level shows unticked with its word; no level shows unticked and bare. Nothing is stored until the
-person submits. **Design choice:** the structure is parsed on read from the stored `lang-` claim text
-(`apps/api/src/cvLanguages.ts`), not stored in a new column. No contract change, and CVs already
-imported get it too. QA first NO-GO: the real claim miner writes sentence-style lines for
-sentence-style CVs ("fluent in English", "Native Polish speaker"), which the first parse read as
-the language name. Fixed by reading level words wherever they sit; real-miner output is now a test
-case. Discovery reads moved from the onboarding route to `discoveryEngine.ts` (ratchet 679 → 664).
-Local e2e: run against `qa-main.js`, not `main.js`, or the 12/hour anonymous-session limit fails
-the spec halfway. New journey `apps/web/e2e/cv-languages-preticked-journey.mjs` (not in Tier 2: it
-injects the CV languages, so the route-mocked spec already covers it).
