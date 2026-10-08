@@ -75,6 +75,10 @@ drift = the bug. ADR-0004/0005 carry the full shape.
 
 Solo repo, no branch protection. **Stay on `main`** for ordinary work.
 
+**The repo is public** (since 2026-10-08, for unlimited free Actions minutes): every commit is
+readable by anyone. Secrets live only in Fly secrets / local `.env`, never in a tracked file,
+fixture, log or commit message.
+
 When a meaningful unit of work lands (see session hygiene):
 
 1. **Commit to `main`** with a clear message — commits are local and reversible, always safe.
