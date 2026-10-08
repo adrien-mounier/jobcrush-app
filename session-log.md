@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-08 — First real-CV run on staging: miner hotfix (bef04fb) + six defects filed
+
+Repo made public (free Actions minutes; CLAUDE.md d6fa300). The owner's real CV failed upload: the miner
+returned null `semantic_key`; `repairClaims` now falls back to the claim id (QA GO, hand-deployed API).
+Second upload reviewed fine: BRED and SG placed as IT Project Manager, both COMPLETE ✓, 1 suggestion.
+Defects filed: #359 (any read failure blames a scan), #360 (letterhead swallows summary), #361
+(Product Owner unplaced → no must-haves), #362 (failed review shows "0 to check"), #363 (Fly
+auto-stop kills a running review, killed call burns an attempt), #364 (unit failure reason not
+kept; SG failed first attempt twice). ~USD 2.80 spent. **Next:** #361–#364 before #344.
+
 ## 2026-10-08 — #358: the two review journeys run in the tier-2 CI set (b5432c5)
 
 `drafted-lines-gate-journey.mjs` and `word-choices-journey.mjs` now run on every deploy, each with
