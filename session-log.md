@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-08 — #363: a review holds the Fly machine up; a call cut by a stop costs no attempt (ed77ce0)
+
+Fly's auto-stop reads load, not traffic (lessons.md "Staging ops"): short polls hold nothing, a held
+request does. While a review runs, the API now keeps one request to its own public URL in flight
+back to back (`/ops/keep-alive`, key in a header, 25 s hold cap, Fly-only wiring). Units count
+attempts started and failures seen apart: a resume after a cut call asks the model once more; starts
+cap at four per job. Staging's units table gains `failures` on boot. Code review caught an abort
+listener accumulating per hold. QA gate **GO**: API 1952, review.spec 19/19, cv-review journey 83/83,
+migration proven on real Postgres 16. **Still to prove on staging after deploy:** a held request
+keeps the machine up past the auto-stop window (`cvReview.keep_alive_held` rising). **Next:** #364.
+
 ## 2026-10-08 — First real-CV run on staging: miner hotfix (bef04fb) + six defects filed
 
 Repo made public (free Actions minutes; CLAUDE.md d6fa300). The owner's real CV failed upload: the miner
