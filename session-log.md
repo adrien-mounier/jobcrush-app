@@ -2,7 +2,7 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
-## 2026-10-08 — #341: the review runs in the background — fixes with undo, untick suggestions
+## 2026-10-08 — #341: the review runs in the background — fixes with undo, untick suggestions (32b1457)
 
 The CV review (`cv-review.md`, the "review" step) now starts from the import the moment the lines are
 stored and the jobs placed: one call per job in parallel, the sections on the first, checkpointed per job
