@@ -154,26 +154,3 @@ conflict check — the owner had first said yes); proposals kept, transcript not
 exchange est.), $5/day cap. ADR-0017 amends ADR-0016 clause 6. #316/#317 closed as replaced. Filed:
 #348 landing sign-in door (he can't sign in from a new browser), #349 free/paid + sign-in move (parked
 behind #288/#298), #350 the spec. Glossary: Master CV ("root CV" avoided), CV chat, Chat proposal.
-
-## 2026-10-05/06 — V6f: "Your CV, reviewed" layout decided (C, the marked-up CV); #346 filed
-
-`/prototype` for #332's review screen: three layouts side by side at phone width, same real content (the
-owner's CV + the research run's review output, Société Générale thinned to play the thin job): **A** one
-page of cards, **B** one job at a time, **C** the CV on paper with every review item a mark. **Owner
-picked C.** One change before recording: each drafted line shows its source without a tap (the spec
-requires it). Decision + screenshots + a part-by-mark table on
-[#338](https://github.com/adrien-mounier/jobcrush-app/issues/338#issuecomment-5999242382); #341/#342/#343
-each note their part. Prototype on branch `prototype/cv-review-332` (commit `d8d9cf2`) — **keep the
-branch**, the screenshots are served from it. Layout calls carried, not vetoed: confirm locked while the
-review runs; the uncovered-family job says nothing and gets no "complete" stamp; end-date/conflict pills
-work before the AI finishes; an untick reason is never fit (the research run's "ad revenue off-topic" is
-the forbidden kind).
-
-The owner then asked for a way to **talk to the product** to add to his root CV (free mode limited, paid
-unlimited; sign-in moving to the review screen after N exchanges; strict editing rules). Filed as grilling
-**[#346](https://github.com/adrien-mounier/jobcrush-app/issues/346)**, roadmap row V6f2 — optional before
-V6g, blocks nothing; on the review screen it can only add a per-job "+ add" door.
-
-Gotcha worth keeping: a worktree **outside** the project folder can't be committed from — the shell
-resets to the project root, so the QA-gate hook reads the main tree (clean) and blocks even an exempt
-prototype commit. A worktree under `.claude/worktrees/` works.

@@ -121,6 +121,9 @@ The eligibility journey (#205), master-cv (#209), the S2 loop spec (#271) and th
 the product changes, and a good reason for exclusion (a paid model) protects it no better. Every
 journey sits in a tier or carries a filed ticket saying why not. When touching one outside every
 tier, assume it is already broken and prove it against the live product.
+Adding one to the gate: a source file `tier2-coverage.mjs` never mapped selects EVERY journey, so
+naming it only in the new journey's entry NARROWS it (#358's `qaReviewAnswer.ts`). Put it in the
+shared area, then check `selectJourneys([file])` before and after.
 
 ### The in-memory store hands out the object it stores
 `InMemorySessionStore` returns the stored record, so a background task writing back makes every read
