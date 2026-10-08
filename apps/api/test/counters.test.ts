@@ -91,6 +91,7 @@ describe("#103 posting-pool counters", () => {
       "cvReview.fix_dropped": 0,
       "cvReview.judgement_dropped": 0,
       "cvReview.unit_attempt_failed": 0,
+      "cvReview.keep_alive_held": 0,
       "cvReview.draft_dropped": 0,
       "usageLedger.pricing_override_rejected": 0,
       // #117 — see counters.ts's own header for what these mean.

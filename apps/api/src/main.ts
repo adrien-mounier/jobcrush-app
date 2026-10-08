@@ -30,6 +30,7 @@ import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
 import { pasteRecordStoreFromEnv } from "./pasteRecordStore.js";
 import { tailorDraftStoreFromEnv } from "./tailorDraftStore.js";
+import { keepAliveOverHttp } from "./cvReviewRun.js";
 import { cvReviewStoreFromEnv } from "./cvReviewStore.js";
 import { makePastedAdvertReader } from "./pastedAdvert.js";
 import { unmappedLabelStoreFromEnv } from "./unmappedLabels.js";
@@ -270,6 +271,14 @@ const { app } = buildServer({
   // data/ai-steps.json) — one call per job, in the background, checkpointed in cvReviews.
   reviewLlm: step("review"),
   cvReviews,
+  // #363: on Fly, a run holds one request open to the app's own public URL so auto-stop never
+  // sees the machine idle mid-review. FLY_APP_NAME is Fly's own env; OPS_KEY gates the route.
+  // ponytail: the hold goes through the proxy to whichever machine it picks — the one machine
+  // fly.api.toml runs; with several, pin it with the fly-force-instance-id header (FLY_MACHINE_ID).
+  reviewRun:
+    process.env.FLY_APP_NAME && process.env.OPS_KEY
+      ? { keepAlive: keepAliveOverHttp(`https://${process.env.FLY_APP_NAME}.fly.dev/ops/keep-alive`, process.env.OPS_KEY) }
+      : undefined,
   // #312: the real document maker — chrome-headless-shell, installed in the API image
   // (Dockerfile) and nowhere else. Constructing it launches nothing; the browser runs only when
   // #313's approve route asks for a document.

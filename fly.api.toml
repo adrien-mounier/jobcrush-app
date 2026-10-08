@@ -12,6 +12,8 @@ primary_region = "sin"
 [http_service]
   internal_port = 3000
   force_https = true
+  # #363: a CV review runs outside any request and would be cut by this stop; while one is going,
+  # the process holds a request open to its own public URL (cvReviewRun.ts keepAliveOverHttp).
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0

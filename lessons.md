@@ -246,6 +246,13 @@ warns ("CRLF will be replaced by LF"). `grep -c $'\r'` in Git Bash once reported
   every minute did NOT hold the machine (the proxy stopped it 7 min into a run, and a restart boots a
   fresh rootfs — uploads and `/tmp` gone, the paid call lost). Restore with `--autostop=stop` after;
   the next deploy restores it from `fly.api.toml` regardless.
+- **Fly's auto-stop reads load, not traffic** (#363): its stop loop samples each machine's in-flight
+  requests every few minutes and stops one at zero. A short request every few seconds (the review
+  page polls at 3 s; the ping above at 60 s) is zero at sampling time and holds nothing. The one thing
+  that holds a machine is a request kept open — `/ops/keep-alive` (`x-ops-key` header, `?ms=`, 25 s
+  cap) held back to back by `keepAliveOverHttp` while a CV review runs. Background work outside any
+  request must hold its own request or it is cut; `cvReview.keep_alive_held` on `/ops/counters` says
+  the hold ran.
 
 ### Origins: OAuth, CORS, redirects, magic links
 - After a domain move, update Google Console redirect URIs in the same motion as the `WEB_URL` Fly secret (a Google 400 page = Console gap; "sign-in didn't complete" = state cookie/token).

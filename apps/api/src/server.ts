@@ -45,6 +45,7 @@ import {
 import { familyLearningRoutes } from "./routes/familyLearning.js";
 import { makeFamilyCandidateWatch } from "./familyCandidateIntake.js";
 import {
+  incrementCounter,
   readCounters,
   readFailureAlarm,
   readTimeoutAlarm,
@@ -64,7 +65,7 @@ import { InMemoryPostingStore, type PostingStore } from "./postingStore.js";
 import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
 import { InMemoryTailorDraftStore, type TailorDraftStore } from "./tailorDraftStore.js";
 import { InMemoryCvReviewStore, type CvReviewStore } from "./cvReviewStore.js";
-import { makeReviewRunner, type ReviewRunDeps } from "./cvReviewRun.js";
+import { KEEP_ALIVE_HOLD_MS, makeReviewRunner, type ReviewRunDeps } from "./cvReviewRun.js";
 import type { LlmClient } from "./llm.js";
 import type { ReadPastedAdvert } from "./pastedAdvert.js";
 import { makeBroughtJobs } from "./broughtJobs.js";
@@ -203,7 +204,7 @@ export interface BuildOptions {
    *  qa-main.ts wires its stage-aware fake, tests their own. */
   reviewLlm?: LlmClient;
   /** #341: the run's attempt count, retry pause and clock — test-only in practice. */
-  reviewRun?: Pick<ReviewRunDeps, "maxAttempts" | "retryDelayMs" | "now">;
+  reviewRun?: Pick<ReviewRunDeps, "maxAttempts" | "retryDelayMs" | "now" | "keepAlive">;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -343,8 +344,20 @@ export function buildServer(opts: BuildOptions = {}) {
   // this refuses, same fail-closed default as the guestbook content routes.
   const opsKeyOk = (req: FastifyRequest) => {
     const key = process.env.OPS_KEY;
-    return !!key && (req.query as { key?: string }).key === key;
+    // #363: the header form is for the process's own keep-alive loop — Fastify logs every URL.
+    return !!key && ((req.query as { key?: string }).key === key || req.headers["x-ops-key"] === key);
   };
+  // #363: the request the review run holds open through Fly's proxy while it is going
+  // (cvReviewRun.ts keepAliveOverHttp) — the one thing auto-stop reads as load. Key-gated so no
+  // visitor can park connections on the machine; capped at the loop's own hold.
+  app.get("/ops/keep-alive", async (req, reply) => {
+    if (!opsKeyOk(req))
+      return reply.status(403).send({ error: { code: "forbidden", message: "set OPS_KEY and pass it to hold the machine up" } });
+    incrementCounter("cvReview.keep_alive_held");
+    const ms = Math.min(Math.max(0, Number((req.query as { ms?: string }).ms) || 0), KEEP_ALIVE_HOLD_MS);
+    await new Promise((r) => setTimeout(r, ms));
+    return reply.status(204).send();
+  });
   app.get("/ops/read-failures", async (req, reply) => {
     if (!opsKeyOk(req))
       return reply.status(403).send({

@@ -16,8 +16,15 @@
 // nowhere until the person ticks it; its source and flags are kept on the checkpoint. #343 keeps
 // each draft's vague phrases and their choices on the same checkpoint, so tapping a phrase never
 // waits on the AI; the whole validated answer is stored beside them.
+// #363: the run lives outside any HTTP request, and Fly's auto-stop (fly.api.toml) stops a machine
+// it sees no load on — a request every few seconds is not load to it, a request held open is. So
+// while a run is going the process keeps one request to its own public URL in flight, back to
+// back (keepAliveOverHttp, /ops/keep-alive). And an attempt the process never saw finish — the
+// machine stopped mid-call — is not a failure: the unit counts attempts started (the paid bound)
+// and failures seen apart, and gives up on either.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { setTimeout as setTimeoutAsync } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { CandidateClaim } from "@jobcrush/contracts";
@@ -25,7 +32,7 @@ import type { ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
-import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
+import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { LlmClient } from "./llm.js";
@@ -321,11 +328,17 @@ export interface ReviewRunDeps {
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
-  /** Attempts per unit before the run fails. Two, like the job-block miner: one retry. */
+  /** Failures seen per unit before the run gives it up. Two, like the job-block miner: one retry.
+   *  Attempts started are bounded at twice this, so a process stopped mid-call on every start
+   *  (#363) cannot spend forever either. */
   maxAttempts?: number;
   /** The pause before a retry — a provider that was overloaded a moment ago usually still is. */
   retryDelayMs?: number;
   now?: () => number;
+  /** #363: called when a run starts going in this process; returns what stops it when the run is
+   *  done. Production holds a request open through Fly's proxy (keepAliveOverHttp); absent, nothing
+   *  holds the machine up. */
+  keepAlive?: () => () => void;
 }
 
 export interface ReviewRunner {
@@ -339,18 +352,51 @@ export interface ReviewRunner {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** How long one keep-alive request is held open server-side. Well under any proxy's idle limit;
+ *  the loop opens the next the moment one returns, so the machine never reads as idle. */
+export const KEEP_ALIVE_HOLD_MS = 25_000;
+
+/** #363: the production keep-alive — one request to the API's own public URL (through Fly's proxy,
+ *  which is what counts the load) held open for `holdMs`, then the next, until stopped. A request
+ *  that fails or returns at once is not retried faster than one per `holdMs`: a misconfigured URL
+ *  costs a log line every half minute, never a hammer. The key travels in a header, never the URL:
+ *  Fastify logs every request's URL. */
+export function keepAliveOverHttp(url: string, opsKey: string, holdMs = KEEP_ALIVE_HOLD_MS): () => () => void {
+  return () => {
+    const stopped = new AbortController();
+    void (async () => {
+      while (!stopped.signal.aborted) {
+        await Promise.all([
+          fetch(`${url}?ms=${holdMs}`, { headers: { "x-ops-key": opsKey }, signal: AbortSignal.any([stopped.signal, AbortSignal.timeout(holdMs * 2)]) })
+            .then((res) => {
+              if (!res.ok) console.error(`[ops] cv review keep-alive answered ${res.status}`);
+            })
+            .catch((err) => {
+              if (!stopped.signal.aborted) console.error(`[ops] cv review keep-alive failed: ${err instanceof Error ? err.message : String(err)}`);
+            }),
+          setTimeoutAsync(holdMs, undefined, { signal: stopped.signal }).catch(() => {}),
+        ]);
+      }
+    })();
+    return () => stopped.abort();
+  };
+}
+
 export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
   const maxAttempts = deps.maxAttempts ?? 2;
+  const maxStarts = maxAttempts * 2;
   const retryDelayMs = deps.retryDelayMs ?? 2000;
   const stamp = () => new Date(deps.now?.() ?? Date.now()).toISOString();
   // Runs this process is driving right now — the guard against driving one twice (start racing a
   // read's ensure, or two reads racing each other). Added synchronously, before the first await.
   const active = new Set<string>();
 
-  async function runUnit(sessionId: string, unit: string, withSections: boolean, attemptsSoFar: number): Promise<void> {
-    for (let attempt = attemptsSoFar; attempt < maxAttempts; attempt += 1) {
-      if (attempt > attemptsSoFar) await sleep(retryDelayMs);
+  async function runUnit(sessionId: string, unit: string, withSections: boolean, spent: Pick<ReviewUnit, "attempts" | "failures">): Promise<void> {
+    let { attempts, failures } = spent;
+    while (failures < maxAttempts && attempts < maxStarts) {
+      if (attempts > spent.attempts) await sleep(retryDelayMs);
       await deps.reviews.recordAttempt(sessionId, unit);
+      attempts += 1;
       try {
         const paper = await readPaper(deps, sessionId);
         const jobs = unit === SECTIONS_UNIT ? [] : [unit];
@@ -393,8 +439,10 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         await deps.reviews.recordResult(sessionId, unit, result);
         return;
       } catch (err) {
+        failures += 1;
+        await deps.reviews.recordFailure(sessionId, unit);
         incrementCounter("cvReview.unit_attempt_failed");
-        console.error(`[ops] cv review unit ${unit} attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : String(err)}`);
+        console.error(`[ops] cv review unit ${unit} attempt ${attempts} failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }
@@ -403,11 +451,16 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
     const run = await deps.reviews.get(sessionId);
     if (!running(run)) return;
     const first = run.units[0]?.unit;
-    const pending = run.units.filter((u) => u.result === null && u.attempts < maxAttempts);
-    await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, u.unit === first, u.attempts)));
-    const final = await deps.reviews.get(sessionId);
-    if (!running(final)) return;
-    await deps.reviews.finish(sessionId, final.units.every((u) => u.result !== null) ? "done" : "failed", stamp());
+    const pending = run.units.filter((u) => u.result === null && u.failures < maxAttempts && u.attempts < maxStarts);
+    const release = pending.length ? deps.keepAlive?.() : undefined;
+    try {
+      await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, u.unit === first, u)));
+      const final = await deps.reviews.get(sessionId);
+      if (!running(final)) return;
+      await deps.reviews.finish(sessionId, final.units.every((u) => u.result !== null) ? "done" : "failed", stamp());
+    } finally {
+      release?.();
+    }
   }
 
   return {

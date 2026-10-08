@@ -28,7 +28,7 @@
 // options first (the fake lists them typical-first); a pick or typed words saved through the draft's
 // edit door read back on a reload and print once ticked; none of it asks the writer.
 import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CandidateClaim, MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer, IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
 import { getCardsWhenRetrieved, liveIdFor, warmRetrieval } from "./fixtureDeck.js";
@@ -39,7 +39,7 @@ import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { ReviewLine, ReviewState } from "../src/cvReview.js";
-import { parseReviewAnswer } from "../src/cvReviewRun.js";
+import { keepAliveOverHttp, parseReviewAnswer } from "../src/cvReviewRun.js";
 import { parseReviewPrompt, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
@@ -411,6 +411,75 @@ describe("#341 the run", () => {
     expect((await server.cvReviews.get(sessionId))?.outcome).toBe("done");
   });
 
+  // #363 — Fly stopped the machine with a call in flight. The attempt was started, never seen to
+  // fail; the resume must not count it, and a crash loop must still run out.
+  it("#363: an attempt a process stop cut mid-call is not a failure — the resume still asks the model", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await reviewed(app, cookie);
+    const spent = writer.calls.length;
+    // The store as the stop left it: the first job landed; the second had two attempts started
+    // (the first failed, the retry was in flight) and only one failure seen.
+    const landed = (await server.cvReviews.get(sessionId))!.units.find((u) => u.unit === "nrg")!.result!;
+    await server.cvReviews.create(sessionId, new Date(NOW).toISOString(), ["nrg", "bsh"]);
+    await server.cvReviews.recordResult(sessionId, "nrg", landed);
+    await server.cvReviews.recordAttempt(sessionId, "bsh");
+    await server.cvReviews.recordFailure(sessionId, "bsh");
+    await server.cvReviews.recordAttempt(sessionId, "bsh");
+
+    expect((await review(app, cookie)).progress).toEqual({ done: 1, total: 2, minutesLeft: 5 });
+    const state = await reviewed(app, cookie);
+    expect(writer.asked().slice(spent)).toEqual(["j2"]); // asked once more, the finished job never
+    expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+    expect((await server.cvReviews.get(sessionId))).toMatchObject({ outcome: "done", units: [{ unit: "nrg" }, { unit: "bsh", attempts: 3, failures: 1 }] });
+  });
+
+  it("#363: paid attempts per unit stay bounded — a unit cut mid-call on every start is given up, never re-asked", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await reviewed(app, cookie);
+    const spent = writer.calls.length;
+    const landed = (await server.cvReviews.get(sessionId))!.units.find((u) => u.unit === "nrg")!.result!;
+    await server.cvReviews.create(sessionId, new Date(NOW).toISOString(), ["nrg", "bsh"]);
+    await server.cvReviews.recordResult(sessionId, "nrg", landed);
+    for (let i = 0; i < 4; i += 1) await server.cvReviews.recordAttempt(sessionId, "bsh"); // twice the allowed failures, none seen
+
+    const state = await reviewed(app, cookie); // the first read finds the run spent and closes it
+    expect(writer.calls.length).toBe(spent);
+    expect(jobsOf(state)[1]!.lines[1]!.suggestion).toBeNull(); // as read, and nothing says why
+    expect((await server.cvReviews.get(sessionId))?.outcome).toBe("failed");
+  });
+
+  it("#363: the keep-alive holds the machine while the run is going — started with the run, stopped when it finishes, on a resume too", async () => {
+    const held: string[] = [];
+    const keepAlive = () => {
+      held.push("start");
+      return () => {
+        held.push("stop");
+      };
+    };
+    const writer = fakeWriter();
+    writer.hold("j1");
+    writer.hold("j2");
+    const { app, cookie, server, sessionId } = await withCv(writer, MINED, { reviewRun: { retryDelayMs: 0, now: () => NOW, keepAlive } });
+    await until(() => writer.calls.length, (n) => n === 2, "both calls in flight");
+    expect(held).toEqual(["start"]); // one hold for the run, not one per job
+    writer.release("j1");
+    writer.release("j2");
+    await reviewed(app, cookie);
+    await until(() => held.length, (n) => n === 2, "the hold released");
+    expect(held).toEqual(["start", "stop"]);
+
+    // A run a restart left going is held again while it is resumed.
+    const landed = (await server.cvReviews.get(sessionId))!.units.find((u) => u.unit === "nrg")!.result!;
+    await server.cvReviews.create(sessionId, new Date(NOW).toISOString(), ["nrg", "bsh"]);
+    await server.cvReviews.recordResult(sessionId, "nrg", landed);
+    await review(app, cookie);
+    await reviewed(app, cookie);
+    await until(() => held.length, (n) => n === 4, "the resume's hold released");
+    expect(held).toEqual(["start", "stop", "start", "stop"]);
+  });
+
   it("a review confirmed over the wire before the read finished is left as confirmed: no run starts, no line moves", async () => {
     // Only the wire can confirm before the read lands (the screen waits for it); several journeys
     // do. The run must not then change lines the person has already signed off, unseen.
@@ -706,6 +775,58 @@ describe("#342 drafted lines", () => {
     expect(readCounters()["cvReview.draft_dropped"]).toBe(3);
     // The must-have whose draft was dropped is still missing by the model's own account: no stamp.
     expect(jobsOf(again)[0]).toMatchObject({ family: "IT Project Manager", complete: false });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #363 — the keep-alive over HTTP: a request held open through Fly's proxy is the one thing that
+// reads as load to its auto-stop (a request every few seconds does not — see lessons.md).
+// ---------------------------------------------------------------------------------------------
+describe("#363 the keep-alive over HTTP", () => {
+  const OPS_KEY = "test-ops-key-363";
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let previousOpsKey: string | undefined;
+  beforeEach(() => {
+    previousOpsKey = process.env.OPS_KEY;
+    process.env.OPS_KEY = OPS_KEY;
+  });
+  afterEach(() => {
+    if (previousOpsKey === undefined) delete process.env.OPS_KEY;
+    else process.env.OPS_KEY = previousOpsKey;
+  });
+
+  it("the ops route holds the request for the asked time behind OPS_KEY, and refuses at once without it", async () => {
+    const { app } = buildServer();
+    const t0 = Date.now();
+    const held = await app.inject({ method: "GET", url: "/ops/keep-alive?ms=60", headers: { "x-ops-key": OPS_KEY } });
+    expect(held.statusCode).toBe(204);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(55); // a timer may fire a few ms early
+    expect(readCounters()["cvReview.keep_alive_held"]).toBe(1);
+    const t1 = Date.now();
+    expect((await app.inject({ method: "GET", url: "/ops/keep-alive?ms=60" })).statusCode).toBe(403);
+    expect((await app.inject({ method: "GET", url: "/ops/keep-alive?ms=60", headers: { "x-ops-key": "wrong" } })).statusCode).toBe(403);
+    expect(Date.now() - t1).toBeLessThan(55);
+    expect(readCounters()["cvReview.keep_alive_held"]).toBe(1);
+  });
+
+  it("keepAliveOverHttp keeps one held request in flight back to back until stopped", async () => {
+    const { app } = buildServer();
+    const address = await app.listen({ port: 0, host: "127.0.0.1" });
+    try {
+      const stop = keepAliveOverHttp(`${address}/ops/keep-alive`, OPS_KEY, 20)();
+      // A real socket to a real listener: this one waits on the clock (`until`'s setImmediate loop
+      // spins out in milliseconds), and gives up loudly like `until` does.
+      for (let i = 0; (readCounters()["cvReview.keep_alive_held"] ?? 0) < 3; i += 1) {
+        if (i === 100) throw new Error("never happened: three holds back to back");
+        await sleep(10);
+      }
+      stop();
+      const seen = readCounters()["cvReview.keep_alive_held"];
+      await sleep(100);
+      expect(readCounters()["cvReview.keep_alive_held"]).toBe(seen); // nothing starts after the stop
+    } finally {
+      await app.close();
+    }
   });
 });
 
