@@ -231,6 +231,8 @@ warns ("CRLF will be replaced by LF"). `grep -c $'\r'` in Git Bash once reported
 - When Actions is unavailable, the hand-deploy recipe (same gates first, then two `flyctl deploy` with `BUILD_SHA`) is in the archive under "CI blocked ≠ deploy blocked".
 
 ### Staging ops
+- `flyctl logs --no-tail` is a short buffer: a machine restart or ~30 min loses a failure's `console.error`. The durable record is the DB (`visits.error` for uploads; query via `fly ssh console -C "node -e …"` with `pg` from `/app/apps/api`). Read logs at once, or persist the reason (#364).
+- A server-only fix can go live in ~5 min by hand: `flyctl deploy --config fly.api.toml --build-arg BUILD_SHA=…` after QA GO + `pnpm test && pnpm typecheck`; CI still runs behind it. Check `/healthz` echoes the sha.
 - Probe sign-in with `delivered@resend.dev`, never `example.com` (Resend 422 → bare 500). The staging key is send-only; the container has no `curl` — use `fly ssh console` + `node -e "fetch(…)"`, and `-C` keeps secrets like `OPS_KEY` out of the session.
 - The interactive `!` prompt runs bash and echoes into the transcript — never route a secret through it; the user sets secrets in their own terminal.
 - Resend's free tier verifies one domain per account (a second free account works); the key must come from the account owning the domain.

@@ -153,14 +153,3 @@ ADR index, CLAUDE.md/issue-tracker fixes. QA: rounds 1-5 NO-GO on the gate (a co
 unwinnable — four rounds found new shapes; the git-hook redesign ended it), round 6 GO. **Git's hooks
 also gate the owner's own terminal commits on main** (docs pass; override `SKIP_QA_GATE=1`).
 Follow-ups (low): #351.
-
-## 2026-10-06 — #346 grilled: Chat with JobCrush decided (ADR-0017); spec #350 next after #332
-
-The owner wants to talk to the product instead of updating his CV in outside Claude sessions. Decided:
-"+ tell us more" (one thing) and "+ add" (a section) on both the review screen and the profile, one tab;
-it may add/reword lines, add a job, fix dates/employer/title/letterhead, never untick or delete; every
-change is a tapped **chat proposal** quoting his words; **no stretch** (ADR-0005 upheld after a late
-conflict check — the owner had first said yes); proposals kept, transcript not; own AI step (~$0.14 per
-exchange est.), $5/day cap. ADR-0017 amends ADR-0016 clause 6. #316/#317 closed as replaced. Filed:
-#348 landing sign-in door (he can't sign in from a new browser), #349 free/paid + sign-in move (parked
-behind #288/#298), #350 the spec. Glossary: Master CV ("root CV" avoided), CV chat, Chat proposal.
