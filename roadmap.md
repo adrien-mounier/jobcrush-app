@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-08_
+_Last updated: 2026-10-08 (#342 shipped)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,13 +15,13 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: "Your CV, reviewed"** (spec #332, 9 of 13 tickets done): discovery stops asking, the CV is reviewed instead.
+**Now: "Your CV, reviewed"** (spec #332, 10 of 13 tickets done): discovery stops asking, the CV is reviewed instead.
 
 1. ~~[#338](https://github.com/adrien-mounier/jobcrush-app/issues/338) the review screen (layout C, the marked-up CV)~~ done 2026-10-06
 2. ~~[#340](https://github.com/adrien-mounier/jobcrush-app/issues/340) review prompt + blind test on the owner's real CV~~ done 2026-10-06 — measured $1.0–1.4 / 3.5–5 min per CV on Fable 5.1 max
 3. ~~[#339](https://github.com/adrien-mounier/jobcrush-app/issues/339) discovery stops asking~~ done 2026-10-07 — owner OK'd that "Ask me later" re-asks each visit; follow-ups [#354](https://github.com/adrien-mounier/jobcrush-app/issues/354) empty profile points to the CV (decided, `/implement`, Opus, medium) and #355 (journey hygiene)
 4. ~~[#341](https://github.com/adrien-mounier/jobcrush-app/issues/341) the review runs in the background~~ done 2026-10-08 — owner to confirm: a partly failed run keeps the finished jobs' marks; measure the first real per-job run's cost on staging
-5. [#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves — `/implement`, Fable, xhigh; then [#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) (Opus) and [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable)
+5. ~~[#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves~~ done 2026-10-08 — the COMPLETE stamp still to be seen on a real CV with the real model; then [#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) word choices — `/implement`, Opus, medium; then [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable) — it inherits a carry-over trap noted on the ticket
 6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what
 7. ~~#346 grilling — talk to the product to improve your CV~~ decided 2026-10-06 (ADR-0017).
 8. **Owner decision** (from #340): confirm or veto the review prompt's two calls — R6 read as "a missing must-have always earns its line, OPTIONAL/INDUSTRY GUESS extras stop at 10", and a fact under another job only ever OPTIONAL with its quote. Confirmed → ADR-0016 clause 4 updated to match (docs-only).

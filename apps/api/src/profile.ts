@@ -211,14 +211,17 @@ export function buildProfileState(
   const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
 
   const byTag = new Map<string, ProfileFact[]>();
-  for (const c of facts) {
+  // #342: a draft the person has not ticked is a proposal on the review, not a fact about them —
+  // the profile shows facts. A ticked draft is theirs ("told": they vouched for it), and kept after
+  // an untick like any line.
+  for (const c of facts.filter((c) => c.lineState !== "drafted")) {
     const tag = kindTag(c);
     const bucket = byTag.get(tag) ?? [];
     bucket.push({
       id: c.id,
       text: c.text,
       colour: goldIds.has(c.id) ? "gold" : "grey",
-      source: c.origin === "user-authored" ? "told" : "read",
+      source: c.origin === "mined" ? "read" : "told",
       job: tag === "experience" ? c.role : null,
       kept: c.lineState === "kept" || undefined,
     });

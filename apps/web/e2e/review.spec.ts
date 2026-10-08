@@ -10,6 +10,11 @@ import type { CardsResponse, ReviewLine, ReviewState } from "../lib/api";
 // and "still being checked", the confirm locked), the fix — corrected words green on the paper,
 // original → corrected with Undo / Use fix in the sheet — and the amber suggestion band with its
 // reason, including fixes outside the jobs (summary, skills, education).
+// #342 adds the drafted lines: unticked dashed boxes at the end of their job with the flags inline
+// and the source under each without a tap; the + and the sheet's Tick send the tick and the box
+// becomes an ordinary bullet with a "new" tag; Edit in the sheet stores the person's wording before
+// the tick; a ticked draft unticks like any line; a job with nothing missing wears the COMPLETE ✓
+// stamp; a job in no family shows neither.
 
 const CONTACT_PHONE = { value: "+33 6 00 00 00 00", origin: "read" as const };
 const CONTACT_EMAIL = { value: "jane.doe@example.com", origin: "read" as const };
@@ -20,6 +25,7 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
   state: "ticked",
   fix: null,
   suggestion: null,
+  draft: null,
   ...over,
 });
 
@@ -42,6 +48,8 @@ const REVIEW: ReviewState = {
           dates: { start: "Mar 2021", end: "now" },
           endDateQuestion: null,
           checking: false,
+          family: null,
+          complete: false,
           lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-2", "Managed a budget of EUR 1.2M across 3 vendor teams.")],
         },
         {
@@ -52,6 +60,8 @@ const REVIEW: ReviewState = {
           dates: { start: "Jun 2017", end: null },
           endDateQuestion: "When did you leave Baltic Software House?",
           checking: false,
+          family: null,
+          complete: false,
           lines: [line("bsh-1", "Coordinated releases for 4 agile squads.")],
         },
       ],
@@ -93,6 +103,35 @@ function marked(over: Partial<ReviewState> = {}): ReviewState {
       { tag: "edu", heading: "Education", lines: [line("e1", "MSc, University of Warsaw.", { fix: { original: "MSc, University of Warsaw", corrected: "MSc, University of Warsaw.", applied: true } })] },
       { tag: "lang", heading: "Languages", lines: [] },
     ],
+    ...over,
+  };
+}
+
+// #342: the same paper with three drafted lines at the end of the placed job, and none on the other.
+const MUST_HAVE = "Have you owned delivery from planning through completion?";
+const RISKS = "Have you acted on delivery risks, dependencies, timelines, or budgets?";
+const D1 = "Owned delivery of the checkout replatform from planning to go-live.";
+const D2 = "Managed the project budget.";
+const D3 = "Followed the retail seasonal release freeze.";
+const DRAFTS: ReviewLine[] = [
+  line("d1", D1, { state: "drafted", draft: { mustHave: MUST_HAVE, quote: null, flags: [] } }),
+  line("d2", D2, { state: "drafted", draft: { mustHave: null, quote: FIXED, flags: ["OPTIONAL"] } }),
+  line("d3", D3, { state: "drafted", draft: { mustHave: RISKS, quote: null, flags: ["INDUSTRY GUESS"] } }),
+];
+function drafted(nrgLines: ReviewLine[] = DRAFTS, over: Partial<ReviewState> = {}): ReviewState {
+  return {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s
+        ? {
+            ...s,
+            jobs: [
+              { ...s.jobs[0]!, family: "IT Project Manager", lines: [...s.jobs[0]!.lines, ...nrgLines] },
+              { ...s.jobs[1]!, family: null },
+            ],
+          }
+        : s,
+    ),
     ...over,
   };
 }
@@ -142,6 +181,26 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
   await page.route("**/api/review/jobs/*/end", async (route) => {
     record(route);
     await route.fulfill({ json: { ok: true } });
+  });
+  // #342: the tick answers with the text the server holds; the edit echoes the wording it stored.
+  const draftLine = (id: string) => jobsOf(box.state).flatMap((j) => j.lines).find((l) => l.id === id);
+  await page.route("**/api/review/drafts/*/tick", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").at(-2)!;
+    await route.fulfill({ json: { id, text: draftLine(id)?.text, state: "ticked" } });
+  });
+  await page.route("**/api/review/drafts/*", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").pop()!;
+    const { text } = route.request().postDataJSON() as { text: string };
+    // The server now holds the person's wording: a later tick answers with it.
+    box.state = {
+      ...box.state,
+      sections: box.state.sections.map((s) =>
+        "jobs" in s ? { ...s, jobs: s.jobs.map((j) => ({ ...j, lines: j.lines.map((l) => (l.id === id ? { ...l, text } : l)) })) } : s,
+      ),
+    };
+    await route.fulfill({ json: { id, text } });
   });
   await page.route("**/api/review/conflicts/*", async (route) => {
     record(route);
@@ -436,4 +495,112 @@ test("a suggestion: the amber band on the line, the reason in the sheet, one tap
   await page.locator(".paper li.kept .line").click();
   await sheet(page).getByRole("button", { name: "Tick — put it back on my CV" }).click();
   await expect(bsh.locator("li.sg .line.mark")).toHaveCount(1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// #342 — drafted lines for missing must-haves.
+// ---------------------------------------------------------------------------------------------
+
+test("drafted lines: unticked boxes at the end of their job, flags inline, the source under each without a tap; a job in no family has none; the counter and the footer count them", async ({ page }) => {
+  await stubReview(page, drafted());
+  await page.goto("/review");
+
+  const nrg = page.locator(".pjob").nth(0);
+  const boxes = nrg.locator("li.nl");
+  await expect(boxes).toHaveCount(3);
+  // At the end of the job: every box comes after the lines as read.
+  const order = await nrg.locator("li").evaluateAll((els) => els.map((el) => (el.classList.contains("nl") ? "new" : "read")));
+  expect(order).toEqual(["read", "read", "new", "new", "new"]);
+  await expect(boxes.nth(0).getByRole("button", { name: D1 })).toBeVisible();
+  await expect(boxes.nth(0).locator(".flag")).toHaveCount(0);
+  await expect(boxes.nth(1).locator(".flag")).toHaveText(["OPTIONAL"]);
+  await expect(boxes.nth(2).locator(".flag")).toHaveText(["INDUSTRY GUESS"]);
+  // The source, shown without a tap: the must-have in the family's words, and/or the CV's own words.
+  await expect(boxes.nth(0).locator(".src")).toHaveText(`IT Project Manager jobs ask: "${MUST_HAVE}"`);
+  await expect(boxes.nth(1).locator(".src")).toHaveText(`From your CV: "${FIXED}"`);
+  await expect(boxes.nth(2).locator(".src")).toContainText(`"${RISKS}"`);
+  await expect(boxes.getByRole("button", { name: "Tick — put it on my CV" })).toHaveCount(3);
+  // No draft reads as on the CV: no "new" tag anywhere yet, no stamp on either job.
+  await expect(page.locator(".paper .ntag, .paper .stamp")).toHaveCount(0);
+  await expect(page.locator(".pjob").nth(1).locator("li.nl")).toHaveCount(0);
+  await expect(page.locator(".chud .count")).toHaveText("2 to check · 3 new lines to tick or leave");
+  await expect(page.locator(".legend")).toContainText("new line");
+  await expect(page.locator(".foot p")).toHaveText("3 new lines are not ticked. They will not go on your CV. You can come back to this page at any time.");
+});
+
+test("the + ticks a draft: the tap is sent, the box becomes an ordinary bullet with a new tag, the counts move", async ({ page }) => {
+  const { calls } = await stubReview(page, drafted());
+  await page.goto("/review");
+
+  const nrg = page.locator(".pjob").nth(0);
+  await nrg.locator("li.nl").nth(0).getByRole("button", { name: "Tick — put it on my CV" }).click();
+  expect(calls).toEqual([{ method: "POST", url: "/api/review/drafts/d1/tick", body: null }]);
+  await expect(nrg.locator("li.nl")).toHaveCount(2);
+  const ticked = nrg.getByRole("button", { name: `${D1} new` });
+  await expect(ticked).toBeVisible();
+  await expect(ticked.locator(".ntag")).toHaveText("new");
+  await expect(nrg.locator("li.kept")).toHaveCount(0);
+  await expect(page.locator(".chud .count")).toHaveText("2 to check · 2 new lines to tick or leave");
+  await expect(page.locator(".foot p")).toContainText("2 new lines are not ticked.");
+});
+
+test("the sheet on a draft: the full source, Edit stores the person's wording before the tick, Tick puts it on the CV in those words", async ({ page }) => {
+  const { calls } = await stubReview(page, drafted());
+  await page.goto("/review");
+  const mine = "Owned delivery of the checkout replatform from kick-off to go-live, on a fixed date.";
+
+  const nrg = page.locator(".pjob").nth(0);
+  await nrg.locator("li.nl").nth(0).getByRole("button", { name: D1 }).click();
+  await expect(sheet(page).getByRole("heading", { name: "New line, not on your CV yet" })).toBeFocused();
+  await expect(sheet(page).locator(".quote")).toHaveText(D1);
+  await expect(sheet(page).locator(".why")).toContainText(`Why: IT Project Manager jobs ask: "${MUST_HAVE}"`);
+
+  await sheet(page).getByRole("button", { name: "Edit" }).click();
+  const box = sheet(page).getByRole("textbox", { name: "New line, not on your CV yet" });
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue(D1);
+  await box.fill(mine);
+  await sheet(page).getByRole("button", { name: "Save" }).click();
+  expect(calls).toEqual([{ method: "PUT", url: "/api/review/drafts/d1", body: { text: mine } }]);
+  // Still a draft, in the person's words, with its source: the sheet stays open on it.
+  await expect(sheet(page).locator(".quote")).toHaveText(mine);
+  await expect(sheet(page).locator(".why")).toContainText(MUST_HAVE);
+  await expect(sheet(page).getByRole("button", { name: "Tick — put it on my CV" })).toBeVisible();
+
+  await sheet(page).getByRole("button", { name: "Tick — put it on my CV" }).click();
+  expect(calls[1]).toEqual({ method: "POST", url: "/api/review/drafts/d1/tick", body: null });
+  await expect(sheet(page)).toHaveCount(0);
+  await expect(nrg.getByRole("button", { name: `${mine} new` })).toBeVisible();
+  await expect(nrg.locator("li.nl")).toHaveCount(2);
+});
+
+test("a ticked draft is an ordinary line: it unticks to kept like any other, and its sheet still shows where it came from", async ({ page }) => {
+  const accepted = line("d1", D1, { state: "ticked", draft: { mustHave: MUST_HAVE, quote: null, flags: [] } });
+  const { calls } = await stubReview(page, drafted([accepted, DRAFTS[1]!]));
+  await page.goto("/review");
+
+  const nrg = page.locator(".pjob").nth(0);
+  await expect(nrg.locator("li.nl")).toHaveCount(1);
+  await nrg.getByRole("button", { name: `${D1} new` }).click();
+  await expect(sheet(page).getByRole("heading", { name: "On your CV" })).toBeVisible();
+  await expect(sheet(page).locator(".why")).toContainText(MUST_HAVE);
+  await sheet(page).getByRole("button", { name: "Untick — keep it for when a job needs it" }).click();
+  expect(calls).toEqual([{ method: "PUT", url: "/api/cv/lines/d1", body: { state: "kept" } }]);
+  await expect(nrg.locator("li.kept")).toContainText(D1);
+  await expect(page.locator(".chud .count")).toHaveText("2 to check · 1 new line to tick or leave");
+});
+
+test("a job with nothing missing wears the COMPLETE ✓ stamp, and its sheet says so; a job in no family wears nothing", async ({ page }) => {
+  const complete = drafted([]);
+  complete.sections = complete.sections.map((s) => ("jobs" in s ? { ...s, jobs: [{ ...s.jobs[0]!, complete: true }, s.jobs[1]!] } : s));
+  await stubReview(page, complete);
+  await page.goto("/review");
+
+  const stamp = page.locator(".pjob").nth(0).getByRole("button", { name: "COMPLETE ✓ This job is already complete." });
+  await expect(stamp).toHaveText("COMPLETE ✓");
+  await expect(page.locator(".pjob").nth(1).locator(".stamp, li.nl")).toHaveCount(0);
+  await expect(page.locator(".chud .count")).toHaveText("2 to check");
+  await stamp.click();
+  await expect(sheet(page).getByRole("heading", { name: "This job is already complete." })).toBeVisible();
+  await expect(sheet(page)).toContainText("Your lines already show everything IT Project Manager jobs ask for.");
 });

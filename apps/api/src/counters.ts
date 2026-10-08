@@ -380,6 +380,9 @@ const counts = {
   "cvReview.fix_dropped": 0,
   "cvReview.judgement_dropped": 0,
   "cvReview.unit_attempt_failed": 0,
+  // #342 — a drafted line for a job in no published family, or one citing neither a must-have nor
+  // the CV's words, is dropped: the prompt forbids both, and the paper never shows an unsourced line.
+  "cvReview.draft_dropped": 0,
 };
 
 export type CounterName = keyof typeof counts;

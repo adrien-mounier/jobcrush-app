@@ -7,15 +7,18 @@ import type { Pool } from "pg";
 import { getPool } from "./db.js";
 
 export type ClaimDecision = "pending" | "confirmed" | "rejected" | "negative";
-// mined = straight from the CV; user-authored = the user edited it (deck) or typed it (grill).
-export type ClaimOrigin = "mined" | "user-authored";
+// mined = straight from the CV; user-authored = the user edited it (deck) or typed it (grill);
+// drafted = the review wrote it for a must-have the job did not show (#342, ADR-0016 clause 4) and
+// nobody has vouched for it; drafted-accepted = the person ticked that draft — a user-resolved fact
+// whose origin records it was drafted, then accepted.
+export type ClaimOrigin = "mined" | "user-authored" | "drafted" | "drafted-accepted";
 /** #335 (ADR-0016 clause 5): whether a CV line prints. `ticked` prints; `kept` is the person's
  *  untick — held in the profile under "kept for when a job needs it", never printed, never deleted,
- *  re-tickable. Lines arrive ticked. Only `ticked` passes the print gate (`prints`/confirmed()), so a
- *  later state — a drafted line that stays unticked until the person ticks it — joins this union and
- *  is refused by the same gate with no schema change (the column is text). Orthogonal to `decision`:
- *  confirming, editing or re-answering a line never re-ticks it — only the person's tick does. */
-export type LineState = "ticked" | "kept";
+ *  re-tickable. Lines read from the CV arrive ticked. `drafted` (#342) is a review draft the person
+ *  has not ticked yet: refused by the same print gate (`prints`/confirmed()) with no schema change
+ *  (the column is text), and left only by acceptDraft(). Orthogonal to `decision`: confirming,
+ *  editing or re-answering a line never re-ticks it — only the person's tick does. */
+export type LineState = "ticked" | "kept" | "drafted";
 
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
@@ -59,8 +62,16 @@ export interface ClaimStore {
   /** #13: correction — flip a mistapped decision (e.g. a "no") back to pending, reopening the gap. */
   reopen(sessionId: string, id: string): Promise<void>;
   /** #335: the person's untick (→ kept) or re-tick. Touches nothing else. False when the session has
-   *  no such line. */
-  setLineState(sessionId: string, id: string, state: LineState): Promise<boolean>;
+   *  no such line — or when the line is a draft nobody has ticked (#342): a draft leaves `drafted`
+   *  only through acceptDraft(), so this door can never tick one. */
+  setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean>;
+  /** #342: the review's drafted lines for a job — pending, origin `drafted`, state `drafted`, so
+   *  they show on the paper and print nowhere. Idempotent like seed(): a draft already stored under
+   *  its id is left exactly as it is (generated once, stored — ADR-0016 clause 7). */
+  seedDrafted(sessionId: string, claims: CandidateClaim[]): Promise<void>;
+  /** #342: the person's tick on a draft — it becomes a confirmed, ticked, `drafted-accepted` fact,
+   *  reused wherever a fact helps. False when the session has no such line, or it is not a draft. */
+  acceptDraft(sessionId: string, id: string): Promise<boolean>;
   /** #341: the review's spelling/grammar fix, applied or undone — the text alone moves. Unlike
    *  edit(), nobody vouched for anything: decision, origin and tick are untouched, so a fix on a
    *  pending line leaves it pending and a fix on a kept line leaves it kept. False when the session
@@ -205,16 +216,35 @@ export class InMemoryClaimStore implements ClaimStore {
     }
   }
 
-  async setLineState(sessionId: string, id: string, state: LineState): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (c) c.lineState = state;
-    return c !== undefined;
+    if (!c || c.lineState === "drafted") return false;
+    c.lineState = state;
+    return true;
   }
 
   async setText(sessionId: string, id: string, text: string): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
     if (c) c.text = text;
     return c !== undefined;
+  }
+
+  async seedDrafted(sessionId: string, claims: CandidateClaim[]): Promise<void> {
+    const m = this.forSession(sessionId);
+    for (const c of claims) {
+      if (!m.has(c.id))
+        m.set(c.id, { ...withFields(c), decision: "pending", origin: "drafted", lineState: "drafted", seq: this.nextSeq(sessionId) });
+    }
+  }
+
+  async acceptDraft(sessionId: string, id: string): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (!c || c.lineState !== "drafted") return false;
+    c.decisionSeq = this.decisionSeq(sessionId, c);
+    c.decision = "confirmed";
+    c.origin = "drafted-accepted";
+    c.lineState = "ticked";
+    return true;
   }
 }
 
@@ -407,9 +437,9 @@ export class PgClaimStore implements ClaimStore {
     await this.pool.query(`UPDATE claims SET decision = 'pending', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
-  async setLineState(sessionId: string, id: string, state: LineState): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
     const { rowCount } = await this.pool.query(
-      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2`,
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
       [sessionId, id, state],
     );
     return (rowCount ?? 0) > 0;
@@ -419,6 +449,27 @@ export class PgClaimStore implements ClaimStore {
     const { rowCount } = await this.pool.query(
       `UPDATE claims SET text = $3 WHERE session_id = $1 AND id = $2`,
       [sessionId, id, text],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async seedDrafted(sessionId: string, claims: CandidateClaim[]): Promise<void> {
+    for (const c of claims) {
+      await this.pool.query(
+        `INSERT INTO claims (${CLAIM_COLS}, line_state) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'drafted')
+         ON CONFLICT (session_id, id) DO NOTHING`,
+        this.vals(sessionId, c, "pending", "drafted"),
+      );
+    }
+  }
+
+  async acceptDraft(sessionId: string, id: string): Promise<boolean> {
+    const decisionSeq = await this.nextDecisionSeq(sessionId);
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET decision = 'confirmed', origin = 'drafted-accepted', line_state = 'ticked',
+         decision_seq = COALESCE(decision_seq, $3)
+       WHERE session_id = $1 AND id = $2 AND line_state = 'drafted'`,
+      [sessionId, id, decisionSeq],
     );
     return (rowCount ?? 0) > 0;
   }

@@ -889,6 +889,42 @@ for (const [name, make] of claimDrivers) {
       expect((await store.list(sid))[0]!.text).toBe("Led the migration.");
     });
 
+    // #342 — a drafted line: stored once, on the paper (pending) and off every print path until the
+    // person's tick, which is acceptDraft() alone — the line door cannot tick it. After the tick it is
+    // an ordinary confirmed, ticked line with its drafted-then-accepted origin.
+    it("seedDrafted stores a draft once, pending and unticked; acceptDraft is the only way out; setLineState refuses a draft", async () => {
+      await store.seed(sid, [claim({ id: "a" })]);
+      await store.confirm(sid, "a");
+      await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Owned delivery end to end." })]);
+      await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Different wording, second run." })]); // generated once, stored
+      const drafted = (await store.list(sid)).find((c) => c.id === "draft-1");
+      expect(drafted).toMatchObject({ text: "Owned delivery end to end.", decision: "pending", origin: "drafted", lineState: "drafted" });
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
+
+      expect(await store.setLineState(sid, "draft-1", "ticked")).toBe(false);
+      expect(await store.setLineState(sid, "draft-1", "kept")).toBe(false);
+      await store.confirm(sid, "draft-1"); // confirming does not tick: still refused by the gate
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
+      await store.reopen(sid, "draft-1");
+
+      expect(await store.setText(sid, "draft-1", "Owned delivery from planning to go-live.")).toBe(true); // the person's wording
+      expect(await store.acceptDraft(sid, "draft-1")).toBe(true);
+      const accepted = (await store.list(sid)).find((c) => c.id === "draft-1")!;
+      expect(accepted).toMatchObject({ text: "Owned delivery from planning to go-live.", decision: "confirmed", origin: "drafted-accepted", lineState: "ticked" });
+      expect(accepted.decisionSeq).toBeGreaterThan(0);
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a", "draft-1"]);
+
+      // Unticking afterwards is the ordinary door; accepting twice, or a line that is no draft, is nothing.
+      expect(await store.acceptDraft(sid, "draft-1")).toBe(false);
+      expect(await store.acceptDraft(sid, "a")).toBe(false);
+      expect(await store.acceptDraft(sid, "nope")).toBe(false);
+      expect(await store.acceptDraft("other-session", "draft-1")).toBe(false);
+      expect(await store.setLineState(sid, "draft-1", "kept")).toBe(true);
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
+      expect(await store.setLineState(sid, "draft-1", "ticked")).toBe(true);
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a", "draft-1"]);
+    });
+
     // #13 — the "no" write path + fact correction, proven on both drivers.
     it("answerNegative persists a negative — distinct from rejected, absent from confirmed, present in negatives", async () => {
       await store.answerNegative(sid, claim({ id: "grill-1", text: "No PMP certification." }));

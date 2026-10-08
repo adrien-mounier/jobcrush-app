@@ -2,6 +2,21 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-08 — #342: drafted lines for missing must-haves — unticked, source-cited, tick to accept
+
+A job's drafted lines now land on the paper as claims in a third line state, `drafted`: on the paper,
+printed nowhere (the one print gate refuses them — proven red through the master CV, the tailored
+draft and the export), left alone by the confirm, ticked only through the review's own door, which
+makes a confirmed `drafted-accepted` fact in the person's own wording if they edited it first. Dashed
+gold boxes at the end of the job with a + to tick, flags inline, the source under each without a tap,
+Edit and Tick in the sheet, the "new" tag once ticked, the COMPLETE stamp decided by the model's own
+must-have account (code review caught the stamp reading off surviving drafts). QA gate **GO**: API 1944,
+spec 17/17, six journeys green incl. a new `drafted-lines-gate-journey.mjs` (reloads, wrong-way doors,
+master CV). Filed #357 (the wording polish could reword a rewritten draft; off the v1 path); noted the
+re-upload draft-id carry-over on #344. **Owner to confirm:** a complete job may still show OPTIONAL /
+INDUSTRY GUESS boxes beside its stamp; "From your CV:" does not name which job the quote came from.
+**Next:** `/implement #343` (Opus, medium): word choices; #344 after it (Fable).
+
 ## 2026-10-08 — #341: the review runs in the background — fixes with undo, untick suggestions (32b1457)
 
 The CV review (`cv-review.md`, the "review" step) now starts from the import the moment the lines are

@@ -33,12 +33,34 @@ export interface ResolvedSuggestion {
   reason: string;
 }
 
+export const DRAFT_FLAGS = ["OPTIONAL", "INDUSTRY GUESS"] as const;
+export type DraftFlag = (typeof DRAFT_FLAGS)[number];
+
+/** #342: a drafted line as it landed, by the claim id it was stored under (claims.ts seedDrafted) —
+ *  its source (the must-have it covers, in the family's own words, and/or the verbatim CV words it
+ *  came from; never neither) and its flags. The wording itself is the claim's text, which the person
+ *  may edit; the model's original stays in `answer`. */
+export interface ResolvedDraft {
+  line: string;
+  mustHave: string | null;
+  quote: string | null;
+  flags: DraftFlag[];
+}
+
 export interface ReviewUnitResult {
   /** The model's validated answer for this unit (cvReviewRun.ts's ReviewAnswer), stored whole so a
-   *  later ticket (drafted lines, #342; word choices, #343) reads it from here, never re-generates. */
+   *  later ticket (word choices, #343) reads it from here, never re-generates. */
   answer: unknown;
   fixes: ResolvedFix[];
   suggestions: ResolvedSuggestion[];
+  /** #342: the label of the family the job was drafted from; null for a job in no published family
+   *  (which gets no drafts and no "complete" stamp). Absent on a result stored before #342. */
+  family?: string | null;
+  /** #342: every must-have of the job's family is shown by the job's own lines, by the model's own
+   *  account (`mustHaves[].shownBy`) — the COMPLETE stamp. Absent on a result stored before #342. */
+  complete?: boolean;
+  /** #342: absent on a result stored before #342. */
+  drafts?: ResolvedDraft[];
 }
 
 export interface ReviewUnit {

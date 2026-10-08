@@ -3,32 +3,39 @@
 // not requireUser): the review sits before the jobs and the wall, like discovery and the profile.
 // A line's tick/untick is PUT /cv/lines/:id (routes/cv.ts, #335) — the review calls it, it does not
 // own it. #341 adds the fix's undo / use-again door and the lock on the confirm while the run goes.
+// #342 adds the drafted line's two doors: its wording before the tick, and the tick itself — the
+// one way a draft becomes a fact (the line door refuses a draft).
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
-import { SUGGESTION_KINDS } from "../cvReviewStore.js";
+import { DRAFT_FLAGS, SUGGESTION_KINDS } from "../cvReviewStore.js";
 import {
   answerReviewEndDate,
   buildReviewState,
   completeReview,
+  setDraftText,
   setReviewFixApplied,
   settleReviewConflict,
+  tickDraft,
   type ReviewDeps,
 } from "../cvReview.js";
 
 // Response schemas (CODING_STANDARDS: every route declares one per status) — the wire shape of
 // cvReview.ts's ReviewState, so a store record spread into it can never leak an internal field.
-const LineState = z.enum(["ticked", "kept"]);
+const LineState = z.enum(["ticked", "kept", "drafted"]);
 // #341: the AI's marks on a line — a fix (applied, or undone by the person) and an untick suggestion.
 const ReviewFix = z.object({ original: z.string(), corrected: z.string(), applied: z.boolean() });
 const ReviewSuggestion = z.object({ kind: z.enum(SUGGESTION_KINDS), reason: z.string() });
+// #342: a drafted line's source and flags.
+const ReviewDraft = z.object({ mustHave: z.string().nullable(), quote: z.string().nullable(), flags: z.array(z.enum(DRAFT_FLAGS)) });
 const ReviewLine = z.object({
   id: z.string(),
   text: z.string(),
   state: LineState,
   fix: ReviewFix.nullable(),
   suggestion: ReviewSuggestion.nullable(),
+  draft: ReviewDraft.nullable(),
 });
 const ReviewJob = z.object({
   id: z.string(),
@@ -38,6 +45,8 @@ const ReviewJob = z.object({
   dates: z.object({ start: z.string(), end: z.string().nullable() }).nullable(),
   endDateQuestion: z.string().nullable(),
   checking: z.boolean(),
+  family: z.string().nullable(),
+  complete: z.boolean(),
   lines: z.array(ReviewLine),
 });
 const ReviewSection = z.union([
@@ -94,6 +103,43 @@ export function reviewRoutes(deps: ReviewDeps) {
         const result = await setReviewFixApplied(deps, session.id, req.params.lineId, req.body.applied);
         if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
         return { id: req.params.lineId, text: result.text, applied: req.body.applied };
+      },
+    );
+
+    // #342: the person's own wording for a draft they have not ticked yet. Only an unticked draft
+    // answers here (404 otherwise): a line read from the CV is not edited on the review.
+    app.put(
+      "/review/drafts/:lineId",
+      {
+        schema: {
+          params: z.object({ lineId: z.string().min(1) }),
+          body: z.object({ text: z.string().trim().min(1).max(600) }),
+          response: { 200: z.object({ id: z.string(), text: z.string() }), 404: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const result = await setDraftText(deps, session.id, req.params.lineId, req.body.text);
+        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
+        return { id: req.params.lineId, text: result.text };
+      },
+    );
+
+    // #342: the tick — the draft becomes a confirmed, ticked, user-resolved fact (origin: drafted,
+    // then accepted). The only door out of `drafted`; unticking afterwards is PUT /cv/lines/:id.
+    app.post(
+      "/review/drafts/:lineId/tick",
+      {
+        schema: {
+          params: z.object({ lineId: z.string().min(1) }),
+          response: { 200: z.object({ id: z.string(), text: z.string(), state: z.literal("ticked") }), 404: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const result = await tickDraft(deps, session.id, req.params.lineId);
+        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
+        return { id: req.params.lineId, text: result.text, state: "ticked" as const };
       },
     );
 

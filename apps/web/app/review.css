@@ -17,6 +17,9 @@
   --ink-mute: #6b6455;
   --rule: #d9d0bd;
   --kept: #a59d8c; /* the prototype's kept-line grey on paper (no DESIGN.md token yet) */
+  --mark: #c9a25a; /* a mark's outline on paper — the prototype's (no DESIGN.md token yet) */
+  --mark-ink: #8a6424; /* a mark's ink on paper — the prototype's (no DESIGN.md token yet) */
+  --stamp: #2f7d3a; /* #342: the COMPLETE stamp's green on paper — the prototype's (no DESIGN.md token yet) */
   --fix: #3fb950; /* #341: a fix, the prototype's green (no DESIGN.md token yet) */
   --warn: #d29922; /* #341: a suggestion, the prototype's amber */
   --warn-bg: rgba(210, 153, 34, 0.12);
@@ -219,7 +222,7 @@
   border: 0;
   font: inherit;
   color: inherit;
-  outline: 1.5px dashed #c9a25a; /* the prototype's mark on paper (no DESIGN.md token yet) */
+  outline: 1.5px dashed var(--mark);
   outline-offset: 5px;
   border-radius: 6px;
   padding: 0;
@@ -245,7 +248,7 @@
   font-family: var(--sans);
   font-size: 10px;
   font-weight: 700;
-  color: #8a6424; /* the prototype's mark ink on paper (no DESIGN.md token yet) */
+  color: var(--mark-ink);
   letter-spacing: 0.05em;
   margin-top: 10px;
 }
@@ -570,4 +573,142 @@
   background: none;
   border-color: var(--warn);
   color: var(--warn);
+}
+
+/* ---------- #342: drafted lines — the dashed gold box at the end of a job, and the stamp ---------- */
+.review .legend .l3::before {
+  background: none;
+  border: 1.5px dashed var(--mark);
+  box-sizing: border-box;
+}
+.review .paper li.nl {
+  list-style: none;
+  margin: 8px 0 0 -16px;
+  padding: 6px 8px 6px 10px;
+  border: 1.5px dashed var(--mark);
+  border-radius: 6px;
+  background: rgba(232, 163, 61, 0.07);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 8px;
+  align-items: start;
+}
+.review .paper li.nl .line {
+  margin: 0;
+  padding: 0 2px;
+}
+.review .paper li.nl .src {
+  grid-column: 1 / -1;
+  display: block;
+  margin-top: 4px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  color: var(--mark-ink);
+  line-height: 1.35;
+}
+.review .paper .flag {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--mark-ink);
+  border: 1px solid var(--mark);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+.review .paper .plus {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--gold);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.review .paper .plus:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* a ticked draft: an ordinary bullet with a small "new" tag */
+.review .paper .ntag {
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--mark-ink);
+  margin-left: 5px;
+  vertical-align: 1px;
+}
+.review .pjob .stamp {
+  appearance: none;
+  font-family: var(--sans);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--stamp);
+  background: none;
+  border: 1.5px solid var(--stamp);
+  border-radius: 3px;
+  padding: 1px 6px;
+  transform: rotate(-4deg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* in the sheet: the source in full, the flags, the edit box */
+.review .sheet .why {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--hud-2);
+  font-size: 12.5px;
+  color: var(--hud-mute);
+}
+.review .sheet .why p {
+  margin: 0 0 4px;
+}
+.review .sheet .why b {
+  color: var(--hud-ink);
+}
+.review .sheet .why .flag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  border: 1px solid var(--gold-dim);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin: 0 5px 4px 0;
+}
+.review .sheet .draftedit {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.review .sheet textarea {
+  font: inherit;
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--hud-ink);
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-height: 72px;
+  resize: vertical;
+}
+.review .sheet .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }

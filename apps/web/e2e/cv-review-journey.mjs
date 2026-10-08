@@ -19,8 +19,16 @@
 // band with its reason, unticked in one tap. Both marks come from the REVIEWCHECK recording
 // (qa-main.ts): a misspelt word and an aim with no result on two of her lines.
 //
+// #342 — the drafted lines, in the same pass: the fake drafts one line per must-have of the IT
+// project manager family that her Nordic job does not show (qaReviewAnswer.ts), plus an OPTIONAL
+// and an INDUSTRY GUESS line. She sees them as dashed boxes at the end of that job, each with its
+// source under it; the Baltic job (no family) gets none. She ticks one with the +, edits another's
+// wording in the sheet and ticks it there, reloads, and the server holds what she did; the unticked
+// ones never print (apps/api/test/cvReviewRun.test.ts proves the print gate through each door).
+//
 // The import conflict (AC5) is not walked here: the fake miner's recording reads no field twice.
-// apps/api/test/cvReview.test.ts proves it over HTTP and review.spec.ts proves the screen.
+// apps/api/test/cvReview.test.ts proves it over HTTP and review.spec.ts proves the screen. The
+// COMPLETE stamp is not walked either: the recording's lines show none of the must-haves.
 //
 //   PORT=34101 node apps/api/dist/qa-main.js
 //   cd apps/web && API_URL=http://127.0.0.1:34101 npx next build && npx next start -p 30338
@@ -207,6 +215,45 @@ await assert((await lineState(aimId)) === 'ticked' && (await page.locator('.pape
 await qa.scrollThrough('she reads her CV on paper, top to bottom');
 
 // ---------------------------------------------------------------------------------------------
+// 2e. #342 — the drafted lines: dashed boxes at the end of the placed job, each with its source;
+// the + ticks one; Edit then Tick in the sheet; nothing drafted prints until she ticks it.
+// ---------------------------------------------------------------------------------------------
+await qa.expectText('.legend', 'new line', 'the legend names the new lines');
+const nordic = page.locator('.paper .pjob').filter({ hasText: 'Nordic' }).first();
+const boxes = nordic.locator('li.nl');
+await assert((await boxes.count()) > 0, `her Nordic job ends with new-line boxes to tick or leave (${await boxes.count()})`);
+const baltic = page.locator('.paper .pjob').filter({ hasText: BALTIC }).first();
+await assert((await baltic.locator('li.nl').count()) === 0, 'the Baltic job, in a family we do not cover, gets none — and nothing says why');
+await qa.expectText(boxes.first().locator('.src'), 'jobs ask:', 'each box shows its source under it, without a tap');
+await qa.expectText(nordic, 'OPTIONAL', 'a duty that varies by person is flagged OPTIONAL');
+await qa.expectText(nordic, 'INDUSTRY GUESS', 'a guess from the industry is flagged INDUSTRY GUESS');
+await qa.expectText('.chud .count', 'to tick or leave', 'the counter counts them');
+await qa.expectText('.foot p', 'They will not go on your CV.', 'the footer says the unticked ones will not print');
+const draftLines = (await reviewJobs()).flatMap((j) => j.lines).filter((l) => l.draft !== null);
+await assert(draftLines.length === (await boxes.count()) && draftLines.every((l) => l.state === 'drafted'), `the server holds every one of them unticked (${draftLines.length})`);
+const [firstDraft, secondDraft] = draftLines;
+
+await qa.click(boxes.first().getByRole('button', { name: 'Tick — put it on my CV' }), 'she ticks the first one with the +');
+await assert((await lineState(firstDraft.id)) === 'ticked', 'the server stored her tick');
+await qa.expectVisible(nordic.getByRole('button', { name: `${firstDraft.text} new` }), 'it is an ordinary line now, tagged new');
+await assert((await boxes.count()) === draftLines.length - 1, 'one box fewer');
+
+await qa.click(boxes.first().getByRole('button', { name: secondDraft.text }), 'she taps the next box');
+await qa.expectText(sheet, 'New line, not on your CV yet', 'the sheet says it is not on her CV');
+await qa.expectText(sheet.locator('.why'), 'Why:', 'and why it was offered, in full');
+await qa.click(sheet.getByRole('button', { name: 'Edit' }), 'she edits it');
+const MINE = 'Coordinated the business and IT groups through every release of the checkout replatform.';
+await qa.fill(sheet.getByRole('textbox', { name: 'New line, not on your CV yet' }), MINE, 'in her own words');
+await qa.click(sheet.getByRole('button', { name: 'Save' }), 'saves the wording');
+await assert((await lineText(secondDraft.id)) === MINE && (await lineState(secondDraft.id)) === 'drafted', 'the server holds her wording — still unticked');
+await qa.click(sheet.getByRole('button', { name: 'Tick — put it on my CV' }), 'and ticks it');
+await assert((await lineState(secondDraft.id)) === 'ticked', 'the server stored that tick too');
+await qa.goto('/review', 'she reloads');
+await qa.expectVisible(page.getByRole('button', { name: `${MINE} new` }), 'her wording is on the paper after the reload, tagged new');
+await assert((await page.locator('.paper li.nl').count()) === draftLines.length - 2, 'the ones she left are still boxes, still unticked');
+await qa.scrollThrough('the new lines, as she left them');
+
+// ---------------------------------------------------------------------------------------------
 // 3. Letterhead first, then job by job, lines as read and ticked. (AC2)
 // ---------------------------------------------------------------------------------------------
 const details = page.getByRole('button', { name: 'Your details' });
@@ -218,8 +265,9 @@ const jobs = page.locator('.paper .pjob');
 await qa.expectText(jobs.nth(0), 'Nordic Retail Group', 'the first job is the latest one, as on the CV');
 await qa.expectText(jobs.nth(0), JOB_LINE, 'with its lines as read');
 await qa.expectText(jobs.nth(1), BALTIC, 'then the earlier job');
-const states = (await reviewJobs()).flatMap((j) => j.lines.map((l) => l.state));
-await assert(states.length > 0 && states.every((s) => s === 'ticked'), `every line arrives ticked (${states.join(', ')})`);
+// The lines as read, that is — a drafted line she has not ticked is a proposal, not a line (#342).
+const states = (await reviewJobs()).flatMap((j) => j.lines.filter((l) => l.draft === null).map((l) => l.state));
+await assert(states.length > 0 && states.every((s) => s === 'ticked'), `every line as read arrives ticked (${states.join(', ')})`);
 
 // ---------------------------------------------------------------------------------------------
 // 4. Untick → kept, re-tick → ticked, each surviving a reload. (AC3)

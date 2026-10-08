@@ -13,16 +13,29 @@
 //   - the confirm is refused while the run is going, and the progress counts the jobs that landed;
 //   - a fix or judgement naming a line the model was not shown is dropped;
 //   - a run a restart left going is resumed on the first read, for its unfinished units only.
+// #342 — drafted lines (ADR-0016 clause 4), over the same seam; the fake drafts one line per
+// must-have the placed job does not show, plus an OPTIONAL and an INDUSTRY GUESS line. What it proves:
+//   - drafts arrive unticked at the end of their job, each with its source and flags; a job in no
+//     published family gets none;
+//   - an unticked draft never reaches the master CV, a tailored draft or an export; ticked, it reaches
+//     all three; unticked again, it stops (remove `prints`' ticked check and these go red);
+//   - the edit before the tick stores the person's wording; the tick makes it a confirmed,
+//     drafted-then-accepted fact; the wrong doors refuse;
+//   - a job whose lines show every must-have reads complete and gets no draft;
+//   - a reload shows the same wording and never re-calls the writer; the two drafts the prompt forbids
+//     (no source; a job in no family) are dropped and counted.
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CandidateClaim, MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer, IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
-import { getCardsWhenRetrieved } from "./fixtureDeck.js";
+import { getCardsWhenRetrieved, liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { isTerminal } from "../src/jobs.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore } from "../src/eligibility.js";
 import type { LlmClient } from "../src/llm.js";
-import type { ReviewState } from "../src/cvReview.js";
+import type { Mailer } from "../src/mailer.js";
+import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
+import type { ReviewLine, ReviewState } from "../src/cvReview.js";
 import { parseReviewAnswer } from "../src/cvReviewRun.js";
 import { parseReviewPrompt, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
@@ -104,6 +117,8 @@ interface WriterOpts {
   failAlways?: boolean;
   /** Also name a line the model was never shown — the guard against it is what the test watches. */
   bogus?: boolean;
+  /** #342: also draft the two lines the prompt forbids (qaReviewAnswer.ts). */
+  badDrafts?: boolean;
 }
 function fakeWriter(opts: WriterOpts = {}) {
   const calls: string[] = [];
@@ -120,7 +135,7 @@ function fakeWriter(opts: WriterOpts = {}) {
       const gate = gates.get(key);
       if (gate) await gate.wait;
       if (opts.failAlways || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down");
-      return qaReviewAnswer(prompt, { bogus: opts.bogus });
+      return qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
     },
   };
   return {
@@ -180,13 +195,13 @@ const reviewed = (app: App, cookie: string) => until(() => review(app, cookie), 
 
 /** A session that brought a CV: pasted → mined (fake) → dated job records mined and the first one
  *  placed (fake) → the review run started by the pipeline over the fake writer. */
-async function withCv(writer: ReturnType<typeof fakeWriter>) {
+async function withCv(writer: ReturnType<typeof fakeWriter>, mined: CandidateClaim[] = MINED, opts: Parameters<typeof buildServer>[0] = {}) {
   const jobBlocks = new InMemoryJobBlockStore();
   const eligibility = new InMemoryEligibilityStore();
   await jobBlocks.init();
   const server = buildServer({
     pipeline: {
-      mine: async () => ({ doc: null, claims: MINED, roles: 2, needsGrill: 0 }),
+      mine: async () => ({ doc: null, claims: mined, roles: 2, needsGrill: 0 }),
       mineJobBlocks: async () => ({ doc: { schemaVersion: "1", blocks: BLOCKS, parser_flags: [] }, rawOutput: "{}" }),
       labelJobBlocks: async (sessionId) => {
         await jobBlocks.label(sessionId, "nrg", IT_PROJECT_DELIVERY_PLACEMENT);
@@ -196,6 +211,7 @@ async function withCv(writer: ReturnType<typeof fakeWriter>) {
     eligibility,
     reviewLlm: writer.llm,
     reviewRun: { retryDelayMs: 0, now: () => NOW },
+    ...opts,
   });
   const { app } = server;
   const cookie = await anonSession(app);
@@ -235,6 +251,7 @@ describe("#341 the run", () => {
       state: "ticked",
       fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: true },
       suggestion: null,
+      draft: null,
     });
     expect(nrg!.lines[0]!.fix).toBeNull();
     // The suggestion, on a job placed in no family: shown with its reason, the line still ticked.
@@ -244,6 +261,7 @@ describe("#341 the run", () => {
       state: "ticked",
       fix: null,
       suggestion: { kind: "aim-without-result", reason: "States an aim and no delivered result." },
+      draft: null,
     });
     // A fix outside the jobs — the skills section — lands where the line sits.
     expect(linesOf(state, "skill")[0]).toMatchObject({ text: "Has skills in Jira and MS Project.", fix: { applied: true } });
@@ -281,7 +299,7 @@ describe("#341 the run", () => {
     const { app, cookie, server, sessionId } = await withCv(writer);
     const state = await reviewed(app, cookie);
     expect(writer.asked().sort()).toEqual(["j2", "j2", "sections, j1", "sections, j1"]); // two attempts each, then no more
-    expect(allLines(state).every((l) => l.fix === null && l.suggestion === null && l.state === "ticked")).toBe(true);
+    expect(allLines(state).every((l) => l.fix === null && l.suggestion === null && l.draft === null && l.state === "ticked")).toBe(true);
     expect(jobsOf(state)[0]!.lines[1]!.text).toBe(TYPO_LINE); // as read
     expect(jobsOf(state).every((j) => !j.checking)).toBe(true);
     expect(JSON.stringify(state)).not.toMatch(/fail|error|retry/i);
@@ -432,6 +450,219 @@ describe("#341 the run", () => {
     const state = await review(app, cookie);
     expect(state.progress).toBeNull();
     expect(writer.calls).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #342 — drafted lines.
+// ---------------------------------------------------------------------------------------------
+const VALID_AD_ID = liveIdFor("2026-07-05_endava-vietnam_senior-project-manager");
+const MUST_HAVES = ["end-to-end-delivery", "stakeholder-coordination", "risk-dependency-control", "delivery-communication"];
+const MEANINGS = [
+  "Have you owned delivery from planning through completion?",
+  "Which business and technical groups did you coordinate?",
+  "Have you acted on delivery risks, dependencies, timelines, or budgets?",
+  "How did you report progress or translate delivery detail for stakeholders?",
+];
+/** The fake's must-have line, as the paper shows it: the [vague phrase] brackets are not on the paper. */
+const DRAFT_TEXT = (id: string) => `Owned ${id.replace(/-/g, " ")} for the business and technical groups.`;
+const FIRST_DRAFT = "draft-nrg-1";
+const drafts = (job: { lines: ReviewLine[] }) => job.lines.filter((l) => l.draft !== null);
+const tick = (app: App, cookie: string, id: string) => post(app, cookie, `/review/drafts/${id}/tick`);
+
+/** A fake drafting model that prints EVERY claim it is handed, one bullet each — so an unticked
+ *  draft reaching it would reach the page (tickedLines.test.ts's echoingLlm). */
+function echoingLlm(prompts: string[]): LlmClient {
+  return {
+    model: "test-fake",
+    async complete(prompt: string): Promise<string> {
+      prompts.push(prompt);
+      const claimsBlock = (prompt.split("Claims:\n")[1] ?? "").split("\n\n")[0]!;
+      const bullets = [...claimsBlock.matchAll(/^- ([a-z0-9][a-z0-9-]*) \[[^\]]*\] (.+)$/gm)].map((m) => ({ text: m[2]!, claimIds: [m[1]!], outcome: "" }));
+      return JSON.stringify({
+        name: "Jane Doe",
+        headline: "IT Project Manager",
+        contact: "Paris",
+        summary: "Delivery-accountable project manager.",
+        experience: [{ role: "IT Project Manager", employer: "Nordic Retail Group", location: "", dates: "2021 - now", bullets, unprinted: [] }],
+        skills: [{ label: "Delivery", items: ["Jira"] }],
+        certifications: [],
+        education: [],
+        additional: [],
+      });
+    },
+  };
+}
+
+async function tailorDraft(app: App, cookie: string) {
+  const started = await post(app, cookie, "/onboarding/tailor/draft");
+  if (started.statusCode === 202) await until(async () => (await get(app, cookie, `/jobs/${started.json().jobId}`)).json(), (job) => isTerminal(job.status), "the draft settled");
+  return (await get(app, cookie, "/onboarding/tailor/draft")).json() as { html: string; draftedAt: string };
+}
+
+describe("#342 drafted lines", () => {
+  it("arrive unticked at the end of their job, each with its source and flags; a job in no family gets none; nothing asked the writer twice", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    const state = await reviewed(app, cookie);
+    const [nrg, bsh] = jobsOf(state);
+
+    expect(nrg).toMatchObject({ family: "IT Project Manager", complete: false });
+    expect(nrg!.lines.slice(0, 2).map((l) => l.draft)).toEqual([null, null]); // the lines as read come first
+    const drafted = drafts(nrg!);
+    expect(drafted.map((l) => l.id)).toEqual(["draft-nrg-1", "draft-nrg-2", "draft-nrg-3", "draft-nrg-4", "draft-nrg-5", "draft-nrg-6"]);
+    expect(drafted.every((l) => l.state === "drafted" && l.fix === null && l.suggestion === null)).toBe(true);
+    // One line per missing must-have, citing the must-have in the family's own words.
+    expect(drafted.slice(0, 4).map((l) => l.text)).toEqual(MUST_HAVES.map(DRAFT_TEXT));
+    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, flags: [] })));
+    // The extras: a fact from another job only as OPTIONAL with its quote; an industry guess flagged.
+    expect(drafted[4]).toMatchObject({
+      text: "Also coordinated releases for 4 agile squads.",
+      draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", flags: ["OPTIONAL"] },
+    });
+    expect(drafted[5]).toMatchObject({ draft: { mustHave: null, quote: "Led the checkout replatform.", flags: ["INDUSTRY GUESS"] } });
+    // A job in no published family: no drafts, no family, no stamp — and nothing says why.
+    expect(bsh).toMatchObject({ family: null, complete: false });
+    expect(drafts(bsh!)).toEqual([]);
+    expect(writer.calls).toHaveLength(2);
+  });
+
+  it("an unticked draft never reaches the master CV, a tailored draft or an export; ticked, it reaches all three; unticked again, it stops", async () => {
+    const prompts: string[] = [];
+    const printed: string[] = [];
+    const sent: string[] = [];
+    const documentMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const mailer: Mailer = { live: false, async sendLoginLink() {}, async sendFamilyReady() {}, async sendTailoredCv(email) { sent.push(email); } };
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer, MINED, { tailorLlm: echoingLlm(prompts), documentMaker, mailer });
+    await reviewed(app, cookie);
+    const text = DRAFT_TEXT("end-to-end-delivery");
+
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-draft-gate@example.com");
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    // Completing confirmed the lines as read and left the draft a draft: pending, unticked.
+    expect((await server.claims.list(sessionId)).find((c) => c.id === FIRST_DRAFT)).toMatchObject({ decision: "pending", origin: "drafted", lineState: "drafted" });
+    expect(drafts(jobsOf(await review(app, cookie))[0]!).every((l) => l.state === "drafted")).toBe(true);
+
+    // The master CV.
+    const built = (await post(app, cookie, "/onboarding/build")).json();
+    expect(built.rootCv.markdown).toContain("Led the checkout replatform.");
+    expect(built.rootCv.markdown).not.toContain(text);
+    expect(built.rootCv.markdown).not.toContain("Also coordinated releases");
+    // The tailored draft: not the model's input, not the page.
+    await warmRetrieval(app, cookie);
+    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
+    const before = await tailorDraft(app, cookie);
+    expect(before.html).toContain("Led the checkout replatform.");
+    expect(before.html).not.toContain(text);
+    expect(prompts[0]).not.toContain(text);
+    // The export.
+    const exported = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: before.draftedAt });
+    expect(exported.statusCode).toBe(202);
+    await until(async () => (await get(app, cookie, `/jobs/${exported.json().jobId}`)).json(), (job) => isTerminal(job.status), "the export settled");
+    expect(printed).toHaveLength(1);
+    expect(printed[0]).not.toContain(text);
+    expect(sent).toEqual(["review-draft-gate@example.com"]);
+
+    // Ticked: a confirmed, user-resolved fact, reused on every CV where it helps.
+    expect((await tick(app, cookie, FIRST_DRAFT)).json()).toEqual({ id: FIRST_DRAFT, text, state: "ticked" });
+    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).toContain(text);
+    await warmRetrieval(app, cookie); // the fact set changed; the deck's search catches up
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404); // the old draft is no draft for the new facts
+    const after = await tailorDraft(app, cookie);
+    expect(after.html).toContain(text);
+    expect(prompts[1]).toContain(text);
+    const reexported = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: after.draftedAt });
+    await until(async () => (await get(app, cookie, `/jobs/${reexported.json().jobId}`)).json(), (job) => isTerminal(job.status), "the second export settled");
+    expect(printed[1]).toContain(text);
+
+    // Unticked again: it stops printing, everywhere.
+    expect((await put(app, cookie, `/cv/lines/${FIRST_DRAFT}`, { state: "kept" })).statusCode).toBe(200);
+    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).not.toContain(text);
+    await warmRetrieval(app, cookie);
+    expect((await tailorDraft(app, cookie)).html).not.toContain(text);
+    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)).toMatchObject({ state: "kept", draft: { flags: [] } });
+    expect(writer.calls).toHaveLength(2); // none of this asked the review writer anything
+  });
+
+  it("the edit before the tick stores the person's wording; the tick makes it a confirmed, drafted-then-accepted fact; the wrong doors refuse", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await reviewed(app, cookie);
+    const mine = "Owned delivery of the checkout replatform from planning to go-live.";
+
+    const edited = await put(app, cookie, `/review/drafts/${FIRST_DRAFT}`, { text: `  ${mine}  ` });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json()).toEqual({ id: FIRST_DRAFT, text: mine });
+    let line = jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)!;
+    expect(line).toMatchObject({ text: mine, state: "drafted", draft: { mustHave: MEANINGS[0] } }); // the source stays; still a draft
+    expect((await server.claims.list(sessionId)).find((c) => c.id === FIRST_DRAFT)).toMatchObject({ decision: "pending", origin: "drafted" });
+
+    expect((await tick(app, cookie, FIRST_DRAFT)).json()).toEqual({ id: FIRST_DRAFT, text: mine, state: "ticked" });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === FIRST_DRAFT)).toMatchObject({ text: mine, decision: "confirmed", origin: "drafted-accepted", lineState: "ticked" });
+    line = jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)!;
+    expect(line).toMatchObject({ text: mine, state: "ticked", draft: { mustHave: MEANINGS[0], quote: null, flags: [] } });
+    // It prints, in the person's own words, with no confirm needed.
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-draft-edit@example.com");
+    await post(app, cookie, "/review/complete");
+    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).toContain(mine);
+    // The profile shows the ticked draft as the person's own fact, and not the unticked ones.
+    const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ facts: Array<{ id: string; source: string }> }> };
+    const facts = profile.domains.flatMap((d) => d.facts);
+    expect(facts.find((f) => f.id === FIRST_DRAFT)).toMatchObject({ source: "told" });
+    expect(facts.some((f) => f.id === "draft-nrg-2")).toBe(false);
+
+    // The wrong doors: a ticked draft is not edited here; a line read from the CV is not a draft;
+    // the line door cannot tick a draft; ticking twice is nothing.
+    expect((await put(app, cookie, `/review/drafts/${FIRST_DRAFT}`, { text: "again" })).statusCode).toBe(404);
+    expect((await put(app, cookie, "/review/drafts/nrg-led-checkout", { text: "mine" })).statusCode).toBe(404);
+    expect((await tick(app, cookie, "nrg-led-checkout")).statusCode).toBe(404);
+    expect((await tick(app, cookie, FIRST_DRAFT)).statusCode).toBe(404);
+    expect((await put(app, cookie, "/cv/lines/draft-nrg-2", { state: "ticked" })).statusCode).toBe(404);
+    expect((await put(app, cookie, `/review/drafts/draft-nrg-2`, { text: "   " })).statusCode).toBe(400);
+    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "draft-nrg-2")).toMatchObject({ state: "drafted", text: DRAFT_TEXT("stakeholder-coordination") });
+    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "nrg-led-checkout")!.text).toBe("Led the checkout replatform.");
+  });
+
+  it("a job whose lines show every must-have reads complete and gets no draft", async () => {
+    const shown = [
+      claim({ id: "nrg-1", role: NRG, text: "Owned end to end delivery of the checkout replatform." }),
+      claim({ id: "nrg-2", role: NRG, text: "Ran stakeholder coordination across business and IT." }),
+      claim({ id: "nrg-3", role: NRG, text: "Kept risk dependency control on three vendors." }),
+      claim({ id: "nrg-4", role: NRG, text: "Handled delivery communication to the steering committee." }),
+      claim({ id: "bsh-1", role: BSH, text: "Coordinated releases for 4 agile squads." }),
+    ];
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, shown);
+    const [nrg, bsh] = jobsOf(await reviewed(app, cookie));
+    expect(nrg).toMatchObject({ family: "IT Project Manager", complete: true });
+    expect(drafts(nrg!)).toEqual([]);
+    expect(nrg!.lines).toHaveLength(4);
+    expect(bsh).toMatchObject({ family: null, complete: false });
+  });
+
+  it("a reload shows the same wording and never re-calls the writer; a draft with no source, one citing a must-have the family lacks, or one for a job in no family, is dropped and counted — and a dropped draft never stamps a job complete", async () => {
+    const writer = fakeWriter({ badDrafts: true });
+    const { app, cookie } = await withCv(writer);
+    const first = await reviewed(app, cookie);
+    const again = await review(app, cookie);
+    expect(drafts(jobsOf(again)[0]!)).toEqual(drafts(jobsOf(first)[0]!));
+    expect(drafts(jobsOf(again)[0]!).map((l) => l.id)).toEqual(["draft-nrg-1", "draft-nrg-2", "draft-nrg-3", "draft-nrg-5", "draft-nrg-6"]); // the 4th was dropped
+    expect(writer.calls).toHaveLength(2);
+    // The unsourced line on the placed job, the one citing a must-have the family does not have, and
+    // the line for the job placed in none: none landed.
+    expect(allLines(again).some((l) => l.text === "A line with no source at all." || l.text === DRAFT_TEXT("delivery-communication"))).toBe(false);
+    expect(drafts(jobsOf(again)[1]!)).toEqual([]);
+    expect(readCounters()["cvReview.draft_dropped"]).toBe(3);
+    // The must-have whose draft was dropped is still missing by the model's own account: no stamp.
+    expect(jobsOf(again)[0]).toMatchObject({ family: "IT Project Manager", complete: false });
   });
 });
 

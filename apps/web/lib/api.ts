@@ -681,7 +681,16 @@ export interface ContactRecord {
 }
 
 // --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
-export type ReviewLineState = "ticked" | "kept";
+/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere. */
+export type ReviewLineState = "ticked" | "kept" | "drafted";
+export type ReviewDraftFlag = "OPTIONAL" | "INDUSTRY GUESS";
+/** #342: a drafted line's source — the must-have it covers, in the family's words, and/or the CV's
+ *  own words it came from — and its flags. Worn whatever the line's state. */
+export interface ReviewDraft {
+  mustHave: string | null;
+  quote: string | null;
+  flags: ReviewDraftFlag[];
+}
 /** #341: a spelling/grammar fix on a line — applied (the line reads `corrected`) or undone by the
  *  person (the line reads the exact `original`). */
 export interface ReviewFix {
@@ -701,6 +710,7 @@ export interface ReviewLine {
   state: ReviewLineState;
   fix: ReviewFix | null;
   suggestion: ReviewSuggestion | null;
+  draft: ReviewDraft | null;
 }
 export interface ReviewJob {
   id: string;
@@ -711,6 +721,10 @@ export interface ReviewJob {
   endDateQuestion: string | null;
   /** #341: still being checked — the run is going and this job's answer has not landed. */
   checking: boolean;
+  /** #342: the family the job was reviewed as, once its answer landed; null for a job in none. */
+  family: string | null;
+  /** #342: its lines already show every must-have of its family — the COMPLETE stamp. */
+  complete: boolean;
   lines: ReviewLine[];
 }
 export type ReviewSection =
@@ -745,12 +759,22 @@ export function getReview(): Promise<ReviewState> {
   return jfetch("/api/review");
 }
 
+// #342: the person's own wording for a draft they have not ticked yet.
+export function setDraftText(lineId: string, text: string): Promise<{ id: string; text: string }> {
+  return jfetch(`/api/review/drafts/${encodeURIComponent(lineId)}`, { method: "PUT", body: JSON.stringify({ text }) });
+}
+
+// #342: the tick — the draft becomes the person's own fact. Unticking afterwards is setLineState.
+export function tickDraft(lineId: string): Promise<{ id: string; text: string; state: "ticked" }> {
+  return jfetch(`/api/review/drafts/${encodeURIComponent(lineId)}/tick`, { method: "POST" });
+}
+
 export function completeReview(): Promise<{ completed: true }> {
   return jfetch("/api/review/complete", { method: "POST" });
 }
 
 // #335's tap: untick (→ kept) or re-tick. The print gate is the server's; this only records it.
-export function setLineState(id: string, state: ReviewLineState): Promise<{ id: string; state: ReviewLineState }> {
+export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id: string; state: ReviewLineState }> {
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ state }) });
 }
 

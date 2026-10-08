@@ -9,19 +9,22 @@
 // re-asked: generated once, stored (clause 7). A run the process left going when it restarted is
 // resumed by the first read that finds it, for its unfinished units only.
 //
-// What this ticket reads off the answer: the fixes, applied to the lines' own text (claims.ts
-// setText) with the exact original kept for undo, and the untick suggestions, shown and never
-// applied. The whole validated answer is stored beside them for #342 (drafted lines) and #343 (word
-// choices) to read without a second call.
+// What #341 reads off the answer: the fixes, applied to the lines' own text (claims.ts setText)
+// with the exact original kept for undo, and the untick suggestions, shown and never applied.
+// #342 reads the drafted lines (clause 4): each becomes a claim stored under its job — pending,
+// origin `drafted`, state `drafted` (claims.ts seedDrafted) — so it shows on the paper and prints
+// nowhere until the person ticks it; its source and flags are kept on the checkpoint. The whole
+// validated answer is stored beside them for #343 (word choices) to read without a second call.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import type { CandidateClaim } from "@jobcrush/contracts";
 import type { ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
-import { SUGGESTION_KINDS, type CvReviewStore, type ResolvedFix, type ResolvedSuggestion, type ReviewUnitResult } from "./cvReviewStore.js";
+import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnitResult } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { LlmClient } from "./llm.js";
@@ -52,7 +55,7 @@ const DraftedLine = z.object({
   text: z.string(),
   mustHave: z.string().nullable(),
   quote: z.string().nullable(),
-  flags: z.array(z.enum(["OPTIONAL", "INDUSTRY GUESS"])),
+  flags: z.array(z.enum(DRAFT_FLAGS)),
   vague: z.array(z.object({ phrase: z.string(), options: z.array(VagueOption) })),
 });
 const JobReview = z.object({
@@ -213,6 +216,67 @@ export function resolveFixes(answer: ReviewAnswer, paper: Paper): ResolvedFix[] 
   });
 }
 
+/** #342: the drafted lines of one job, as the claims to store and the marks to keep. Each is
+ *  stored under the job's own role heading with a deterministic id, so a retry after a crash
+ *  between the seed and the checkpoint stores nothing twice (seedDrafted is idempotent). The claim's
+ *  text drops the [square brackets] the prompt puts round a vague phrase (#343 reads the phrases
+ *  off the stored answer): a line the person ticks prints exactly as it reads on the paper.
+ *  Dropped, and counted: every draft for a job placed in no family, and a draft citing neither a
+ *  must-have nor the CV's words — the prompt forbids both. The must-have is resolved to the
+ *  family's own words; an id the family does not have reads as no must-have. */
+export function resolveDrafts(
+  answer: ReviewAnswer,
+  paper: Paper,
+  floors: Pick<ProductionFamilyFloorStore, "get" | "active">,
+  unit: string,
+): { family: string | null; complete: boolean; claims: CandidateClaim[]; drafts: ResolvedDraft[] } {
+  const { families, placements } = familiesOf(paper, floors);
+  const placed = families.filter((f) => (placements.get(unit) ?? []).includes(f.familyId));
+  const job = answer.jobs.find((j) => j.job === unit);
+  const role = paper.jobs.find((j) => j.job.id === unit)?.role;
+  const none = { family: null, complete: false, claims: [], drafts: [] };
+  if (!job || !role) return none;
+  if (placed.length === 0) {
+    for (const _ of job.drafted) incrementCounter("cvReview.draft_dropped");
+    return none;
+  }
+  const meanings = new Map(placed.flatMap((f) => f.mustHaves.map((m) => [m.id, m.meaning] as const)));
+  // Complete by the model's own account: every must-have of the family shown by an existing line —
+  // never read off the drafts that survived below, so a dropped draft cannot stamp a job complete.
+  const complete = [...meanings.keys()].every((id) => (job.mustHaves.find((m) => m.id === id)?.shownBy.length ?? 0) > 0);
+  const slug = unit.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const claims: CandidateClaim[] = [];
+  const drafts: ResolvedDraft[] = [];
+  for (const [i, d] of job.drafted.entries()) {
+    const mustHave = d.mustHave === null ? null : (meanings.get(d.mustHave) ?? null);
+    const quote = d.quote?.trim() || null;
+    const text = d.text.replace(/\[([^\]]*)\]/g, "$1").trim();
+    if ((mustHave === null && quote === null) || !text) {
+      incrementCounter("cvReview.draft_dropped");
+      continue;
+    }
+    const id = `draft-${slug}-${i + 1}`;
+    claims.push({
+      id,
+      semantic_key: id,
+      field_key: null,
+      field_value: null,
+      field_label: null,
+      role,
+      text,
+      machine_touch: "reworded",
+      classification: quote ? "Derived" : "Partially-Supported",
+      source_quote: (quote ?? mustHave!).slice(0, 200),
+      needs_grill: false,
+      grill_hint: null,
+    });
+    drafts.push({ line: id, mustHave, quote, flags: d.flags });
+  }
+  // ponytail: a job placed in several families is drafted from all their must-haves and labelled
+  // by the first; give the stamp and the sheet every label if a multi-family job ever shows up.
+  return { family: placed[0]!.label, complete, claims, drafts };
+}
+
 export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): ResolvedSuggestion[] {
   const lines = linesOf(paper);
   const out: ResolvedSuggestion[] = [];
@@ -238,7 +302,7 @@ export interface ReviewRunDeps {
   llm: LlmClient;
   reviews: CvReviewStore;
   sessions: Pick<SessionStore, "getById">;
-  claims: Pick<ClaimStore, "list" | "setText">;
+  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted">;
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
@@ -292,10 +356,14 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
           jobs: answer.jobs.map((j) => ({ ...j, job: back.get(j.job) ?? j.job })),
           refused: answer.refused.map((r) => ({ ...r, job: back.get(r.job) ?? r.job })),
         };
+        const drafted = unit === SECTIONS_UNIT ? { family: null, complete: false, claims: [], drafts: [] } : resolveDrafts(translated, paper, deps.floors, unit);
         const result: ReviewUnitResult = {
           answer: translated,
           fixes: resolveFixes(answer, paper),
           suggestions: resolveSuggestions(answer, paper),
+          family: drafted.family,
+          complete: drafted.complete,
+          drafts: drafted.drafts,
         };
         // Applied by default (ADR-0016 clause 5) — to a line that still reads what the model was
         // shown; a line changed meanwhile keeps its new text and wears no fix.
@@ -303,6 +371,10 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         for (const fix of result.fixes) {
           if (current.get(fix.line) === fix.original) await deps.claims.setText(sessionId, fix.line, fix.corrected);
         }
+        // The drafts land on the paper as unticked lines before the checkpoint names them (#342):
+        // a crash in between leaves lines the next attempt will not store twice, never marks that
+        // point at lines that do not exist.
+        await deps.claims.seedDrafted(sessionId, drafted.claims);
         await deps.reviews.recordResult(sessionId, unit, result);
         return;
       } catch (err) {

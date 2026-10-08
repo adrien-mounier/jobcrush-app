@@ -7,8 +7,11 @@
 // also exactly what the person sees when the AI review has failed (nothing says so). #341 lays the
 // AI's first marks on it: the progress card while the review runs (finished jobs open as they
 // arrive, the confirm waits), the fix — corrected words in green, Undo / Use fix in the sheet — and
-// the amber suggestion band with its one-sentence reason. Drafted lines (#342) and word choices
-// (#343) come next. Copy is the prototype's own (apps/web/prototypes on branch prototype/cv-review-332).
+// the amber suggestion band with its one-sentence reason. #342 adds the drafted lines: a dashed gold
+// box at the end of its job with a + to tick, its flags inline, its source under it without a tap,
+// the full source and Edit in the sheet, and the COMPLETE ✓ stamp on a job with nothing missing.
+// Word choices (#343) come next. Copy is the prototype's own (apps/web/prototypes on branch
+// prototype/cv-review-332).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import "../review.css";
@@ -18,9 +21,11 @@ import {
   ensureSession,
   getReview,
   saveContact,
+  setDraftText,
   setFixApplied,
   setLineState,
   settleReviewConflict,
+  tickDraft,
   type ProfileContactField,
   type ReviewJob,
   type ReviewLine,
@@ -64,15 +69,26 @@ const R33 = "Use fix";
 const R34 = "Suggestion: untick this line.";
 const R35 = "fixed";
 const R36 = "suggestion";
+// #342
+const R37 = "new line";
+const R38 = "New line, not on your CV yet";
+const R39 = "Tick — put it on my CV";
+const R40 = "Jobs like this ask:";
+const R41 = "From your CV:";
+const R42 = "This job is already complete.";
+const R43 = "COMPLETE ✓";
+const R44 = "new";
+const R45 = "Why:";
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** How often the screen re-reads the review while the run is going. */
 const POLL_MS = 3000;
 
 type Sheet =
-  | { kind: "line"; line: ReviewLine }
+  | { kind: "line"; line: ReviewLine; job: ReviewJob | null }
   | { kind: "contact" }
   | { kind: "end"; job: ReviewJob }
-  | { kind: "conflict" };
+  | { kind: "conflict" }
+  | { kind: "complete"; job: ReviewJob };
 
 const allLines = (state: ReviewState): ReviewLine[] =>
   state.sections.flatMap((s) => ("jobs" in s ? s.jobs.flatMap((j) => j.lines) : s.lines));
@@ -82,7 +98,11 @@ const checkCount = (state: ReviewState): number =>
   (state.conflict ? 1 : 0) +
   state.sections.reduce((n, s) => n + ("jobs" in s ? s.jobs.filter((j) => j.endDateQuestion).length : 0), 0) +
   allLines(state).filter(suggested).length;
-const hasMarks = (state: ReviewState) => allLines(state).some((l) => l.fix !== null || l.suggestion !== null);
+/** #342: the drafted lines the person has not ticked or kept — "to tick or leave". */
+const newCount = (state: ReviewState): number => allLines(state).filter((l) => l.state === "drafted").length;
+const hasMarks = (state: ReviewState) => allLines(state).some((l) => l.fix !== null || l.suggestion !== null || l.draft !== null);
+const newLinesCopy = (n: number) => (n === 1 ? "1 new line is not ticked. It will not go on your CV." : `${n} new lines are not ticked. They will not go on your CV.`);
+const askCopy = (family: string | null) => (family ? `${family} jobs ask:` : R40);
 
 function withLine(state: ReviewState, line: ReviewLine): ReviewState {
   const swap = (l: ReviewLine) => (l.id === line.id ? line : l);
@@ -197,9 +217,10 @@ export default function ReviewPage() {
   }
 
   function toggleLine(line: ReviewLine) {
-    const next: ReviewLine = { ...line, state: line.state === "ticked" ? "kept" : "ticked" };
+    const state = line.state === "ticked" ? "kept" : "ticked";
+    const next: ReviewLine = { ...line, state };
     void run(async () => {
-      await setLineState(line.id, next.state);
+      await setLineState(line.id, state);
       setState((s) => (s ? withLine(s, next) : s));
       close();
     });
@@ -207,14 +228,34 @@ export default function ReviewPage() {
 
   // Undo a fix, or use it again. The sheet stays open on the line, now reading the text the server
   // holds, so the person sees what they just did and can change their mind.
-  function toggleFix(line: ReviewLine) {
+  function toggleFix(current: Extract<Sheet, { kind: "line" }>) {
+    const { line } = current;
     if (!line.fix) return;
     const applied = !line.fix.applied;
     void run(async () => {
       const saved = await setFixApplied(line.id, applied);
       const next: ReviewLine = { ...line, text: saved.text, fix: { ...line.fix!, applied } };
       setState((s) => (s ? withLine(s, next) : s));
-      setSheet({ kind: "line", line: next });
+      setSheet({ ...current, line: next });
+    });
+  }
+
+  // #342: the tick on a draft — it becomes an ordinary line on the paper, with its "new" tag.
+  function tickDraftLine(line: ReviewLine) {
+    void run(async () => {
+      const saved = await tickDraft(line.id);
+      setState((s) => (s ? withLine(s, { ...line, text: saved.text, state: "ticked" }) : s));
+      close();
+    });
+  }
+
+  // #342: the person's own wording for a draft, before the tick. The sheet stays open on it.
+  function saveDraftText(current: Extract<Sheet, { kind: "line" }>, text: string) {
+    void run(async () => {
+      const saved = await setDraftText(current.line.id, text);
+      const next: ReviewLine = { ...current.line, text: saved.text };
+      setState((s) => (s ? withLine(s, next) : s));
+      setSheet({ ...current, line: next });
     });
   }
 
@@ -258,6 +299,7 @@ export default function ReviewPage() {
   }
 
   const toCheck = checkCount(state);
+  const toTick = newCount(state);
   const hasContent =
     state.letterhead.header !== null ||
     state.sections.some((s) => ("jobs" in s ? s.jobs.length > 0 : s.lines.length > 0));
@@ -276,7 +318,29 @@ export default function ReviewPage() {
       </>
     );
   };
-  const lineButton = (line: ReviewLine) => {
+  // #342: the flags a draft wears, inline, and its source under it — shown without a tap.
+  const flags = (line: ReviewLine) => line.draft?.flags.map((f) => <span key={f} className="flag">{f}</span>);
+  const sourceLine = (line: ReviewLine, job: ReviewJob | null) =>
+    [line.draft?.mustHave ? `${askCopy(job?.family ?? null)} "${line.draft.mustHave}"` : null, line.draft?.quote ? `${R41} "${line.draft.quote}"` : null]
+      .filter(Boolean)
+      .join(" · ");
+  const lineButton = (line: ReviewLine, job: ReviewJob | null) => {
+    if (line.state === "drafted") {
+      // The new-line box: a dashed gold outline at the end of the job, a + to tick it.
+      return (
+        <li key={line.id} className="nl">
+          <button type="button" className="line mark" onClick={(e) => open({ kind: "line", line, job }, e.currentTarget)}>
+            <span className="sr-only">{R37} · </span>
+            {flags(line)}
+            {line.text}
+          </button>
+          <button type="button" className="plus" aria-label={R39} disabled={busy} onClick={() => tickDraftLine(line)}>
+            +
+          </button>
+          <small className="src">{sourceLine(line, job)}</small>
+        </li>
+      );
+    }
     const isSuggested = suggested(line);
     const classes = [line.state === "kept" ? "kept" : "", isSuggested ? "sg" : ""].filter(Boolean).join(" ");
     return (
@@ -284,12 +348,14 @@ export default function ReviewPage() {
         <button
           type="button"
           className={`line${isSuggested ? " mark" : ""}`}
-          onClick={(e) => open({ kind: "line", line }, e.currentTarget)}
+          onClick={(e) => open({ kind: "line", line, job }, e.currentTarget)}
         >
           {line.state === "kept" && <span className="ktag">kept · </span>}
           {/* The band is amber on the paper; a reader who cannot see the colour hears the word. */}
           {isSuggested && <span className="sr-only">{R36} · </span>}
           {lineText(line)}
+          {/* A ticked draft is an ordinary bullet with a small "new" tag. */}
+          {line.draft && <span className="ntag"> {R44}</span>}
         </button>
       </li>
     );
@@ -303,8 +369,14 @@ export default function ReviewPage() {
         <div className="chud">
           <span className="count" aria-live="polite">
             <b>{toCheck}</b> to check
+            {toTick > 0 && (
+              <>
+                {" · "}
+                <b>{toTick}</b> {toTick === 1 ? "new line" : "new lines"} to tick or leave
+              </>
+            )}
           </span>
-          {toCheck > 0 && (
+          {toCheck + toTick > 0 && (
             <button type="button" className="btn-s" onClick={nextMark}>
               {R3}
             </button>
@@ -314,6 +386,7 @@ export default function ReviewPage() {
           <div className="legend">
             <span className="l1">{R35}</span>
             <span className="l2">{R36}</span>
+            <span className="l3">{R37}</span>
           </div>
         )}
       </header>
@@ -367,6 +440,12 @@ export default function ReviewPage() {
                   <article key={job.id} className={`pjob${job.checking ? " busy" : ""}`}>
                     <div className="h">
                       <span className="t">{job.title}</span>
+                      {/* The stamp's name starts with its visible text (label-in-name), then says what it means. */}
+                      {job.complete && (
+                        <button type="button" className="stamp" aria-label={`${R43} ${R42}`} onClick={(e) => open({ kind: "complete", job }, e.currentTarget)}>
+                          {R43}
+                        </button>
+                      )}
                       {job.dates && (
                         <span className="dt">
                           {job.dates.start} –{" "}
@@ -393,7 +472,7 @@ export default function ReviewPage() {
                         {R29}
                       </span>
                     )}
-                    {job.lines.length > 0 && <ul>{job.lines.map(lineButton)}</ul>}
+                    {job.lines.length > 0 && <ul>{job.lines.map((line) => lineButton(line, job))}</ul>}
                   </article>
                 ))}
               </section>
@@ -403,14 +482,14 @@ export default function ReviewPage() {
           return (
             <section key={section.tag} className="psec" aria-label={section.heading}>
               <h5>{section.heading}</h5>
-              <ul>{section.lines.map(lineButton)}</ul>
+              <ul>{section.lines.map((line) => lineButton(line, null))}</ul>
             </section>
           );
         })}
       </div>
 
       <footer className="foot">
-        <p>{running ? R30 : R15}</p>
+        <p>{running ? R30 : `${toTick > 0 ? `${newLinesCopy(toTick)} ` : ""}${R15}`}</p>
         <button type="button" className="cta" disabled={busy || running} onClick={finish}>
           {R14}
         </button>
@@ -437,13 +516,24 @@ export default function ReviewPage() {
             <button type="button" className="link close" onClick={close}>
               {R24}
             </button>
-            {sheet.kind === "line" && (
+            {sheet.kind === "line" && sheet.line.state === "drafted" && (
+              <DraftSheet
+                key={sheet.line.id}
+                line={sheet.line}
+                job={sheet.job}
+                busy={busy}
+                onSave={(text) => saveDraftText(sheet, text)}
+                onTick={() => tickDraftLine(sheet.line)}
+              />
+            )}
+            {sheet.kind === "line" && sheet.line.state !== "drafted" && (
               <>
                 <h2 id="sheet-title" tabIndex={-1}>
                   {sheet.line.state === "ticked" ? R7 : R8}
                 </h2>
                 <blockquote className="quote">{sheet.line.text}</blockquote>
-                {sheet.line.fix && <FixRow line={sheet.line} busy={busy} onToggle={() => toggleFix(sheet.line)} />}
+                {sheet.line.draft && <DraftSource line={sheet.line} job={sheet.job} />}
+                {sheet.line.fix && <FixRow line={sheet.line} busy={busy} onToggle={() => toggleFix(sheet)} />}
                 {suggested(sheet.line) && (
                   <div className="sugg">
                     <b>{R34}</b> {sheet.line.suggestion!.reason}
@@ -457,6 +547,14 @@ export default function ReviewPage() {
                 >
                   {sheet.line.state === "ticked" ? R9 : R10}
                 </button>
+              </>
+            )}
+            {sheet.kind === "complete" && (
+              <>
+                <h2 id="sheet-title" tabIndex={-1}>
+                  {R42}
+                </h2>
+                <p className="sub">Your lines already show everything {sheet.job.family} jobs ask for.</p>
               </>
             )}
             {sheet.kind === "contact" && (
@@ -549,6 +647,106 @@ function FixRow({ line, busy, onToggle }: { line: ReviewLine; busy: boolean; onT
         {fix.applied ? R32 : R33}
       </button>
     </div>
+  );
+}
+
+// #342: a draft's source in full — its flags, why it was offered (the must-have, in the family's
+// words), and the CV words it came from.
+function DraftSource({ line, job }: { line: ReviewLine; job: ReviewJob | null }) {
+  const draft = line.draft!;
+  return (
+    <div className="why">
+      {draft.flags.length > 0 && (
+        <p>
+          {draft.flags.map((f) => (
+            <span key={f} className="flag">
+              {f}
+            </span>
+          ))}
+        </p>
+      )}
+      {draft.mustHave && (
+        <p>
+          <b>{R45}</b> {askCopy(job?.family ?? null)} &quot;{draft.mustHave}&quot;
+        </p>
+      )}
+      {draft.quote && (
+        <p>
+          <b>{R41}</b> &quot;{draft.quote}&quot;
+        </p>
+      )}
+    </div>
+  );
+}
+
+// #342: the sheet on a draft the person has not ticked: the line, its full source, Edit (the
+// person's own wording, saved before the tick) and the tick.
+function DraftSheet({
+  line,
+  job,
+  busy,
+  onSave,
+  onTick,
+}: {
+  line: ReviewLine;
+  job: ReviewJob | null;
+  busy: boolean;
+  onSave: (text: string) => void;
+  onTick: () => void;
+}) {
+  // Keyed by the line (the caller's `key`), so a save that lands a new `line.text` is shown by the
+  // quote, and a different draft opens fresh; the box only ever holds this draft's wording.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(line.text);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+  const inputId = `review-draft-${line.id}`;
+  return (
+    <>
+      <h2 id="sheet-title" tabIndex={-1}>
+        {R38}
+      </h2>
+      {editing ? (
+        <form
+          className="draftedit"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (draft.trim() && !busy) {
+              onSave(draft.trim());
+              setEditing(false);
+            }
+          }}
+        >
+          <label htmlFor={inputId} className="sr-only">
+            {R38}
+          </label>
+          <textarea id={inputId} ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <div className="row">
+            <button type="submit" className="btn-s gold" disabled={busy || !draft.trim()}>
+              {R13}
+            </button>
+            <button type="button" className="link mute" onClick={() => setEditing(false)}>
+              {R23}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <blockquote className="quote">{line.text}</blockquote>
+      )}
+      <DraftSource line={line} job={job} />
+      <div className="row">
+        <button type="button" className="btn-s gold" disabled={busy} onClick={onTick}>
+          {R39}
+        </button>
+        {!editing && (
+          <button type="button" className="link" onClick={() => setEditing(true)}>
+            {R22}
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
