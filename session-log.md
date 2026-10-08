@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-08 — #358: the two review journeys run in the tier-2 CI set (b5432c5)
+
+`drafted-lines-gate-journey.mjs` and `word-choices-journey.mjs` now run on every deploy, each with
+its "earns its slot" note. They are the only journeys that read the master CV back after the
+review's new lines are handled. Added CI time: ~3.5 min (106s + 103s locally). The QA gate caught a
+narrowing the first draft made: `qaReviewAnswer.ts` had been unmapped, so it selected every journey.
+It now sits in the shared REVIEW area, which selects all 13 review-carrying journeys. QA gate **GO**.
+Still to confirm: a green CI run with both journeys in it. **Next:** #344 (Fable).
+
 ## 2026-10-08 — #343: word choices on a drafted line's vague phrase (ddfa8ac)
 
 A vague phrase in an unticked drafted line now wears a dotted gold underline; a tap opens the sheet on
