@@ -155,6 +155,8 @@ const REVIEW = [
   // and the prompt it sends — a change to any of them moves what the review journey sees.
   "apps/api/src/cvReviewRun.ts",
   "apps/api/src/cvReviewStore.ts",
+  // The fake review answer (qa-main.ts) every review journey reads its fixes and drafts from.
+  "apps/api/src/qaReviewAnswer.ts",
   "apps/api/prompts/cv-review.md",
   "apps/api/src/routes/review.ts",
   "apps/api/src/routes/cv.ts",
@@ -297,6 +299,11 @@ export const COVERAGE = {
   "cv-review-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, YEARS, REVEAL_GATE),
   // #338 QA: every door onto the jobs held by an unreviewed CV — the paste door and the job screen too.
   "cv-review-gate-doors-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, PASTE, JOB_SCREEN, TAILOR, AUTH, REVEAL_GATE),
+  // #342/#343 QA: the review's new lines handled on screen, then read back off the master CV
+  // (rootcv.ts, in CV_INTAKE; graph.ts and audit.ts, in TAILOR) after a sign-in. drafted-lines
+  // also reads the profile.
+  "drafted-lines-gate-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, TAILOR, AUTH, PROFILE),
+  "word-choices-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, TAILOR, AUTH),
   // #161/#157: the confirm-swipe deck for structured job records, undo and reload included.
   "job-blocks-confirm-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
   // #278: the work-history check reached the way a person reaches it. Its chain IS its coverage —

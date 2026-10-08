@@ -80,6 +80,18 @@ export const JOURNEYS = [
   // tailor) tried with an UNREVIEWED CV and held, then opened by the confirm. It is the journey
   // that found the paste door scoring a job against an unreviewed CV. ~3 min, fake-model API.
   "cv-review-gate-doors-journey.mjs",
+  // #358, both left by their own QA gates. They are the only journeys that read the master CV back
+  // after the review's new lines are handled on screen, so only they catch a drafted line printing
+  // that the visitor never ticked — each for its own feature.
+  //   drafted-lines-gate — #342: a reload mid-run shows no half-drawn box; the line door, a CV
+  //                        line and an empty wording each refuse a draft; reloads never re-ask the
+  //                        writer; the profile and the master CV carry the ticked draft only.
+  //   word-choices       — #343: the vague phrase is marked, its choices list her CV's words
+  //                        before the typical ones, opening them sends nothing, and the master CV
+  //                        prints her chosen words, never the model's phrase.
+  // Measured 2026-10-08: ~105s each, ~3.5 min together; one magic-link sign-in each.
+  "drafted-lines-gate-journey.mjs",
+  "word-choices-journey.mjs",
   "job-blocks-confirm-journey.mjs",
   "language-ladder-journey.mjs",
   // #308 (left by the QA gate, adopted): the adversarial half of the skip — no Yes/No twin
