@@ -90,6 +90,15 @@ describe("JC-13 miner plumbing", () => {
     expect(llm.calls).toHaveLength(1);
   });
 
+  it("a null semantic_key falls back to the claim id instead of failing the upload", async () => {
+    const doc = structuredClone(validDoc) as { claims: Array<Record<string, unknown>> };
+    doc.claims[0]!.semantic_key = null;
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const mined = await mineClaims("cv text", llm);
+    expect(mined.claims[0]!.semantic_key).toBe("acme-delivery");
+    expect(llm.calls).toHaveLength(1);
+  });
+
   // #323: the owner's CV came back with its Master's as a "conflict" — two degrees tagged with one
   // field key. Education, jobs, certifications, languages and skills can all legitimately repeat, so
   // a claim of those kinds is never a single-valued field, whatever the model tagged it with.

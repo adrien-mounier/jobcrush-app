@@ -44,6 +44,9 @@ export function extractJson(raw: string): unknown {
  *   it with. Left in place, two degrees sharing one field_key read as a contradiction
  *   (buildImportProof) and collapse to one at import (reconcileImport) — the owner's own CV did
  *   both. Dropping the tags here, before validation, fixes both readers at once.
+ * - A null/missing semantic_key (seen on the owner's real CV, 2026-10-08: two claims, both
+ *   attempts) failed the whole upload. Fall back to the claim's own id — unique, so it never
+ *   merges two facts; it only forgoes deduplication for that one claim.
  */
 const REPEATABLE_CLAIM_ID = /^(edu|cert|lang|skill)-/;
 
@@ -52,7 +55,7 @@ export function repairClaims(doc: unknown): unknown {
     return doc;
   }
   for (const claim of (doc as {
-    claims: Array<{ id?: unknown; source_quote?: unknown; field_key?: unknown; field_value?: unknown; field_label?: unknown }>;
+    claims: Array<{ id?: unknown; semantic_key?: unknown; source_quote?: unknown; field_key?: unknown; field_value?: unknown; field_label?: unknown }>;
   }).claims) {
     if (typeof claim?.id === "string") {
       const id =
@@ -63,6 +66,7 @@ export function repairClaims(doc: unknown): unknown {
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "") || "claim";
       claim.id = id;
+      if (typeof claim.semantic_key !== "string" || claim.semantic_key === "") claim.semantic_key = id;
       if (REPEATABLE_CLAIM_ID.test(id)) {
         claim.field_key = claim.field_value = claim.field_label = null;
       }
