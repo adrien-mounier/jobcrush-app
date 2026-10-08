@@ -45,6 +45,16 @@ export interface ResolvedDraft {
   mustHave: string | null;
   quote: string | null;
   flags: DraftFlag[];
+  /** #343: the vague phrases in the line and the choices for each, CV-sourced first. Absent on a
+   *  result stored before #343. */
+  vague?: DraftVague[];
+}
+
+/** #343: a vague phrase in a drafted line, with the options the person can tap to replace it. */
+export const VAGUE_SOURCES = ["CV", "TYPICAL"] as const;
+export interface DraftVague {
+  phrase: string;
+  options: Array<{ text: string; from: (typeof VAGUE_SOURCES)[number]; quote: string | null }>;
 }
 
 export interface ReviewUnitResult {

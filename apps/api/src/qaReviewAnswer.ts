@@ -121,7 +121,12 @@ function draftedOf(lines: Line[], family: Family, others: Line[]) {
     mustHave: m.id,
     quote: null,
     flags: [],
-    vague: [{ phrase: VAGUE, options: [...cvOption, { text: "the steering committee", from: "TYPICAL" }] }],
+    // Typical first on purpose: the CV-first order the screen shows is the resolver's (#343).
+    // Bracketed, and with a phrase the line never says: the resolver strips the one, drops the other.
+    vague: [
+      { phrase: `[${VAGUE}]`, options: [{ text: "the steering committee", from: "TYPICAL" }, ...cvOption] },
+      { phrase: "a phrase the line never says", options: [{ text: "anything", from: "TYPICAL" }] },
+    ],
   }));
   if (missing.length && others[0]) {
     const other = others[0].text;

@@ -13,8 +13,9 @@
 // with the exact original kept for undo, and the untick suggestions, shown and never applied.
 // #342 reads the drafted lines (clause 4): each becomes a claim stored under its job — pending,
 // origin `drafted`, state `drafted` (claims.ts seedDrafted) — so it shows on the paper and prints
-// nowhere until the person ticks it; its source and flags are kept on the checkpoint. The whole
-// validated answer is stored beside them for #343 (word choices) to read without a second call.
+// nowhere until the person ticks it; its source and flags are kept on the checkpoint. #343 keeps
+// each draft's vague phrases and their choices on the same checkpoint, so tapping a phrase never
+// waits on the AI; the whole validated answer is stored beside them.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +25,7 @@ import type { ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
-import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnitResult } from "./cvReviewStore.js";
+import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { LlmClient } from "./llm.js";
@@ -50,7 +51,7 @@ const Judgement = z.discriminatedUnion("verdict", [
   z.object({ line: z.string(), verdict: z.literal("keep") }),
   z.object({ line: z.string(), verdict: z.literal("untick"), kind: z.enum(SUGGESTION_KINDS), reason: z.string() }),
 ]);
-const VagueOption = z.object({ text: z.string(), from: z.enum(["CV", "TYPICAL"]), quote: z.string().nullish() });
+const VagueOption = z.object({ text: z.string(), from: z.enum(VAGUE_SOURCES), quote: z.string().nullish() });
 const DraftedLine = z.object({
   text: z.string(),
   mustHave: z.string().nullable(),
@@ -270,11 +271,25 @@ export function resolveDrafts(
       needs_grill: false,
       grill_hint: null,
     });
-    drafts.push({ line: id, mustHave, quote, flags: d.flags });
+    drafts.push({ line: id, mustHave, quote, flags: d.flags, vague: vagueOf(d, text) });
   }
   // ponytail: a job placed in several families is drafted from all their must-haves and labelled
   // by the first; give the stamp and the sheet every label if a multi-family job ever shows up.
   return { family: placed[0]!.label, complete, claims, drafts };
+}
+
+/** #343: a draft's vague phrases, as the screen offers them: only a phrase the line actually reads
+ *  (brackets dropped, as on the paper), only options with words in them, the CV's options first. A
+ *  phrase with no option left still gets the person's own words. */
+function vagueOf(d: ReviewAnswer["jobs"][number]["drafted"][number], text: string): DraftVague[] {
+  return d.vague.flatMap(({ phrase, options }) => {
+    const p = phrase.replace(/^\[|\]$/g, "").trim();
+    if (!p || !text.includes(p)) return [];
+    const kept = options
+      .map((o) => ({ text: o.text.trim(), from: o.from, quote: o.quote?.trim() || null }))
+      .filter((o) => o.text && o.text !== p);
+    return [{ phrase: p, options: [...kept.filter((o) => o.from === "CV"), ...kept.filter((o) => o.from === "TYPICAL")] }];
+  });
 }
 
 export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): ResolvedSuggestion[] {

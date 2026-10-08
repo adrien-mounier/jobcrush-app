@@ -7,7 +7,8 @@
 // checkpoints (cvReviewStore.ts), with the progress of a run still going. #342 adds the drafted lines
 // (clause 4): a draft is a claim the run stored under the job (origin `drafted`, state `drafted`),
 // so it sits on the paper like any line and prints nowhere until the person ticks it; its source and
-// flags are read off the run's checkpoints. Word choices (#343) land on this payload next.
+// flags are read off the run's checkpoints. #343 adds each draft's word choices, read off the same
+// checkpoints — stored with the review, so tapping a phrase never waits on the AI.
 //
 // Four stores meet here, one of them new: the lines are the claims (ticked/kept is #335's line
 // state on the claim; a fix is the claim's own text, #341), the jobs' dates are the job-block
@@ -16,7 +17,7 @@
 // `reviewCompletedAt`, and that is what the jobs gate reads.
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import type { ContactStore, ContactValue } from "./contact.js";
-import type { CvReviewStore, DraftFlag, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
+import type { CvReviewStore, DraftFlag, DraftVague, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
 import type { JobBlockStore, JobBlockView } from "./jobBlockStore.js";
@@ -44,6 +45,8 @@ export interface ReviewDraft {
   /** The verbatim CV words it came from. */
   quote: string | null;
   flags: DraftFlag[];
+  /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
+  vague: DraftVague[];
 }
 export interface ReviewLine {
   id: string;
@@ -258,7 +261,7 @@ function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: Re
     ...line,
     fix: wearsFix ? { original: fix.original, corrected: fix.corrected, applied: line.text === fix.corrected } : null,
     suggestion: suggestion ? { kind: suggestion.kind, reason: suggestion.reason } : null,
-    draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, flags: draft.flags } : null,
+    draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, flags: draft.flags, vague: draft.vague ?? [] } : null,
   };
 }
 

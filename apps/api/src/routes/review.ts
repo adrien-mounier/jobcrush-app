@@ -9,7 +9,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
-import { DRAFT_FLAGS, SUGGESTION_KINDS } from "../cvReviewStore.js";
+import { DRAFT_FLAGS, SUGGESTION_KINDS, VAGUE_SOURCES } from "../cvReviewStore.js";
 import {
   answerReviewEndDate,
   buildReviewState,
@@ -27,8 +27,17 @@ const LineState = z.enum(["ticked", "kept", "drafted"]);
 // #341: the AI's marks on a line — a fix (applied, or undone by the person) and an untick suggestion.
 const ReviewFix = z.object({ original: z.string(), corrected: z.string(), applied: z.boolean() });
 const ReviewSuggestion = z.object({ kind: z.enum(SUGGESTION_KINDS), reason: z.string() });
-// #342: a drafted line's source and flags.
-const ReviewDraft = z.object({ mustHave: z.string().nullable(), quote: z.string().nullable(), flags: z.array(z.enum(DRAFT_FLAGS)) });
+// #342: a drafted line's source and flags. #343: its vague phrases, each with its choices.
+const ReviewVague = z.object({
+  phrase: z.string(),
+  options: z.array(z.object({ text: z.string(), from: z.enum(VAGUE_SOURCES), quote: z.string().nullable() })),
+});
+const ReviewDraft = z.object({
+  mustHave: z.string().nullable(),
+  quote: z.string().nullable(),
+  flags: z.array(z.enum(DRAFT_FLAGS)),
+  vague: z.array(ReviewVague),
+});
 const ReviewLine = z.object({
   id: z.string(),
   text: z.string(),

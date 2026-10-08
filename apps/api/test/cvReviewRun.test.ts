@@ -24,6 +24,9 @@
 //   - a job whose lines show every must-have reads complete and gets no draft;
 //   - a reload shows the same wording and never re-calls the writer; the two drafts the prompt forbids
 //     (no source; a job in no family) are dropped and counted.
+// #343 — word choices, over the same seam: a draft's vague phrases arrive with the stored review, CV
+// options first (the fake lists them typical-first); a pick or typed words saved through the draft's
+// edit door read back on a reload and print once ticked; none of it asks the writer.
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CandidateClaim, MinedJobBlock } from "@jobcrush/contracts";
@@ -500,6 +503,46 @@ async function tailorDraft(app: App, cookie: string) {
   return (await get(app, cookie, "/onboarding/tailor/draft")).json() as { html: string; draftedAt: string };
 }
 
+// #343: the word choices on a drafted line's vague phrase. The fake lists the typical option
+// first, so the CV-first order on the wire is the resolver's, not the fake's.
+const VAGUE_CHOICES = {
+  phrase: "the business and technical groups",
+  options: [
+    { text: "the vendor teams", from: "CV", quote: "Led the checkout replatform." },
+    { text: "the steering committee", from: "TYPICAL", quote: null },
+  ],
+};
+
+describe("#343 word choices", () => {
+  it("arrive with the stored review, CV first; a pick or the person's own words replace the phrase and print once ticked; none of it asks the writer", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    const state = await reviewed(app, cookie);
+    const spent = writer.calls.length;
+    const [first, second] = drafts(jobsOf(state)[0]!);
+    expect(first!.draft!.vague).toEqual([VAGUE_CHOICES]);
+
+    // The screen replaces the phrase and saves the line through the draft's own edit door.
+    const picked = first!.text.replace(VAGUE_CHOICES.phrase, "the vendor teams");
+    expect((await put(app, cookie, `/review/drafts/${first!.id}`, { text: picked })).json()).toEqual({ id: first!.id, text: picked });
+    const typed = second!.text.replace(VAGUE_CHOICES.phrase, "the finance and warehouse teams");
+    await put(app, cookie, `/review/drafts/${second!.id}`, { text: typed });
+    // A reload reads the person's wording; the choices stay on the draft.
+    const reloaded = drafts(jobsOf(await review(app, cookie))[0]!);
+    expect(reloaded.slice(0, 2).map((l) => l.text)).toEqual([picked, typed]);
+    expect(reloaded[0]!.draft!.vague).toEqual([VAGUE_CHOICES]);
+
+    await tick(app, cookie, first!.id);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-word-choice@example.com");
+    await post(app, cookie, "/review/complete");
+    const printed = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    expect(printed).toContain(picked);
+    expect(printed).not.toContain(typed); // typed, but never ticked
+    expect(writer.calls.length).toBe(spent);
+  });
+});
+
 describe("#342 drafted lines", () => {
   it("arrive unticked at the end of their job, each with its source and flags; a job in no family gets none; nothing asked the writer twice", async () => {
     const writer = fakeWriter();
@@ -514,11 +557,11 @@ describe("#342 drafted lines", () => {
     expect(drafted.every((l) => l.state === "drafted" && l.fix === null && l.suggestion === null)).toBe(true);
     // One line per missing must-have, citing the must-have in the family's own words.
     expect(drafted.slice(0, 4).map((l) => l.text)).toEqual(MUST_HAVES.map(DRAFT_TEXT));
-    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, flags: [] })));
+    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, flags: [], vague: [VAGUE_CHOICES] })));
     // The extras: a fact from another job only as OPTIONAL with its quote; an industry guess flagged.
     expect(drafted[4]).toMatchObject({
       text: "Also coordinated releases for 4 agile squads.",
-      draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", flags: ["OPTIONAL"] },
+      draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", flags: ["OPTIONAL"], vague: [] },
     });
     expect(drafted[5]).toMatchObject({ draft: { mustHave: null, quote: "Led the checkout replatform.", flags: ["INDUSTRY GUESS"] } });
     // A job in no published family: no drafts, no family, no stamp — and nothing says why.

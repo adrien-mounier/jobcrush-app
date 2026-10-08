@@ -10,8 +10,10 @@
 // the amber suggestion band with its one-sentence reason. #342 adds the drafted lines: a dashed gold
 // box at the end of its job with a + to tick, its flags inline, its source under it without a tap,
 // the full source and Edit in the sheet, and the COMPLETE ✓ stamp on a job with nothing missing.
-// Word choices (#343) come next. Copy is the prototype's own (apps/web/prototypes on branch
-// prototype/cv-review-332).
+// #343 adds the word choices: a vague phrase in an unticked draft wears a dotted gold underline, and
+// a tap opens the draft's sheet on that phrase's choices — from the CV first, then typical, plus the
+// person's own words. They came with the stored review, so nothing waits on the AI.
+// Copy is the prototype's own (apps/web/prototypes on branch prototype/cv-review-332).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import "../review.css";
@@ -30,6 +32,7 @@ import {
   type ReviewJob,
   type ReviewLine,
   type ReviewState,
+  type ReviewVague,
 } from "../../lib/api";
 
 const R1 = "Your CV, reviewed";
@@ -79,12 +82,23 @@ const R42 = "This job is already complete.";
 const R43 = "COMPLETE ✓";
 const R44 = "new";
 const R45 = "Why:";
+// #343
+const R46 = "choose a word";
+const R47 = "From your CV";
+const R48 = "Typical";
+const R49 = "YOUR CV";
+const R50 = "TYPICAL";
+const R51 = "Your CV does not say.";
+const R52 = "Or type your own";
+const R53 = "Use";
+const specificCopy = (phrase: string) => `Make "${phrase}" specific:`;
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** How often the screen re-reads the review while the run is going. */
 const POLL_MS = 3000;
 
 type Sheet =
-  | { kind: "line"; line: ReviewLine; job: ReviewJob | null }
+  /** `phrase` (#343): the vague phrase the tap landed on — the sheet opens on its choices. */
+  | { kind: "line"; line: ReviewLine; job: ReviewJob | null; phrase?: string }
   | { kind: "contact" }
   | { kind: "end"; job: ReviewJob }
   | { kind: "conflict" }
@@ -103,6 +117,38 @@ const newCount = (state: ReviewState): number => allLines(state).filter((l) => l
 const hasMarks = (state: ReviewState) => allLines(state).some((l) => l.fix !== null || l.suggestion !== null || l.draft !== null);
 const newLinesCopy = (n: number) => (n === 1 ? "1 new line is not ticked. It will not go on your CV." : `${n} new lines are not ticked. They will not go on your CV.`);
 const askCopy = (family: string | null) => (family ? `${family} jobs ask:` : R40);
+
+/** #343: a vague phrase where the line reads it — as the model wrote it, or as one of its choices
+ *  the person picked (`set`), so a pick can be changed again. Words the person typed, or edited the
+ *  phrase away with, are theirs: nothing is marked there. */
+interface Spot {
+  vague: ReviewVague;
+  words: string;
+  set: boolean;
+}
+/** A draft's text cut round its spots, in reading order. */
+function segments(text: string, vague: ReviewVague[]): Array<string | Spot> {
+  const found = vague
+    .flatMap((v) => {
+      const spot = [v.phrase, ...v.options.map((o) => o.text)]
+        .map((words, i) => ({ vague: v, words, set: i > 0, at: text.indexOf(words) }))
+        .find((s) => s.at >= 0);
+      return spot ? [spot] : [];
+    })
+    .sort((a, b) => a.at - b.at);
+  const out: Array<string | Spot> = [];
+  let at = 0;
+  for (const { at: start, ...spot } of found) {
+    if (start < at) continue; // overlaps the spot before it
+    out.push(text.slice(at, start), spot);
+    at = start + spot.words.length;
+  }
+  out.push(text.slice(at));
+  return out.filter((s) => s !== "");
+}
+/** The spots an unticked draft still has; a ticked draft is an ordinary line. */
+const spotsOf = (line: ReviewLine): Spot[] =>
+  line.state === "drafted" ? segments(line.text, line.draft?.vague ?? []).filter((s): s is Spot => typeof s !== "string") : [];
 
 function withLine(state: ReviewState, line: ReviewLine): ReviewState {
   const swap = (l: ReviewLine) => (l.id === line.id ? line : l);
@@ -329,10 +375,28 @@ export default function ReviewPage() {
       // The new-line box: a dashed gold outline at the end of the job, a + to tick it.
       return (
         <li key={line.id} className="nl">
-          <button type="button" className="line mark" onClick={(e) => open({ kind: "line", line, job }, e.currentTarget)}>
+          {/* A tap on a vague phrase opens the sheet on its choices; anywhere else, on the line. The
+              phrase is a span, since a button cannot hold a button; the sheet offers the same
+              phrases as buttons, so a keyboard reaches every choice. */}
+          <button
+            type="button"
+            className="line mark"
+            onClick={(e) => {
+              const phrase = (e.target as HTMLElement).closest<HTMLElement>(".ph")?.dataset.phrase;
+              open({ kind: "line", line, job, phrase }, e.currentTarget);
+            }}
+          >
             <span className="sr-only">{R37} · </span>
             {flags(line)}
-            {line.text}
+            {segments(line.text, line.draft?.vague ?? []).map((s, i) =>
+              typeof s === "string" ? (
+                s
+              ) : (
+                <span key={i} className={`ph${s.set ? " set" : ""}`} data-phrase={s.vague.phrase}>
+                  {s.words}
+                </span>
+              ),
+            )}
           </button>
           <button type="button" className="plus" aria-label={R39} disabled={busy} onClick={() => tickDraftLine(line)}>
             +
@@ -387,6 +451,7 @@ export default function ReviewPage() {
             <span className="l1">{R35}</span>
             <span className="l2">{R36}</span>
             <span className="l3">{R37}</span>
+            {allLines(state).some((l) => spotsOf(l).length > 0) && <span className="l4">{R46}</span>}
           </div>
         )}
       </header>
@@ -521,6 +586,7 @@ export default function ReviewPage() {
                 key={sheet.line.id}
                 line={sheet.line}
                 job={sheet.job}
+                phrase={sheet.phrase}
                 busy={busy}
                 onSave={(text) => saveDraftText(sheet, text)}
                 onTick={() => tickDraftLine(sheet.line)}
@@ -680,16 +746,20 @@ function DraftSource({ line, job }: { line: ReviewLine; job: ReviewJob | null })
 }
 
 // #342: the sheet on a draft the person has not ticked: the line, its full source, Edit (the
-// person's own wording, saved before the tick) and the tick.
+// person's own wording, saved before the tick) and the tick. #343: its vague phrases are buttons in
+// the quote; the open one shows its choices, and a choice or the person's own words replace the
+// phrase through the same save as Edit.
 function DraftSheet({
   line,
   job,
+  phrase,
   busy,
   onSave,
   onTick,
 }: {
   line: ReviewLine;
   job: ReviewJob | null;
+  phrase?: string;
   busy: boolean;
   onSave: (text: string) => void;
   onTick: () => void;
@@ -698,10 +768,13 @@ function DraftSheet({
   // quote, and a different draft opens fresh; the box only ever holds this draft's wording.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(line.text);
+  const [openPhrase, setOpenPhrase] = useState<string | null>(phrase ?? null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (editing) inputRef.current?.focus();
   }, [editing]);
+  // The open phrase, while the line still reads it or a choice for it.
+  const open = spotsOf(line).find((s) => s.vague.phrase === openPhrase);
   const inputId = `review-draft-${line.id}`;
   return (
     <>
@@ -733,7 +806,34 @@ function DraftSheet({
           </div>
         </form>
       ) : (
-        <blockquote className="quote">{line.text}</blockquote>
+        <blockquote className="quote">
+          {segments(line.text, line.draft?.vague ?? []).map((s, i) =>
+            typeof s === "string" ? (
+              s
+            ) : (
+              <button
+                key={i}
+                type="button"
+                className={`ph${s.set ? " set" : ""}${openPhrase === s.vague.phrase ? " open" : ""}`}
+                aria-expanded={openPhrase === s.vague.phrase}
+                onClick={() => setOpenPhrase(openPhrase === s.vague.phrase ? null : s.vague.phrase)}
+              >
+                {s.words}
+              </button>
+            ),
+          )}
+        </blockquote>
+      )}
+      {!editing && open && (
+        <WordChoices
+          key={open.vague.phrase}
+          vague={open.vague}
+          busy={busy}
+          onUse={(words) => {
+            setOpenPhrase(null);
+            onSave(line.text.replace(open.words, () => words));
+          }}
+        />
       )}
       <DraftSource line={line} job={job} />
       <div className="row">
@@ -747,6 +847,48 @@ function DraftSheet({
         )}
       </div>
     </>
+  );
+}
+
+// #343: one vague phrase's choices — the CV's first, then typical, each tagged — and the person's
+// own words beside them.
+function WordChoices({ vague, busy, onUse }: { vague: ReviewVague; busy: boolean; onUse: (words: string) => void }) {
+  const [own, setOwn] = useState("");
+  const cv = vague.options.filter((o) => o.from === "CV");
+  const typical = vague.options.filter((o) => o.from === "TYPICAL");
+  const chip = (o: ReviewVague["options"][number]) => (
+    <button key={`${o.from}:${o.text}`} type="button" className={`chip ${o.from === "CV" ? "cv" : "typ"}`} disabled={busy} onClick={() => onUse(o.text)}>
+      <span className="mk">{o.from === "CV" ? R49 : R50}</span>
+      <span className="t">
+        {o.text}
+        {o.quote && <small>&quot;{o.quote}&quot;</small>}
+      </span>
+    </button>
+  );
+  return (
+    <div className="wordchoices" role="group" aria-label={specificCopy(vague.phrase)}>
+      <p className="ch-h">{specificCopy(vague.phrase)}</p>
+      <p className="ch-g">{R47}</p>
+      {cv.length ? cv.map(chip) : <p className="ch-none">{R51}</p>}
+      {typical.length > 0 && (
+        <>
+          <p className="ch-g">{R48}</p>
+          {typical.map(chip)}
+        </>
+      )}
+      <form
+        className="own"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (own.trim() && !busy) onUse(own.trim());
+        }}
+      >
+        <input aria-label={R52} placeholder={R52} value={own} onChange={(e) => setOwn(e.target.value)} />
+        <button type="submit" className="btn-s gold" disabled={busy || !own.trim()}>
+          {R53}
+        </button>
+      </form>
+    </div>
   );
 }
 

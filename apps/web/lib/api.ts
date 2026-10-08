@@ -690,6 +690,13 @@ export interface ReviewDraft {
   mustHave: string | null;
   quote: string | null;
   flags: ReviewDraftFlag[];
+  /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
+  vague: ReviewVague[];
+}
+/** #343: a vague phrase in a drafted line, with the options that replace it in one tap. */
+export interface ReviewVague {
+  phrase: string;
+  options: Array<{ text: string; from: "CV" | "TYPICAL"; quote: string | null }>;
 }
 /** #341: a spelling/grammar fix on a line — applied (the line reads `corrected`) or undone by the
  *  person (the line reads the exact `original`). */

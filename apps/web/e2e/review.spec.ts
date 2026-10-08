@@ -15,6 +15,9 @@ import type { CardsResponse, ReviewLine, ReviewState } from "../lib/api";
 // becomes an ordinary bullet with a "new" tag; Edit in the sheet stores the person's wording before
 // the tick; a ticked draft unticks like any line; a job with nothing missing wears the COMPLETE ✓
 // stamp; a job in no family shows neither.
+// #343 adds the word choices: a vague phrase in a draft wears a dotted underline; a tap opens its
+// choices (CV first, then typical, each tagged, and the person's own words) without a request; a pick
+// or typed words replace the phrase through the draft's edit door, and the ticked line keeps them.
 
 const CONTACT_PHONE = { value: "+33 6 00 00 00 00", origin: "read" as const };
 const CONTACT_EMAIL = { value: "jane.doe@example.com", origin: "read" as const };
@@ -114,9 +117,9 @@ const D1 = "Owned delivery of the checkout replatform from planning to go-live."
 const D2 = "Managed the project budget.";
 const D3 = "Followed the retail seasonal release freeze.";
 const DRAFTS: ReviewLine[] = [
-  line("d1", D1, { state: "drafted", draft: { mustHave: MUST_HAVE, quote: null, flags: [] } }),
-  line("d2", D2, { state: "drafted", draft: { mustHave: null, quote: FIXED, flags: ["OPTIONAL"] } }),
-  line("d3", D3, { state: "drafted", draft: { mustHave: RISKS, quote: null, flags: ["INDUSTRY GUESS"] } }),
+  line("d1", D1, { state: "drafted", draft: { mustHave: MUST_HAVE, quote: null, flags: [], vague: [] } }),
+  line("d2", D2, { state: "drafted", draft: { mustHave: null, quote: FIXED, flags: ["OPTIONAL"], vague: [] } }),
+  line("d3", D3, { state: "drafted", draft: { mustHave: RISKS, quote: null, flags: ["INDUSTRY GUESS"], vague: [] } }),
 ];
 function drafted(nrgLines: ReviewLine[] = DRAFTS, over: Partial<ReviewState> = {}): ReviewState {
   return {
@@ -575,7 +578,7 @@ test("the sheet on a draft: the full source, Edit stores the person's wording be
 });
 
 test("a ticked draft is an ordinary line: it unticks to kept like any other, and its sheet still shows where it came from", async ({ page }) => {
-  const accepted = line("d1", D1, { state: "ticked", draft: { mustHave: MUST_HAVE, quote: null, flags: [] } });
+  const accepted = line("d1", D1, { state: "ticked", draft: { mustHave: MUST_HAVE, quote: null, flags: [], vague: [] } });
   const { calls } = await stubReview(page, drafted([accepted, DRAFTS[1]!]));
   await page.goto("/review");
 
@@ -603,4 +606,84 @@ test("a job with nothing missing wears the COMPLETE ✓ stamp, and its sheet say
   await stamp.click();
   await expect(sheet(page).getByRole("heading", { name: "This job is already complete." })).toBeVisible();
   await expect(sheet(page)).toContainText("Your lines already show everything IT Project Manager jobs ask for.");
+});
+
+// ---------------------------------------------------------------------------------------------
+// #343 — word choices on a drafted line's vague phrase.
+// ---------------------------------------------------------------------------------------------
+const PHRASE = "planning to go-live";
+const CV_CHOICE = "the business case to the store roll-out";
+const TYPICAL_CHOICE = "kick-off to hand-over";
+const VAGUE_D1 = line("d1", D1, {
+  state: "drafted",
+  draft: {
+    mustHave: MUST_HAVE,
+    quote: null,
+    flags: [],
+    vague: [{ phrase: PHRASE, options: [{ text: CV_CHOICE, from: "CV", quote: FIXED }, { text: TYPICAL_CHOICE, from: "TYPICAL", quote: null }] }],
+  },
+});
+const withChoices = () => drafted([VAGUE_D1, DRAFTS[1]!, DRAFTS[2]!]);
+
+test("a vague phrase wears the dotted underline; a tap opens its choices, CV first then typical, each tagged, with no request; a pick replaces the phrase and is saved", async ({ page }) => {
+  const { calls, box } = await stubReview(page, withChoices());
+  await page.goto("/review");
+
+  const nrg = page.locator(".pjob").nth(0);
+  await expect(nrg.locator("li.nl .ph")).toHaveText([PHRASE]);
+  await expect(page.locator(".legend .l4")).toHaveText("choose a word");
+  await nrg.locator("li.nl .ph").click();
+
+  const choices = sheet(page).getByRole("group", { name: `Make "${PHRASE}" specific:` });
+  await expect(choices).toBeVisible();
+  await expect(choices.locator(".ch-g")).toHaveText(["From your CV", "Typical"]);
+  await expect(choices.locator(".chip .mk")).toHaveText(["YOUR CV", "TYPICAL"]);
+  await expect(choices.locator(".chip").nth(0)).toContainText(FIXED); // the CV words the choice came from
+  await expect(choices.getByRole("textbox", { name: "Or type your own" })).toBeVisible();
+  // The choices came with the review: opening them asked nothing.
+  expect(calls).toEqual([]);
+  expect(box.reads).toBe(1);
+
+  await choices.getByRole("button", { name: new RegExp(CV_CHOICE) }).click();
+  const picked = D1.replace(PHRASE, CV_CHOICE);
+  expect(calls).toEqual([{ method: "PUT", url: "/api/review/drafts/d1", body: { text: picked } }]);
+  // The line reads the person's choice, on the paper and in the sheet; the choice stays tappable
+  // (a solid underline) so it can be changed.
+  await expect(sheet(page).locator(".quote")).toHaveText(picked);
+  await expect(sheet(page).getByRole("group")).toHaveCount(0);
+  await expect(nrg.locator("li.nl").nth(0)).toContainText(picked);
+  await expect(nrg.locator(".ph.set")).toHaveText([CV_CHOICE]);
+  await sheet(page).locator(".quote").getByRole("button", { name: CV_CHOICE }).click();
+  await choices.getByRole("button", { name: new RegExp(TYPICAL_CHOICE) }).click();
+  expect(calls[1]).toEqual({ method: "PUT", url: "/api/review/drafts/d1", body: { text: D1.replace(PHRASE, TYPICAL_CHOICE) } });
+  await expect(nrg.locator(".ph.set")).toHaveText([TYPICAL_CHOICE]);
+});
+
+test("the person's own words replace the phrase; the line ticked prints those words; the sheet's phrase button opens the same choices", async ({ page }) => {
+  const { calls } = await stubReview(page, withChoices());
+  await page.goto("/review");
+  const mine = "the first workshop to the 40-store launch";
+
+  const nrg = page.locator(".pjob").nth(0);
+  // A tap anywhere else on the line opens its sheet with the choices closed; the phrase in the
+  // quote is a button that opens them.
+  await nrg.locator("li.nl").nth(0).getByRole("button", { name: D1 }).focus();
+  await page.keyboard.press("Enter");
+  await expect(sheet(page).getByRole("group")).toHaveCount(0);
+  const phraseButton = sheet(page).locator(".quote").getByRole("button", { name: PHRASE });
+  await expect(phraseButton).toHaveAttribute("aria-expanded", "false");
+  await phraseButton.click();
+  await expect(phraseButton).toHaveAttribute("aria-expanded", "true");
+
+  const choices = sheet(page).getByRole("group", { name: `Make "${PHRASE}" specific:` });
+  await expect(choices.getByRole("button", { name: "Use" })).toBeDisabled();
+  await choices.getByRole("textbox", { name: "Or type your own" }).fill(`  ${mine} `);
+  await choices.getByRole("button", { name: "Use" }).click();
+  const typed = D1.replace(PHRASE, mine);
+  expect(calls).toEqual([{ method: "PUT", url: "/api/review/drafts/d1", body: { text: typed } }]);
+  await expect(sheet(page).locator(".quote")).toHaveText(typed);
+
+  await sheet(page).getByRole("button", { name: "Tick — put it on my CV" }).click();
+  expect(calls[1]).toEqual({ method: "POST", url: "/api/review/drafts/d1/tick", body: null });
+  await expect(nrg.getByRole("button", { name: `${typed} new` })).toBeVisible();
 });

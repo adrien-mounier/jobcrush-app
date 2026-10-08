@@ -712,3 +712,113 @@
   gap: 8px;
   align-items: center;
 }
+
+/* ---------- #343: a vague phrase — the dotted gold underline, and its choices in the sheet ---------- */
+.review .legend .l4::before {
+  background: none;
+  border-bottom: 1.5px dotted var(--mark-ink);
+  border-radius: 0;
+}
+.review .paper .ph {
+  text-decoration: underline dotted 1.5px var(--mark-ink);
+  text-underline-offset: 3px;
+}
+.review .sheet .ph {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0 1px;
+  font: inherit;
+  color: var(--gold);
+  text-decoration: underline dotted 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+/* a picked choice: a solid underline, still tappable to change */
+.review .paper .ph.set,
+.review .sheet .ph.set {
+  text-decoration: underline solid 1px var(--gold-dim);
+}
+.review .sheet .ph.set {
+  color: inherit;
+}
+.review .sheet .ph.open {
+  background: rgba(232, 163, 61, 0.22);
+  border-radius: 4px;
+}
+.review .sheet .wordchoices {
+  margin: 0 0 12px;
+}
+.review .sheet .wordchoices p {
+  margin: 0 0 6px;
+}
+.review .sheet .wordchoices .ch-h {
+  font-size: 13px;
+}
+.review .sheet .wordchoices .ch-g {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+}
+.review .sheet .wordchoices .ch-none {
+  font-size: 12px;
+  color: var(--hud-mute);
+}
+.review .sheet .chip {
+  appearance: none;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--hud-ink);
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.review .sheet .chip:hover {
+  border-color: var(--gold-dim);
+}
+.review .sheet .chip .mk {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.review .sheet .chip.cv .mk {
+  background: var(--gold);
+  color: var(--ink);
+}
+.review .sheet .chip.typ .mk {
+  border: 1px solid var(--hud-mute);
+  color: var(--hud-mute);
+}
+.review .sheet .chip .t {
+  flex: 1;
+}
+.review .sheet .chip small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--hud-mute);
+}
+.review .sheet .wordchoices .own {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.review .sheet .wordchoices .own input {
+  flex: 1;
+  min-width: 0;
+}
