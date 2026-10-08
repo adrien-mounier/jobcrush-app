@@ -149,6 +149,9 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
 - A journey that writes to a record keyed on its fixture's content (a pasted advert: first link wins) is not re-runnable until the fixture carries a run stamp.
 - Deck cards carry no per-card id and real postings share titles — reach a specific advert via `POST /onboarding/cards/:adId/want`, then assert `card.adId`.
 - A prompt-routing fake matches each stage by its own opening line; both miners end in `===CV-TEXT===`.
+- A fake that parses the prompt's input blocks must slice from the LAST occurrence of a block marker, not
+  the first: the instructions name every marker (`=== JOB FAMILIES ===`) before the block itself appears,
+  so `indexOf` reads the instructions and the fake answers "no families" without an error (#342).
 - A journey must never assert deck ORDER or scores across a step that changes the person's facts. When
   the facts grow, `judge.ts` re-grades only the still-unmet requirements (#117 superset reuse), and the
   fake judge covers the first requirement it is handed (`qa-main.ts`), so each partial re-grade adds a met
