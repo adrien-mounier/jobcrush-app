@@ -1,0 +1,108 @@
+{
+ "run": "#361 vocabulary-growth run, product-management v1",
+ "ranOn": "2026-10-09 (UTC; session date 2026-10-10 +07)",
+ "provider": "techmap (daily-international-job-postings, RapidAPI), called from inside the staging machine (the key lives only in Fly secrets)",
+ "probes": {
+  "calls": 8,
+  "note": "page 0 of each probe kept as corpus",
+  "results": [
+   {
+    "market": "HK",
+    "title": "product owner",
+    "totalCount": 4
+   },
+   {
+    "market": "SG",
+    "title": "product owner",
+    "totalCount": 4
+   },
+   {
+    "market": "VN",
+    "title": "product owner",
+    "totalCount": 10
+   },
+   {
+    "market": "AU",
+    "title": "product owner",
+    "totalCount": 2
+   },
+   {
+    "market": "HK",
+    "title": "product manager",
+    "totalCount": 4
+   },
+   {
+    "market": "SG",
+    "title": "product manager",
+    "totalCount": 36
+   },
+   {
+    "market": "VN",
+    "title": "product manager",
+    "totalCount": 6
+   },
+   {
+    "market": "AU",
+    "title": "product manager",
+    "totalCount": 25
+   }
+  ]
+ },
+ "pull": {
+  "calls": 5,
+  "results": [
+   {
+    "market": "SG",
+    "title": "product manager",
+    "page": 1,
+    "items": 10
+   },
+   {
+    "market": "SG",
+    "title": "product manager",
+    "page": 2,
+    "items": 10
+   },
+   {
+    "market": "SG",
+    "title": "product manager",
+    "page": 3,
+    "items": 10
+   },
+   {
+    "market": "AU",
+    "title": "product manager",
+    "page": 1,
+    "items": 10
+   },
+   {
+    "market": "AU",
+    "title": "product manager",
+    "page": 2,
+    "items": 10
+   }
+  ]
+ },
+ "spend": {
+  "providerCalls": 13,
+  "postingsFetched": 130,
+  "usd": 0.13,
+  "pricedFrom": "apps/api/data/posting-providers.json techmap perThousandPostings USD 1",
+  "vendorQuota": {
+   "limitPerMonth": 100,
+   "remainingAfterRun": 81,
+   "note": "x-ratelimit headers say 100/month; the registry says rateLimit.perMonth 1000 - the registry overstates the plan 10x"
+  }
+ },
+ "linkedin": {
+  "source": "owner-supplied pulls, LinkedIn public search, HK+AU, posted 2026-09-09..2026-10-09, 150/market/query, product owner + product manager",
+  "location": "owner machine, product-{owner,manager}-ads-2026-10-09 folders (not in repo)",
+  "ads": 600
+ },
+ "arithmetic": {
+  "pulled": 700,
+  "afterTextDedupe": 485,
+  "afterNearDuplicateDedupe": 477,
+  "inFamily": 285
+ }
+}

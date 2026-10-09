@@ -1,0 +1,10307 @@
+[
+ {
+  "n": 77,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Owner",
+  "company": "The Hong Kong Jockey Club",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 78,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Technical Product Owner: Pricing and Core Platform (GLAS & PLAS & Assurance)",
+  "company": "Liberty Mutual Insurance",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 79,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Owner - Fixed Income",
+  "company": "Fidelity International",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 80,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AI Product Owner | Top-Tier US Private Bank",
+  "company": "Hays",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 81,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AI Product Owner - Banking",
+  "company": "Sanderson-iKas Hong Kong",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 82,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead Product Owner",
+  "company": "The Hong Kong Jockey Club",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 83,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Payments Product Owner | Digital & Mobile Banking",
+  "company": "Capco",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 84,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Owner – Education Technology",
+  "company": "Ashford Benjamin",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 85,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Wealth Management Solution - International Insurance Client & Advisor Experience (Asia Focus) - Product Manager - Vice President / Associate",
+  "company": "JPMorganChase",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 86,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Owner - Client (Payments Product Design)",
+  "company": "KPay Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 87,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "IT Product Manager (Trading Product)",
+  "company": "Clouds Shore Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 88,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Associate Product Owner, Credit Risk",
+  "company": "Mox Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "retail credit risk strategy and decision-engine rules",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 89,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "International Private Bank - Digital & Data Transformation, Investment Implementation Product Manager - Vice President",
+  "company": "JPMorganChase",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 90,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Junior Product Manager",
+  "company": "Inspire",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 1
+  }
+ },
+ {
+  "n": 91,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Sr. Business Analyst, Asset Management IT, IT",
+  "company": "CLSA",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA/PM for asset-management platforms: requirements, UAT, troubleshooting",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 92,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Principal, Customer AI and Analytics",
+  "company": "Hays",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 1
+  }
+ },
+ {
+  "n": 93,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Product Manager",
+  "company": "Oxford University Press",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 94,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AVP, Product Management Sr Analyst - Core Payment Products (Domestic & Cross Border)",
+  "company": "Citi",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank payment products commercialisation, financial performance and regulatory mandates",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 95,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead, Digital Sourcing",
+  "company": "Anko Sourcing",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 96,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Global Markets - Financing - Product Manager",
+  "company": "UBS",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 97,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Solutions Product Manager - Business & Tech Coordination",
+  "company": "Industrial and Commercial Bank of China",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "business-tech liaison: process mapping and requirements analysis",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 98,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Lead",
+  "company": "Doit",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 99,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AVP, Specialist, Digital Product Management, Consumer Banking",
+  "company": "DBS Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 100,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Analyst",
+  "company": "WORMS Safety",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA writing FRS/BRD and user stories for ERP-type SaaS; supports backlog grooming but does not own priorities",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 101,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead AML Product Specialist",
+  "company": "Bybit",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 102,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AI Agent Product Expert (Middleware)",
+  "company": "OKX",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 103,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager, Corporate Actions",
+  "company": "Futu Holdings Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 104,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Specialist, Product Manager, Vitality",
+  "company": "Amplify Health",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 105,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager, APAC Product Owner – Digital Distribution & Enterprise Engineering",
+  "company": "Invesco",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 106,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Private Wealth Management Asia, Product Owner, CTB, Vice President, Hong Kong",
+  "company": "Morgan Stanley",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "body is project management: timelines, budget, UAT scripts, steering committee for client reporting change",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 107,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Business Analyst",
+  "company": "AXA Hong Kong and Macau",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA feature owner under a Product Owner: requirements, journeys, test cases",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 108,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Principal Product Manager - Compliance / AML / Risk Platform",
+  "company": "Coins.ph",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 109,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Owner, Structured Products",
+  "company": "OKX",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "designs structured financial products: payoffs, pricing models, AUM growth strategy",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 110,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager (Loan & Debt Management Systems)",
+  "company": "First Circle",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 111,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager, Digital Product Owner – Financial Services",
+  "company": "Alvarez & Marsal",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "consulting delivery lead on client engagements plus business development and team management",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 112,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Product Manager, Client Digital & Data Solutions",
+  "company": "Reinsurance Group of America, Incorporated",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 113,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Business Analyst",
+  "company": "Fleet Management Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "senior BA writing requirements/user stories, partners with Product Owners who own the product",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 114,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Technical Product Manager",
+  "company": "ActAI",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 115,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager",
+  "company": "Lane Crawford",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 116,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Trading Product Manager",
+  "company": "Bitget",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 117,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "产品经理",
+  "company": "上海御微半导体技术有限公司",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 118,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Analyst",
+  "company": "Gravitas Recruitment Group (Global) Ltd",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "recruiter-posted digital BA supporting Product Owners",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 119,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Sales Orchestration Journey Owner, Director, Digital Distribution",
+  "company": "Sun Life",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 120,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Founding Product Manager",
+  "company": "Fidaro AI",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 121,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior/Principal Product Manager, User Onboarding & Growth (Crypto.com App)",
+  "company": "Crypto.com",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 122,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Assistant Product Manager",
+  "company": "Goldhorse Capital",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "assistant PM doing requirements, backlog upkeep, project coordination and data pulls under PMs; does not own priorities",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 123,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "On Chain Product Manager",
+  "company": "MEXC",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 124,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager - Hong Kong",
+  "company": "Syfe",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 125,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AI Platform & Solution Delivery Lead",
+  "company": "Sino Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "AI solution delivery lead: coordinates requirements, pilots, vendors, budgets and handover for business-unit-prioritised needs",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 126,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Consultant/ Manager (AI Product Owner) - Digital - Hong Kong(106581)",
+  "company": "Deloitte",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 127,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior/ Principal Product Manager, Trading(Crypto.com App)",
+  "company": "Crypto.com",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 128,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "【HK】Business Product Manager, Payment Solutions (MJ000007)",
+  "company": "LianLian",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 129,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Compliance Product Manager",
+  "company": "RedotPay",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 1
+  }
+ },
+ {
+  "n": 130,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Group Technology Project Lead",
+  "company": "HAECO",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "technology project lead: delivery milestones, status reporting, UAT coordination, agile enablement",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 131,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - AI",
+  "company": "Wing Assistant",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 132,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Officer to Manager (Products Innovation) Global Transaction Banking",
+  "company": "Industrial and Commercial Bank of China",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank cash-management product development, marketing materials, UAT for transaction banking services",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 133,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager, Fund Services, Markets & Securities Services",
+  "company": "HSBC",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "fund services AML/KYC proposition: pricing, rate cards, sales support, P&L",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 134,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "SleekFlow",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 135,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager – AML & Financial Crime Compliance",
+  "company": "Gate",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 136,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior AI Product Analyst | Bank",
+  "company": "Capco",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "consultancy product analyst supporting a Product Owner on an internal LLM tool; maintains backlog but does not own it",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 137,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager – AI Solutions for Financial Services",
+  "company": "Fano (Fano Labs)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 138,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Tax - Tax Technology and Transformation - Tax Product Manager",
+  "company": "EY",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 0,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 139,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Onboarding Product Manager",
+  "company": "Global Payments Inc.",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 140,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Compliance Product Manager (KYT & Transaction Monitoring)",
+  "company": "BIT Official",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 0,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 141,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AVP, Deposits Product Management — Asia North CG/CPC",
+  "company": "Citi",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank deposit product plans, pricing, acquisition and revenue targets",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 142,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - Live Operations",
+  "company": "Chaos Theory",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 143,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead Business Analyst, Algo and Machine Learning Systems, IT",
+  "company": "CLSA",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "algo trading BA: requirements, production support, incident analysis, algo strategy development",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 144,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "WeLab Bank - Associate Product Manager (Unsecured Lending)",
+  "company": "WeLab Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "unsecured lending product pricing, credit policy, portfolio performance",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 145,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior IT Business Analyst, GA Delivery",
+  "company": "Manulife",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "IT BA documenting requirements and leading delivery of initiatives prioritised by others",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 146,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "WeLab Bank - Senior Product Manager, Wealth Management (Stock Trading)",
+  "company": "WeLab Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 147,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Wealth Management Product Manager (Structured Products)",
+  "company": "Bank of China (Hong Kong)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "structured product structuring, pricing and revenue growth for a bank",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 148,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Sales & Advice Journey Owner, Director, Digital Distribution",
+  "company": "Sun Life",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 149,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Staff Product Manager",
+  "company": "Flexport",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 150,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "System Analyst",
+  "company": "Neural Lab",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "systems analyst writing technical specs, estimates and test reviews under Product Management",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 151,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Wealth Product Manager",
+  "company": "MetaComp",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 152,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager-AI",
+  "company": "RedotPay",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 153,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Trading Product Manager",
+  "company": "Bitget",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 154,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Customer AI & Analytics Product, Principal (Senior Manager for Data & AI Product Management)",
+  "company": "AIA Hong Kong and Macau",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 1
+  }
+ },
+ {
+  "n": 155,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager, Driver",
+  "company": "Lalamove",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 156,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Analyst (Digital Payment Solution)",
+  "company": "HKT",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA supporting a PM: requirements, UAT, backlog upkeep, regression tests",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 157,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Product Manager, China",
+  "company": "Mandarin Oriental",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 158,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager, eCommerce Solutions",
+  "company": "Global Payments Inc.",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 0,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 159,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Director, Product Delivery & Governance",
+  "company": "Manulife",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "insurance product implementation and governance; hands system changes to IT BA/PM",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 160,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager, Web 3 - Trading, Growth & UX",
+  "company": "Futu Holdings Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 161,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Institutional Lending Business Product Manager",
+  "company": "BIT Official",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "institutional crypto lending: deal structures, term sheets, sales support, risk SOPs",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 162,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Associate Director, Customer Experience",
+  "company": "Prudential Hong Kong",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 163,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead Product Manager (Artificial Intelligence)",
+  "company": "Madison Pearl",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 164,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Project Manager (BA/PM, WeChat)",
+  "company": "ConnectedSolutions",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "contract digital BA/project role writing user stories and journeys for PMs",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 165,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Equity Prime Brokerage Product Specialist",
+  "company": "Societe Generale",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "prime brokerage product suite: sales strategy, business plans, profitability",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 166,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager – Trading (AI-Native)",
+  "company": "Gate",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 167,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Assistant Digital Product Manager",
+  "company": "First Sentier Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 168,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager - Payments",
+  "company": "BetterPaymentNetwork",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 169,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Lead, Wealth Management Product",
+  "company": "Syfe",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 170,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Development, Senior Officer",
+  "company": "The Cigna Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "medical insurance product development and plan design",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 171,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Assistant Manager, AI & Innovation",
+  "company": "Airport Authority Hong Kong",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "airport digital/AI initiatives run as project manager of solution partners on schedule and budget",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 172,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Analyst, Strategic Projects, Product Development (1-year contract)",
+  "company": "CTF Life",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "insurance BA: requirements, UAT, project tracking",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 173,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "WeathTech Innovation - Product Management Specialist",
+  "company": "Huatai International Financial Holdings Company Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "structured note issuance, product due diligence, fund platform universe",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 174,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Development, Senior Analyst/Analyst (Senior Officer/Officer)",
+  "company": "AIA Hong Kong and Macau",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "insurance protection product development, literature and UAT for launches",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 175,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Development",
+  "company": "China Asset Management (Hong Kong)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "mutual fund/ETF product development, regulatory filings, distribution",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 176,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Senior) Digital Business Analyst",
+  "company": "AXA Hong Kong and Macau",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "digital BA in a scrum team under a product owner",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 177,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - Lending Platform",
+  "company": "GoTymeX",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 178,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Sr.) Product Manager",
+  "company": "Hytech",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "broker trading product strategy across FX/commodities/funds, launch SOPs and sales enablement",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 179,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead Systems BA - Capital Markets and Regulatory Platform - J13194",
+  "company": "Pinpoint Asia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "recruiter-posted systems BA: specs, API contracts, UAT",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 180,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Analyst",
+  "company": "Innocorn AI",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA writing requirements and supporting UAT; manages backlog without owning priorities",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 181,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Manager, Products and Solutions - Stablecoin & Web3 Solution",
+  "company": "Mastercard",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 182,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager (News Media Industry)",
+  "company": "Ambition",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 183,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Solution Lead - Membership & Lifestyle (24-month contract)",
+  "company": "Cathay Pacific",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "IT solution lead: solution design and project delivery for an airline",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 184,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "Farben",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 185,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Transformation BA / PM (Banking) | 1-Year Contract",
+  "company": "The Edge Contracting Services- Singapore & Hong Kong",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "contract BA/PM for transformation project delivery",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 186,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Credit Business Analyst",
+  "company": "HSBC",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "credit platform BA lead supporting a Product Owner",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 187,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business & Product Manager, PWM Investment Platform",
+  "company": "Pictet Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "investment product approval, mandate operations, regulatory reporting",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 188,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - IoT Solutions",
+  "company": "China Mobile International Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 189,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Business Analyst",
+  "company": "Chubb",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "digital BA: requirements, UAT, project artefacts",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 190,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Associate Director, Multi-Asset Product Management (Korean Speaker)",
+  "company": "S&P Global",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "index product development and institutional client engagement",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 191,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Lead Technical Business Analyst",
+  "company": "ConnectedGroup",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "lead technical BA on credit platform supporting product owners",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 192,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Cash Product Manager",
+  "company": "OCBC",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cash management product commercialisation, sales support, revenue growth",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 193,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Business Analyst, Digital Distribution & Enterprise Engineering",
+  "company": "Invesco",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA supporting the APAC Product Owner",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 194,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Cash Product Manager, Transaction Banking (HK, Macau)",
+  "company": "OCBC",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cash management product commercialisation, sales support, revenue growth",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 195,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "Hytech",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "trading/wealth/crypto financial product strategy, positioning and rule design",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 196,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Senior) Business & System Analyst - Associate - Listing Systems - IT - 12 months Contract",
+  "company": "Hong Kong Exchanges and Clearing Limited (HKEX)",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "business/system analyst for exchange listing systems",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 197,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Senior) Product Manager, Cash Management and Digital Banking Channels (Southeast Asian Entities)",
+  "company": "Bank of China (Hong Kong)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "regional cash management banking products and SEA institution coordination",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 198,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager, Liquidity Management - Global Transaction Services (AVP/VP)",
+  "company": "DBS Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "liquidity management banking product: pricing, P&L, sales advisory",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 199,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Business Solutions Manager",
+  "company": "CHANEL",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "local business-application owner: BA, vendor delivery and IT service management for retail systems",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 200,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Workplace Product Senior Lead (EUC Tower)",
+  "company": "Cathay Pacific",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "end-user computing / endpoint IT service and infrastructure owner, not a built product",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 201,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager (yuu)",
+  "company": "DFI Retail Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 202,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Technical Specialist - Lending - Hang Seng Bank (HK)",
+  "company": "Hang Seng Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "lending IT change delivery / project manager",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 203,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Life Product Manager - Hang Seng Insurance - Hang Seng Bank (HK)",
+  "company": "Hang Seng Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "life insurance product development",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 204,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Systems Manager - Assistant Vice President - Workplace Technology - IT",
+  "company": "Hong Kong Exchanges and Clearing Limited (HKEX)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "enterprise Microsoft 365/Copilot platform owner: adoption, governance, IT service; no build team or backlog",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 205,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Wealth Management - Client Digital Service Specialist",
+  "company": "CICC",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "digital onboarding BA: requirements, UAT, training",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 206,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Digital Solution Analyst",
+  "company": "CHANEL",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "digital solution business analyst / delivery coordinator",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 207,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "APAC Market Data Product Manager",
+  "company": "Nasdaq",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "regional market-data commercial growth, client engagement and business development",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 208,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Technical Business Analyst/ System Analyst",
+  "company": "Robert Walters",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "technical business/system analyst (recruiter ad)",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 209,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager, Payment & FX",
+  "company": "ZA",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 210,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Director, SME Mobile & New Initiatives",
+  "company": "Standard Chartered",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 211,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager – Wealth & Cash Management Solutions",
+  "company": "Pullman Morrison",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cash/yield investment product suite: campaigns, sales collateral, enablement",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 212,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager (Cards)",
+  "company": "First Circle",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 213,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Buy Now, Pay Later (BNPL) Product & Operations Lead (Europe Business)",
+  "company": "JD.COM",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "BNPL business GM: merchant/user operations, monetisation, risk and team; product is a minority of duties",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 214,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager, Product Development",
+  "company": "Blue Cross Insurance HK",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "general insurance product development (T&Cs, pricing, launch packs)",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 215,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Payment Product Manager",
+  "company": "KuCoin Exchange",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 216,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Auto & General Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 217,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Compare the Market Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 218,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Ausgrid",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 219,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "AI Product Owner - Projects AI",
+  "company": "Fortescue",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 220,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "SAP SuccessFactors Product Manager",
+  "company": "HCLTech",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 221,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Product Owner",
+  "company": "Macquarie Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 222,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Urban Rest",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 223,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Product Owner",
+  "company": "ASX",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 224,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner - AI",
+  "company": "Fortescue",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 225,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Owner (CMS Optimizely)",
+  "company": "The Salvation Army Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 226,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Saab Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 227,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Emanate Technology",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 228,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "UST",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 1
+  }
+ },
+ {
+  "n": 229,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Business Systems Product Owner",
+  "company": "WSG",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 230,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Service Owner",
+  "company": "XPT Software",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 231,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner - South Bank, QLD",
+  "company": "Flight Centre Travel Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 232,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Product Owner",
+  "company": "Super Retail Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 233,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Brand Influence Group (BIG)",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 234,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "CRM Product Owner",
+  "company": "Cullen Jewellery",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 235,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner / Product Manager",
+  "company": "VALD",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "both",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 236,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner (Australia)",
+  "company": "Intelerad",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 237,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Product Owner - Application & Container Security",
+  "company": "Bendigo Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "application/container security specialist owning a bought security toolchain; core is AppSec engineering expertise",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 238,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner, Home Owners & General Insurance",
+  "company": "NAB",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "digital sales squad (content, CRO, personalisation) against home-lending/insurance sales targets",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 239,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner",
+  "company": "Arkeus",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 240,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner - Pharmacy",
+  "company": "Sigma Healthcare",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "project delivery lead for pharmacy systems (scope, time, budget)",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 241,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Product Manager",
+  "company": "Verra Mobility",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 242,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Product Owner - Frontline Enablement",
+  "company": "Qantas",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "IT business partner / application portfolio service owner (run, supplier, IT risk)",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 243,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Junior Product Owner (Systems Analyst)",
+  "company": "Scout Talent",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 244,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Secured Lending Product Owner",
+  "company": "Teachers Mutual Bank Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "regulatory/fraud-control change portfolio owner in lending, not a digital product",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 245,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner Deposits",
+  "company": "NAB",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "digital sales squad (content, CRO, personalisation) against deposit sales targets",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 246,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Data Product Owner",
+  "company": "Equifax",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 247,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager -AI & Agentic",
+  "company": "Future Secure AI",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "client-facing AI project delivery lead (scope, budget, UAT for customer engagements)",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 248,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Talent Solutions Cross Functional AI Product Owner - Associate Director",
+  "company": "EY",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 249,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Digital Product Owner, Website",
+  "company": "RACV",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 250,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Clearing Risk Product Management",
+  "company": "ASX",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 251,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager | Adviser Online – Payments & Servicing",
+  "company": "Macquarie Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 252,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Procurement",
+  "company": "RedOwl",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 253,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Builder",
+  "company": "InvestorHub",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 254,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Platforms & Product Lead",
+  "company": "CareSuper",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "martech vendor platform selection and implementation business lead",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 255,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner - Customer Products",
+  "company": "yourtown",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "charity fundraising/lottery products: revenue, campaigns",
+  "titleKind": "PO",
+  "judged": null
+ },
+ {
+  "n": 256,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Product Lead",
+  "company": "Oxford University Press",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 257,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Technical Business Analyst",
+  "company": "Hydrogen Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "senior technical BA writing specs; owns story quality of a technical backlog, not product priorities",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 258,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Customer AI Product Owner",
+  "company": "Accenture Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 259,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Associate Product Manager - Onboarding",
+  "company": "Global Payments Inc.",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 260,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Originations",
+  "company": "Commonwealth Bank",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 261,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "CBRE Asia Pacific",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 262,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "CBRE",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 263,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Platform Owner - Offer Products",
+  "company": "Jetstar Airways",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 264,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner - Sales Systems",
+  "company": "Southern Cross Austereo",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 265,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Commercial Platforms",
+  "company": "Nine",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 266,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Prezzee",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 267,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner, Digital",
+  "company": "AustralianSuper",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 268,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, AI",
+  "company": "Netwealth - See Wealth Differently (ASX:NWL)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 269,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "CX & Delivery Lead – Inspiration, Gifting & Discovery",
+  "company": "Baby Bunting",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 270,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "TOM People",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "BA/delivery coordinator for asset-finance change (requirements, process maps, project plans)",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 271,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "IT Application Support Specialist",
+  "company": "Munich Re",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 272,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "SAP Product Manager",
+  "company": "Helius Technologies",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "recruiter ad: SAP/SuccessFactors project portfolio and request-pipeline management",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 273,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Deployed Product Manager, Health Systems",
+  "company": "Heidi",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 274,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Analyst (Health Manager Level 3) - eMeds - Digital Health and Innovation",
+  "company": "Sydney Local Health District",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "clinical eMR configuration, testing and second-level support analyst",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 275,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Generalist",
+  "company": "RemoExperts",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "aggregator/AI-training-gig listing (annotation guidelines, LLM evaluation), not a real PM vacancy",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 276,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Business Analyst",
+  "company": "Insignia Financial",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "senior business analyst (requirements, backlog shaping support)",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 277,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Product Manager",
+  "company": "Latitude IT",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 278,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager  - Applications & Data",
+  "company": "Brennan",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "IT managed-services portfolio: service scoping, pricing, margin, sellability",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 279,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Platform Product Lead",
+  "company": "Paxus",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 280,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Junior Product Owner - Digital",
+  "company": "yourtown",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 281,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Publift",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 282,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Lead Technical Product Manager",
+  "company": "Xero",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 283,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Data",
+  "company": "Netwealth - See Wealth Differently (ASX:NWL)",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 1
+  }
+ },
+ {
+  "n": 284,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager - AI Observability (Chronosphere - Remote, Australia)",
+  "company": "Palo Alto Networks",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 285,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "ROLLER",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 286,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "BI Product Manager",
+  "company": "Suntory Oceania",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 287,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Betashares",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 288,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "IT Product Manager - Supply Chain EWM",
+  "company": "Cummins Asia Pacific",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 289,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Data Product Manager",
+  "company": "Latitude Financial Services",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 290,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Senatra",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 291,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Customer Platform",
+  "company": "vital.ly",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 292,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Associate Product Manager",
+  "company": "Luxury Escapes",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 293,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Fraud & Scams @ Australian Payments Plus",
+  "company": "Hatch",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 294,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "REA Group",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 295,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Knowledge Base",
+  "company": "Aware Super",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 296,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Fraud & Scams",
+  "company": "Australian Payments Plus",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 297,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager (Founding Team)",
+  "company": "TheDriveGroup",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 298,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Digital Experience",
+  "company": "MYER",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 299,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Product Manager",
+  "company": "HCF Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 300,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Member of Deployed Staff, Applied AI",
+  "company": "Factory",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "post-sales customer deployment/adoption (customer success) for AI dev platform",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 301,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Enterprise Product Manager",
+  "company": "Lyrebird Health",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 302,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Blinq",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 303,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Latitude IT",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 304,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Owner - Data Platform Engineering",
+  "company": "Westpac Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 305,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Development Manager",
+  "company": "HUB24 Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 306,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Fraud & Scams",
+  "company": "Hatch",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 307,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Hashicorp Platform Developer",
+  "company": "CareCone Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "service/capability owner for a bought vendor tool (HashiCorp Vault): licensing, vendor management, operating model; no build team",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 308,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "TPG Telecom",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 309,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Apps",
+  "company": "Heidi",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 310,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Technical Product Manager - Decisioning & Customer Identity",
+  "company": "Zip Co",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 311,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Aphex",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 312,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Business Product Lead – Workforce Management",
+  "company": "Hays",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "business transformation / target operating model design lead (workforce management), not a digital product built from a backlog",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 313,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Amazon Business, Third-Party (3P) Seller Services",
+  "company": "Amazon",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 314,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Owner (12 Month FTC)",
+  "company": "Equifax",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 315,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "AI Product & Delivery Manager",
+  "company": "APG Software",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "AI consultant/implementer owning client engagements, commission-based",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 316,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technology Product Manager",
+  "company": "Village Roadshow",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 317,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Business Product Lead - Workforce Management (WFM)",
+  "company": "University of Sydney",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "business transformation / target operating model design lead (workforce management), not a digital product built from a backlog",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 318,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Business Analyst",
+  "company": "Clicks IT Recruitment",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "business analyst supporting product owners",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 319,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Associate - UX/UI",
+  "company": "Bridgit",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "product associate writing stories/wireframes and doing QA; PMs own the roadmap",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 320,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Luxury Escapes",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 321,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Hashicorp Consultant",
+  "company": "CareCone Group",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "service/capability owner for a bought vendor tool (HashiCorp Vault): licensing, vendor management; no build team",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 322,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Underground Automation",
+  "company": "Epiroc",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 323,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Lead - HR Enablement",
+  "company": "ANZ",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 1,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 324,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Horizon Digital",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 325,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, AI — Enterprise Technology",
+  "company": "Valiant Finance",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 326,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Digital Plans Product Manager",
+  "company": "NSW Land Registry Services",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 327,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Workday",
+  "company": "Qantas",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 328,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Payments Business Analyst",
+  "company": "Transaction Network Services (TNS)",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "payments business analyst; also tends backlog but PMs own roadmap",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 329,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Owner",
+  "company": "UST",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PO",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 330,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Client Delivery Lead",
+  "company": "Kraken",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "client implementation delivery lead",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 331,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Business Analyst (Digital)",
+  "company": "Medibank",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "digital business analyst in agile squads",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 332,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager / Senior Product Manager",
+  "company": "Sonder",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 333,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Dealings and eConveyancing Product Manager",
+  "company": "NSW Land Registry Services",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 334,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Private Wealth Services",
+  "company": "Bell Potter Securities",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 335,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Stan.",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 336,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "ICT Senior Product and Project Manager",
+  "company": "Experis Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "ICT project delivery (scope, budget, timelines) with some roadmap duties",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 337,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager,  Enterprise Solutions",
+  "company": "HUB24 Limited",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 338,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Manager, Risk Data & Analytics (Archer GRC)",
+  "company": "Cbus Super Fund",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 339,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Trimble Inc.",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 340,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Platforms and Data Services – Vice President – SYDNEY",
+  "company": "Citi",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "commercialization/go-to-market and adoption of bank digital platforms; revenue and sales-facing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 341,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Everlab",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 342,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Publicis Sapient",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 343,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Operata",
+  "company": "Black Nova Venture Capital",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 344,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager",
+  "company": "Insight Timer",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 0,
+   "I4": 1,
+   "I5": 0,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 345,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Growth Platforms",
+  "company": "Nine",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 346,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Atlassian Product Specialist",
+  "company": "WA Primary Health Alliance - WAPHA",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "Atlassian (Jira/Confluence) tool administrator and scrum support",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 347,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Inflight Product Experience Lead – Cabin & In-Flight Entertainment & Connectivity",
+  "company": "Virgin Australia",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "physical aviation cabin/inflight products with suppliers",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 348,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Agent Product Manager",
+  "company": "Decagon",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "forward-deployed customer solution owner building AI agents per enterprise account (pre/post-sales)",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 349,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Business Analyst – Alpha Data Platform, Charles River Development, AVP",
+  "company": "Charles River Development",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "business/data analyst writing requirements",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 350,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Lead Product Manager",
+  "company": "Eucalyptus",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 351,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Business Analyst - eCommerce",
+  "company": "Wesfarmers Health",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "technical business analyst in eCommerce squad",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 352,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Modern Workplace",
+  "company": "Brennan",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "managed IT services portfolio packaged, priced and sold; no engineering build team",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 353,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Product Manager",
+  "company": "Zepto",
+  "foundUnderTitles": [
+   "linkedin:product owner",
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 354,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Delivery Lead / Senior Business Analyst",
+  "company": "The Recruitment Company Pty Ltd",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-delivery",
+  "outNote": "delivery lead / senior BA hybrid on lending transformation",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 355,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Analyst (Health Manager Level 3) - Clinical Applications",
+  "company": "Sydney Local Health District",
+  "foundUnderTitles": [
+   "linkedin:product owner"
+  ],
+  "inFamily": false,
+  "occupation": "out-analyst",
+  "outNote": "clinical systems product analyst (configuration, record preparation)",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 356,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Senior) Product Manager, DEX Institution Trading",
+  "company": "OKX",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 357,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Principal / Senior Product Manager, Payment",
+  "company": "OKX",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 358,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager / Product Manager",
+  "company": "Johnson Electric",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "industrial hardware products: business development, pricing, sales targets",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 359,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager, Pricing",
+  "company": "Lalamove",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 360,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager - Risk",
+  "company": "Futu Holdings Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 361,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager (Cards-Payment Channel)",
+  "company": "RedotPay",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 362,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "Trucker Path",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 363,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Regional Product Manager, Product Management, Transfer Solutions",
+  "company": "Mastercard",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "regional commercialization, GTM and sales support for payments product",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 364,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager - Derivatives Risk",
+  "company": "Futu Holdings Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "quant risk specialist designing margin algorithms for futures",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 365,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager (Materials and Plastics)",
+  "company": "UL Solutions",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "materials testing/certification services growth and GTM",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 366,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager, Fiat & FCM",
+  "company": "Crypto.com",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 367,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Life Product Manager - Hang Seng Insurance - Hang Seng Bank (HK)",
+  "company": "Hang Seng Bank",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "life insurance product development and channel propositions",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 368,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager (Control Valves), Asia Pacific",
+  "company": "Belimo",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "HVAC hardware product (control valves) lifecycle and launches",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 369,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Insurance - Savings Product Manager",
+  "company": "Cornerstone Global Partners (CGP Group)",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "savings insurance product development",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 370,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Securities Services - Margin Services Product Manager - Vice President",
+  "company": "JPMorganChase",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "securities services margin/collateral product with fees and client ownership",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 371,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Senior) Product Manager, Payment and Cash Management - Enterprise and Transaction Banking",
+  "company": "The Bank of East Asia (BEA)",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "corporate cash management/deposit products and campaigns",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 372,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - Derivatives Trading Department",
+  "company": "CGS International Holdings Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "structured notes issuance",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 373,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - Cisco",
+  "company": "Ingram Micro",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "vendor (Cisco) channel GTM and marketing programs",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 374,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager/ Associate Product Manager - Hematology and Oncology",
+  "company": "Amgen",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma brand marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 375,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "China Mobile International Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 376,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "(Senior) Product Manager",
+  "company": "Astellas Pharma",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma product marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 377,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager (Pharmaceutical)",
+  "company": "JC Executive Search Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma product marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 378,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "WeLab Bank - Senior Manager, Insurance Product Manager",
+  "company": "WeLab Bank",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank insurance product development and distribution",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 379,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "Rxilient Health Pte. Ltd.",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma product marketing and launches",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 380,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Cash Management Product Manager (Corporate Banking Department)",
+  "company": "Agricultural Bank of China",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cash management banking products",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 381,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Manager, Product Development (Savings/Life Insurance)",
+  "company": "Hays",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "life/savings insurance product development",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 382,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "AI Product Manager (Management Trainee)",
+  "company": "Vocalbeats",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 383,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Platform Manager, North Asia and SEAA",
+  "company": "CHANEL",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 384,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "[Hong Kong] (Senior) Product Manager",
+  "company": "Santen",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma product marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 385,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager - CV New Products",
+  "company": "Sanofi",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma brand marketing and launches",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 386,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager",
+  "company": "MSD",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "pharma brand marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 387,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager – Product Management – Development, Implementation & Service (Global Transaction Banking)",
+  "company": "QNB Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cash management/trade finance products, pricing, client service",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 388,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Manager / Senior Manager / Associate Director, Product Proposition",
+  "company": "Sun Life",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "life insurance product proposition",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 389,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Product Manager - Deposits, SVP - HONG KONG",
+  "company": "Citi",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank deposit/collateral account products, go-to-market and market share",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 390,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Innovation and Strategy, Principal/Consultant (Senior Manager/Manager)",
+  "company": "AIA Hong Kong and Macau",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "insurance wealth product design and distribution channels",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 391,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Cargo Customer Solutions Manager",
+  "company": "Cathay Pacific",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "airline cargo customer solutions, commercial cases and sales enablement",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 392,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Regional Product Manager",
+  "company": "DCSS Technology Pte Ltd",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "IT hardware distribution product lines: vendor pricing, rebates, reseller channel",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 393,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager / Manager, Product Strategy (Life Insurance)",
+  "company": "Generali Hong Kong",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "life insurance product strategy and portfolio",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 394,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager - HK&TW | Medical Devices | TW based",
+  "company": "Randstad Hong Kong",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "medical device portfolio marketing, KOL and campaigns",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 395,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Deputy Executive Manager, Product Delivery",
+  "company": "The Hong Kong Jockey Club",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 0,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 396,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager of Product Management (Insurance)",
+  "company": "IPS Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "insurance product line with carriers, marketing and sales",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 397,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Associate Director, Product Proposition",
+  "company": "Sun Life",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "life insurance product proposition and design",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 398,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Associate Director, Personal Loan (Product Development)",
+  "company": "PrimeCredit Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "personal loan product strategy and campaigns",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 399,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Investment Management - Product Development Manager, Vice President, Hong Kong",
+  "company": "Morgan Stanley",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "investment fund vehicle development and registrations",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 400,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager, Product Development and Management - HSBC Global Asset Management",
+  "company": "HSBC",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "asset management fund range development and governance",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 401,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Channel Manager - APAC",
+  "company": "Wahl Clipper Corporation",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "consumer grooming products channel strategy, pricing, launches",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 402,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Manager/Senior Manager, App Product and Growth Strategy",
+  "company": "YesStyle.com",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 403,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Solution & Product Manager",
+  "company": "CypressTel 賽柏特",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "telecom network solution pre-sales and customer support",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 404,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Product Manager / Product Specialist, Capital Strategy",
+  "company": "Polymer Capital",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "investment strategy product specialist: pitchbooks, RFPs, investor relations",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 405,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Assistant Product Management Manager (Deposit) (Ref no MD-ALAI)",
+  "company": "Nanyang Commercial Bank Ltd.",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank deposit product line profitability and marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 406,
+  "source": "linkedin",
+  "market": "HK",
+  "title": "Senior Manager / Assistant Vice President, Investment Service (Securities / Equity / Project Management focus)",
+  "company": "China CITIC Bank International Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank investment services products, providers and campaigns",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 407,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "UpGuard",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "duplicateOf": 42,
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 408,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Plexus",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 409,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Circular Economy Systems (CES)",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 410,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager | AI, SaaS & Hospitality Technology",
+  "company": "Quantaco",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 411,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Australian Payments Plus",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 412,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager @ Australian Payments Plus",
+  "company": "Hatch",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 413,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, AI",
+  "company": "Nuix",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 414,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Secure Code Warrior",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 415,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Hatch",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 416,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "pay.com.au",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 417,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Payments",
+  "company": "Cuscal Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 418,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Rauland Australia and New Zealand",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 419,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Rules & Agentic Products",
+  "company": "IntelligenceBank",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 420,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "CAR Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 421,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Melbourne",
+  "company": "Draftable",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "duplicateOf": 39,
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 422,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "[IPD] Product Manager - Power Quality, UPS & Busduct System",
+  "company": "IPD Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "electrical hardware (UPS/busduct) supplier, pricing and technical sales support",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 423,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Australian Payments Plus",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 424,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager (Growth) – Sydney or Melbourne",
+  "company": "Syfe",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 425,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Adtech",
+  "company": "Publift",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 426,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Retail Media",
+  "company": "Kmart Australia Limited",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 427,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - OTR Tires (US based)",
+  "company": "Yokohama TWS",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "physical tyre and wheel products for industrial markets",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 428,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Macquarie Wrap",
+  "company": "Macquarie Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "wrap investment platform product: change and requirements with stakeholders, no roadmap/backlog ownership stated",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 429,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Managed Cloud & Infrastructure",
+  "company": "Brennan",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "managed cloud services portfolio: service tiers, pricing, cost models, launch readiness",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 430,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Staff Product Manager, Yield",
+  "company": "Airwallex",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 431,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Trade Account",
+  "company": "Capricorn",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "trade credit account financial product governance and profitability",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 432,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Agentic Commerce",
+  "company": "Zip Co",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 433,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager",
+  "company": "Tactiq",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 434,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "VicRoads",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 1,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 435,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Staff Product Manager",
+  "company": "Cover Genius",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 436,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - AI",
+  "company": "carsales",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 437,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Wealth",
+  "company": "JANA Investment Advisers",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "managed funds/accounts: platform onboarding, collateral, RFPs",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 438,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Sportsbook (Mandarin Speaking)",
+  "company": "BC.GAME Official",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 1,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 439,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Deputy",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 440,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - D&AI",
+  "company": "Endeavour Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 1,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 441,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Final Distribution",
+  "company": "IPD Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "electrical switchgear product portfolio: pricing, inventory, suppliers",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 442,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Zurich Australia",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 443,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "James Hardie",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "building materials product range: 7Ps, pricing, category management",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 444,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Medical Devices",
+  "company": "Endotherapeutics",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "medical device distribution portfolio: pricing, KOLs, sales training",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 445,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Heatseeker",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 446,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager",
+  "company": "LawConnect",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 447,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager",
+  "company": "Flybuys",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 448,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Industrial Gases",
+  "company": "IXOM",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "industrial gases portfolio: pricing, suppliers, contracts",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 449,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Allura Partners",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 450,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Payments Product & Market Manager Vice President - Australia and New Zealand (Sydney)",
+  "company": "JPMorganChase",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank payments/cash management products: pricing, P&L, compliance reviews",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 451,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Vocus",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "telecom (Starlink/mobility) propositions: pricing, packaging, sales plays, EBITDA targets",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 452,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - GenAI",
+  "company": "Envato",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 453,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager Retirement",
+  "company": "BT",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "retirement/annuity financial products on a platform: governance and legislative change",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 454,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Power Tools, Milwaukee",
+  "company": "Milwaukee Tool Australia & New Zealand",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "power tools category: sales budget, margin, range reviews, product marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 455,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "James Hardie",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "building materials product range: 7Ps, pricing, category management",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 456,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Lead Technical Product Manager",
+  "company": "RMS",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 457,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "hipages Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 0,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 458,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Navigation Solutions",
+  "company": "Advanced Navigation",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "inertial navigation hardware product line (HW/firmware engineering trade-offs, P&L)",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 459,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager Cruise - Broadbeach, QLD",
+  "company": "Ignite Travel Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cruise holiday packages, supplier pricing, promotions",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 460,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager – Data Products | AdTech",
+  "company": "The Onset",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 461,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager (Integrations)",
+  "company": "splose",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 462,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Commercial Product Manager, External Audit Solutions",
+  "company": "Wolters Kluwer",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 463,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Agentic Products",
+  "company": "Lendi Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 464,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "MELB Product Manager (Retail, Garden, Home) $130k+",
+  "company": "Agency Iceberg",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "homewares/garden merchandise portfolio: suppliers, margins, ranges",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 465,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Technical Product Manager",
+  "company": "Verra Mobility",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "duplicateOf": 241,
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 1,
+   "I7": 0,
+   "I8": 0,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 1,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 466,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "HVAC Product Manager - Airside, Australia",
+  "company": "Johnson Controls",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "HVAC equipment product line: pricing, margin, sales training",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 467,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Home Appliance",
+  "company": "Samsung Australia",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "consumer appliance line-up: sales, promotions, demand forecasting, P&L",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 468,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Engineering Product Manager",
+  "company": "Cisco",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "optical transceiver hardware product line with JDM partner; pricing and technical marketing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 469,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Payroll/HR",
+  "company": "Project Pathway",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 0,
+   "I7": 0,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 470,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Principal Product Manager",
+  "company": "Equifax",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 1,
+   "I16": 0
+  }
+ },
+ {
+  "n": 471,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager, Legal AI",
+  "company": "Thomson Reuters",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "legal domain expert: legal research, prompt writing and AI output grading; no ownership of priorities/roadmap",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 472,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Mechanical Power Transmission",
+  "company": "Motion Asia Pacific",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "industrial power transmission category: suppliers, pricing, technical sales training",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 473,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager",
+  "company": "Zeekr International",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "vehicle line-up planning, pricing, product marketing and brand",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 474,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Advanced Space Capabilities",
+  "company": "Electro Optic Systems",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-other",
+  "outNote": "space/defence hardware systems product roadmap and capability development",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 475,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager Touring - Broadbeach, QLD",
+  "company": "Ignite Travel Group",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "touring holiday packages, supplier negotiation, margins",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 476,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "Griffon ANZ",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "outdoor lifestyle merchandise portfolio: suppliers, budgets, margins",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 477,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Lead Product Manager - GenAI",
+  "company": "Envato",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "PM",
+  "judged": {
+   "I1": 0,
+   "I2": 0,
+   "I3": 1,
+   "I4": 1,
+   "I5": 1,
+   "I6": 1,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 1,
+   "I13": 1,
+   "I14": 0,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 478,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product & Growth Manager",
+  "company": "Wagetap",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 0,
+   "I3": 0,
+   "I4": 0,
+   "I5": 1,
+   "I6": 0,
+   "I7": 1,
+   "I8": 1,
+   "I9": 0,
+   "I10": 0,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 1,
+   "I15": 0,
+   "I16": 0
+  }
+ },
+ {
+  "n": 479,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product & Portfolio Manager",
+  "company": "Logicalis Australia",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "IT services and managed services portfolio governance, pricing and packaging",
+  "titleKind": "other",
+  "judged": null
+ },
+ {
+  "n": 480,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager - Acquisition",
+  "company": "Commonwealth Bank",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "bank account acquisition propositions, offers, campaigns, pricing",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 481,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Cardiac Portfolio",
+  "company": "Medline Australia",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "cardiac consumables portfolio: launches, campaigns, clinical training",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 482,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager - Acute Care",
+  "company": "Stryker",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "acute care medical equipment portfolio marketing and GTM",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 483,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Manager - Cash Equities",
+  "company": "ASX",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": true,
+  "occupation": "in",
+  "outNote": null,
+  "titleKind": "other",
+  "judged": {
+   "I1": 1,
+   "I2": 1,
+   "I3": 1,
+   "I4": 1,
+   "I5": 0,
+   "I6": 1,
+   "I7": 1,
+   "I8": 0,
+   "I9": 0,
+   "I10": 1,
+   "I11": 0,
+   "I12": 0,
+   "I13": 0,
+   "I14": 0,
+   "I15": 0,
+   "I16": 1
+  }
+ },
+ {
+  "n": 484,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Senior Product Manager, Retirement",
+  "company": "Parity Consulting",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-commercial",
+  "outNote": "superannuation retirement products governance and compliance",
+  "titleKind": "PM",
+  "judged": null
+ },
+ {
+  "n": 485,
+  "source": "linkedin",
+  "market": "AU",
+  "title": "Product Manager",
+  "company": "BD",
+  "foundUnderTitles": [
+   "linkedin:product manager"
+  ],
+  "inFamily": false,
+  "occupation": "out-marketing",
+  "outNote": "infusion medical device portfolio: marketing plan, tenders, KOLs",
+  "titleKind": "PM",
+  "judged": null
+ }
+]

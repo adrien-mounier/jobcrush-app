@@ -1,0 +1,573 @@
+{
+  "publicationStatus": "provisional",
+  "reviewedBy": "pending owner review (#361) - drafted by the vocabulary-growth run 2026-10-10",
+  "reviewedAt": "2026-10-09T18:00:00.000Z",
+  "floor": {
+    "schemaVersion": "1",
+    "familyId": "product-management",
+    "label": "Product Manager",
+    "scope": "Deciding what a digital or technology product does and why, and steering the team that builds it: owning the product vision and roadmap, understanding user and market needs, setting priorities and owning the backlog the build team works from, and answering for what the product achieves through its measures of success. The product is software, an app, a platform, or a data or AI product built by an engineering team; the employer's industry is irrelevant. Covers every seniority from associate to head of product, and both names the market uses for this one job: product owner and product manager, including their technical, digital, platform and data variants. The edge: managing a financial, insurance or consumer product commercially (rates, fees, coverage, pricing, campaigns) with no team building it from a backlog the person owns is outside, and a product manager title that names a financial or insurance product line (mortgages, cards, loans, deposits, policies) rather than a digital product is that commercial job; so are product marketing, running the delivery (IT Project Manager), and specifying requirements without owning the priorities (Business Analyst).",
+    "version": 1,
+    "source": "production_research",
+    "productionRewardEligible": true,
+    "essentialItems": [
+      {
+        "id": "product-vision-roadmap",
+        "priority": 1,
+        "question": {
+          "prompt": "Have you defined a product's vision or roadmap - what it should become and in what order?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "backlog-prioritisation",
+        "priority": 2,
+        "question": {
+          "prompt": "Have you owned a product backlog - deciding what the build team works on next?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "user-and-market-discovery",
+        "priority": 3,
+        "question": {
+          "prompt": "Have you researched users or the market to decide what a product should do - interviews, competitor analysis or testing ideas?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "product-success-metrics",
+        "priority": 4,
+        "question": {
+          "prompt": "Have you set or tracked a product's success measures, and used the data to decide what to change?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      }
+    ]
+  },
+  "postingEvidence": [
+    {
+      "employer": "GoTymeX",
+      "roleTitle": "Product Owner - Investments",
+      "location": "Hong Kong",
+      "sourceUrl": "https://hk.linkedin.com/jobs/view/product-owner-investments-at-gotymex-4476551751",
+      "capturedAt": "2026-10-09",
+      "normalizedRequirements": [
+        "Own the roadmap and delivery of the trading products",
+        "Own the product backlog: epics, user stories, acceptance criteria and priorities",
+        "Be accountable for what ships and how it performs after launch"
+      ]
+    },
+    {
+      "employer": "Maybank Singapore",
+      "roleTitle": "Product Owner, Digital Financing & Wealth, Digital Banking",
+      "location": "Singapore",
+      "sourceUrl": "https://sg.linkedin.com/jobs/view/product-owner-digital-financing-wealth-digital-banking-at-maybank-singapore-4475186865",
+      "capturedAt": "2026-10-09",
+      "normalizedRequirements": [
+        "Define the product vision, roadmap and priorities for digital journeys",
+        "Establish success metrics and use data to optimise outcomes",
+        "Apply customer research and journey mapping; manage the backlog through agile delivery"
+      ]
+    },
+    {
+      "employer": "Cake Digital Bank",
+      "roleTitle": "Technical Product Manager",
+      "location": "Ho Chi Minh City, Vietnam",
+      "sourceUrl": "https://vn.linkedin.com/jobs/view/technical-product-manager-at-cake-digital-bank-4475162072",
+      "capturedAt": "2026-10-09",
+      "normalizedRequirements": [
+        "Act as Product Owner in Scrum teams, owning and prioritising the backlog",
+        "Define and own the lending product roadmap; run market and competitive research",
+        "Define KPIs and run A/B experiments to drive improvements"
+      ]
+    },
+    {
+      "employer": "Netwealth",
+      "roleTitle": "Senior Product Manager",
+      "location": "Melbourne, Australia",
+      "sourceUrl": "https://jobs.ashbyhq.com/netwealth/54f0aeb1-3c34-4bd4-a8f7-c55450f60cd0",
+      "capturedAt": "2026-10-09",
+      "normalizedRequirements": [
+        "Own the vision, strategy and roadmap for the product portfolio",
+        "Drive product discovery with customers to validate solutions",
+        "Define and measure product success through outcomes and OKRs"
+      ]
+    }
+  ],
+  "marketSearchTitles": {
+    "HK": [
+      {
+        "title": "product manager",
+        "adverts": 4,
+        "measuredOn": "2026-10-09"
+      },
+      {
+        "title": "product owner",
+        "adverts": 4,
+        "measuredOn": "2026-10-09"
+      }
+    ],
+    "SG": [
+      {
+        "title": "product manager",
+        "adverts": 36,
+        "measuredOn": "2026-10-09"
+      },
+      {
+        "title": "product owner",
+        "adverts": 4,
+        "measuredOn": "2026-10-09"
+      }
+    ],
+    "VN": [
+      {
+        "title": "product owner",
+        "adverts": 10,
+        "measuredOn": "2026-10-09"
+      },
+      {
+        "title": "product manager",
+        "adverts": 6,
+        "measuredOn": "2026-10-09"
+      }
+    ],
+    "AU": [
+      {
+        "title": "product manager",
+        "adverts": 25,
+        "measuredOn": "2026-10-09"
+      },
+      {
+        "title": "product owner",
+        "adverts": 2,
+        "measuredOn": "2026-10-09"
+      }
+    ]
+  },
+  "aliases": [
+    "technical product owner",
+    "technical product manager",
+    "digital product owner",
+    "digital product manager",
+    "platform product manager",
+    "data product manager",
+    "head of product"
+  ],
+  "evaluation": {
+    "evaluator": {
+      "engine": "calibrated-family-placement",
+      "version": "1"
+    },
+    "thresholds": {
+      "comparableAccuracy": 0.95,
+      "unfamiliarRecall": 0.9,
+      "familiarFalseUnknownRate": 0.05
+    },
+    "rawCases": [
+      {
+        "id": "train-product-manager",
+        "split": "grouped_train",
+        "targetRole": "Product Manager",
+        "evidence": {
+          "signals": [
+            "product roadmap",
+            "user research",
+            "success metrics"
+          ],
+          "familyNeighborSupport": [
+            0.93,
+            0.88,
+            0.8
+          ],
+          "competingFamilySupport": [
+            0.4,
+            0.3
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "train-product-owner-digital-banking",
+        "split": "grouped_train",
+        "targetRole": "Senior Product Owner - Digital Banking",
+        "evidence": {
+          "signals": [
+            "product backlog",
+            "prioritisation",
+            "user stories"
+          ],
+          "familyNeighborSupport": [
+            0.9,
+            0.85,
+            0.78
+          ],
+          "competingFamilySupport": [
+            0.45,
+            0.3
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "train-product-delivery-manager",
+        "split": "grouped_train",
+        "targetRole": "Product Delivery Manager",
+        "evidence": {
+          "signals": [
+            "release planning",
+            "delivery tracking"
+          ],
+          "familyNeighborSupport": [
+            0.68,
+            0.6,
+            0.5
+          ],
+          "competingFamilySupport": [
+            0.6,
+            0.4
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "train-office-administrator",
+        "split": "grouped_train",
+        "targetRole": "Office Administrator",
+        "evidence": {
+          "signals": [
+            "diary management",
+            "office supplies"
+          ],
+          "familyNeighborSupport": [
+            0.3,
+            0.2,
+            0.15
+          ],
+          "competingFamilySupport": [
+            0.25,
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-technical-product-owner",
+        "split": "held_out",
+        "targetRole": "Technical Product Owner",
+        "evidence": {
+          "signals": [
+            "backlog ownership",
+            "API requirements",
+            "sprint planning"
+          ],
+          "familyNeighborSupport": [
+            0.9,
+            0.84,
+            0.76
+          ],
+          "competingFamilySupport": [
+            0.45,
+            0.3
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-digital-product-manager",
+        "split": "held_out",
+        "targetRole": "Digital Product Manager",
+        "evidence": {
+          "signals": [
+            "app roadmap",
+            "customer discovery",
+            "adoption metrics"
+          ],
+          "familyNeighborSupport": [
+            0.91,
+            0.83,
+            0.75
+          ],
+          "competingFamilySupport": [
+            0.4
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-head-of-product",
+        "split": "held_out",
+        "targetRole": "Head of Product",
+        "evidence": {
+          "signals": [
+            "product vision",
+            "roadmap",
+            "leading product managers"
+          ],
+          "familyNeighborSupport": [
+            0.88,
+            0.8,
+            0.72
+          ],
+          "competingFamilySupport": [
+            0.42,
+            0.2
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-product-marketing-manager",
+        "split": "held_out",
+        "targetRole": "Product Marketing Manager",
+        "evidence": {
+          "signals": [
+            "positioning",
+            "launch campaigns"
+          ],
+          "familyNeighborSupport": [
+            0.66,
+            0.6,
+            0.5
+          ],
+          "competingFamilySupport": [
+            0.55,
+            0.3
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "heldout-business-analyst",
+        "split": "held_out",
+        "targetRole": "Business Analyst",
+        "evidence": {
+          "signals": [
+            "requirements",
+            "user stories"
+          ],
+          "familyNeighborSupport": [
+            0.67,
+            0.62,
+            0.52
+          ],
+          "competingFamilySupport": [
+            0.58,
+            0.4
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "heldout-mortgage-product-manager",
+        "split": "held_out",
+        "targetRole": "Product Manager - Mortgages",
+        "evidence": {
+          "signals": [
+            "interest rate pricing",
+            "sales campaigns"
+          ],
+          "familyNeighborSupport": [
+            0.5,
+            0.4,
+            0.3
+          ],
+          "competingFamilySupport": [
+            0.35,
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-marine-engineer",
+        "split": "held_out",
+        "targetRole": "Marine Engineer",
+        "evidence": {
+          "signals": [
+            "engine maintenance",
+            "vessel systems"
+          ],
+          "familyNeighborSupport": [
+            0.2,
+            0.15,
+            0.1
+          ],
+          "competingFamilySupport": [
+            0.3,
+            0.1
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-sales-director",
+        "split": "held_out",
+        "targetRole": "Sales Director",
+        "evidence": {
+          "signals": [
+            "revenue ownership"
+          ],
+          "familyNeighborSupport": [
+            0.25,
+            0.18,
+            0.1
+          ],
+          "competingFamilySupport": [
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      }
+    ],
+    "generated": {
+      "datasetHash": "20262537ecfe3e03863e8419c976fe71a3d164407c76b7efab78f097b18a0af6",
+      "cases": [
+        {
+          "id": "train-product-manager",
+          "supportScore": 0.93,
+          "runnerUpSupportScore": 0.4,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "train-product-owner-digital-banking",
+          "supportScore": 0.9,
+          "runnerUpSupportScore": 0.45,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "train-product-delivery-manager",
+          "supportScore": 0.68,
+          "runnerUpSupportScore": 0.6,
+          "neighborhoodDensity": 0.6666666666666666,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "train-office-administrator",
+          "supportScore": 0.3,
+          "runnerUpSupportScore": 0.25,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-technical-product-owner",
+          "supportScore": 0.9,
+          "runnerUpSupportScore": 0.45,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-digital-product-manager",
+          "supportScore": 0.91,
+          "runnerUpSupportScore": 0.4,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-head-of-product",
+          "supportScore": 0.88,
+          "runnerUpSupportScore": 0.42,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-product-marketing-manager",
+          "supportScore": 0.66,
+          "runnerUpSupportScore": 0.55,
+          "neighborhoodDensity": 0.6666666666666666,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "heldout-business-analyst",
+          "supportScore": 0.67,
+          "runnerUpSupportScore": 0.58,
+          "neighborhoodDensity": 0.6666666666666666,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "heldout-mortgage-product-manager",
+          "supportScore": 0.5,
+          "runnerUpSupportScore": 0.35,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-marine-engineer",
+          "supportScore": 0.2,
+          "runnerUpSupportScore": 0.3,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-sales-director",
+          "supportScore": 0.25,
+          "runnerUpSupportScore": 0.2,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        }
+      ]
+    }
+  }
+}
