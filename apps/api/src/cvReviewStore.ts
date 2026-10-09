@@ -80,6 +80,9 @@ export interface ReviewUnit {
   /** #363: attempts the process saw fail. An attempt started and never failed was cut by a process
    *  stop mid-call (Fly's auto-stop), and does not count against the unit. */
   failures: number;
+  /** #364: why the last failed attempt failed, kept past the retry that answered — the log line
+   *  saying so is gone from Fly's buffer within the hour. Ops-only: never on the wire. */
+  lastError: string | null;
   result: ReviewUnitResult | null;
 }
 
@@ -98,7 +101,7 @@ export interface CvReviewStore {
   /** Opens a run with its units, no attempts spent. Replaces any earlier run for the session. */
   create(sessionId: string, startedAt: string, units: string[]): Promise<void>;
   recordAttempt(sessionId: string, unit: string): Promise<void>;
-  recordFailure(sessionId: string, unit: string): Promise<void>;
+  recordFailure(sessionId: string, unit: string, error: string): Promise<void>;
   /** The checkpoint. Each unit's own row, so parallel units landing together never overwrite each
    *  other's answer. */
   recordResult(sessionId: string, unit: string, result: ReviewUnitResult): Promise<void>;
@@ -120,7 +123,7 @@ export class InMemoryCvReviewStore implements CvReviewStore {
       startedAt,
       finishedAt: null,
       outcome: null,
-      units: units.map((unit) => ({ unit, attempts: 0, failures: 0, result: null })),
+      units: units.map((unit) => ({ unit, attempts: 0, failures: 0, lastError: null, result: null })),
     });
   }
 
@@ -133,9 +136,12 @@ export class InMemoryCvReviewStore implements CvReviewStore {
     if (u) u.attempts += 1;
   }
 
-  async recordFailure(sessionId: string, unit: string): Promise<void> {
+  async recordFailure(sessionId: string, unit: string, error: string): Promise<void> {
     const u = this.unit(sessionId, unit);
-    if (u) u.failures += 1;
+    if (u) {
+      u.failures += 1;
+      u.lastError = error;
+    }
   }
 
   async recordResult(sessionId: string, unit: string, result: ReviewUnitResult): Promise<void> {
@@ -168,15 +174,17 @@ CREATE TABLE IF NOT EXISTS cv_review_units (
   position   integer NOT NULL,
   attempts   integer NOT NULL DEFAULT 0,
   failures   integer NOT NULL DEFAULT 0,
+  last_error text,
   result     jsonb,
   PRIMARY KEY (session_id, unit)
 )`;
 
-/** #363: additive migration for a units table created before `failures` existed (auth.ts's idiom:
- *  idempotent, best-effort so it never blocks startup; the fresh CREATE TABLE already has the
- *  column). Exported for the test that runs it against the old shape — pg-mem cannot re-run the
- *  CREATE TABLE IF NOT EXISTS on an existing table, so the test cannot go through init(). */
-export const CV_REVIEW_UNITS_MIGRATION = `ALTER TABLE cv_review_units ADD COLUMN IF NOT EXISTS failures integer NOT NULL DEFAULT 0`;
+/** #363/#364: additive migration for a units table created before `failures` and `last_error`
+ *  existed (auth.ts's idiom: idempotent, best-effort so it never blocks startup; the fresh CREATE
+ *  TABLE already has the columns). Exported for the test that runs it against the old shape —
+ *  pg-mem cannot re-run the CREATE TABLE IF NOT EXISTS on an existing table, so the test cannot go
+ *  through init(). */
+export const CV_REVIEW_UNITS_MIGRATION = `ALTER TABLE cv_review_units ADD COLUMN IF NOT EXISTS failures integer NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS last_error text`;
 
 /** jsonb comes back as an object on real pg but as a string on pg-mem — parse defensively, same
  *  pattern as tailorDraftStore.ts. */
@@ -200,7 +208,7 @@ export class PgCvReviewStore implements CvReviewStore {
     );
     if (!rows[0]) return null;
     const units = await this.pool.query(
-      `SELECT unit, attempts, failures, result FROM cv_review_units WHERE session_id = $1 ORDER BY position`,
+      `SELECT unit, attempts, failures, last_error, result FROM cv_review_units WHERE session_id = $1 ORDER BY position`,
       [sessionId],
     );
     return {
@@ -211,6 +219,7 @@ export class PgCvReviewStore implements CvReviewStore {
         unit: r.unit as string,
         attempts: Number(r.attempts),
         failures: Number(r.failures),
+        lastError: r.last_error as string | null,
         result: r.result == null ? null : parseJsonbColumn<ReviewUnitResult>(r.result),
       })),
     };
@@ -238,10 +247,10 @@ export class PgCvReviewStore implements CvReviewStore {
     );
   }
 
-  async recordFailure(sessionId: string, unit: string): Promise<void> {
+  async recordFailure(sessionId: string, unit: string, error: string): Promise<void> {
     await this.pool.query(
-      `UPDATE cv_review_units SET failures = failures + 1 WHERE session_id = $1 AND unit = $2`,
-      [sessionId, unit],
+      `UPDATE cv_review_units SET failures = failures + 1, last_error = $3 WHERE session_id = $1 AND unit = $2`,
+      [sessionId, unit, error],
     );
   }
 

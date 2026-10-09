@@ -137,7 +137,8 @@ function fakeWriter(opts: WriterOpts = {}) {
       attempts.set(key, n);
       const gate = gates.get(key);
       if (gate) await gate.wait;
-      if (opts.failAlways || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down");
+      // The shape undici gives a connection dropped mid-stream: a bare message, the reason in `cause`.
+      if (opts.failAlways || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down", { cause: new Error("other side closed") });
       return qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
     },
   };
@@ -290,11 +291,17 @@ describe("#341 the run", () => {
 
   it("a mid-run failure is retried for that job alone — the other job's answer is never re-asked", async () => {
     const writer = fakeWriter({ failFirst: ["j2"] });
-    const { app, cookie } = await withCv(writer);
+    const { app, cookie, server, sessionId } = await withCv(writer);
     const state = await reviewed(app, cookie);
     expect(writer.asked().sort()).toEqual(["j2", "j2", "sections, j1"]);
     expect(jobsOf(state)[0]!.lines[1]!.fix?.applied).toBe(true);
     expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+    // #364: why the first attempt failed is kept on the unit, past the retry that answered — with
+    // the error's cause, which is all a dropped connection says about itself.
+    expect((await server.cvReviews.get(sessionId))!.units).toMatchObject([
+      { unit: "nrg", failures: 0, lastError: null },
+      { unit: "bsh", failures: 1, lastError: "writer down (cause: other side closed)" },
+    ]);
   });
 
   it("when the writer stays down, the lines show as read, the person can finish, and nothing on the wire says so", async () => {
@@ -424,7 +431,7 @@ describe("#341 the run", () => {
     await server.cvReviews.create(sessionId, new Date(NOW).toISOString(), ["nrg", "bsh"]);
     await server.cvReviews.recordResult(sessionId, "nrg", landed);
     await server.cvReviews.recordAttempt(sessionId, "bsh");
-    await server.cvReviews.recordFailure(sessionId, "bsh");
+    await server.cvReviews.recordFailure(sessionId, "bsh", "writer down");
     await server.cvReviews.recordAttempt(sessionId, "bsh");
 
     expect((await review(app, cookie)).progress).toEqual({ done: 1, total: 2, minutesLeft: 5 });

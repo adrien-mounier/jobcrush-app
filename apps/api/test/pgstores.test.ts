@@ -1718,8 +1718,8 @@ for (const [name, make] of cvReviewDrivers) {
         finishedAt: null,
         outcome: null,
         units: [
-          { unit: "j1", attempts: 0, failures: 0, result: null },
-          { unit: "j2", attempts: 0, failures: 0, result: null },
+          { unit: "j1", attempts: 0, failures: 0, lastError: null, result: null },
+          { unit: "j2", attempts: 0, failures: 0, lastError: null, result: null },
         ],
       });
       expect(await store.get("session-2")).toBeNull();
@@ -1728,15 +1728,23 @@ for (const [name, make] of cvReviewDrivers) {
     it("attempts, failures and answers land per unit; the other unit is untouched", async () => {
       await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
       await store.recordAttempt(sid, "j1");
-      await store.recordFailure(sid, "j1");
+      await store.recordFailure(sid, "j1", "anthropic api stream overloaded_error: Overloaded");
       await store.recordAttempt(sid, "j1");
       await store.recordAttempt(sid, "j2");
       await store.recordResult(sid, "j1", result("the"));
       const run = (await store.get(sid))!;
       // #363: an attempt started is not an attempt failed — a process stop in between leaves the gap.
-      expect(run.units[0]).toEqual({ unit: "j1", attempts: 2, failures: 1, result: result("the") });
-      expect(run.units[1]).toEqual({ unit: "j2", attempts: 1, failures: 0, result: null });
+      // #364: the failure's reason outlives the answer that came after it.
+      expect(run.units[0]).toEqual({ unit: "j1", attempts: 2, failures: 1, lastError: "anthropic api stream overloaded_error: Overloaded", result: result("the") });
+      expect(run.units[1]).toEqual({ unit: "j2", attempts: 1, failures: 0, lastError: null, result: null });
       expect(run.outcome).toBeNull();
+    });
+
+    it("#364: a later failure's reason replaces the earlier one", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1"]);
+      await store.recordFailure(sid, "j1", "first");
+      await store.recordFailure(sid, "j1", "second");
+      expect((await store.get(sid))!.units[0]).toMatchObject({ failures: 2, lastError: "second" });
     });
 
     it("finish records the outcome and the time; the units stay as they landed", async () => {
@@ -1756,7 +1764,7 @@ for (const [name, make] of cvReviewDrivers) {
         startedAt: "2026-10-09T08:00:00.000Z",
         finishedAt: null,
         outcome: null,
-        units: [{ unit: "j3", attempts: 0, failures: 0, result: null }],
+        units: [{ unit: "j3", attempts: 0, failures: 0, lastError: null, result: null }],
       });
     });
 
@@ -1769,8 +1777,8 @@ for (const [name, make] of cvReviewDrivers) {
   });
 }
 
-describe("CvReviewStore — a units table from before #363 gains `failures` on init", () => {
-  it("a unit row stored without the column reads as no failure seen, and counts from there", async () => {
+describe("CvReviewStore — a units table from before #363 gains `failures` and `last_error` on init", () => {
+  it("a unit row stored without the columns reads as no failure seen, and counts from there", async () => {
     const pool = pgPool();
     // The staging tables as #341 created them, with the 15:28 run as the stop left it. The store's
     // init() runs this same ALTER after its CREATE TABLE IF NOT EXISTS (which pg-mem cannot re-run).
@@ -1780,8 +1788,8 @@ describe("CvReviewStore — a units table from before #363 gains `failures` on i
     await pool.query(`INSERT INTO cv_review_units (session_id, unit, position, attempts) VALUES ('old', 'socgen', 0, 2)`);
     await pool.query(CV_REVIEW_UNITS_MIGRATION);
     const store = new PgCvReviewStore(pool);
-    expect((await store.get("old"))!.units[0]).toEqual({ unit: "socgen", attempts: 2, failures: 0, result: null });
-    await store.recordFailure("old", "socgen");
-    expect((await store.get("old"))!.units[0]).toMatchObject({ attempts: 2, failures: 1 });
+    expect((await store.get("old"))!.units[0]).toEqual({ unit: "socgen", attempts: 2, failures: 0, lastError: null, result: null });
+    await store.recordFailure("old", "socgen", "answered for no job, asked for j3");
+    expect((await store.get("old"))!.units[0]).toMatchObject({ attempts: 2, failures: 1, lastError: "answered for no job, asked for j3" });
   });
 });

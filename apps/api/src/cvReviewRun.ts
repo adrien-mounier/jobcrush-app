@@ -439,10 +439,16 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         await deps.reviews.recordResult(sessionId, unit, result);
         return;
       } catch (err) {
+        // #364: a connection dropped mid-stream reads only "terminated"; its reason is the cause.
+        const reason =
+          err instanceof Error
+            ? `${err.message}${err.cause instanceof Error ? ` (cause: ${err.cause.message})` : ""}`
+            : String(err);
         failures += 1;
-        await deps.reviews.recordFailure(sessionId, unit);
+        // Kept on the unit, capped — a zod error can quote much of the answer back.
+        await deps.reviews.recordFailure(sessionId, unit, reason.slice(0, 2000));
         incrementCounter("cvReview.unit_attempt_failed");
-        console.error(`[ops] cv review unit ${unit} attempt ${attempts} failed: ${err instanceof Error ? err.message : String(err)}`);
+        console.error(`[ops] cv review unit ${unit} attempt ${attempts} failed: ${reason}`);
       }
     }
   }
