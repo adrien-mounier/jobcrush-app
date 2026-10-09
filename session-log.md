@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-09 — #364: a review unit keeps why its last attempt failed (b0d1024)
+
+Each `cv_review_units` row gains `last_error` (message + `cause`, capped 2000, ops-only, added on
+boot). QA gate **GO** (gates-only: API 1954, migration on real PG16). Société Générale cause narrowed
+from staging: the usage ledger has no row for the failed attempt, so the API call never completed:
+not the model's answer, not the 600 s deadline. Most likely the #363 auto-stop (fixed) or a provider
+drop. Logs gone, so not proven: confirm on the next real run (#365). Evidence on #364. #364 left open:
+its 2nd AC is the owner's call. Staging run `53729e1f…` reads outcome null, 0 attempts on BRED/SG: a
+read of that session's review would resume it and pay ~2 Fable calls. **Next:** #362.
+
 ## 2026-10-08 — #363: a review holds the Fly machine up; a call cut by a stop costs no attempt (ed77ce0)
 
 Fly's auto-stop reads load, not traffic (lessons.md "Staging ops"): short polls hold nothing, a held
@@ -125,43 +135,3 @@ line, extras stop at 10" (owner can veto). Two calls made in the prompt, flagged
 cross-job clause (a fact under another job is OPTIONAL with its quote, never plain) and the R6 reading.
 QA: round 1 NO-GO (the guard test read a `docs/**` file — a CI-ignored path, so a docs-only push could
 have left `main` red; dropped), round 2 **GO** (API 1935, targeted 26, typecheck 7/7, gates-only: no UI).
-
-## 2026-10-06 — #338: "Your CV, reviewed" with lines as read; the jobs wait for a completed review
-
-The journey is CV read → job and area → work rights → languages → **Your CV, reviewed** → jobs. The
-screen is layout C (the CV on paper, every review item a mark, one sheet): letterhead as read, each job
-with its lines ticked, untick → kept / re-tick, the end-date pill on the job's own card ("Not sure"
-sends nothing), the import conflict settled once, the confirm. It is also the silent-failure state for
-#341. **The gate:** a session that brought a CV sees no posting until the review is completed —
-`reviewOpensJobs` sits inside the one predicate every posting reader passes through, so the deck, the
-want door, the tailor, and a job the person pasted are all held (code review found the pasted-job hole;
-closed). The floor gate stays beside it until #339. Completing confirms the lines as read; an open
-conflict's two readings stay off the CV until settled (code review). The date question left discovery:
-the spine shrank, ratchet 664 → 648. Every CV-carrying journey now completes the review over the wire
-(`qa.completeReview()`); `cv-review-journey.mjs` walks it as a person. QA: round 1 NO-GO (the paste-a-job door still scored a job against an unreviewed CV — closed at the paste read,
-test shown to fail), round 2 **GO** (API 1930, specs 84, gate-doors 23/23, review 30/30, paste-door 26/26).
-CI on the push went red on one Tier 2 journey (discovery-plan-split: its first deck snapshot now lands
-before the industry labeler, 59% vs 49% — a pre-existing race the shorter discovery exposed); the
-journey waits for the labelers now, scoped GO, pushed as the follow-up commit. Lesson filed.
-**Correction (2026-10-06, later session):** that wait did not hold — CI failed the same way on the next two
-pushes; the years facts land after the placements. The journey now waits for a settled deck (see lessons).
-**Correction 2 (2026-10-07):** the settled-deck wait failed too (runs 37494790890, 37559882744). The real cause,
-read off the report's diagnostics: the fake judge covers the first requirement it is handed and #117's superset
-reuse re-grades only the unmet ones, so the journey's own answers move scores and order. The assertion now
-checks membership, which is the ticket's claim; the lesson is rewritten.
-That run then went red on a pre-existing front-door flake (focus moved on a frame timer, CODING_STANDARDS
-forbids it): fixed for the hand-off error, scoped GO; the four sibling spots are #352.
-Not built here, by the layout comment's split: the legend and the AI marks (#341–#343); a name field with
-its own Edit (no name store exists); job-level date conflicts (the proof holds one field conflict).
-
-## 2026-10-06 — Retro of 10 agent sessions: environment fixes landed (`524cc55`); #351 follow-ups
-
-`/retro` found the environment, not the product work, costing the time. Landed (owner: "go ahead for
-everything"): the QA gate on main is now git's own pre-commit/pre-push hooks (`.claude/githooks/`) —
-code reaches main only byte-identical to what the qa-tester tested (`record-go.mjs` fingerprints the
-tested tree); Playwright starts its own fake-model stack on private ports; miner recordings follow the
-prompt's id prefixes (+ test); `sourceHygiene` test replaces the dead lint; `.gitattributes`, PYTHONUTF8,
-ADR index, CLAUDE.md/issue-tracker fixes. QA: rounds 1-5 NO-GO on the gate (a command-text parser is
-unwinnable — four rounds found new shapes; the git-hook redesign ended it), round 6 GO. **Git's hooks
-also gate the owner's own terminal commits on main** (docs pass; override `SKIP_QA_GATE=1`).
-Follow-ups (low): #351.
