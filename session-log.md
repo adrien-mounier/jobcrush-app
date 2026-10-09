@@ -8,8 +8,8 @@ Each `cv_review_units` row gains `last_error` (message + `cause`, capped 2000, o
 boot). QA gate **GO** (gates-only: API 1954, migration on real PG16). Société Générale cause narrowed
 from staging: the usage ledger has no row for the failed attempt, so the API call never completed:
 not the model's answer, not the 600 s deadline. Most likely the #363 auto-stop (fixed) or a provider
-drop. Logs gone, so not proven: confirm on the next real run (#365). Evidence on #364. #364 left open:
-its 2nd AC is the owner's call. Staging run `53729e1f…` reads outcome null, 0 attempts on BRED/SG: a
+drop. Logs gone, so not proven: confirm on the next real run (#365). Evidence on #364. #364 closed on the
+owner's OK (follow-up lives in #365). Staging run `53729e1f…` reads outcome null, 0 attempts on BRED/SG: a
 read of that session's review would resume it and pay ~2 Fable calls. **Next:** #362.
 
 ## 2026-10-08 — #363: a review holds the Fly machine up; a call cut by a stop costs no attempt (ed77ce0)
