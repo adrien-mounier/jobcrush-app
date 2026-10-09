@@ -4,13 +4,14 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 
 ## 2026-10-09 — #364: a review unit keeps why its last attempt failed (b0d1024)
 
-Each `cv_review_units` row gains `last_error` (message + `cause`, capped 2000, ops-only, added on
-boot). QA gate **GO** (gates-only: API 1954, migration on real PG16). Société Générale cause narrowed
-from staging: the usage ledger has no row for the failed attempt, so the API call never completed:
-not the model's answer, not the 600 s deadline. Most likely the #363 auto-stop (fixed) or a provider
-drop. Logs gone, so not proven: confirm on the next real run (#365). Evidence on #364. #364 closed on the
-owner's OK (follow-up lives in #365). Staging run `53729e1f…` reads outcome null, 0 attempts on BRED/SG: a
-read of that session's review would resume it and pay ~2 Fable calls. **Next:** #362.
+Each `cv_review_units` row gains `last_error` (message + `cause`, capped 2000, ops-only, added on boot).
+QA gate **GO** (gates-only: API 1954, migration on real PG16). SG cause, from the staging DB: the failed
+attempt left no usage-ledger row, so its API call never returned (not the model's answer, not the
+600 s deadline). Evidence on #364, closed on the owner's OK. The owner's next real upload (04:22Z)
+settled it: every job answered first try with the keep-alive holding, so #365 closed as the #363 stop.
+Its "no fixes, no drafts" checked: no typos in the CV; BRED/SG complete by design; Okoone is #361.
+Old run `53729e1f…` still reads unfinished (opening it would pay ~2 Fable calls).
+**Next:** #362 (owner running it in another session), then #361 → #360 → #359.
 
 ## 2026-10-08 — #363: a review holds the Fly machine up; a call cut by a stop costs no attempt (ed77ce0)
 

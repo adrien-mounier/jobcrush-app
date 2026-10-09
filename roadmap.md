@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-09 (#364 built, #365 filed)_
+_Last updated: 2026-10-09 (#364 + #365 closed; #362 in progress)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,14 +15,14 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: "Your CV, reviewed"** (spec #332, 10 of 13 tickets done): discovery stops asking, the CV is reviewed instead.
+**Now: "Your CV, reviewed"** (spec #332, 11 of 13 tickets done — #344, #345 left; real-CV defects in 5b go first): discovery stops asking, the CV is reviewed instead.
 
 1. ~~[#338](https://github.com/adrien-mounier/jobcrush-app/issues/338) the review screen (layout C, the marked-up CV)~~ done 2026-10-06
 2. ~~[#340](https://github.com/adrien-mounier/jobcrush-app/issues/340) review prompt + blind test on the owner's real CV~~ done 2026-10-06 — measured $1.0–1.4 / 3.5–5 min per CV on Fable 5.1 max
 3. ~~[#339](https://github.com/adrien-mounier/jobcrush-app/issues/339) discovery stops asking~~ done 2026-10-07 — owner OK'd that "Ask me later" re-asks each visit; follow-ups [#354](https://github.com/adrien-mounier/jobcrush-app/issues/354) empty profile points to the CV (decided, `/implement`, Opus, medium) and #355 (journey hygiene)
 4. ~~[#341](https://github.com/adrien-mounier/jobcrush-app/issues/341) the review runs in the background~~ done 2026-10-08 — owner to confirm: a partly failed run keeps the finished jobs' marks; measure the first real per-job run's cost on staging
 5. ~~[#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves~~ done 2026-10-08 — COMPLETE stamp seen on the owner's real CV 2026-10-08; ~~[#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) word choices~~ done 2026-10-08 (review journeys into CI: ~~[#358](https://github.com/adrien-mounier/jobcrush-app/issues/358)~~ done 2026-10-08)
-5b. **Real-CV defects first** (found 2026-10-08, agent, `/implement` one at a time): ~~[#363](https://github.com/adrien-mounier/jobcrush-app/issues/363) auto-stop kills a review~~ done 2026-10-08 (held request through the proxy; staging proof after deploy) → ~~[#364](https://github.com/adrien-mounier/jobcrush-app/issues/364) keep why an attempt failed~~ done 2026-10-09 (SG cause narrowed; confirm on the next real run, [#365](https://github.com/adrien-mounier/jobcrush-app/issues/365)) → [#362](https://github.com/adrien-mounier/jobcrush-app/issues/362) failed review reads clean → [#361](https://github.com/adrien-mounier/jobcrush-app/issues/361) Product Owner unplaced → [#360](https://github.com/adrien-mounier/jobcrush-app/issues/360) letterhead → [#359](https://github.com/adrien-mounier/jobcrush-app/issues/359) scan message (Opus, medium each); then [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable) — carry-over trap noted on the ticket
+5b. **Real-CV defects first** (found 2026-10-08, agent, `/implement` one at a time): ~~[#363](https://github.com/adrien-mounier/jobcrush-app/issues/363) auto-stop kills a review~~ done 2026-10-08 (held request through the proxy; staging proof after deploy) → ~~[#364](https://github.com/adrien-mounier/jobcrush-app/issues/364) keep why an attempt failed~~ done 2026-10-09 (SG failure was the #363 stop, confirmed by a clean real run, ~~#365~~) → [#362](https://github.com/adrien-mounier/jobcrush-app/issues/362) failed review reads clean (**in progress**, another session) → [#361](https://github.com/adrien-mounier/jobcrush-app/issues/361) Product Owner unplaced → [#360](https://github.com/adrien-mounier/jobcrush-app/issues/360) letterhead → [#359](https://github.com/adrien-mounier/jobcrush-app/issues/359) scan message (Opus, medium each); then [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable) — carry-over trap noted on the ticket
 6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what
 7. ~~#346 grilling — talk to the product to improve your CV~~ decided 2026-10-06 (ADR-0017).
 8. **Owner decision** (from #340): confirm or veto the review prompt's two calls — R6 read as "a missing must-have always earns its line, OPTIONAL/INDUSTRY GUESS extras stop at 10", and a fact under another job only ever OPTIONAL with its quote. Confirmed → ADR-0016 clause 4 updated to match (docs-only).
@@ -47,7 +47,7 @@ spec in parallel; #301 is wired for it (sub-issues linked).
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
 - V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 half done (#312, #313); #314–#317 open.
-- V6 — discovery redesign (#326 decided, spec #332): **in progress**, 9 of 13.
+- V6 — discovery redesign (#326 decided, spec #332): **in progress**, 11 of 13 (#344, #345).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
 - Phases 2–6 — the profile gets rich (#127), the deck gets cheap and trustworthy, the live-jobs chain (#54), where the jobs come from, the next products: **parked 2026-09-26, not cancelled** — see archive.
 
