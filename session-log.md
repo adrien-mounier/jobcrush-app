@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-09 — #362: a failed review is retried quietly; never reads as a clean check (e1ac06d)
+
+A failed review run is reopened by the next read of /review and retried for its unanswered jobs only,
+bounded at four paid attempts per job over its life (~USD 2/job worst case; owner to accept the
+doubled ceiling). Never once the review is confirmed. The read gains `unchecked` (a part has no answer,
+or no run): the counter then never reads "0 to check". Code review: no-run counted as unchecked too.
+QA gate **GO**: API 1958, review.spec 20/20, journeys cv-review 83/83 + new
+`review-unchecked-counter-journey.mjs` 10/10 (not in CI's tier2 lists yet), reopen on real PG17. CI
+green on a side branch before main was pushed. Old run `53729e1f…` will now retry on its next open.
+Open: heading "Your CV, reviewed" on an unchecked CV (owner's call). **Next:** #361 → #360 → #359.
+
 ## 2026-10-09 — #364: a review unit keeps why its last attempt failed (b0d1024)
 
 Each `cv_review_units` row gains `last_error` (message + `cause`, capped 2000, ops-only, added on boot).
@@ -116,23 +127,3 @@ ticket's claim; the lesson is rewritten; #353 (years-fact race) closed as a disp
 session's front-door focus fix (17efba2) rode along. **CI green, staging on 9e9bf04** — the first deploy since
 524cc55: #338, #340, the Fireworks streaming fix. Cost: ~6 pushes ≈ 6 h of CI minutes on one test.
 **Next:** `/implement #339` (Opus, high); first real paste on staging checks the Fireworks labeler streams.
-
-## 2026-10-06 — #340: the review prompt (R1–R6) + blind-test script, proven on the owner's real CV
-
-The CV review's brain is in: `apps/api/prompts/cv-review.md` reviews the whole CV job by job — fixes,
-quality-only untick suggestions (weak / duplicate / aim-without-result, **never fit**: the research run's
-"ad revenue off-topic" is the forbidden kind), one drafted line per missing must-have of each job's
-**own** family under R1–R6, vague phrases as CV-first / TYPICAL options — answering JSON per job named in
-JOBS TO REVIEW, so #341 can checkpoint and retry per job. Brain doc `tailoring-reasoning.md` §9 states
-the rules; a guard test pins both copies. `scripts/blind-test.mjs` runs any input against any model
-through the app's own drivers and prices it from the providers' pages (dated in the script).
-**Measured on Fable 5.1 max via the API (from staging, which holds the key):** whole real CV 214 s /
-USD 1.00; thin BRED 293 s / USD 1.39, 8 drafted lines, 5 of 6 personal facts recovered as flagged
-options, zero slips, zero inventions. #332's "≈ $1.40 / ~10 min" corrected to **$1.0–1.4 / 3.5–5 min**.
-Spend: 6 calls, ≤ USD 3.9 (two lost calls: Fly's proxy stopped the machine mid-run; Node's 5-min header
-timeout killed a non-streamed Fireworks call → the Fireworks driver now streams, lessons filed). Code
-review: letterhead/sections `null` when not requested; R6 reads "a missing must-have always earns its
-line, extras stop at 10" (owner can veto). Two calls made in the prompt, flagged to the owner: R4's
-cross-job clause (a fact under another job is OPTIONAL with its quote, never plain) and the R6 reading.
-QA: round 1 NO-GO (the guard test read a `docs/**` file — a CI-ignored path, so a docs-only push could
-have left `main` red; dropped), round 2 **GO** (API 1935, targeted 26, typecheck 7/7, gates-only: no UI).
