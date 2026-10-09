@@ -10,8 +10,9 @@ back to back (`/ops/keep-alive`, key in a header, 25 s hold cap, Fly-only wiring
 attempts started and failures seen apart: a resume after a cut call asks the model once more; starts
 cap at four per job. Staging's units table gains `failures` on boot. Code review caught an abort
 listener accumulating per hold. QA gate **GO**: API 1952, review.spec 19/19, cv-review journey 83/83,
-migration proven on real Postgres 16. **Still to prove on staging after deploy:** a held request
-keeps the machine up past the auto-stop window (`cvReview.keep_alive_held` rising). **Next:** #364.
+migration proven on real Postgres 16. **Proven on staging (f389b5d, 2026-10-09):** a 12-min self-hold
+from the machine kept it up 14 min 44 s (23 holds in Fly's log, 25 s apart, no key logged); the proxy
+stopped it 2 min after the hold ended. A real review's own hold is still unobserved. **Next:** #364.
 
 ## 2026-10-08 — First real-CV run on staging: miner hotfix (bef04fb) + six defects filed
 
