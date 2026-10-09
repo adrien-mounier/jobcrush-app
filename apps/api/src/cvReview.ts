@@ -18,6 +18,7 @@
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import type { ContactStore, ContactValue } from "./contact.js";
 import type { CvReviewStore, DraftFlag, DraftVague, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
+import type { ReviewRunner } from "./cvReviewRun.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
 import type { JobBlockStore, JobBlockView } from "./jobBlockStore.js";
@@ -87,7 +88,8 @@ export interface ReviewLetterheadField {
   origin: ContactValue["origin"];
 }
 /** #341: the run while it is still going. Null once it has finished — or failed, which the person
- *  is never told (the "never show the kitchen" rule): both read the same here. */
+ *  is never told (the "never show the kitchen" rule): both read the same here. A failed run a
+ *  later read reopens (#362) is going again, and reads as such. */
 export interface ReviewProgress {
   done: number;
   total: number;
@@ -104,6 +106,9 @@ export interface ReviewState {
   /** #323: a field the CV gave two values for, asked once here. Null once settled or when none. */
   conflict: { fieldId: string; question: string; values: string[] } | null;
   progress: ReviewProgress | null;
+  /** #362: some part of the CV has no review answer — the run is still going, it gave up on a part,
+   *  or there is no run. The screen then never reads as a finished check ("0 to check"); nothing says why. */
+  unchecked: boolean;
   /** The paper, in the master CV's own print order (rootcv.ts's SECTIONS). */
   sections: ReviewSection[];
 }
@@ -117,7 +122,7 @@ export interface ReviewDeps {
   reviews: CvReviewStore;
   /** #341: the run, when one is wired (main.ts, qa-main.ts, tests). Absent — a build with no
    *  review model — the paper shows the lines as read, exactly as #338 shipped it. */
-  runner?: { ensure(sessionId: string): void };
+  runner?: Pick<ReviewRunner, "ensure" | "retry">;
   now?: () => number;
 }
 
@@ -283,9 +288,12 @@ function lineMarks(run: ReviewRunRecord | null) {
 const isComplete = (result: ReviewUnitResult): boolean => !!result.family && result.complete === true;
 
 export async function buildReviewState(deps: ReviewDeps, session: SessionRecord): Promise<ReviewState> {
-  const [paper, run] = await Promise.all([readPaper(deps, session.id), deps.reviews.get(session.id)]);
-  // A run left going by a process that restarted mid-way resumes here, on the first read that
-  // finds it — spending only on the units with no answer yet.
+  const [paper, found] = await Promise.all([readPaper(deps, session.id), deps.reviews.get(session.id)]);
+  // #362: a failed run is reopened here, quietly, while a unit is inside its paid bound.
+  let run = found;
+  if (found?.outcome === "failed" && (await deps.runner?.retry(session.id))) run = await deps.reviews.get(session.id);
+  // A run left going by a process that restarted mid-way — or just reopened — resumes here, on the
+  // first read that finds it, spending only on the units with no answer yet.
   if (running(run)) deps.runner?.ensure(session.id);
   const { fixes, suggestions, drafts } = lineMarks(run);
   const mark = (line: ReviewLine) => markLine(line, fixes.get(line.id), suggestions.get(line.id), drafts.get(line.id));
@@ -301,6 +309,8 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
     progress: running(run)
       ? { done: landed.size, total: run.units.length, minutesLeft: minutesLeft(run.startedAt) }
       : null,
+    // No run at all is no check either: a build with no review model, or a run that never opened.
+    unchecked: !run || run.units.some((u) => u.result === null),
     sections: paper.sections.map((section) =>
       "jobs" in section
         ? {

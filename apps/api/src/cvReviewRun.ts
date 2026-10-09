@@ -5,7 +5,9 @@
 // prompts/cv-review.md (#340), which answers JSON for exactly the jobs named in JOBS TO REVIEW —
 // the letterhead and the non-job sections ride on the first job's call. A unit that fails is
 // retried; a unit that runs out of attempts fails the run, and the screen then shows that job's
-// lines as read and says nothing (the "never show the kitchen" rule). Finished units are never
+// lines as read and says nothing (the "never show the kitchen" rule). #362: a failed run is
+// reopened by the next read and retried quietly, within the unit's paid-attempt bound; past it,
+// the screen just never claims the job was checked. Finished units are never
 // re-asked: generated once, stored (clause 7). A run the process left going when it restarted is
 // resumed by the first read that finds it, for its unfinished units only.
 //
@@ -328,9 +330,10 @@ export interface ReviewRunDeps {
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
-  /** Failures seen per unit before the run gives it up. Two, like the job-block miner: one retry.
-   *  Attempts started are bounded at twice this, so a process stopped mid-call on every start
-   *  (#363) cannot spend forever either. */
+  /** Failures seen per unit, in one drive, before the run gives it up. Two, like the job-block
+   *  miner: one retry. Attempts started are bounded at twice this over the unit's whole life — the
+   *  paid bound: a process stopped mid-call on every start (#363) cannot spend forever, nor can a
+   *  failed run reopened by a later read (#362). */
   maxAttempts?: number;
   /** The pause before a retry — a provider that was overloaded a moment ago usually still is. */
   retryDelayMs?: number;
@@ -345,6 +348,10 @@ export interface ReviewRunner {
   /** Opens the run for a session that has none yet and drives it to its end — resolves when every
    *  unit has answered or run out of attempts. A session with a run already is left alone. */
   start(sessionId: string): Promise<void>;
+  /** #362: reopens a failed run that still has a unit inside its paid-attempt bound, unless the
+   *  person has confirmed the review; true when it did. The read that called it then drives it
+   *  (`ensure`), and reads as checking again. */
+  retry(sessionId: string): Promise<boolean>;
   /** Resumes a run left going by a restart, for its unfinished units only. A no-op while the run
    *  is active in this process, and for a run that has finished. */
   ensure(sessionId: string): void;
@@ -390,11 +397,15 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
   // Runs this process is driving right now — the guard against driving one twice (start racing a
   // read's ensure, or two reads racing each other). Added synchronously, before the first await.
   const active = new Set<string>();
+  const retryable = (u: ReviewUnit) => u.result === null && u.attempts < maxStarts;
 
-  async function runUnit(sessionId: string, unit: string, withSections: boolean, spent: Pick<ReviewUnit, "attempts" | "failures">): Promise<void> {
-    let { attempts, failures } = spent;
+  // Failures are counted per drive, so a run reopened by a later read (#362) gets its own retry;
+  // attempts started are counted for good — they are the paid bound across every drive.
+  async function runUnit(sessionId: string, unit: string, withSections: boolean, startedBefore: number): Promise<void> {
+    let attempts = startedBefore;
+    let failures = 0;
     while (failures < maxAttempts && attempts < maxStarts) {
-      if (attempts > spent.attempts) await sleep(retryDelayMs);
+      if (attempts > startedBefore) await sleep(retryDelayMs);
       await deps.reviews.recordAttempt(sessionId, unit);
       attempts += 1;
       try {
@@ -457,10 +468,10 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
     const run = await deps.reviews.get(sessionId);
     if (!running(run)) return;
     const first = run.units[0]?.unit;
-    const pending = run.units.filter((u) => u.result === null && u.failures < maxAttempts && u.attempts < maxStarts);
+    const pending = run.units.filter(retryable);
     const release = pending.length ? deps.keepAlive?.() : undefined;
     try {
-      await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, u.unit === first, u)));
+      await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, u.unit === first, u.attempts)));
       const final = await deps.reviews.get(sessionId);
       if (!running(final)) return;
       await deps.reviews.finish(sessionId, final.units.every((u) => u.result !== null) ? "done" : "failed", stamp());
@@ -493,6 +504,15 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
       } finally {
         active.delete(sessionId);
       }
+    },
+    async retry(sessionId) {
+      const run = await deps.reviews.get(sessionId);
+      if (run?.outcome !== "failed" || !run.units.some(retryable)) return false;
+      // Never once the person confirmed: a fix landing on lines they signed off is the silent change
+      // ADR-0016 forbids (start's own rule).
+      if ((await deps.sessions.getById(sessionId))?.reviewCompletedAt) return false;
+      await deps.reviews.reopen(sessionId, stamp());
+      return true;
     },
     ensure(sessionId) {
       if (active.has(sessionId)) return;

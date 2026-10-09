@@ -37,6 +37,7 @@ const REVIEW: ReviewState = {
   letterhead: { header: "Jane Doe\nParis, France", phone: CONTACT_PHONE, email: CONTACT_EMAIL },
   conflict: { fieldId: "city", question: "City: your CV says Paris and also Lyon. Which one is right?", values: ["Paris", "Lyon"] },
   progress: null,
+  unchecked: false,
   sections: [
     { tag: "profile", heading: "Professional Summary", lines: [line("p1", "Delivery-accountable project manager.")] },
     {
@@ -425,6 +426,38 @@ test("while the review runs: the progress card, the unanswered job greyed and st
   await expect(cta).toBeEnabled();
   await expect(page.locator(".foot p")).toHaveText("You can come back to this page at any time.");
   expect(box.reads).toBe(1);
+});
+
+/** #362: a paper with nothing left to check — no conflict, every end date known. */
+const settled = (state: ReviewState, over: Partial<ReviewState> = {}): ReviewState => ({
+  ...state,
+  conflict: null,
+  sections: state.sections.map((s) =>
+    "jobs" in s ? { ...s, jobs: s.jobs.map((j) => ({ ...j, dates: { start: j.dates!.start, end: j.dates!.end ?? "Feb 2021" }, endDateQuestion: null })) } : s,
+  ),
+  ...over,
+});
+
+test("#362: a review with a job it has no answer for never reads as a finished check — no \"0 to check\", and nothing says why", async ({ page }) => {
+  const { box } = await stubReview(page, settled(REVIEW, { unchecked: true }));
+  await page.goto("/review");
+
+  const count = page.locator(".chud .count");
+  await expect(page.locator(".pjob")).toHaveCount(2);
+  await expect(count).toHaveText("");
+  await expect(page.locator(".stamp")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText(/fail|error|try again/i);
+  await expect(page.getByRole("button", { name: "I'm done — show my jobs" })).toBeEnabled();
+
+  // New lines still count, without a "0 to check" before them.
+  box.state = settled(drafted(), { unchecked: true });
+  await page.reload();
+  await expect(count).toHaveText("3 new lines to tick or leave");
+
+  // Every part answered and nothing found: that IS a clean check, and it says so.
+  box.state = settled(REVIEW, { unchecked: false });
+  await page.reload();
+  await expect(count).toHaveText("0 to check");
 });
 
 test("a fix: the corrected words marked green on the paper; the sheet lists original → corrected; Undo restores the original, Use fix applies it again", async ({ page }) => {

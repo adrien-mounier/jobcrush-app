@@ -753,6 +753,9 @@ export interface ReviewState {
   };
   conflict: { fieldId: string; question: string; values: string[] } | null;
   progress: ReviewProgress | null;
+  /** #362: some part of the CV has no review answer (still going, given up, or no run) — the screen never
+   *  reads as a finished check then. */
+  unchecked: boolean;
   sections: ReviewSection[];
 }
 

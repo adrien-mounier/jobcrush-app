@@ -77,8 +77,9 @@ export interface ReviewUnit {
   unit: string;
   /** Attempts started — every one a paid call may have been made for. */
   attempts: number;
-  /** #363: attempts the process saw fail. An attempt started and never failed was cut by a process
-   *  stop mid-call (Fly's auto-stop), and does not count against the unit. */
+  /** #363: attempts the process saw fail, over the unit's whole life. An attempt started and never
+   *  failed was cut by a process stop mid-call (Fly's auto-stop). Ops-only since #362: the run
+   *  counts failures per drive and bounds the unit by `attempts`. */
   failures: number;
   /** #364: why the last failed attempt failed, kept past the retry that answered — the log line
    *  saying so is gone from Fly's buffer within the hour. Ops-only: never on the wire. */
@@ -90,7 +91,8 @@ export interface ReviewRunRecord {
   startedAt: string;
   finishedAt: string | null;
   /** null while the run is going; `done` when every unit answered; `failed` when one ran out of
-   *  attempts — the screen then shows that job's lines as read, and says nothing. */
+   *  attempts — the screen then shows that job's lines as read, and says nothing. A later read
+   *  reopens a failed run while a unit is inside its paid bound (#362). */
   outcome: ReviewRunOutcome | null;
   units: ReviewUnit[];
 }
@@ -106,6 +108,9 @@ export interface CvReviewStore {
    *  other's answer. */
   recordResult(sessionId: string, unit: string, result: ReviewUnitResult): Promise<void>;
   finish(sessionId: string, outcome: ReviewRunOutcome, finishedAt: string): Promise<void>;
+  /** #362: a failed run, going again from `startedAt` (the progress counts down from it); its units
+   *  keep their answers, attempts and failures. */
+  reopen(sessionId: string, startedAt: string): Promise<void>;
 }
 
 export class InMemoryCvReviewStore implements CvReviewStore {
@@ -155,6 +160,11 @@ export class InMemoryCvReviewStore implements CvReviewStore {
       run.outcome = outcome;
       run.finishedAt = finishedAt;
     }
+  }
+
+  async reopen(sessionId: string, startedAt: string): Promise<void> {
+    const run = this.runs.get(sessionId);
+    if (run) Object.assign(run, { startedAt, finishedAt: null, outcome: null });
   }
 }
 
@@ -265,6 +275,13 @@ export class PgCvReviewStore implements CvReviewStore {
     await this.pool.query(
       `UPDATE cv_reviews SET outcome = $2, finished_at = $3 WHERE session_id = $1`,
       [sessionId, outcome, finishedAt],
+    );
+  }
+
+  async reopen(sessionId: string, startedAt: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE cv_reviews SET started_at = $2, finished_at = NULL, outcome = NULL WHERE session_id = $1`,
+      [sessionId, startedAt],
     );
   }
 }

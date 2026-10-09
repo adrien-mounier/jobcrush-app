@@ -1755,6 +1755,24 @@ for (const [name, make] of cvReviewDrivers) {
       expect((await store.get(sid))!.units[0]!.result).toEqual(result("the"));
     });
 
+    it("#362: reopen sets a failed run going again from the new start; its units keep what they spent and what landed", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
+      await store.recordResult(sid, "j1", result("the"));
+      await store.recordAttempt(sid, "j2");
+      await store.recordFailure(sid, "j2", "down");
+      await store.finish(sid, "failed", "2026-10-08T08:04:00.000Z");
+      await store.reopen(sid, "2026-10-08T09:00:00.000Z");
+      expect(await store.get(sid)).toEqual({
+        startedAt: "2026-10-08T09:00:00.000Z",
+        finishedAt: null,
+        outcome: null,
+        units: [
+          { unit: "j1", attempts: 0, failures: 0, lastError: null, result: result("the") },
+          { unit: "j2", attempts: 1, failures: 1, lastError: "down", result: null },
+        ],
+      });
+    });
+
     it("a new run for the same session replaces the old one whole", async () => {
       await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
       await store.recordResult(sid, "j1", result("the"));

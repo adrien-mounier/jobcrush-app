@@ -13,6 +13,8 @@
 // #343 adds the word choices: a vague phrase in an unticked draft wears a dotted gold underline, and
 // a tap opens the draft's sheet on that phrase's choices — from the CV first, then typical, plus the
 // person's own words. They came with the stored review, so nothing waits on the AI.
+// #362: while a part of the CV has no review answer (still going, or given up), the counter never
+// reads "0 to check" — that would claim a finished, clean check.
 // Copy is the prototype's own (apps/web/prototypes on branch prototype/cv-review-332).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -346,6 +348,8 @@ export default function ReviewPage() {
 
   const toCheck = checkCount(state);
   const toTick = newCount(state);
+  // #362: nothing says why (never show the kitchen).
+  const showCheck = toCheck > 0 || !state.unchecked;
   const hasContent =
     state.letterhead.header !== null ||
     state.sections.some((s) => ("jobs" in s ? s.jobs.length > 0 : s.lines.length > 0));
@@ -432,10 +436,14 @@ export default function ReviewPage() {
         <p className="lede">{R2}</p>
         <div className="chud">
           <span className="count" aria-live="polite">
-            <b>{toCheck}</b> to check
+            {showCheck && (
+              <>
+                <b>{toCheck}</b> to check
+              </>
+            )}
             {toTick > 0 && (
               <>
-                {" · "}
+                {showCheck && " · "}
                 <b>{toTick}</b> {toTick === 1 ? "new line" : "new lines"} to tick or leave
               </>
             )}

@@ -69,6 +69,8 @@ const ReviewStateSchema = z.object({
   conflict: z.object({ fieldId: z.string(), question: z.string(), values: z.array(z.string()) }).nullable(),
   // #341: the run while it is going; null once finished — or failed, which the person is never told.
   progress: z.object({ done: z.number().int(), total: z.number().int(), minutesLeft: z.number().int() }).nullable(),
+  // #362: some part of the CV has no review answer (still going, given up, or no run) — no finished-check claim.
+  unchecked: z.boolean(),
   sections: z.array(ReviewSection),
 });
 const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });

@@ -13,6 +13,9 @@
 //   - the confirm is refused while the run is going, and the progress counts the jobs that landed;
 //   - a fix or judgement naming a line the model was not shown is dropped;
 //   - a run a restart left going is resumed on the first read, for its unfinished units only.
+// #362 — a failed run is reopened by a later read and retried quietly, within four paid attempts
+// per job over its whole life; never once the person confirmed. The wire's `unchecked` says a part
+// has no answer, so the screen never claims a finished check.
 // #342 — drafted lines (ADR-0016 clause 4), over the same seam; the fake drafts one line per
 // must-have the placed job does not show, plus an OPTIONAL and an INDUSTRY GUESS line. What it proves:
 //   - drafts arrive unticked at the end of their job, each with its source and flags; a job in no
@@ -118,6 +121,8 @@ interface WriterOpts {
   /** Prompt job ids (j1, j2) whose FIRST attempt fails. */
   failFirst?: string[];
   failAlways?: boolean;
+  /** #362: every job's first N attempts fail. */
+  failAttempts?: number;
   /** Also name a line the model was never shown — the guard against it is what the test watches. */
   bogus?: boolean;
   /** #342: also draft the two lines the prompt forbids (qaReviewAnswer.ts). */
@@ -138,7 +143,7 @@ function fakeWriter(opts: WriterOpts = {}) {
       const gate = gates.get(key);
       if (gate) await gate.wait;
       // The shape undici gives a connection dropped mid-stream: a bare message, the reason in `cause`.
-      if (opts.failAlways || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down", { cause: new Error("other side closed") });
+      if (opts.failAlways || n <= (opts.failAttempts ?? 0) || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down", { cause: new Error("other side closed") });
       return qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
     },
   };
@@ -304,14 +309,46 @@ describe("#341 the run", () => {
     ]);
   });
 
+  it("#362: a failed run is retried quietly on a later read — the person gets the review", async () => {
+    const writer = fakeWriter({ failAttempts: 2 });
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await until(() => server.cvReviews.get(sessionId), (run) => run?.outcome === "failed", "the first run gave up");
+    expect(writer.calls.length).toBe(4); // two attempts each
+
+    const reopened = await review(app, cookie);
+    expect(reopened.progress).toEqual({ done: 0, total: 2, minutesLeft: 5 }); // read as checking again
+    expect(reopened.unchecked).toBe(true);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls.length).toBe(6);
+    expect(jobsOf(state)[0]!.lines[1]!.fix?.applied).toBe(true);
+    expect(state.unchecked).toBe(false);
+    expect((await server.cvReviews.get(sessionId))?.outcome).toBe("done");
+  });
+
+  it("#362: a review the person already confirmed is never retried — no line they signed off moves", async () => {
+    const writer = fakeWriter({ failAlways: true });
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await until(() => server.cvReviews.get(sessionId), (run) => run?.outcome === "failed", "the first run gave up");
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-confirmed@example.com");
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    const state = await review(app, cookie);
+    expect(state.progress).toBeNull();
+    expect(writer.calls.length).toBe(4);
+  });
+
   it("when the writer stays down, the lines show as read, the person can finish, and nothing on the wire says so", async () => {
     const writer = fakeWriter({ failAlways: true });
     const { app, cookie, server, sessionId } = await withCv(writer);
     const state = await reviewed(app, cookie);
-    expect(writer.asked().sort()).toEqual(["j2", "j2", "sections, j1", "sections, j1"]); // two attempts each, then no more
+    // Two attempts each, retried once on a later read (#362) — four paid attempts per job, then no more.
+    expect(writer.asked().sort()).toEqual(["j2", "j2", "j2", "j2", "sections, j1", "sections, j1", "sections, j1", "sections, j1"]);
+    await review(app, cookie);
+    expect(writer.calls.length).toBe(8);
     expect(allLines(state).every((l) => l.fix === null && l.suggestion === null && l.draft === null && l.state === "ticked")).toBe(true);
     expect(jobsOf(state)[0]!.lines[1]!.text).toBe(TYPO_LINE); // as read
     expect(jobsOf(state).every((j) => !j.checking)).toBe(true);
+    expect(state.unchecked).toBe(true); // the screen never claims a finished check (#362)
     expect(JSON.stringify(state)).not.toMatch(/fail|error|retry/i);
     // The store knows the difference — found nothing, did not run and failed are different states.
     expect((await server.cvReviews.get(sessionId))?.outcome).toBe("failed");
@@ -528,6 +565,7 @@ describe("#341 the run", () => {
     const cookie = await anonSession(app);
     const state = await review(app, cookie);
     expect(state.progress).toBeNull();
+    expect(state.unchecked).toBe(true); // no run is no check (#362)
     expect(writer.calls).toEqual([]);
   });
 });
