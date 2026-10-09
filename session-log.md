@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-10 — #361: Product Owner gets a family — product-management v1 published (13ea5a0, 55996df)
+
+Vocabulary-growth run. The labeler was right to answer unmapped: the family was missing. Corpus: 13 techmap
+calls + the owner's 600 LinkedIn ads → 477 distinct, 285 in-family. PO and PM are one occupation (every floor
+item 63%+ for both titles; web research agrees). HK "Product Manager" is 27% bank-commercial jobs, and the scope edge
+excludes them (verified live). Owner approved "Product Manager" with 5 must-haves (roadmap, backlog, discovery,
+metrics, stakeholders). Grid 98/100/0 on minimax-m3; QA **GO** (2017 tests, live 14/14). Spend ≈ USD 0.40.
+Found: the techmap plan is **100 calls/month**, not 1000 (81 left) → #366. Grid cases pm-01..04 + str-10 await owner
+arbitration. Old sessions keep their stored "no family": re-upload the CV to see Okoone reviewed.
+**Next:** owner re-runs the real CV on staging; #366; then #360 → #359.
+
 ## 2026-10-09 — #362: a failed review is retried quietly; never reads as a clean check (e1ac06d)
 
 A failed review run is reopened by the next read of /review and retried for its unanswered jobs only,
@@ -114,16 +125,3 @@ visit is fine (only work rights + languages can come back); #354 empty profile p
 ("Add your CV"), ready-for-agent. Filed #355 (journey hygiene).
 **Next:** `/implement #341` (Fable, xhigh); `/implement #354` (Opus, medium) is small and independent.
 
-## 2026-10-07 — CI red five pushes on one journey; cause found from the report, staging deployed (9e9bf04)
-
-Four pushes to `main` (f7fd59c → 28235df) failed `discovery-plan-split-journey` on "the deck is in the same
-order" — 59% before, 49% after, never reproducible locally (both 49%, even CPU-saturated). Two fixes built on
-reasoning were wrong (c5d0cd4: wait for the labelers; d9de015: wait for a settled deck). The diagnostics
-pushed in 28235df found it: when a session's facts grow, `judge.ts` re-grades only the still-unmet
-requirements (#117), and the fake judge covers the FIRST requirement it is handed — each partial re-grade adds
-one met requirement; the journey's own answers grow the facts. The real judge grades content; the product is
-unaffected (QA gate asked that question directly: no defect). 9e9bf04 asserts membership + search family, the
-ticket's claim; the lesson is rewritten; #353 (years-fact race) closed as a disproven hypothesis. The other
-session's front-door focus fix (17efba2) rode along. **CI green, staging on 9e9bf04** — the first deploy since
-524cc55: #338, #340, the Fireworks streaming fix. Cost: ~6 pushes ≈ 6 h of CI minutes on one test.
-**Next:** `/implement #339` (Opus, high); first real paste on staging checks the Fireworks labeler streams.
