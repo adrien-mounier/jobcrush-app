@@ -377,6 +377,9 @@ export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {
     // unmapped-label feed and published through the same gates. Renamed at v2.
     "../research/business-analysis-v1.json",
     "../research/business-analysis-v2.json",
+    // #361 run, owner-approved 2026-10-10: the third family. Product owner and product manager are
+    // one occupation (docs/vocabulary-proposals/product-management-v1/summary.md).
+    "../research/product-management-v1.json",
   ]) {
     store.publish(JSON.parse(readFileSync(new URL(file, import.meta.url), "utf8")));
   }

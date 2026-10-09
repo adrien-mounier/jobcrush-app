@@ -20,17 +20,17 @@ import { computeYearsWorked } from "../src/yearsWorked.js";
 const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
 const IT_DELIVERY = PUBLISHED[0]!;
 
-// A second published family so the ambiguity path has two real choices to be shown (production
-// publishes exactly one today — familyLabeler.test.ts makes the same fixture, for the same reason).
+// One extra family, under an id no production registry publishes, so the ambiguity path has two
+// choices to be shown (familyLabeler.test.ts makes the same fixture, for the same reason).
 const TWO_FAMILIES: PublishedFamily[] = [
   IT_DELIVERY,
   {
-    familyId: "product-management",
+    familyId: "service-design",
     version: 2,
-    label: "Product management",
-    scope: "Deciding what a product should be and why.",
-    exampleTitles: ["Product Manager"],
-    coreWork: ["Have you owned a product's direction?"],
+    label: "Service design",
+    scope: "Designing how a service works end to end for the people who use it.",
+    exampleTitles: ["Service Designer"],
+    coreWork: ["Have you designed a service end to end?"],
   },
 ];
 
@@ -144,7 +144,7 @@ describe("#221 AC1 — every dated job record carries a family placement", () =>
       outcome: "confirmed",
       families: [
         { familyId: IT_DELIVERY.familyId, version: IT_DELIVERY.version },
-        { familyId: "product-management", version: 2 },
+        { familyId: "service-design", version: 2 },
       ],
       confidence: "likely",
     });

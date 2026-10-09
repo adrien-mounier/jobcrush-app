@@ -1,4 +1,8 @@
-# Vocabulary proposal: Product Manager (v1)
+# Vocabulary proposal: Product Manager (v1) — APPROVED 2026-10-10, published
+
+> **Owner decision (2026-10-10): approved, with stakeholder alignment added as a fifth floor item.**
+> The published file is `apps/api/research/product-management-v1.json`. The sections below are the
+> package as the owner saw it; the floor actually published is the five items listed under Decision.
 
 **Kind**: new job family (`product-management`)
 **Cluster**: product owner — 10 labels from 10 distinct sessions (all past jobs). Honesty note: these
@@ -103,7 +107,7 @@ if any voting market is under 30%.
 | 2 | **Vision / roadmap** | 234 = 82% | 71% | 85% | 83% | 88% | yes |
 | 3 | **Success metrics / data** | 219 = 77% | 76% | 75% | 100% | 76% | yes |
 | 4 | **Owns the backlog / priorities** | 216 = 76% | 61% | 80% | 83% | 83% | yes |
-| 5 | Aligns stakeholders | 215 = 75% | 65% | 60% | 58% | 85% | yes |
+| 5 | **Aligns stakeholders** | 215 = 75% | 65% | 60% | 58% | 85% | yes |
 | 6 | **User and market discovery** | 201 = 71% | 60% | 75% | 83% | 75% | yes |
 | 7 | Writes stories / requirements | 196 = 69% | 78% | 60% | 92% | 63% | yes |
 | 8 | Technical understanding | 152 = 53% | 51% | 50% | 25% | 58% | no (VN 25%) |
@@ -192,6 +196,11 @@ These are the calibration cases in the data file:
 
 ## Decision
 
-- [ ] Approve (the 4-item floor as drafted, or name the cut)
+- [x] **Approve** — owner, 2026-10-10: "option 1 with handling stakeholders". Published floor, in order:
+  1. vision / roadmap; 2. backlog; 3. user and market discovery; 4. success metrics;
+  5. **stakeholder alignment** — "Have you aligned business stakeholders on a product's priorities and
+     trade-offs, and kept them informed of the roadmap?" (75%, every voting market 58% or more).
+- Still cut (first candidates for v2): works with the engineering team (86%), writes stories /
+  requirements (69%).
 - [ ] Annotate and return
 - [ ] Reject

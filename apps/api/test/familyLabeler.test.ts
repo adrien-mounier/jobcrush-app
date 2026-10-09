@@ -40,21 +40,20 @@ function fakeLlm(replies: string[]) {
 
 const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
 
-// A second family exists nowhere in production yet (exactly one is published), so the ambiguity
-// path is exercised against a two-family vocabulary handed to the labeler directly — the closed
-// list is a parameter, which is what makes a newly published family need no code change.
-// Its own fixture, NOT eval/harness.ts's synthetic family, and the difference is deliberate: this
-// one is published at version 2 so the tests below prove the placement carries the version off the
-// REGISTRY rather than a hardcoded 1. Don't "fix" the two into agreement.
+// The multi-family path is exercised with one extra family handed to the labeler directly — the
+// closed list is a parameter, which is what makes a newly published family need no code change.
+// Its id is one no production registry publishes (#361 moved it off product-management, which is now
+// published and would collide), and it sits at version 2 so the tests below prove the placement
+// carries the version off the REGISTRY rather than a hardcoded 1.
 const TWO_FAMILIES: PublishedFamily[] = [
   ...PUBLISHED,
   {
-    familyId: "product-management",
+    familyId: "service-design",
     version: 2,
-    label: "Product management",
-    scope: "Deciding what a product should be and why.",
-    exampleTitles: ["Product Manager"],
-    coreWork: ["Have you owned a product's direction?"],
+    label: "Service design",
+    scope: "Designing how a service works end to end for the people who use it.",
+    exampleTitles: ["Service Designer"],
+    coreWork: ["Have you designed a service end to end?"],
   },
 ];
 
@@ -77,14 +76,14 @@ const confirmed = (ids: string[], confidence = "certain") =>
 
 describe("#231 placing a past job in one OR MORE job families", () => {
   it("carries every family the work belongs to, each with its own published version", async () => {
-    const { llm } = fakeLlm([confirmed(["it-project-delivery", "product-management"], "likely")]);
+    const { llm } = fakeLlm([confirmed(["it-project-delivery", "service-design"], "likely")]);
 
     expect(await placeJobTitle("Product Owner / Delivery Lead", TWO_FAMILIES, llm)).toEqual({
       schemaVersion: "2",
       outcome: "confirmed",
       families: [
         { familyId: "it-project-delivery", version: 2 },
-        { familyId: "product-management", version: 2 },
+        { familyId: "service-design", version: 2 },
       ],
       confidence: "likely",
     });
@@ -107,7 +106,7 @@ describe("#231 placing a past job in one OR MORE job families", () => {
       { ...TWO_FAMILIES[1]!, familyId: "business-change", version: 3, label: "Business change" },
     ];
     const { llm } = fakeLlm([
-      confirmed(["it-project-delivery", "product-management", "business-change"], "possible"),
+      confirmed(["it-project-delivery", "service-design", "business-change"], "possible"),
     ]);
 
     const placement = await placeJobTitle("everything lead", three, llm);
@@ -160,7 +159,7 @@ describe("#220 placing a target role in a job family", () => {
 
   it("keeps every substantial family on a plural target role", async () => {
     const { llm, prompts } = fakeLlm([
-      confirmed(["it-project-delivery", "product-management"], "likely"),
+      confirmed(["it-project-delivery", "service-design"], "likely"),
     ]);
 
     expect(await placeTargetRole("head of product and delivery", TWO_FAMILIES, llm)).toEqual({
@@ -168,7 +167,7 @@ describe("#220 placing a target role in a job family", () => {
       outcome: "confirmed",
       families: [
         { familyId: "it-project-delivery", version: 2 },
-        { familyId: "product-management", version: 2 },
+        { familyId: "service-design", version: 2 },
       ],
       confidence: "likely",
     });
@@ -310,7 +309,7 @@ describe("#220 discovery with the real labeler wired", () => {
   // The labeler accepts both families, but only one has a published production floor in this server.
   // The plan falls back as a unit rather than silently discarding the unpublished half.
   it("uses the word path when any family on a plural target has no published floor", async () => {
-    const { llm } = fakeLlm([confirmed(["it-project-delivery", "product-management"], "likely")]);
+    const { llm } = fakeLlm([confirmed(["it-project-delivery", "service-design"], "likely")]);
     const built = buildServer({ placeFamily: makeFamilyPlacer(llm, TWO_FAMILIES) });
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
     const cookie = `jc_session=${created.cookies.find((v) => v.name === "jc_session")!.value}`;

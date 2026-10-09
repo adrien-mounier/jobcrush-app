@@ -32,11 +32,12 @@
 // edit door read back on a reload and print once ticked; none of it asks the writer.
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { CandidateClaim, MinedJobBlock } from "@jobcrush/contracts";
+import { PLACEMENT_SCHEMA_VERSION, type CandidateClaim, type FamilyPlacement, type MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer, IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
 import { getCardsWhenRetrieved, liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { isTerminal } from "../src/jobs.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
+import { initialProductionFamilyFloors } from "../src/familyFloors.js";
 import { InMemoryEligibilityStore } from "../src/eligibility.js";
 import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
@@ -204,7 +205,7 @@ const reviewed = (app: App, cookie: string) => until(() => review(app, cookie), 
 
 /** A session that brought a CV: pasted → mined (fake) → dated job records mined and the first one
  *  placed (fake) → the review run started by the pipeline over the fake writer. */
-async function withCv(writer: ReturnType<typeof fakeWriter>, mined: CandidateClaim[] = MINED, opts: Parameters<typeof buildServer>[0] = {}) {
+async function withCv(writer: ReturnType<typeof fakeWriter>, mined: CandidateClaim[] = MINED, opts: Parameters<typeof buildServer>[0] = {}, placements: Record<string, FamilyPlacement> = { nrg: IT_PROJECT_DELIVERY_PLACEMENT }) {
   const jobBlocks = new InMemoryJobBlockStore();
   const eligibility = new InMemoryEligibilityStore();
   await jobBlocks.init();
@@ -213,7 +214,7 @@ async function withCv(writer: ReturnType<typeof fakeWriter>, mined: CandidateCla
       mine: async () => ({ doc: null, claims: mined, roles: 2, needsGrill: 0 }),
       mineJobBlocks: async () => ({ doc: { schemaVersion: "1", blocks: BLOCKS, parser_flags: [] }, rawOutput: "{}" }),
       labelJobBlocks: async (sessionId) => {
-        await jobBlocks.label(sessionId, "nrg", IT_PROJECT_DELIVERY_PLACEMENT);
+        for (const [blockId, placement] of Object.entries(placements)) await jobBlocks.label(sessionId, blockId, placement);
       },
     },
     jobBlocks,
@@ -682,6 +683,26 @@ describe("#342 drafted lines", () => {
     expect(bsh).toMatchObject({ family: null, complete: false });
     expect(drafts(bsh!)).toEqual([]);
     expect(writer.calls).toHaveLength(2);
+  });
+
+  // #361: a Product Owner job used to sit in no family, so its review checked nothing. Placed in the
+  // published product-management family, it gets that family's own must-haves, each drafted when missing.
+  it("a job placed in the product-management family gets every one of that family's must-haves", async () => {
+    const writer = fakeWriter();
+    const published = initialProductionFamilyFloors().active("product-management")!;
+    const productManagement: FamilyPlacement = {
+      schemaVersion: PLACEMENT_SCHEMA_VERSION,
+      outcome: "confirmed",
+      families: [{ familyId: published.floor.familyId, version: published.floor.version }],
+      confidence: "certain",
+    };
+    const { app, cookie } = await withCv(writer, MINED, {}, { nrg: IT_PROJECT_DELIVERY_PLACEMENT, bsh: productManagement });
+    const [, bsh] = jobsOf(await reviewed(app, cookie));
+
+    expect(bsh).toMatchObject({ family: published.floor.label, complete: false });
+    expect(drafts(bsh!).filter((l) => l.draft?.mustHave).map((l) => l.draft!.mustHave)).toEqual(
+      published.floor.essentialItems.map((item) => item.question.prompt),
+    );
   });
 
   it("an unticked draft never reaches the master CV, a tailored draft or an export; ticked, it reaches all three; unticked again, it stops", async () => {

@@ -12,14 +12,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LlmClient } from "../src/llm.js";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
-import { placeJobTitle, publishedFamilies, type PublishedFamily } from "../src/familyLabeler.js";
+import { placeJobTitle, publishedFamilies } from "../src/familyLabeler.js";
 
 const GRID_PATH = join(dirname(fileURLToPath(import.meta.url)), "family-labeler-grid.json");
 
 export interface GridCase {
   id: string;
   targetRole: string;
-  vocabulary: "published" | "two-family";
   expected: "confirmed" | "unmapped";
   /** Every family the case should come back with, in any order. #231: a job can be in more than
    *  one, so this is a SET — a placement that names the right families plus a spurious extra is a
@@ -39,27 +38,6 @@ export const gridCases: GridCase[] = (
 ).cases;
 
 export const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
-
-// Defined HERE, never in the production registry: product-management is not published, so the
-// dual-family cases that need it beside it-project-delivery cannot run on the real vocabulary.
-// They measure that the prompt names both families only when both are real, ahead of that
-// family publishing for real.
-export const TWO_FAMILIES: PublishedFamily[] = [
-  ...PUBLISHED,
-  {
-    familyId: "product-management",
-    version: 1,
-    label: "Product management",
-    scope:
-      "Deciding what a product should be and why: its direction and roadmap, which problems it solves, what gets built and in what order, and the trade-offs between them, using customer and market evidence. The work is deciding what to build and proving it was worth building. Outside it: running the delivery of what was decided, and building the thing itself.",
-    exampleTitles: ["Product Manager", "Senior Product Manager", "Group Product Manager"],
-    coreWork: [
-      "Have you decided what a product should do and why?",
-      "Have you owned a product's roadmap and its trade-offs?",
-      "Have you taken customer and market evidence into product decisions?",
-    ],
-  },
-];
 
 export interface GridResult extends GridCase {
   observed: string;
@@ -127,7 +105,6 @@ export async function runGrid(
   await Promise.all(
     Array.from({ length: concurrency }, async () => {
       for (let item = queue.shift(); item; item = queue.shift()) {
-        const families = item.vocabulary === "two-family" ? TWO_FAMILIES : PUBLISHED;
         const { wrapped, tally } = perCase(llm);
         let observed = "unmapped";
         let observedFamilies: string[] | undefined;
@@ -136,7 +113,7 @@ export async function runGrid(
         try {
           // The PLURAL path, deliberately: it is the one a visitor's job records go through, and
           // the target-role path is a constrained special case of it until #232.
-          const placement = await placeJobTitle(item.targetRole, families, wrapped);
+          const placement = await placeJobTitle(item.targetRole, PUBLISHED, wrapped);
           observed = placement.outcome;
           if (placement.outcome === "confirmed") {
             observedFamilies = placement.families.map((family) => family.familyId);

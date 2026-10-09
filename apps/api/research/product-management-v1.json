@@ -1,7 +1,7 @@
 {
-  "publicationStatus": "provisional",
-  "reviewedBy": "pending owner review (#361) - drafted by the vocabulary-growth run 2026-10-10",
-  "reviewedAt": "2026-10-09T18:00:00.000Z",
+  "publicationStatus": "published",
+  "reviewedBy": "Adrien Mounier (owner) - #361: approved with stakeholder alignment added as a fifth floor item",
+  "reviewedAt": "2026-10-09T17:20:00.000Z",
   "floor": {
     "schemaVersion": "1",
     "familyId": "product-management",
@@ -85,6 +85,29 @@
         "priority": 4,
         "question": {
           "prompt": "Have you set or tracked a product's success measures, and used the data to decide what to change?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "stakeholder-alignment",
+        "priority": 5,
+        "question": {
+          "prompt": "Have you aligned business stakeholders on a product's priorities and trade-offs, and kept them informed of the roadmap?",
           "form": "single_select",
           "options": [
             {

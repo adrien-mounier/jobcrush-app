@@ -18,6 +18,8 @@
  *  unmapped for it, so the QA stack demonstrated the OPPOSITE of the publication's own AC. */
 export const QA_FAMILY_ID = "it-project-delivery";
 export const QA_SECOND_FAMILY_ID = "business-analysis";
+/** #361: the third family. Same reason as the second: the registry grew, so the fake grows with it. */
+export const QA_THIRD_FAMILY_ID = "product-management";
 
 /** Reads the role out of a rendered family-labeler prompt. `\s+` rather than `\n\n`:
  *  prompts/family-labeler.md is read straight off disk, and this repo's git checkout rewrites line
@@ -45,6 +47,11 @@ export function qaFamilyAnswer(role: string): string {
   // fresh placement into it (the publication AC's locally provable half).
   if (/business analy|requirements analy|process analy/.test(role)) {
     return JSON.stringify({ outcome: "confirmed", familyIds: [QA_SECOND_FAMILY_ID], confidence: "certain" });
+  }
+  // #361: product owner / product manager roles place in the third family. After the delivery check
+  // on purpose: "product delivery manager" is delivery work whose subject is a product.
+  if (/product owner|product manager|head of product/.test(role)) {
+    return JSON.stringify({ outcome: "confirmed", familyIds: [QA_THIRD_FAMILY_ID], confidence: "certain" });
   }
   return JSON.stringify({ outcome: "unmapped" });
 }

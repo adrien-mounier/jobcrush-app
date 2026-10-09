@@ -3,8 +3,8 @@
 _The input to §2 of `../vocabulary-growth-runbook.md`, where the owner picks which clusters get
 researched. **The owner picks; this list only makes sure nothing already known gets forgotten.**_
 
-Two families are published today: **Business Analyst** (`business-analysis`) and **IT Project
-Manager** (`it-project-delivery`). Everything else a visitor types comes back **unmapped**, which is
+Three families are published today: **Business Analyst** (`business-analysis`), **IT Project
+Manager** (`it-project-delivery`) and **Product Manager** (`product-management`, since 2026-10-10). Everything else a visitor types comes back **unmapped**, which is
 the honest answer and the thing that feeds the vocabulary-growth loop.
 
 This file exists because candidates were being recorded in whichever document happened to discover
@@ -66,7 +66,12 @@ above are not a market measurement of the family, only of two adjacent titles.
 and then interviewed on requirements elicitation and UAT. Publishing this family is the clean fix;
 #265 is the honest answer in the meantime.
 
-## 2. Product management
+## 2. Product management — PUBLISHED 2026-10-10 (#361)
+
+> Researched and published as `product-management` v1, label **Product Manager**, with product owner
+> inside it (one occupation, measured: `product-management-v1/summary.md`). The grid update this
+> section asked for was done in the same change: `str-10` flipped to confirmed, the synthetic family
+> retired. Kept below as the record of why it was a candidate.
 
 **Added 2026-08-21, recording a decision already made** (owner, 2026-08-20, on the rejected
 `it-project-delivery` product-ownership widening).
