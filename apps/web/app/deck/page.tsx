@@ -375,8 +375,9 @@ export default function DeckPage() {
   const applyCardsResponse = useCallback((res: CardsResponse) => {
       // #338 (ADR-0016 clause 6): a brought CV is reviewed before any job is shown. The server
       // held the deck (no cards, no retrieval); the honest screen is the review, not a dead end.
+      // #377: the review is the profile's check mode now (ADR-0018).
       if (res.reviewPending) {
-        router.replace("/review");
+        router.replace("/profile/check");
         return;
       }
       // #117: the server now returns cards already correctly ordered — judged, then estimated, then

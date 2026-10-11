@@ -2018,9 +2018,9 @@ function ReadyScreen({
               Sorted-only hero via `.field.constellation .phead { display: none }` at ≥900px. */}
           <section className="phead">
             <p className="ptitle">{P5}</p>
-            {/* #338: the review can be reopened at any time, and this is its door — the only place
-                CV lines are ticked or unticked (ADR-0016 clause 6). */}
-            <a className="review-door" href="/review">
+            {/* #338: the review can be reopened at any time, and this is its door. #377: the review
+                is the profile's check mode (ADR-0018), where an item is removed or put back. */}
+            <a className="review-door" href="/profile/check">
               {P16}
             </a>
             <h1 className="pcount" tabIndex={-1} ref={headingRef}>

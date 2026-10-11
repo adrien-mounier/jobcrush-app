@@ -65,8 +65,9 @@ export default function JobScreen() {
       } catch (e) {
         // #338 (ADR-0016 clause 6): no job is shown until a brought CV is reviewed — the server
         // says so with its own code, and the review is where he goes, not a "gone" screen.
+        // #377: the review is the profile's check mode now (ADR-0018).
         if ((e as { code?: string }).code === "review_pending") {
-          router.replace("/review");
+          router.replace("/profile/check");
           return;
         }
         setError(e instanceof Error ? e.message : GONE);

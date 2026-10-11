@@ -1,0 +1,414 @@
+/* check.css — #377 check mode: the guided walk over the profile (ADR-0018 clause 3). Tokens scoped
+   on .check (never :root), values from docs/design/profile-check-mode-prototype.html, tab V2.1 —
+   the approved prototype — and review.css's dark chrome. One screen at a time, the footer fixed at
+   thumb height. "Saved" is shown by motion, never by words: the finished segment fills (sweep), the
+   removed count glows (bump), the footer button pulses once when it turns gold (arm). Under
+   reduced motion the page never sets those classes (page.tsx), and this file kills the rest. */
+.check {
+  --floor: #101419;
+  --surface: #171c23;
+  --raised: #1f262f;
+  --line: #2b333d;
+  --ink: #e8eaed;
+  --muted: #7f8b98;
+  --muted-r: #8a95a2;
+  --settled: #4d5865;
+  --gold: #e8a33d;
+  --gold-deep: #a8762b;
+  --gold-light: #ffd9a0;
+  --gold-ink: #1a1206;
+  --danger-soft: #e0876c;
+  --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  background: var(--floor);
+  color: var(--ink);
+  font: 14px/1.5 var(--sans);
+  min-height: 100svh;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.check button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.check button:disabled {
+  cursor: not-allowed;
+}
+.check :focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.check svg {
+  display: block;
+}
+.check .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* load states */
+.check .loadstate {
+  min-height: 60svh;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--muted-r);
+  padding: 24px 16px;
+}
+.check .loadstate p {
+  margin: 0;
+}
+
+/* the walk */
+.check .guide {
+  flex: 1;
+  width: 100%;
+  padding: 24px 16px 20px;
+}
+.check .prog {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 18px;
+}
+.check .prog i {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  position: relative;
+  overflow: hidden;
+}
+.check .prog i.done {
+  background: var(--gold-deep);
+}
+.check .prog i.cur {
+  background: var(--ink);
+}
+.check .big {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin: 4px 0 2px;
+}
+.check .bigsub {
+  color: var(--muted);
+  font-size: 13.5px;
+  margin: 0;
+}
+.check .lead {
+  font-size: 15.5px;
+  margin: 14px 0 18px;
+  max-width: 56ch;
+}
+.check .card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  margin: 0;
+}
+.check .hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+.check .err {
+  color: var(--danger-soft);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+/* the person's details, as read (#381 replaces this card with fields) */
+.check .clean {
+  font: 14px/1.5 var(--serif);
+  padding: 2px 6px;
+  white-space: pre-line;
+}
+.check .clean .name {
+  font: 600 19px var(--serif);
+}
+.check .clean span {
+  color: var(--muted-r);
+}
+
+/* an item: plain text, two quiet actions that show on hover, focus or a tap */
+.check ul.pts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+.check .pt {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: start;
+  padding: 5px 4px 5px 22px;
+  border-radius: 10px;
+  transition: background-color 0.15s;
+}
+.check .pt::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 15px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--settled);
+}
+.check .pt:hover,
+.check .pt.act {
+  background: rgba(31, 38, 47, 0.75);
+}
+.check .pt .txt {
+  font: 14.5px/1.55 var(--serif);
+  min-width: 0;
+  padding-top: 1px;
+}
+.check .acts {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.check .pt:hover .acts,
+.check .pt:focus-within .acts,
+.check .pt.act .acts {
+  opacity: 1;
+}
+.check .ib {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: none;
+  border: 0;
+  color: var(--muted-r);
+}
+.check .ib:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+.check .ib.rmv:hover {
+  color: var(--danger-soft);
+}
+.check .ib svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* what was removed stays one tap away */
+.check .linkbtn {
+  background: none;
+  border: 0;
+  color: var(--muted-r);
+  font-size: 12.5px;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.check .linkbtn:hover {
+  color: var(--ink);
+}
+.check .tray {
+  margin: 6px 0 2px 22px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.check .tray ul {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: grid;
+  gap: 4px;
+}
+.check .tray li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.check .tray li .linkbtn {
+  white-space: nowrap;
+}
+.check .tray s {
+  font: 13.5px/1.45 var(--serif);
+  color: var(--muted-r);
+  text-decoration-color: rgba(224, 135, 108, 0.7);
+}
+
+/* the footer: Back, and the one button that confirms the screen — docked at thumb height (sticky
+   to the viewport's bottom while the screen scrolls, at the column's end when it does not) */
+.check .foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 25;
+  padding: 28px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, rgba(16, 20, 25, 0), var(--floor) 38%);
+}
+.check .foot .in {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.check .btn {
+  border-radius: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+.check .btn:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.check .btn.ghost {
+  background: none;
+}
+.check .btn.primary {
+  background: var(--gold);
+  color: var(--gold-ink);
+  border-color: var(--gold);
+  font-weight: 620;
+  box-shadow: 0 0 26px rgba(232, 163, 61, 0.3);
+}
+.check .btn.primary:hover:not(:disabled) {
+  background: var(--gold-light);
+}
+.check .btn.primary:disabled {
+  background: var(--raised);
+  color: var(--muted-r);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.check .foot .btn.primary {
+  flex: 1;
+  padding: 14px;
+  font-size: 15px;
+}
+
+/* done */
+.check .donepanel {
+  text-align: center;
+  padding: 48px 16px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.check .donepanel h1 {
+  font-size: 26px;
+  margin: 0 0 8px;
+}
+.check .donepanel .sub {
+  color: var(--muted);
+  margin: 0 auto;
+  font-size: 13.5px;
+  max-width: 65ch;
+}
+.check .tally {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin: 22px 0 26px;
+  flex-wrap: wrap;
+}
+.check .tally div {
+  display: grid;
+  gap: 2px;
+}
+.check .tally b {
+  font: 600 30px var(--serif);
+  font-variant-numeric: tabular-nums;
+}
+.check .tally span {
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+
+/* motion: each cue plays once, on the class page.tsx sets and clears when it ends */
+.check .prog i.sweep {
+  background: var(--line);
+}
+.check .prog i.sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--gold);
+  box-shadow: 0 0 10px var(--gold);
+  transform-origin: left;
+  animation: check-sweep 0.7s var(--ease) forwards;
+}
+@keyframes check-sweep {
+  from {
+    transform: scaleX(0);
+  }
+  60% {
+    background: var(--gold);
+  }
+  to {
+    transform: scaleX(1);
+    background: var(--gold-deep);
+    box-shadow: none;
+  }
+}
+.check .tray.bump {
+  animation: check-bump 1.2s var(--ease);
+}
+@keyframes check-bump {
+  0% {
+    color: var(--gold-light);
+  }
+  100% {
+    color: var(--muted);
+  }
+}
+.check .foot .btn.primary.arm {
+  animation: check-arm 0.9s var(--ease);
+}
+@keyframes check-arm {
+  0% {
+    box-shadow: 0 0 0 0 rgba(232, 163, 61, 0.7);
+  }
+  100% {
+    box-shadow:
+      0 0 0 14px rgba(232, 163, 61, 0),
+      0 0 26px rgba(232, 163, 61, 0.3);
+  }
+}
+
+@media (hover: none) {
+  .check .acts {
+    opacity: 0;
+  }
+  .check .pt.act .acts {
+    opacity: 1;
+  }
+}
+@media (max-width: 560px) {
+  .check .big {
+    font-size: 23px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .check * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

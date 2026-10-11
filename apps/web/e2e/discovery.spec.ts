@@ -445,8 +445,9 @@ test("the last question answered: discovery navigates to the /deck reveal, annou
 });
 
 // #338 (ADR-0016 clause 6): a brought CV is reviewed before any job is shown. The server says so on
-// the state, and the same handoff moment lands on "Your CV, reviewed" instead of the deck.
-test("the last question answered with a CV to review: discovery hands off to the review", async ({ page }) => {
+// the state, and the same handoff moment lands on the review instead of the deck — since #377, the
+// profile's check mode (ADR-0018), opening at Your details.
+test("the last question answered with a CV to review: discovery hands off to check mode", async ({ page }) => {
   current = { ...AFTER_START, questions: [Q_WR_HK], reviewPending: true };
   await stubDiscovery(page);
   await page.route("**/api/review", async (route) => {
@@ -458,8 +459,8 @@ test("the last question answered with a CV to review: discovery hands off to the
   await page.goto("/discovery");
   await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
   await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
-  await page.waitForURL("/review");
-  await expect(page.getByRole("heading", { name: "Your CV, reviewed" })).toBeVisible();
+  await page.waitForURL("/profile/check");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your details");
 });
 
 // #336: what the person submits — unticks and additions included — is exactly what is posted.

@@ -321,3 +321,53 @@ describe("#335 the tailored draft and the export print ticked lines only", () =>
     expect(sent).toEqual(["ticked-export@example.com"]);
   });
 });
+
+// --- #377 check mode: a removed item is the kept state underneath, and prints nowhere ---------
+
+describe("#377 a removed item (check mode's ⊖ = the kept state underneath) reaches no render", () => {
+  it("absent from the master CV, the tailored draft's input and page, and the export — present in each while in, and again once put back", async () => {
+    const prompts: string[] = [];
+    const { sent, mailer } = recordingMailer();
+    const printed: string[] = [];
+    const documentMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const { app, cookie } = await tailoringWithCv("removed-item@example.com", { tailorLlm: echoingLlm(prompts), documentMaker, mailer });
+
+    // In: it prints everywhere (the positive half — the fake tailor prints what it is given).
+    expect(onMasterCv(await build(app, cookie), LINE, LINE_TEXT)).toBe(true);
+    const before = (await draft(app, cookie)).json();
+    expect(prompts[0]).toContain(LINE_TEXT);
+    expect(before.html).toContain(LINE_TEXT);
+
+    // Removed, through the door check mode's ⊖ taps. The walk reads it back as a removed item.
+    await untick(app, cookie, LINE);
+    const walk = (await get(app, cookie, "/review")).json() as { sections: Array<{ jobs?: Array<{ lines: Array<{ id: string; state: string }> }> }> };
+    expect(walk.sections.flatMap((s) => s.jobs ?? []).flatMap((j) => j.lines).find((l) => l.id === LINE)).toMatchObject({ state: "kept" });
+
+    expect(onMasterCv(await build(app, cookie), LINE, LINE_TEXT)).toBe(false);
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404); // the old draft carried it
+    const after = (await draft(app, cookie)).json();
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).not.toContain(LINE_TEXT);
+    expect(after.html).not.toContain(LINE_TEXT);
+    expect(after.html).toContain("Ran the monthly steering committee"); // its sibling still prints
+
+    const sentRes = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: after.draftedAt });
+    expect(sentRes.statusCode).toBe(202);
+    expect((await settled(app, cookie, sentRes.json().jobId)).status).toBe("completed");
+    expect(printed).toHaveLength(1);
+    expect(printed[0]).not.toContain(LINE_TEXT);
+    expect(printed[0]).toContain("Ran the monthly steering committee");
+    expect(sent).toEqual(["removed-item@example.com"]);
+
+    // Put back: it prints again.
+    expect((await setLine(app, cookie, LINE, "ticked")).statusCode).toBe(200);
+    await warmRetrieval(app, cookie);
+    expect(onMasterCv(await build(app, cookie), LINE, LINE_TEXT)).toBe(true);
+    expect((await draft(app, cookie)).json().html).toContain(LINE_TEXT);
+  });
+});

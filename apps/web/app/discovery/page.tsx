@@ -376,7 +376,8 @@ function DiscoveryScreen() {
       // announcing on this side too would double it (AC2).
       // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6) — the server
       // says which with `reviewPending`; the deck itself refuses an unreviewed session anyway.
-      const next = reviewPending ? "/review" : "/deck";
+      // #377: the review is the profile's check mode now (ADR-0018).
+      const next = reviewPending ? "/profile/check" : "/deck";
       const t = setTimeout(() => {
         if (!deckNavigatedRef.current) {
           deckNavigatedRef.current = true;

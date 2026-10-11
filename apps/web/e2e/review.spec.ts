@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { CardsResponse, ReviewLine, ReviewState } from "../lib/api";
 
+// #377 (ADR-0018): /review forwards to /profile/check — the page these tests drive is unreachable.
+// They are skipped, not deleted, until #386 moves each behaviour's test to check-mode.spec.ts
+// (the walk, remove / put back, finish → deck and the deck door already live there).
+test.skip(true, "#377: /review forwards to check mode; #386 migrates these tests");
+
 // #338 "Your CV, reviewed" (layout C — the marked-up CV), route-mocked to the pinned ReviewState
 // shape. What it proves on the screen: letterhead first, then each job with its lines as read; an
 // untick and a re-tick each send the tap and re-render; the end-date pill asks on the job's own card

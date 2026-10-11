@@ -7,6 +7,11 @@ const nextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/:path*` }];
   },
+  // #377 (ADR-0018): "Your CV, reviewed" is now the profile's check mode. The old address forwards
+  // there; the page itself stays on disk until #386 retires it, unreachable.
+  async redirects() {
+    return [{ source: "/review", destination: "/profile/check", permanent: false }];
+  },
 };
 
 export default nextConfig;

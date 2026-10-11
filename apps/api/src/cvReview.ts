@@ -331,6 +331,9 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   };
 }
 
+/** The finish gate's refusal codes — check mode (#377) finishes here, and this union is the one
+ *  vocabulary it reads. Append, never rename: #378 adds `suggestions_open` (a drafted line not yet
+ *  answered), #376 `work_rights_unset` (a target market with no work-rights answer). */
 export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running"; message: string };
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
