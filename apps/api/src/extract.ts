@@ -54,6 +54,10 @@ const HEADINGS: Array<{ kind: BlockKind; re: RegExp }> = [
     re: /^(top )?skills\b|^competenc|^technolog|^certifications?\b|^languages?\b|^tools\b/i,
   },
   { kind: "contact", re: /^contact\b/i },
+  // #360: a summary heading ends the preamble, so the letterhead stops at name/title/contact and
+  // the summary keeps its own block (whole, for the miner). Anchored on the whole line: "Profile:
+  // linkedin.com/…" is a contact line, not a heading.
+  { kind: "other", re: /^(?:(?:professional|executive|career|personal) )?(?:summary|profile|objective)$|^about(?: me)?$/i },
 ];
 
 function headingKind(line: string): BlockKind | null {
@@ -178,13 +182,24 @@ export function extractContact(blocks: RawCvBlock[]): ContactExtraction {
   return {
     email: email ? { value: email[0], sourceText: email[0] } : null,
     phone: phone ? { value: phone[0].trim(), sourceText: phone[0].trim() } : null,
-    header: blocks
-      .filter((b) => b.kind === "contact" || b.kind === "other")
-      .slice(0, 2)
-      .map((b) => b.text)
-      .join("\n")
-      .slice(0, 600),
+    header: capAtWord(
+      blocks
+        // #360: the letterhead is the preamble (what sits above the first heading) plus an explicit
+        // "Contact" section — never a headed "other" block such as the summary.
+        .filter((b) => b.kind === "contact" || (b.kind === "other" && b.confidence < 0.9))
+        .slice(0, 2)
+        .map((b) => b.text)
+        .join("\n"),
+      600,
+    ),
   };
+}
+
+/** #360: the letterhead cap never cuts mid-word — a letterhead ending in "Brings ad" is a bug. */
+function capAtWord(text: string, max: number): string {
+  // One char past the cap: if that char is inside a word, the whole word goes; if it is a space,
+  // the word before it was complete and stays.
+  return text.length <= max ? text : text.slice(0, max + 1).replace(/\S*$/, "").trimEnd();
 }
 
 export async function extractRawCv(data: Buffer, kind: CvKind): Promise<RawCv> {

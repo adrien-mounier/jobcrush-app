@@ -26,7 +26,7 @@ import type { JobBlockView } from "./jobBlockStore.js";
 import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
-import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
+import { EMAIL_RE, PHONE_RE, extractContact, type RawCv } from "./extract.js";
 import { cvLanguages, isKnownLanguageName } from "./cvLanguages.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
@@ -1128,11 +1128,7 @@ export function makePreviewStep(llm: LlmClient, extras: PreviewStepExtras = {}) 
     const posting = matchPosting(targetTitles);
     // Header (name/contact) isn't a "claim" — it's the CV's own letterhead. Feed the
     // contact/preamble blocks to the tailor so the draft carries the candidate's identity.
-    const headerText = (rawCv?.blocks ?? [])
-      .filter((b) => b.kind === "contact" || b.kind === "other")
-      .slice(0, 2)
-      .map((b) => b.text)
-      .join("\n");
+    const headerText = extractContact(rawCv?.blocks ?? []).header; // #360: one letterhead recipe
     // Which dimensions the advert gates on — best-effort: a failed store read never fails a preview.
     let advertTests: string[] | undefined;
     if (extras.getAdRequirements) {

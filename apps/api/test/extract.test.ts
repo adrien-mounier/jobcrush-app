@@ -242,6 +242,54 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
     expect(extractContact(blocks).header).toContain("Paris, France");
     expect(extractContact([{ kind: "role", text: "PM at X", confidence: 0.9 }]).header).toBe("");
   });
+
+  // #360: a PDF whose title and summary sit right under the contact line used to arrive as ONE
+  // preamble block, so the letterhead swallowed the summary heading and its hard-wrapped lines and
+  // the 600-char cap cut it mid-word. The letterhead is name, title and contact details only; the
+  // summary stays in the raw CV as its own block, whole, for the miner (#371 reads it sentence by
+  // sentence).
+  describe("#360 the letterhead stops where the summary starts", () => {
+    const SUMMARY_LINES = [
+      "Delivery lead with twelve years across retail and logistics platforms. Brings",
+      "a track record of landing multi-vendor programmes on time, building teams from",
+      "three to thirty, and keeping stakeholders aligned through every change of scope.",
+    ];
+    const PDF_TEXT = [
+      "Priya Raman",
+      "priya.raman@example.com | +44 7700 900123 | Manchester, UK",
+      "SENIOR PROJECT MANAGER",
+      "PROFESSIONAL SUMMARY",
+      ...SUMMARY_LINES,
+      "",
+      "PROFESSIONAL EXPERIENCE",
+      "Project Manager — Northwind Retail (2019 – present)",
+      "- Led the till replacement across 140 stores.",
+    ].join("\n");
+
+    it("yields a letterhead holding only name, title and contact details", () => {
+      const { header } = extractContact(segment(PDF_TEXT));
+      expect(header).toBe(
+        "Priya Raman\npriya.raman@example.com | +44 7700 900123 | Manchester, UK\nSENIOR PROJECT MANAGER",
+      );
+      expect(header).not.toContain("SUMMARY");
+    });
+
+    it("keeps the summary whole in its own block, once, untouched by the letterhead", () => {
+      const blocks = segment(PDF_TEXT);
+      const summary = blocks.filter((b) => b.text.includes("PROFESSIONAL SUMMARY"));
+      expect(summary).toHaveLength(1);
+      expect(summary[0].text).toBe(["PROFESSIONAL SUMMARY", ...SUMMARY_LINES].join("\n"));
+      expect(summary[0].kind).toBe("other");
+    });
+
+    it("never cuts the letterhead mid-word, even when the cap bites", () => {
+      const longLine = Array.from({ length: 70 }, (_, i) => `wordnumber${i}`).join(" "); // > 600 chars
+      const { header } = extractContact(segment(`Priya Raman\npriya.raman@example.com\n${longLine}\n\nExperience\nPM at X`));
+      expect(header.length).toBeLessThanOrEqual(600);
+      // the last token is one of the source's whole words, not a fragment of one
+      expect(longLine.split(" ")).toContain(header.split(/\s/).at(-1));
+    });
+  });
 });
 
 describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
