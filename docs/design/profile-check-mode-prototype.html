@@ -1,0 +1,707 @@
+<title>Profile Check Mode</title>
+<style>
+/* Night Desk dark room (DESIGN.md). v6 (2026-10-11): no tick boxes. The profile is a store: what is shown is in.
+   Three actions only: keep (default), add (a suggestion), remove (a quiet action, recoverable from "N removed · Show").
+   Gold = the machine suggests something, plus the main button. V2 is a guided flow, one screen per section. */
+:root {
+  color-scheme: dark;
+  --floor: #101419; --surface: #171c23; --raised: #1f262f; --line: #2b333d;
+  --ink: #e8eaed; --muted: #7f8b98; --muted-r: #8a95a2; --settled: #4d5865;
+  --gold: #e8a33d; --gold-deep: #a8762b; --gold-light: #ffd9a0; --gold-ink: #1a1206;
+  --danger-soft: #e0876c; --ok: #5fb37a;
+  --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+* { box-sizing: border-box; }
+body { background: var(--floor); color: var(--ink); font: 14px/1.5 var(--sans); margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; }
+svg { display: block; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* prototype chrome */
+.chrome { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: #0b0e12; border-bottom: 1px dashed var(--line);
+  font: 11.5px/1.4 var(--mono); color: var(--muted-r); padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.chrome .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.chrome .seg button { background: none; border: 0; padding: 4px 12px; font: inherit; color: var(--muted-r); }
+.chrome .seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
+.chrome .note { flex: 1 1 260px; min-width: 0; }
+.chrome .clock { font-variant-numeric: tabular-nums; color: var(--ink); }
+.chrome .reset { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font: inherit; color: var(--muted-r); }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 120px; }
+.col { max-width: 760px; margin: 0 auto; }
+h1 { font-size: 22px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; font-size: 13.5px; max-width: 65ch; }
+
+.btn { border-radius: 10px; padding: 10px 14px; border: 1px solid var(--line); background: var(--raised); }
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); font-weight: 620; box-shadow: 0 0 26px rgba(232,163,61,.3); }
+.btn.primary:hover:not(:disabled) { background: var(--gold-light); }
+.btn.primary:disabled { background: var(--raised); color: var(--muted-r); border-color: var(--line); box-shadow: none; }
+.btn.ghost { background: none; }
+.btn.sm { padding: 6px 10px; font-size: 13px; border-radius: 9px; }
+.btn:disabled:not(.primary) { opacity: .5; }
+.linkbtn { background: none; border: 0; color: var(--muted-r); font-size: 12.5px; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
+.linkbtn:hover { color: var(--ink); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.hint { font-size: 12.5px; color: var(--muted); }
+
+/* sections */
+.section { margin: 0 0 32px; }
+.section > h2 { font-size: 15px; font-weight: 620; margin: 0 0 10px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.section > h2 small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 12px; }
+.job { margin-bottom: 14px; }
+.jobhead { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 2px 6px 8px; }
+.jobhead .t { font-weight: 640; font-size: 15px; }
+.jobhead .d { margin-left: auto; color: var(--muted); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+.jobhead .e { color: var(--muted); font-size: 13px; width: 100%; order: 3; }
+
+/* ---------- a point of the profile: plain text, two quiet actions ---------- */
+ul.pts { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.pt { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: start; padding: 5px 4px 5px 22px; border-radius: 10px; transition: background-color .15s; }
+.pt::before { content: ""; position: absolute; left: 10px; top: 15px; width: 4px; height: 4px; border-radius: 50%; background: var(--settled); }
+.pt:hover, .pt.act { background: rgba(31,38,47,.75); }
+.pt .txt { font: 14.5px/1.55 var(--serif); min-width: 0; padding-top: 1px; }
+.acts { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+.pt:hover .acts, .pt:focus-within .acts, .pt.act .acts { opacity: 1; }
+.ib { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: none; border: 0; color: var(--muted-r); }
+.ib:hover { background: var(--raised); color: var(--ink); }
+.ib.rmv:hover { color: var(--danger-soft); }
+.ib svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.pt.edit { grid-template-columns: minmax(0, 1fr); gap: 6px; background: rgba(31,38,47,.75); }
+.pt.edit::before { display: none; }
+.pt.edit { padding-left: 8px; }
+textarea.ed { width: 100%; min-height: 76px; background: var(--raised); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 16px/1.5 var(--serif); }
+.tag { font: 11px var(--sans); color: var(--gold-light); border: 1px solid rgba(232,163,61,.45); border-radius: 999px; padding: 0 7px; margin-left: 8px; vertical-align: 1px; white-space: nowrap; }
+.tag.moved { color: var(--muted-r); border-color: var(--line); }
+.tray { margin: 6px 0 2px 22px; font-size: 12.5px; color: var(--muted); }
+.tray ul { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
+.tray li { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
+.tray li .linkbtn { white-space: nowrap; }
+.tray s { font: 13.5px/1.45 var(--serif); color: var(--muted-r); text-decoration-color: rgba(224,135,108,.7); }
+.gone { list-style: none; font-size: 12.5px; color: var(--muted); padding: 6px 10px; border: 1px dashed var(--line); border-radius: 10px; margin: 4px 0; display: flex; gap: 10px; align-items: center; }
+
+/* ---------- a suggestion: one dashed gold frame, whatever it asks ---------- */
+.sg { --ind: 40px; border: 1.5px dashed rgba(232,163,61,.7); border-radius: 12px; padding: 10px 8px 12px; background: rgba(232,163,61,.035);
+  margin: 6px 0; display: grid; gap: 8px; list-style: none; }
+.sg.flush { --ind: 8px; }
+.hd { padding: 0 8px; font: 600 10.5px/1.4 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--gold-light); }
+.hd b { font-weight: 600; color: var(--gold-ink); background: var(--gold); border-radius: 4px; padding: 1px 6px; margin-left: 6px; white-space: nowrap; }
+.sline { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 0 8px; align-items: start; }
+.mark { width: 20px; height: 20px; margin-top: 2px; }
+.mark svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 1.6; fill: none; stroke-linecap: round; }
+.mark.plus { color: var(--gold); } .mark.minus { color: var(--danger-soft); }
+.stxt { font: 15px/1.5 var(--serif); }
+.rm .stxt { color: var(--muted-r); text-decoration: line-through; text-decoration-color: rgba(224,135,108,.75); text-decoration-thickness: 1.5px; }
+.meta { padding-left: var(--ind); display: grid; gap: 2px; font-size: 12.5px; color: var(--muted-r); }
+.meta q { font-family: var(--serif); color: var(--ink); }
+.sg .row { padding-left: var(--ind); }
+/* A removal is about an item already in the profile: no new-thing box, the item itself flagged in coral. */
+.sg.rmv { border: 0; border-left: 3px solid var(--danger-soft); border-radius: 0 10px 10px 0; background: rgba(224,135,108,.07); }
+.sg.rmv .hd { color: var(--danger-soft); }
+.sg.rmv .stxt { text-decoration: underline wavy rgba(224,135,108,.6); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.sg textarea.ed { margin-left: var(--ind); width: calc(100% - var(--ind) - 8px); }
+
+/* V2: your own facts sit in the same plain card as every other section; gold stays for suggestions */
+.card.form { display: grid; gap: 10px; padding: 14px 8px; margin-bottom: 14px; }
+.card.form .row { padding-left: 8px; }
+.card.form textarea.ed { margin: 0 8px; width: calc(100% - 16px); }
+.ctitle { margin: 0; padding: 0 8px; font-size: 15px; font-weight: 620; }
+
+/* details */
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; padding: 0 8px; }
+.fields label { display: grid; gap: 3px; font-size: 12px; color: var(--muted-r); }
+.fields input { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font: 16px var(--sans); color: var(--ink); min-width: 0; }
+.clean { font: 14px/1.5 var(--serif); padding: 2px 6px; }
+.clean .name { font: 600 19px var(--serif); }
+.clean span { color: var(--muted-r); }
+
+/* About you */
+.about { margin: 0; padding: 0 8px; font: 16.5px/1.6 var(--serif); text-wrap: pretty; }
+.aboutwrap { display: grid; gap: 10px; }
+.aboutwrap .about { padding: 0; max-width: 64ch; }
+.orig { margin: 4px 8px 0; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+.aboutwrap .orig { margin-inline: 0; }
+.orig .hd { padding: 0; color: var(--muted-r); }
+.orig p { margin: 0; font: 14px/1.55 var(--serif); color: var(--muted-r); }
+
+/* work rights */
+.wrsrc { margin: 0; padding: 0 8px; font-size: 12.5px; color: var(--muted-r); }
+.wrsrc q { font-family: var(--serif); color: var(--ink); }
+fieldset.wrrow { border: 0; margin: 0; padding: 6px 8px 0; display: grid; gap: 6px; }
+.wrrow legend { font-weight: 620; font-size: 14px; padding: 0; }
+.wrrow p { margin: 0; font-size: 12.5px; color: var(--muted-r); }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { position: relative; }
+.pill input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.pill span { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--muted-r); }
+.pill input:checked + span { border-color: var(--ink); color: var(--ink); background: var(--raised); }
+.pill input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+.wrdone { display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: baseline; padding: 4px 6px 8px; font: 14.5px/1.5 var(--serif); }
+.wrdone .lbl { font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted-r); width: 100%; }
+.wrpending { padding: 4px 6px 8px; font-size: 13px; color: var(--muted); }
+
+/* skills */
+.groups { columns: 2 300px; column-gap: 28px; }
+.grp { break-inside: avoid; margin: 0 0 16px; }
+.gh { background: none; border: 0; border-radius: 6px; padding: 2px 8px; margin-bottom: 2px; font: 600 11px/1.4 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted-r); }
+.gh:hover { color: var(--ink); background: var(--raised); }
+.gname { font: 600 16px var(--sans); background: var(--raised); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; margin: 0 0 4px 4px; width: calc(100% - 8px); }
+select.mv { background: var(--raised); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font-size: 16px; max-width: 170px; }
+
+.flash { animation: flash 1.4s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 3px rgba(232,163,61,.9); } 100% { box-shadow: 0 0 0 0 rgba(232,163,61,0); } }
+
+/* V1 bar */
+.bar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 37px); z-index: 20; background: rgba(23,28,35,.94);
+  border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+.count { font-weight: 650; font-size: 15px; }
+.count b { font-variant-numeric: tabular-nums; }
+.bar .grow { flex: 1; }
+
+/* V2: taken by the hand */
+.guide { max-width: 680px; margin: 0 auto; padding-bottom: 130px; }
+.prog { display: flex; gap: 4px; margin: 0 0 18px; }
+.prog i { flex: 1; height: 3px; border-radius: 2px; background: var(--line); }
+.prog i.done { background: var(--gold-deep); }
+.prog i.cur { background: var(--ink); }
+.stepk { font: 12px var(--mono); color: var(--muted-r); letter-spacing: .06em; text-transform: uppercase; }
+/* V2.2: each segment carries its section name; the rail scrolls sideways on a phone, current step kept in view */
+.rail { display: flex; gap: 4px; margin: 0 -16px 18px; padding: 0 16px 4px; list-style: none; overflow-x: auto; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.rail li { flex: 1 0 64px; display: grid; gap: 7px; }
+.rail li > i { height: 3px; border-radius: 2px; background: var(--line); position: relative; overflow: hidden; }
+.rail li.done > i { background: var(--gold-deep); }
+.rail li.cur > i { background: var(--ink); }
+.rail li.sweep > i::after { content: ""; position: absolute; inset: 0; background: var(--gold); transform-origin: left; animation: sweep .7s var(--ease) forwards; }
+.rail span { font: 10.5px/1.2 var(--mono); letter-spacing: .04em; color: var(--muted); white-space: nowrap; padding-right: 10px; }
+.rail li.done span { color: var(--muted-r); }
+.rail li.cur span { color: var(--ink); font-weight: 600; }
+.guide .big { font-size: 26px; font-weight: 650; letter-spacing: -.015em; margin: 4px 0 2px; }
+.guide .bigsub { color: var(--muted); font-size: 13.5px; margin: 0; }
+.lead { font-size: 15.5px; margin: 14px 0 18px; max-width: 56ch; }
+.focus { margin: 0 0 28px; }
+.focus .sg { margin: 0; animation: rise .4s var(--ease); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.quiet > h3 { font: 600 11px/1.4 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted-r); margin: 0 0 2px; }
+.quiet > .hint { margin: 0 0 10px; }
+.foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; padding: 28px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, rgba(16,20,25,0), var(--floor) 38%); }
+.foot .in { max-width: 680px; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
+.foot .btn.primary { flex: 1; padding: 14px; font-size: 15px; }
+/* V2 "saved" is shown by motion, never by words: the answer lands in the list, the count ticks, the step fills. */
+.pt.landed { animation: land 1.8s var(--ease); border-radius: 6px; }
+@keyframes land { 0% { background: rgba(232,163,61,.22); box-shadow: inset 3px 0 0 var(--gold); transform: translateY(-6px); }
+  25% { transform: none; } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
+.tray.bump { animation: trayb 1.2s var(--ease); }
+@keyframes trayb { 0% { color: var(--gold-light); } 100% { color: var(--muted); } }
+.prog i { position: relative; overflow: hidden; }
+.prog i.sweep { background: var(--line); }
+.prog i.sweep::after { content: ""; position: absolute; inset: 0; background: var(--gold); box-shadow: 0 0 10px var(--gold); transform-origin: left; animation: sweep .7s var(--ease) forwards; }
+@keyframes sweep { from { transform: scaleX(0); } 60% { background: var(--gold); } to { transform: scaleX(1); background: var(--gold-deep); box-shadow: none; } }
+.foot .btn.primary.arm { animation: arm .9s var(--ease); }
+@keyframes arm { 0% { box-shadow: 0 0 0 0 rgba(232,163,61,.7); } 100% { box-shadow: 0 0 0 14px rgba(232,163,61,0), 0 0 26px rgba(232,163,61,.3); } }
+
+/* V3 */
+.v3 { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.todo { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 50px); }
+.todo ol { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.todo li button { width: 100%; text-align: left; display: grid; grid-template-columns: 18px 1fr; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; }
+.todo li button:hover { border-color: var(--muted); }
+.todo li button[aria-current="true"] { border-color: var(--gold); }
+.todo .k { font-size: 13.5px; }
+.todo .w { display: block; font-size: 12px; color: var(--muted); }
+.todo .st { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--gold); margin-top: 3px; }
+.todo li.ans .st { background: var(--ok); border-color: var(--ok); }
+.todo li.ans .k { color: var(--muted); text-decoration: line-through; }
+.marker { list-style: none; font-size: 12px; color: var(--gold-light); padding: 4px 8px 2px 22px; }
+
+/* done */
+.donepanel { text-align: center; padding: 48px 16px; max-width: 560px; margin: 0 auto; }
+.donepanel h2 { font-size: 26px; margin: 0 0 8px; }
+.tally { display: flex; justify-content: center; gap: 28px; margin: 22px 0 26px; flex-wrap: wrap; }
+.tally div { display: grid; gap: 2px; }
+.tally b { font: 600 30px var(--serif); font-variant-numeric: tabular-nums; }
+.tally span { font-size: 12.5px; color: var(--muted-r); }
+.protonote { font: 11.5px var(--mono); color: var(--muted); margin-top: 18px; }
+
+@media (hover: none) { .acts { opacity: 0; } .pt.act .acts { opacity: 1; } }
+@media (max-width: 860px) { .v3 { grid-template-columns: minmax(0, 1fr); } .todo { position: static; } }
+@media (max-width: 560px) {
+  .chrome { position: static; }
+  .bar { top: env(safe-area-inset-top, 0px); }
+  .sg { --ind: 8px; }
+  .guide .big { font-size: 23px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="chrome" role="region" aria-label="Prototype controls">
+  <span>PROTOTYPE #375 · v7 · chosen: V2.1</span>
+  <span class="seg" role="group" aria-label="Version">
+    <button type="button" data-ver="v1" aria-pressed="true">V1 annotated</button>
+    <button type="button" data-ver="v2" aria-pressed="false">V2 guided</button>
+    <button type="button" data-ver="v2.1" aria-pressed="false">V2.1 no step count</button>
+    <button type="button" data-ver="v2.2" aria-pressed="false">V2.2 named steps</button>
+    <button type="button" data-ver="v3" aria-pressed="false">V3 to-check list</button>
+  </span>
+  <span class="clock" id="clock">V1 00:00</span>
+  <button type="button" class="reset" id="reset">Reset this version</button>
+  <span class="note">Real upload of 2026-10-11 (the details bug left in). The suggestions, the removal, About you and the work-rights reading are hand-written examples. Nothing is saved. The clock runs from your first tap to Finish.</span>
+</div>
+
+<main class="wrap" id="app"></main>
+
+<script>
+"use strict";
+// ---------- data: the owner's real upload, staging session 981b68a8934904d9 ----------
+const BRED = "BRED Banque Populaire (International Banking Branch)";
+const JOBS = [
+  { id: "bred", short: "BRED", title: "Senior Project Manager", employer: BRED, dates: "2023 – now", lines: [
+    ["b1", "Lead end-to-end banking IT projects covering core banking systems, mobile banking, and digital transformation programs, ensuring full compliance with banking regulations, PCI DSS, and internal IT governance frameworks."],
+    ["b2", "Coordinate cross-functional, international teams (developers, QA, business analysts, cybersecurity, external vendors) across Europe, Asia-Pacific, and Africa, managing scope, timelines, risks, and dependencies on mission-critical systems."],
+    ["b3", "Act as primary interface between IT, business stakeholders, and external partners, running regular stakeholder reviews and solution demonstrations."],
+    ["b4", "Apply Agile / Scrum delivery practices, running sprint planning, backlog refinement, retrospectives, and daily stand-ups to maintain steady delivery cadence across cross-functional banking IT teams."],
+    ["b5", "Prepare and present formal project status reports and steering committee presentations for management, consolidating delivery progress, risks, and key decisions across ~4 concurrent banking IT projects."],
+    ["b6", "Maintain a formal risk register across active projects, proactively tracking, escalating, and mitigating risks to protect delivery integrity and governance compliance on mission-critical banking systems."],
+    ["b7", "Designed and delivered 10 AI workshops for the eBanking department (~30 participants), driving practical and compliant AI adoption across the team."],
+    ["b8", "Implemented a trading platform (Lao Forex Exchange) integrated into the internal financial system."],
+    ["b9", "Led end-to-end integration of card services into digital banking platforms, driving alignment between upstream APIs, business requirements, and customer-facing delivery."],
+    ["b10", "Mapped existing manual project manager and analyst workflows, decomposed them into structured, executable LLM logic, then built and deployed an agentic assistant autonomously tracking project progress, monitoring email activity, and issuing proactive deadline and follow-up reminders."],
+    ["b11", "Rolled out the assistant to a 6-person cross-functional pilot team (2 business analysts, 1 product owner, 2 developers, 1 QA) to validate the branch's first AI-driven work process ahead of wider deployment. In active daily use, delivered with an internal user guide."],
+    ["b12", "Led the development and rollout of PIN-code authentication for the mobile banking application, strengthening customer security."],
+    ["b13", "Coordinated the integration of third-party services (Telegram) into internal banking systems within strict security constraints."],
+    ["b14", "Designed and launched a self-service card activation feature, improving customer autonomy and reducing support workload."],
+    ["b15", "Led the design and development of an LLM-based Splunk log-triage workflow intended to streamline how analysts process log data in their daily work."],
+  ]},
+  { id: "okoone", short: "Okoone", title: "Product Owner", employer: "Okoone", dates: "2020 – 2023", lines: [
+    ["o1", "Owned the product vision and roadmap for a cross-border eCommerce logistics SaaS platform."],
+    ["o2", "Led a cross-functional product team, managing scope, priorities, budget, and delivery timelines."],
+    ["o3", "Translated business and user needs into functional specifications and user stories for development teams."],
+    ["o4", "Maintained and prioritized the product backlog using JIRA, ensuring continuous value delivery."],
+    ["o5", "Worked closely with enterprise clients and partners to align product features with operational and cross-border requirements."],
+    ["o6", "Built Ship24.com from scratch into a scalable cross-border logistics platform within 2 years, serving marketplaces, merchants, and logistics providers."],
+    ["o7", "Delivered a universal shipment tracking API and customs clearance services, supporting international trade operations."],
+    ["o8", "Platform performance in 2023: 16M website visitors, 3,000+ active API subscriptions, 30% user growth (YoY), 50% advertising revenue growth (YoY)."],
+  ]},
+  { id: "sg", short: "Societe Generale", title: "IT Junior Project Manager", employer: "Societe Generale", dates: "2017 – 2020", lines: [
+    ["s1", "Delivered IT projects using Agile / Scrum, supporting delivery execution."],
+    ["s2", "Communicated delivery status and escalated risks and issues to prevent delays."],
+    ["s3", "Worked closely with data engineers, data scientists, and business teams on data-centric and analytics-driven initiatives."],
+    ["s4", "Structured project reporting and communication frameworks to provide visibility to management and executives."],
+    ["s5", "Participated in software and data architecture discussions, with focus on data governance, quality, and traceability."],
+    ["s6", "Supported monthly executive update meetings, contributing to project tracking and prioritization discussions."],
+    ["s7", "Chatbot FINDER: Coordinated development of a chatbot in collaboration with data science teams for the Risk department, enabling faster access to risk-related data."],
+    ["s8", "CRM Data Pipeline Optimization: Supported delivery of a real-time data pipeline built on Big Data infrastructure to optimize Salesforce CRM usage."],
+  ]},
+];
+// Sections after experience. Languages live here again: the start no longer asks them (owner, 2026-10-11).
+const OTHER = [
+  { id: "projects", h: "Personal projects", lines: [
+    ["p1", "Built an LLM-maintained personal knowledge base using plain Markdown files (inspired by the Karpathy method). Rather than re-discovering knowledge from raw documents on every query (RAG), sources are compiled once into a structured wiki that the LLM keeps updated, cross-referenced, and consistent. Extended into a project-scoped decision engine, maintaining a reliable, coherent, and auditable record of a project's evolution."],
+    ["p2", "Designed a personal multi-AI terminal workflow running Claude Code, Gemini CLI, and Codex in parallel against a shared repository, coordinated via file-based directory contracts and lock-based handoffs. Built a library of specialised sub-agents covering research, critical review, adversarial validation, and project-init / context-sync functions, applying separation of concerns across LLMs to improve output quality and throughput."],
+    ["p3", "Maintain a personal Notion-backed library of reusable prompts and agent specifications, covering structured prompting, Chain-of-Thought, Tree-of-Thoughts, adversarial-validation patterns, and persona / permission-to-fail techniques."],
+  ]},
+  // Skills: split one per line by the machine whatever separator the CV used, wording kept; grouped under names
+  // from the CV or, failing that, from the machine. Not an item to check (owner, 2026-10-11).
+  { id: "skills", h: "Skills", groups: [
+    { name: "Delivery and governance", lines: [["d1", "Agile / Scrum"], ["d2", "Roadmap and Backlog Management"], ["d3", "IT Governance and Delivery Management"], ["d4", "Stakeholder Management"], ["d5", "Risk and Dependency Management"]] },
+    { name: "Applied AI", lines: [
+      ["ai1", "Applied AI for knowledge work and process optimization"],
+      ["ai2", "Prompt engineering: structured prompting, Chain-of-Thought, Tree-of-Thoughts, adversarial validation, persona scaffolding, few-shot examples"],
+      ["ai3", "Multi-step and multi-agent AI workflow design (LLM-based)"],
+      ["ai4", "Multi-LLM orchestration (Claude, Gemini, GPT/Codex) with specialized sub-agents"],
+      ["ai5", "Workflow automation with n8n (AI-assisted processes), local LLM experimentation (Ollama)"],
+      ["ai6", "AI enablement: workshop design and facilitation, internal training, prompt and agent libraries, user guides / SOPs"],
+      ["ai7", "Responsible AI usage in regulated environments (data sensitivity, tool selection)"]] },
+    { name: "Banking", lines: [
+      ["bk1", "Core banking systems", "Moved from your summary"], ["bk2", "Digital banking transformation", "Moved from your summary"],
+      ["bk3", "Security-driven product development", "Moved from your summary"],
+      // An achievement stays under its job; only the tool or standard is copied here.
+      ["bk4", "PCI DSS", "Taken from BRED"], ["bk5", "Banking regulation compliance", "Taken from BRED"]] },
+    { name: "Tools and platforms", lines: [["t1", "JIRA, Confluence, Notion"], ["t2", "API-based systems and third-party / vendor integration"], ["t3", "Mobile and Web Platforms"], ["t4", "Splunk"], ["t5", "Jenkins"]] },
+    { name: "Technical", lines: [["te1", "SQL"], ["te2", "Python"], ["te3", "Machine learning / Deep learning fundamentals"]] },
+  ]},
+  { id: "edu", h: "Education", lines: [
+    ["e1", "ESIEA, Paris, France 2017 - Master's Degree in Computer Science, specialization in Machine Learning"],
+    ["e2", "KMUTT University, Bangkok, Thailand 2016 - Exchange Semester"],
+  ]},
+  { id: "lang", h: "Languages", lines: [["l1", "French (Native)"], ["l2", "English (Fluent)"], ["l3", "Spanish (Conversational)"], ["l4", "Thai (Beginner)"]] },
+  { id: "additional", h: "Additional information", lines: [
+    ["a1", "Nationality: French, based in Bangkok, Thailand"],
+    ["a2", "References available upon request."],
+  ]},
+];
+// The letterhead as the import read it (bug #360: it swallowed the title, the summary heading and a cut summary).
+const HEADER_RAW = "name@example.com - Mobile: (+00) 00-000-0000\nSENIOR PROJECT MANAGER\nPROFESSIONAL SUMMARY\nSenior Project Manager with 7+ years of experience delivering banking, fintech, and SaaS solutions in regulated\nenvironments. Proven ability to manage end-to-end IT project delivery, ensure regulatory compliance, and lead cross-\nfunctional teams across multiple regions, including Europe, Asia-Pacific, and Africa. Expertise in core banking systems,\ndigital banking transformation, security-driven product development, and stakeholder management within financial\ninstitutions. Brings ad";
+const ORIGINAL_SUMMARY = HEADER_RAW.split("PROFESSIONAL SUMMARY\n")[1].replace(/-\n/g, "-").replace(/\n/g, " ").replace(/Brings ad$/, "Brings advanced AI methods into day-to-day project delivery, designing LLM-driven workflows and prompting techniques to accelerate analysis, documentation, and decision-making across IT projects.");
+// About you: written by the machine from the whole CV; approved or edited, no tick (owner, 2026-10-11).
+const SUMMARY_AI = "Delivers banking IT programmes across Europe, Asia-Pacific and Africa — core banking, card services and mobile PIN authentication at BRED, under PCI DSS and banking regulation. Built Ship24.com from scratch at Okoone into a platform with 16M visitors and 3,000+ API subscriptions. Brings AI into everyday delivery: an agentic assistant in daily use by a 6-person pilot team, 10 AI workshops for the eBanking department, and a personal multi-LLM workflow with its own knowledge base.";
+// Add suggestions. Hand-written examples of what #374's corrected prompt should offer.
+const PROPS = [
+  { id: "pb1", job: "bred", text: "Managed the budget of banking IT projects, tracking spend against plan.", why: "Some project managers own a budget, some don't.", src: ["From your CV (Okoone, Product Owner)", "managing scope, priorities, budget, and delivery timelines"] },
+  { id: "po1", job: "okoone", text: "Ran user interviews and competitor reviews to shape the product roadmap.", why: "Some product owners do this, some don't.", src: ["Covers", "User and market discovery"] },
+  { id: "po2", job: "okoone", text: "Used platform data (visitors, API subscriptions, growth) to decide product priorities.", why: "Your CV shows the numbers, not how you used them.", src: ["From your CV (Okoone, Product Owner)", "Platform performance in 2023: 16M website visitors, 3,000+ active API subscriptions…"] },
+  { id: "po3", job: "okoone", text: "Kept clients, partners and the team informed of roadmap changes.", why: "Common in this job. Check it fits yours.", src: ["Covers", "Stakeholder alignment"] },
+  { id: "ps1", job: "sg", text: "Tracked project tasks and documentation in JIRA and Confluence.", why: "Your skills list these tools. Check you used them at Societe Generale.", src: ["From your CV (Skills)", "JIRA, Confluence, Notion"] },
+  { id: "ps2", job: "sg", text: "Worked within banking rules and risk controls on Risk department projects.", why: "Common in banking. Check it applied to your projects.", src: ["From your CV (BRED, Senior Project Manager)", "ensuring full compliance with banking regulations"] },
+];
+// A removal suggestion: only for something that belongs nowhere in the profile. Hand-written example.
+const REMOVE = { id: "r1", line: "a2", text: "References available upon request.", why: "Every employer already assumes this. It takes space and tells them nothing." };
+// Work rights: no longer asked at the start; read from the CV, confirmed here (owner, 2026-10-11).
+const WORK = { cv: "Nationality: French, based in Bangkok, Thailand", opts: [["yes", "Yes, I can work there"], ["visa", "No, I'd need a visa"]], rows: [
+  { id: "eu", place: "France and the EU", note: "You're French, so I put yes." },
+  { id: "th", place: "Thailand", note: "You live there, but your CV doesn't say you hold a work permit." },
+]};
+const WR_PRE = { eu: "yes", th: null };
+
+const ITEMS = [
+  { id: "lh", kind: "Check your details", where: "Your details" },
+  { id: "sum", kind: "Check what I wrote about you", where: "About you" },
+  ...PROPS.map(p => ({ id: p.id, kind: "Add: " + p.text.split(" ").slice(0, 6).join(" ") + "…", where: JOBS.find(j => j.id === p.job).short })),
+  { id: "wr", kind: "Where you can work", where: "Additional information" },
+  { id: "r1", kind: "Remove: references line?", where: "Additional information" },
+];
+const STEPS = [
+  { k: "details", h: "Your details", items: ["lh"] },
+  { k: "about", h: "About you", items: ["sum"] },
+  ...JOBS.map(j => ({ k: j.id, h: j.short, job: j, items: PROPS.filter(p => p.job === j.id).map(p => p.id) })),
+  { k: "projects", h: "Personal projects", sec: "projects", items: [] },
+  { k: "skills", h: "Skills", sec: "skills", items: [] },
+  { k: "edu", h: "Education", sec: "edu", items: [] },
+  { k: "lang", h: "Languages", sec: "lang", items: [] },
+  { k: "additional", h: "Additional information", sec: "additional", items: ["wr", "r1"] },
+];
+
+const SVG = (p, vb = 16) => `<svg viewBox="0 0 ${vb} ${vb}" aria-hidden="true">${p}</svg>`;
+const I = {
+  pen: SVG(`<path d="M10.8 2.7l2.5 2.5-7.6 7.6-3.2.7.7-3.2z"/>`),
+  minus: SVG(`<circle cx="8" cy="8" r="6.2"/><path d="M5.3 8h5.4"/>`),
+  move: SVG(`<path d="M3 5h10M10 2l3 3-3 3M13 11H3M6 8l-3 3 3 3"/>`),
+  plusBig: SVG(`<circle cx="10" cy="10" r="8.25"/><path d="M6 10h8M10 6v8"/>`, 20),
+  minusBig: SVG(`<circle cx="10" cy="10" r="8.25"/><path d="M6 10h8"/>`, 20),
+  check: SVG(`<path d="M3 8.4l3 3 7-7.2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`),
+};
+
+// ---------- state, one per version ----------
+const fresh = () => ({ ans: {}, removed: {}, edits: {}, editing: null, editLine: null, active: null, tray: {}, gone: {},
+  lhFixing: false, sumEditing: false, sumOrig: false, summary: SUMMARY_AI, wr: { ...WR_PRE }, wrEditing: false,
+  lh: { name: "Adrien Mounier", title: HEADER_RAW.split("\n").slice(1).join(" "), email: "name@example.com", phone: "(+00) 00-000-0000", loc: "" },
+  groupNames: OTHER.find(o => o.groups).groups.map(g => g.name), groupOf: {}, renaming: null, moving: null,
+  step: 0, open: null, t0: null, t1: null, done: false });
+const S = { v1: fresh(), v2: fresh(), "v2.1": fresh(), "v2.2": fresh(), v3: fresh() };
+const isV2 = () => ver.startsWith("v2");
+let ver = "v1";
+const st = () => S[ver];
+const left = s => ITEMS.filter(i => !s.ans[i.id]).length;
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const jobOf = id => JOBS.find(j => j.id === id);
+
+// ---------- a point: plain text; edit and remove show on hover, focus, or a tap ----------
+function pt(id, text, s, o = {}) {
+  if (s.removed[id]) return "";
+  const t = s.edits[id] ?? text;
+  if (s.editLine === id) return `<li class="pt edit" id="ln-${id}"><label class="sr-only" for="le-${id}">Edit</label><textarea class="ed" id="le-${id}">${esc(t)}</textarea>
+    <span class="row"><button type="button" class="btn sm primary" data-act="lineSave" data-id="${id}">Save</button><button type="button" class="btn sm ghost" data-act="lineCancel">Cancel</button></span></li>`;
+  return `<li class="pt${s.active === id ? " act" : ""}${s.fx?.landed === id ? " landed" : ""}" id="ln-${id}" data-pt="${id}"><span class="txt">${esc(t)}${o.tag ? `<span class="tag">${o.tag}</span>` : ""}${o.moved ? `<span class="tag moved">${esc(o.moved)}</span>` : ""}</span>
+    <span class="acts">${o.tail || ""}<button type="button" class="ib" data-act="lineEdit" data-id="${id}" aria-label="Edit" title="Edit">${I.pen}</button><button type="button" class="ib rmv" data-act="lineRemove" data-id="${id}" aria-label="Remove" title="Remove">${I.minus}</button></span></li>`;
+}
+// What was removed stays one tap away.
+function tray(key, list, s) {
+  const out = list.filter(([id]) => s.removed[id]);
+  if (!out.length) return "";
+  const open = s.tray[key];
+  return `<div class="tray${s.fx?.tray === key ? " bump" : ""}"><button type="button" class="linkbtn" data-act="tray" data-id="${key}" aria-expanded="${!!open}">${out.length} removed · ${open ? "Hide" : "Show"}</button>
+    ${open ? `<ul>${out.map(([id, t]) => `<li><s>${esc(s.edits[id] ?? t)}</s><button type="button" class="linkbtn" data-act="putBack" data-id="${id}">Put back</button></li>`).join("")}</ul>` : ""}</div>`;
+}
+const goneHtml = (id, msg) => `<li class="gone" id="it-${id}">${msg} <button type="button" class="linkbtn" data-act="undo" data-id="${id}">Undo</button></li>`;
+
+// ---------- the cards: one frame for every question ----------
+function propCard(p, s, n = "") {
+  const text = s.edits[p.id] || p.text;
+  const hd = `<span class="hd">Suggestion${n ? " " + n : ""} · Add to ${esc(jobOf(p.job).short)}? <b>Only if true</b></span>`;
+  const body = s.editing === p.id
+    ? `<label class="sr-only" for="ed-${p.id}">Edit before adding</label><textarea class="ed" id="ed-${p.id}">${esc(text)}</textarea>
+      <span class="row"><button type="button" class="btn sm primary" data-act="saveTick" data-id="${p.id}">Add it</button><button type="button" class="btn sm ghost" data-act="cancelEdit">Cancel</button></span>`
+    : `<span class="sline"><span class="mark plus">${I.plusBig}</span><span class="stxt">${esc(text)}</span></span>
+      <span class="meta"><span>Why: ${esc(p.why)}</span><span>${esc(p.src[0])}: <q>${esc(p.src[1])}</q></span></span>
+      <span class="row"><button type="button" class="btn sm" data-act="tick" data-id="${p.id}">Add it</button><button type="button" class="btn sm" data-act="edit" data-id="${p.id}">Edit first</button><button type="button" class="btn sm ghost" data-act="dismiss" data-id="${p.id}">No thanks</button></span>`;
+  return `<li class="sg" id="it-${p.id}">${hd}${body}</li>`;
+}
+function removeCard(s, n = "") {
+  return `<li class="sg rmv" id="it-r1"><span class="hd">Suggestion${n ? " " + n : ""} · Remove this?</span>
+    <span class="sline"><span class="mark minus">${I.minusBig}</span><span class="stxt"><span class="sr-only">To remove: </span>${esc(REMOVE.text)}</span></span>
+    <span class="meta"><span>Why: ${esc(REMOVE.why)}</span></span>
+    <span class="row"><button type="button" class="btn sm" data-act="remove">Remove it</button><button type="button" class="btn sm ghost" data-act="keepLine">Keep it</button></span></li>`;
+}
+// bare (V2): no confirm button inside the card; the footer's Next confirms it.
+function detailsCard(s, bare) {
+  const L = s.lh;
+  return `<div class="${bare ? "card form" : "sg flush"}" id="it-lh">${bare ? "" : `<span class="hd">Please check · Your details, as I read them</span>`}<div class="fields">
+    ${[["name", "Name"], ["title", "Title"], ["email", "Email"], ["phone", "Phone"], ["loc", "Location"]].map(([k, l]) => `<label for="lh-${k}">${l}<input id="lh-${k}" data-lh="${k}" value="${esc(L[k])}" placeholder="Not found in your CV"></label>`).join("")}
+    </div>${bare ? "" : `<span class="row"><button type="button" class="btn sm" data-act="lhSave">These are right</button>${s.ans.lh ? `<button type="button" class="btn sm ghost" data-act="lhCancel">Cancel</button>` : ""}</span>`}</div>`;
+}
+function aboutText(s, inCard, bare) {
+  if (s.sumEditing) return `<label class="sr-only" for="sum-ed">About you</label><textarea class="ed" id="sum-ed" data-sum style="min-height:170px">${esc(s.sumDraft ?? s.summary)}</textarea>
+    <span class="row">${bare ? "" : `<button type="button" class="btn sm primary" data-act="sumSave">Save</button>`}<button type="button" class="btn sm ghost" data-act="sumCancel">${bare ? "Undo my changes" : "Cancel"}</button></span>`;
+  const orig = `<button type="button" class="linkbtn" data-act="sumOrig" aria-expanded="${s.sumOrig}">${s.sumOrig ? "Hide what your CV said" : "See what your CV said"}</button>`;
+  return `<p class="about">${esc(s.summary)}</p><span class="row">${inCard && !bare
+    ? `<button type="button" class="btn sm" data-act="sumOk">Looks right</button><button type="button" class="btn sm" data-act="sumEdit">Edit it</button>`
+    : bare ? `<button type="button" class="btn sm" data-act="sumEdit">Edit it</button>` : `<button type="button" class="linkbtn" data-act="sumEdit">Edit</button>`}${orig}</span>
+    ${s.sumOrig ? `<div class="orig"><span class="hd">What your CV said</span><p>${esc(ORIGINAL_SUMMARY)}</p></div>` : ""}`;
+}
+const aboutCard = (s, bare) => bare ? `<div class="card form" id="it-sum">${aboutText(s, true, true)}</div>`
+  : `<div class="sg flush" id="it-sum"><span class="hd">Suggestion · I wrote this from your whole CV</span>${aboutText(s, true)}</div>`;
+function workCard(s, bare) {
+  const missing = WORK.rows.filter(r => !s.wr[r.id]).map(r => r.place);
+  const rows = WORK.rows.map(r => `<fieldset class="wrrow"><legend>${esc(r.place)}</legend><p>${esc(r.note)}</p><div class="pills">
+    ${WORK.opts.map(([v, l]) => `<label class="pill"><input type="radio" name="wr-${ver}-${r.id}" value="${v}" data-wr="${r.id}"${s.wr[r.id] === v ? " checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>`).join("");
+  return `<div class="${bare ? "card form" : "sg flush"}" id="it-wr">${bare ? `<h3 class="ctitle">Where you can work</h3>` : `<span class="hd">Please check · Where you can work</span>`}<p class="wrsrc">From your CV: <q>${esc(WORK.cv)}</q></p>${rows}
+    ${bare ? "" : `<span class="row"><button type="button" class="btn sm" data-act="wrSave" ${missing.length ? "disabled" : ""}>These are right</button>${missing.length ? `<span class="hint">Answer ${esc(missing.join(" and "))} first.</span>` : ""}</span>`}</div>`;
+}
+function cardFor(id, s, n = "") {
+  if (id === "lh") return detailsCard(s);
+  if (id === "sum") return aboutCard(s);
+  if (id === "wr") return workCard(s);
+  if (id === "r1") return `<ul class="pts">${removeCard(s, n)}</ul>`;
+  return `<ul class="pts">${propCard(PROPS.find(p => p.id === id), s, n)}</ul>`;
+}
+
+// ---------- sections. show(id) says whether an unanswered card is drawn inline ----------
+function detailsSection(s, show) {
+  const L = s.lh;
+  const body = show("lh") || s.lhFixing ? detailsCard(s)
+    : `<div class="card"><div class="clean"><div class="name">${esc(L.name)}</div>${esc(L.title)}<br><span>${[L.email, L.phone, L.loc].filter(Boolean).map(esc).join(" · ")}</span></div>
+      ${s.ans.lh ? `<span class="row" style="padding:4px 6px 0"><button type="button" class="linkbtn" data-act="lhFix">Edit</button></span>` : ""}</div>`;
+  return `<section class="section" id="sec-details"><h2>Your details</h2>${body}</section>`;
+}
+function aboutSection(s, show) {
+  const body = !s.ans.sum && show("sum") ? aboutCard(s) : `<div class="aboutwrap">${aboutText(s, false)}</div>`;
+  return `<section class="section" id="sec-summary"><h2>About you</h2>${body}</section>`;
+}
+function jobList(j, s, show, mode) {
+  const rows = j.lines.map(([id, t]) => pt(id, t, s)).join("");
+  const props = PROPS.filter(p => p.job === j.id).map(p => {
+    const a = s.ans[p.id];
+    if (a === "ticked") return pt(p.id, p.text, s, { tag: "new" });
+    if (a === "dismissed") return s.gone[p.id] ? "" : goneHtml(p.id, "No thanks. I won't suggest it again.");
+    return show(p.id) ? propCard(p, s) : "";
+  }).join("");
+  const pending = PROPS.filter(p => p.job === j.id && !s.ans[p.id]).length;
+  const marker = mode === "v3" && pending && !PROPS.some(p => p.job === j.id && s.open === p.id) ? `<li class="marker">${pending} to answer here. Open them from the list.</li>` : "";
+  const all = [...j.lines, ...PROPS.filter(p => p.job === j.id && s.ans[p.id] === "ticked").map(p => [p.id, p.text])];
+  return `<ul class="pts">${rows}${props}${marker}</ul>${tray(j.id, all, s)}`;
+}
+const jobSection = (j, s, show, mode) => `<article class="card job" id="job-${j.id}"><div class="jobhead"><span class="t">${esc(j.title)}</span><span class="d">${j.dates}</span><span class="e">${esc(j.employer)}</span></div>${jobList(j, s, show, mode)}</article>`;
+const expSection = (s, show, mode) => `<section class="section" id="sec-exp"><h2>Professional experience</h2>${JOBS.map(j => jobSection(j, s, show, mode)).join("")}</section>`;
+
+function skillsBody(o, s) {
+  const names = s.groupNames;
+  const all = o.groups.flatMap((g, gi) => g.lines.map(l => [l, s.groupOf[l[0]] ?? gi]));
+  const groups = names.map((n, gi) => {
+    const items = all.filter(([, g]) => g === gi).map(([[id, t, tag]]) => pt(id, t, s, { moved: tag, tail: s.moving === id
+      ? `<select class="mv" data-move="${id}" aria-label="Move to group">${names.map((m, i) => `<option value="${i}"${i === gi ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>`
+      : `<button type="button" class="ib" data-act="move" data-id="${id}" aria-label="Move to another group" title="Move to another group">${I.move}</button>` })).join("");
+    const head = s.renaming === gi
+      ? `<input class="gname" id="gname-${gi}" data-grp="${gi}" value="${esc(n)}" aria-label="Group name">`
+      : `<button type="button" class="gh" data-act="rename" data-i="${gi}" title="Rename this group">${esc(n)}</button>`;
+    return items ? `<div class="grp">${head}<ul class="pts">${items}</ul></div>` : "";
+  }).join("");
+  return `<div class="groups">${groups}</div>${tray("skills", o.groups.flatMap(g => g.lines), s)}`;
+}
+function workBlock(s, show, mode) {
+  if (mode === "v2") return ""; // V2 draws it as its own card above the list
+  if (s.ans.wr && !s.wrEditing) {
+    const say = { yes: "can work there", visa: "needs a visa" };
+    return `<div class="wrdone"><span class="lbl">Where you can work</span>${WORK.rows.map(r => `${esc(r.place)}: ${say[s.wr[r.id]]}`).join(" · ")} <button type="button" class="linkbtn" data-act="wrEdit">Edit</button></div>`;
+  }
+  if (s.wrEditing || show("wr")) return workCard(s);
+  return mode === "v2" ? "" : `<div class="wrpending">Where you can work: to check.</div>`;
+}
+function otherBody(o, s, show, mode) {
+  if (o.groups) return skillsBody(o, s);
+  const rows = o.lines.map(([id, t]) => {
+    if (id !== REMOVE.line || s.ans.r1) return pt(id, t, s);
+    return show("r1") ? removeCard(s) : mode === "v2" ? "" : pt(id, t, s);
+  }).join("");
+  return `${o.id === "additional" ? workBlock(s, show, mode) : ""}<ul class="pts">${rows}</ul>${tray(o.id, o.lines, s)}`;
+}
+const otherSections = (s, show, mode) => OTHER.map(o => `<section class="section" id="sec-${o.id}"><h2>${o.h}${o.groups ? " <small>I grouped and named these. Tap a group name to rename it.</small>" : ""}</h2><div class="card">${otherBody(o, s, show, mode)}</div></section>`).join("");
+const allSections = (s, show, mode) => detailsSection(s, show) + aboutSection(s, show) + expSection(s, show, mode) + otherSections(s, show, mode);
+
+function tally(s) {
+  const base = [...JOBS.flatMap(j => j.lines), ...OTHER.flatMap(o => o.groups ? o.groups.flatMap(g => g.lines) : o.lines)].map(l => l[0]);
+  const added = PROPS.filter(p => s.ans[p.id] === "ticked" && !s.removed[p.id]).length;
+  return { in: base.filter(id => !s.removed[id]).length + added, added, removed: Object.values(s.removed).filter(Boolean).length };
+}
+function doneHtml(s) {
+  const secs = Math.round((s.t1 - (s.t0 || s.t1)) / 1000), t = tally(s);
+  return `<div class="donepanel"><h2>Your profile is ready</h2><p class="sub" style="margin:0 auto">Each application will pick what fits that job.</p>
+    <div class="tally"><div><b>${t.in}</b><span>in your profile</span></div><div><b>${t.added}</b><span>added</span></div><div><b>${t.removed}</b><span>removed</span></div></div>
+    <button type="button" class="btn primary" data-act="jobs">Show me the job ads</button>
+    <p class="protonote">prototype: ${ver.toUpperCase()} took ${Math.floor(secs / 60)} min ${secs % 60} s</p></div>`;
+}
+const finishBtn = s => { const n = left(s); return `<button type="button" class="btn primary" data-act="confirm" ${n ? "disabled" : ""}>${n ? `Finish my profile (${n} left)` : "Finish my profile"}</button>`; };
+const HEAD = `<h1>Your profile</h1><p class="sub">This is your full profile. Each application picks what fits that job.</p>`;
+
+// ---------- versions ----------
+function renderV1(s) {
+  return `<div class="col">${HEAD}
+    <div class="bar"><span class="count"><b>${left(s)}</b> left to answer</span><span class="grow"></span>
+      <button type="button" class="btn" data-act="next" ${left(s) ? "" : "disabled"}>Next ↓</button>${finishBtn(s)}</div>
+    ${allSections(s, id => !s.ans[id], "v1")}</div>`;
+}
+
+// V2: one screen per section, in order. Suggestions sit in the list, as in V1. The footer button is the only
+// confirm: it saves the screen. No "saved" words: the answer lands in the list and the step's segment fills.
+function leadFor(step) {
+  const n = step.items.filter(id => PROPS.some(p => p.id === id)).length;
+  if (step.k === "details") return "Check how I read your details. Fix anything that's wrong.";
+  if (step.k === "about") return "I wrote this from your whole CV. Keep it, or change it.";
+  if (step.k === "additional") return "Tell me where you can work, and answer the suggestion in the list.";
+  if (n) return `${n === 1 ? "One suggestion" : n + " suggestions"} in gold below. Edit or remove anything else that's wrong.`;
+  return "Nothing to answer here. Edit or remove anything that's wrong.";
+}
+// What still blocks the footer button on this screen (empty = it can go).
+function blockers(step, s) {
+  const out = step.items.includes("wr") ? WORK.rows.filter(r => !s.wr[r.id]).map(r => r.place) : [];
+  const n = step.items.filter(id => !["lh", "sum", "wr"].includes(id) && !s.ans[id]).length;
+  if (n) out.push(n === 1 ? "the suggestion" : "the suggestions");
+  return out;
+}
+function renderV2(s) {
+  const k = s.step, step = STEPS[k], N = STEPS.length, fx = s.fx || {};
+  const cls = i => i === fx.sweep ? "sweep" : i < k ? "done" : i === k ? "cur" : "";
+  const SHORT = { details: "Details", about: "About you", projects: "Projects", skills: "Skills", edu: "Education", lang: "Languages", additional: "More info" };
+  const prog = ver === "v2.2"
+    ? `<ol class="rail" aria-label="Steps">${STEPS.map((x, i) => `<li class="${cls(i)}"${i === k ? ' aria-current="step"' : ""}><i></i><span>${esc(x.job ? x.job.short : SHORT[x.k])}</span></li>`).join("")}</ol>`
+    : `<div class="prog" aria-hidden="true">${STEPS.map((x, i) => `<i class="${cls(i)}"></i>`).join("")}</div>`;
+  const show = id => !s.ans[id];
+  let body;
+  if (step.k === "details") body = detailsCard(s, true);
+  else if (step.k === "about") body = aboutCard(s, true);
+  else if (step.job) body = `<div class="card">${jobList(step.job, s, show, "v2")}</div>`;
+  else { const o = OTHER.find(x => x.id === step.sec); body = `${o.id === "additional" ? workCard(s, true) : ""}<div class="card">${otherBody(o, s, show, "v2")}</div>`; }
+  const sub = step.job ? `${esc(step.job.title)} · ${step.job.dates}` : "";
+  const last = k === N - 1, block = blockers(step, s);
+  const arm = !block.length && s.wasBlocked === k;
+  s.wasBlocked = block.length ? k : null;
+  const nextLabel = block.length ? `Answer ${block.join(" and ")} to continue` : last ? "Finish my profile" : `Next: ${STEPS[k + 1].h}  →`;
+  return `<div class="guide">${prog}
+    ${ver === "v2" ? `<span class="stepk">Step ${k + 1} of ${N}</span>` : ""}<h2 class="big">${esc(step.h)}</h2>${sub ? `<p class="bigsub">${sub}</p>` : ""}
+    <p class="lead">${leadFor(step)}</p>${body}</div>
+    <div class="foot"><div class="in">${k ? `<button type="button" class="btn ghost" data-act="back">‹ Back</button>` : ""}
+      <button type="button" class="btn primary${arm ? " arm" : ""}" data-act="${last ? "confirm" : "fwd"}" ${block.length ? "disabled" : ""}>${nextLabel}</button></div></div>`;
+}
+// The footer button saves what this screen holds.
+function commitStep(s) {
+  const step = STEPS[s.step];
+  if (step.k === "details") { document.querySelectorAll("[data-lh]").forEach(i => { s.lh[i.dataset.lh] = i.value.trim(); }); s.ans.lh = "ok"; }
+  if (step.k === "about") { if (s.sumEditing) { const v = (s.sumDraft ?? "").trim(); if (v) { s.summary = v; s.ans.sum = "edited"; } s.sumEditing = false; s.sumDraft = null; } s.ans.sum ??= "ok"; }
+  if (step.items.includes("wr")) s.ans.wr = "ok";
+}
+
+function renderV3(s) {
+  const list = ITEMS.map(i => `<li class="${s.ans[i.id] ? "ans" : ""}"><button type="button" data-act="openItem" data-id="${i.id}" ${s.open === i.id ? 'aria-current="true"' : ""}>
+    <span class="st" aria-hidden="true"></span><span><span class="k">${esc(i.kind)}</span><span class="w">${esc(i.where)}</span></span></button></li>`).join("");
+  return `<div class="col" style="max-width:none">${HEAD}</div>
+    <div class="v3"><aside class="todo" aria-label="To answer"><div class="count" style="margin-bottom:8px"><b>${left(s)}</b> left to answer</div><ol>${list}</ol>${finishBtn(s)}</aside>
+    <div style="min-width:0">${allSections(s, id => !s.ans[id] && s.open === id, "v3")}</div></div>`;
+}
+
+// ---------- render + events ----------
+const app = document.getElementById("app");
+function render(focusId) {
+  const s = st();
+  app.innerHTML = s.done ? doneHtml(s) : ver === "v1" ? renderV1(s) : isV2() ? renderV2(s) : renderV3(s);
+  s.fx = null; // effects play once
+  const rail = app.querySelector(".rail"), cur = rail?.querySelector(".cur, .sweep + li");
+  if (cur) rail.scrollLeft = cur.offsetLeft - rail.offsetLeft - (rail.clientWidth - cur.offsetWidth) / 2;
+  document.querySelectorAll(".chrome [data-ver]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.ver === ver)));
+  if (focusId) { const el = document.getElementById(focusId); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); } }
+}
+function startClock() { const s = st(); if (!s.t0) s.t0 = Date.now(); }
+setInterval(() => {
+  const s = st(), end = s.t1 || Date.now(), secs = s.t0 ? Math.floor((end - s.t0) / 1000) : 0;
+  document.getElementById("clock").textContent = `${ver.toUpperCase()} ${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+}, 500);
+
+const nextOpen = s => ITEMS.find(i => !s.ans[i.id]);
+function answer(id, v) {
+  const s = st(); s.ans[id] = v; s.editing = null;
+  if (ver === "v3") { const n = nextOpen(s); s.open = n ? n.id : null; }
+}
+const later = (id, s) => setTimeout(() => { if (s.ans[id] === "dismissed") { s.gone[id] = true; render(); } }, 6000);
+
+document.addEventListener("change", e => {
+  const s = st(), t = e.target;
+  if (t.dataset.grp !== undefined) { const gi = +t.dataset.grp; s.groupNames[gi] = t.value.trim() || s.groupNames[gi]; s.renaming = null; render(); }
+  else if (t.dataset.move) { s.groupOf[t.dataset.move] = +t.value; s.moving = null; s.active = null; render("ln-" + t.dataset.move); }
+  else if (t.dataset.wr) { startClock(); s.wr[t.dataset.wr] = t.value; render(); document.querySelector(`[data-wr="${t.dataset.wr}"][value="${t.value}"]`)?.focus(); }
+});
+// V2 has no Save button: keep typed text so a re-render doesn't lose it.
+document.addEventListener("input", e => {
+  if (!isV2()) return;
+  const s = st(), t = e.target;
+  if (t.dataset.lh) s.lh[t.dataset.lh] = t.value;
+  else if (t.dataset.sum !== undefined) s.sumDraft = t.value;
+});
+document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.dataset?.grp !== undefined) e.target.blur(); });
+
+document.addEventListener("click", e => {
+  const s = st();
+  const b = e.target.closest("button");
+  if (!b) { // a tap on a point shows its actions (touch screens)
+    const p = e.target.closest("[data-pt]");
+    if (p) { s.active = s.active === p.dataset.pt ? null : p.dataset.pt; render(); }
+    return;
+  }
+  if (b.dataset.ver) { ver = b.dataset.ver; render(); window.scrollTo(0, 0); return; }
+  if (b.id === "reset") { S[ver] = fresh(); render(); window.scrollTo(0, 0); return; }
+  const act = b.dataset.act; if (!act) return;
+  const id = b.dataset.id;
+  startClock();
+  switch (act) {
+    case "lineEdit": s.editLine = id; render(); document.getElementById("le-" + id)?.focus(); return;
+    case "lineSave": { const v = document.getElementById("le-" + id).value.trim(); if (v) s.edits[id] = v; s.editLine = null; break; }
+    case "lineCancel": s.editLine = null; break;
+    case "lineRemove": s.removed[id] = true; s.active = null; break;
+    case "tray": s.tray[id] = !s.tray[id]; break;
+    case "putBack": s.removed[id] = false; s.fx = { landed: id }; break;
+    case "tick": answer(id, "ticked"); s.fx = { landed: id }; break;
+    case "dismiss": answer(id, "dismissed"); later(id, s); break;
+    case "undo": delete s.ans[id]; delete s.gone[id]; if (ver === "v3") s.open = id; render("it-" + id); return;
+    case "edit": s.editing = id; render(); document.getElementById("ed-" + id)?.focus(); return;
+    case "cancelEdit": s.editing = null; break;
+    case "saveTick": { const v = document.getElementById("ed-" + id).value.trim(); if (v) s.edits[id] = v; answer(id, "ticked"); s.fx = { landed: id }; break; }
+    case "remove": s.removed[REMOVE.line] = true; answer("r1", "removed"); s.fx = { tray: "additional" }; break;
+    case "keepLine": answer("r1", "kept"); break;
+    case "lhFix": s.lhFixing = true; render(); document.getElementById("lh-name")?.focus(); return;
+    case "lhCancel": s.lhFixing = false; break;
+    case "lhSave": document.querySelectorAll("[data-lh]").forEach(i => { s.lh[i.dataset.lh] = i.value.trim(); }); s.lhFixing = false; answer("lh", "fixed"); break;
+    case "sumOk": answer("sum", "ok"); break;
+    case "sumEdit": s.sumEditing = true; s.sumDraft = null; render(); document.getElementById("sum-ed")?.focus(); return;
+    case "sumCancel": s.sumEditing = false; s.sumDraft = null; break;
+    case "sumSave": { const v = document.getElementById("sum-ed").value.trim(); if (v) s.summary = v; s.sumEditing = false; answer("sum", "edited"); break; }
+    case "sumOrig": s.sumOrig = !s.sumOrig; break;
+    case "wrSave": s.wrEditing = false; answer("wr", "ok"); break;
+    case "wrEdit": s.wrEditing = true; break;
+    case "move": s.moving = id; s.active = id; render(); document.querySelector(`[data-move="${id}"]`)?.focus(); return;
+    case "rename": s.renaming = +b.dataset.i; render(); { const i = document.getElementById("gname-" + b.dataset.i); i?.focus(); i?.select(); } return;
+    case "next": { const n = nextOpen(s); if (n) render("it-" + n.id); return; }
+    case "back": s.step--; render(); window.scrollTo(0, 0); return;
+    case "fwd": commitStep(s); s.fx = { sweep: s.step }; s.step++; render(); window.scrollTo(0, 0); return;
+    case "openItem": s.open = id; render("it-" + id); return;
+    case "confirm": if (isV2()) commitStep(s); s.t1 = Date.now(); s.done = true; render(); window.scrollTo(0, 0); return;
+    case "jobs": b.textContent = "The prototype ends here"; b.disabled = true; return;
+  }
+  render(ver === "v3" && s.open ? "it-" + s.open : undefined);
+});
+
+render();
+</script>
