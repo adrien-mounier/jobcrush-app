@@ -13,6 +13,9 @@ follows the writing rules, approved or edited (no tick), original viewable. Prin
 place". Personal projects get a section. #371 rewritten (option C replaced); decisions on #375.
 v5: details open as fields; skills split one per line by the machine (any separator), in groups named by the CV or
 the machine, not an item to check; the removal card has a minus mark and strike-through, no box.
+v6: no tick boxes at all. The profile is the store (keep / add / remove, removed items one tap from returning);
+no "COMPLETE" stamp; V2 guided one screen per section; Languages back; work rights move into the profile and
+the start stops asking → #376 filed.
 **Next:** owner tries #375 v3 and picks V1/V2/V3.
 
 ## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
