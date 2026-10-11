@@ -15,7 +15,7 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Direction decided (owner, 2026-10-11):** the profile in "check mode" replaces "Your CV, reviewed" as the master CV's home. The gate becomes: confirm your facts and answer every suggestion. Prototype [#375](https://github.com/adrien-mounier/jobcrush-app/issues/375) approved, **V2.1** chosen (guided, one screen per section, no step count). Copy without contact details: `docs/design/profile-check-mode-prototype.html`. The rebuild comes **before** finishing v1. **Next:** an ADR (the profile replaces the review; ADR-0016 clause 6 gate; #371 About you), then `/to-spec`. #372, #368 and #370 are paused until the spec decides whether they still apply.
+**Direction decided (owner, 2026-10-11):** the profile in "check mode" replaces "Your CV, reviewed" as the master CV's home. The gate becomes: confirm your facts and answer every suggestion. Prototype [#375](https://github.com/adrien-mounier/jobcrush-app/issues/375) approved, **V2.1** chosen (guided, one screen per section, no step count). Copy without contact details: `docs/design/profile-check-mode-prototype.html`. The rebuild comes **before** finishing v1. Recorded as [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md). **Next:** `/to-spec`. #372, #368 and #370 are paused until the spec decides whether they still apply.
 
 **Now: "Your CV, reviewed"** (spec #332, 11 of 13 tickets done — #344, #345 left; real-CV defects in 5b go first): discovery stops asking, the CV is reviewed instead.
 

@@ -268,29 +268,30 @@ deck was searched for, never the visitor's own.
 _Avoid_: Relevance score, title match, family placement
 
 **Review**:
-The stored, once-generated pass over a person's imported CV, shown as "Your CV, reviewed" before any
-jobs: per section and per job, spelling and grammar fixes (applied, each undoable), untick suggestions
-judged on quality only — never on fit to a job — **drafted lines**, a missing-end-date question and any
-import conflict. The jobs stay locked until the person completes it (ADR-0016).
+The stored, once-generated pass over a person's imported CV: per section and per job, spelling and
+grammar fixes (applied, each undoable), **drafted lines**, removal suggestions for items that belong
+nowhere, a missing-end-date question and any import conflict. Shown as the profile's **check mode**
+(ADR-0018); the "Your CV, reviewed" page it replaced is gone.
 _Avoid_: Discovery, onboarding questions, CV audit
 
+**Check mode**:
+The guided walk the profile opens in after an upload: one screen per section, each confirmed by its one
+button, every suggestion answered. The jobs stay locked until it is finished (ADR-0018). A re-upload
+brings it back for new items only.
+_Avoid_: Review page, onboarding, wizard
+
 **Drafted line**:
-A CV line the **review** writes for a **family floor** must-have a job does not already show, using that
+An item the **review** writes for a **family floor** must-have a job does not already show, using that
 job's own **family placement**. It describes duties only, cites its source (the must-have and/or the
-CV's own words), and arrives unticked: it is a proposal, not a fact, until the person ticks it, which
-makes it a **user-resolved fact**.
+CV's own words), and is shown as an add suggestion ("Add to BRED? Only if true"): it is not in the
+profile until the person adds it, which makes it a **user-resolved fact**.
 _Avoid_: Suggested bullet, generated claim, system inference
 
-**Ticked line**:
-A CV line in the state that prints. Lines read from the CV arrive ticked; a **drafted line** becomes
-ticked only by the person's tap. The server renders ticked lines only, on the master CV, every tailored
-draft and every export.
-_Avoid_: Confirmed line, approved line
-
-**Kept line**:
-A CV line the person unticked: held in the profile under "kept for when a job needs it", never printed,
-never deleted, and re-tickable at any time. Unticking is always the person's tap, never the machine's.
-_Avoid_: Deleted line, removed line, hidden line
+**Removed item**:
+An item the person removed from the profile: held, listed under "N removed · Show" in its section,
+never used by any application, and put back in one tap. Removing is always the person's tap, never the
+machine's. Replaces the ticked/kept states (ADR-0018): what is shown is in.
+_Avoid_: Deleted, kept line, unticked line, ticked line
 
 **Fix**:
 A spelling, grammar or punctuation correction the **review** makes to one line: applied by default,
@@ -301,7 +302,7 @@ _Avoid_: Edit, correction, rewrite
 
 **Master CV**:
 The person's one base CV — every job, line and letterhead detail they have confirmed. Each tailored
-CV starts from it; changing it changes the base, never one application. It may hold more ticked lines
+CV starts from it; changing it changes the base, never one application. Its home is the profile (ADR-0018). It may hold more items
 than any one application prints: which of them print is decided per application (ADR-0007).
 _Avoid_: Root CV, base CV, profile CV
 

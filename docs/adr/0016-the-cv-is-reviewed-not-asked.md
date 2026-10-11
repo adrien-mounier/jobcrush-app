@@ -1,6 +1,8 @@
 # ADR-0016 — The CV is reviewed, not asked
 
-- **Status:** Accepted
+- **Status:** Accepted; clauses 1, 2, 3, 5 and 6 amended by
+  [ADR-0018](0018-the-profile-is-the-master-cvs-home.md) (2026-10-11): the review becomes the profile's
+  check mode, items are in or removed (no ticks), and every suggestion must be answered
 - **Date:** 2026-10-04
 - **Decided in:** [#326](https://github.com/adrien-mounier/jobcrush-app/issues/326) (owner grilling,
   2026-10-03/04); spec [#332](https://github.com/adrien-mounier/jobcrush-app/issues/332)

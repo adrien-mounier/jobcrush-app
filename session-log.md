@@ -20,7 +20,8 @@ v7 (V2): the footer button is the only confirm (no "These are right"); no "saved
 job suggestions inline as in V1. Own facts (details, About you, work rights) in plain cards, gold kept for
 suggestions; the removal has its own coral look; variants V2.1 (no step count) and V2.2 (named steps).
 **Approved: V2.1.** Copy without contact details in `docs/design/profile-check-mode-prototype.html`.
-**Next:** ADR (profile replaces the review, new gate, About you), then `/to-spec`.
+ADR-0018 written (amends ADR-0016 cl. 1, 2, 3, 5, 6 and ADR-0017's edit rule); glossary: check mode,
+removed item (ticked/kept retired). **Next:** `/to-spec`.
 
 ## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
 

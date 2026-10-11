@@ -1,6 +1,8 @@
 # ADR-0017 — The CV chat proposes, from the person's own words only
 
-- **Status:** Accepted
+- **Status:** Accepted; its amendment of ADR-0016 clause 6 is amended by
+  [ADR-0018](0018-the-profile-is-the-master-cvs-home.md) (2026-10-11): items are also edited and removed
+  in place in the profile, and the review screen's doors move to the profile
 - **Date:** 2026-10-06
 - **Decided in:** [#346](https://github.com/adrien-mounier/jobcrush-app/issues/346) (owner grilling,
   2026-10-06)
