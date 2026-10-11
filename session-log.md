@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
+
+From the stored review (staging, read-only): COMPLETE stamps are right, but the model refused extras for reasons
+the prompt doesn't hold (SG "nothing to accompany", Okoone R2/R5 misreads) → #374 (cap moves to print, 3 extras/job).
+The owner proposed the profile as the master CV's home. `/challenge-with-codex`: home yes, but upload review ≠ storage.
+Grilled: the profile in check mode, the gate = facts plus every proposal answered (changes ADR-0016 cl. 6), dismissed
+stays dismissed for the same evidence, a tailor tick joins the profile, rebuild before v1 if the prototype wins. Prototype V1/V2/V3
+is a private artifact, kept out of the public repo because it holds the owner's contact details. Paused #372/#368/#370.
+**Next:** owner tries #375; meanwhile #373 + #360, #374, #371, #369.
+
 ## 2026-10-11 — Owner decisions on #332's open calls; #367, #368 filed (docs-only)
 
 Confirmed: the two #340 review rules (ADR-0016 clause 4 now says a missing must-have always earns its
