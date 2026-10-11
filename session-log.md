@@ -17,7 +17,8 @@ v6: no tick boxes at all. The profile is the store (keep / add / remove, removed
 no "COMPLETE" stamp; V2 guided one screen per section; Languages back; work rights move into the profile and
 the start stops asking → #376 filed.
 v7 (V2): the footer button is the only confirm (no "These are right"); no "saved" words, motion instead;
-job suggestions inline as in V1.
+job suggestions inline as in V1. Own facts (details, About you, work rights) in plain cards, gold kept for
+suggestions; the removal has its own coral look; variants V2.1 (no step count) and V2.2 (named steps).
 **Next:** owner tries #375 v3 and picks V1/V2/V3.
 
 ## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
