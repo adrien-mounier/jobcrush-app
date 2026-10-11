@@ -16,6 +16,8 @@ the machine, not an item to check; the removal card has a minus mark and strike-
 v6: no tick boxes at all. The profile is the store (keep / add / remove, removed items one tap from returning);
 no "COMPLETE" stamp; V2 guided one screen per section; Languages back; work rights move into the profile and
 the start stops asking → #376 filed.
+v7 (V2): the footer button is the only confirm (no "These are right"); no "saved" words, motion instead;
+job suggestions inline as in V1.
 **Next:** owner tries #375 v3 and picks V1/V2/V3.
 
 ## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
