@@ -10,7 +10,9 @@ line, extras cap at 10, a fact from another job is OPTIONAL with its quote); the
 drafted line's source names its job → #368. Then: partial-run marks kept; a final failure is a log
 error for the owner only, and a no-family job shows a green "Reviewed" tag (#369). Extras stay beside
 COMPLETE, under one label, "Only if true", with a reason (#370, after #368). Flags stay internal.
-Roadmap: the CI-minutes risk is retired (repo public since 2026-10-08).
+Roadmap: the CI-minutes risk is retired (repo public since 2026-10-08). The owner's re-upload (screenshots 7–9):
+the summary leaves the master CV (option C → #371, ADR first); import misfiles projects and nationality into
+the summary (#373); subtitle says "as it will print" for a master CV holding ~16 BRED lines (#372).
 **Next:** owner re-runs the real CV on staging; #366; then #360 → #359.
 
 ## 2026-10-10 — #361: Product Owner gets a family — product-management v1 published (13ea5a0, 55996df)
