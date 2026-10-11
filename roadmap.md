@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-09 (#364, #365, #362 closed)_
+_Last updated: 2026-10-11 (owner decisions on #332's open calls; #367, #368 filed)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -25,7 +25,7 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 5b. **Real-CV defects first** (found 2026-10-08, agent, `/implement` one at a time): ~~[#363](https://github.com/adrien-mounier/jobcrush-app/issues/363) auto-stop kills a review~~ done 2026-10-08 (held request through the proxy; staging proof after deploy) → ~~[#364](https://github.com/adrien-mounier/jobcrush-app/issues/364) keep why an attempt failed~~ done 2026-10-09 (SG failure was the #363 stop, confirmed by a clean real run, ~~#365~~) → ~~[#362](https://github.com/adrien-mounier/jobcrush-app/issues/362) failed review reads clean~~ done 2026-10-09 (quiet retry on next read, 4 paid attempts/job cap; no "0 to check" while unchecked) → ~~[#361](https://github.com/adrien-mounier/jobcrush-app/issues/361) Product Owner unplaced~~ done 2026-10-10 (product-management v1 published; techmap quota is 100/month → [#366](https://github.com/adrien-mounier/jobcrush-app/issues/366)) → [#360](https://github.com/adrien-mounier/jobcrush-app/issues/360) letterhead → [#359](https://github.com/adrien-mounier/jobcrush-app/issues/359) scan message (Opus, medium each); then [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable) — carry-over trap noted on the ticket
 6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what
 7. ~~#346 grilling — talk to the product to improve your CV~~ decided 2026-10-06 (ADR-0017).
-8. **Owner decision** (from #340): confirm or veto the review prompt's two calls — R6 read as "a missing must-have always earns its line, OPTIONAL/INDUSTRY GUESS extras stop at 10", and a fact under another job only ever OPTIONAL with its quote. Confirmed → ADR-0016 clause 4 updated to match (docs-only).
+8. ~~**Owner decisions**~~ settled 2026-10-11: the two #340 review rules confirmed (ADR-0016 clause 4 updated); 4 paid attempts/job (~USD 2 worst case) accepted, with root causes to fix in [#367](https://github.com/adrien-mounier/jobcrush-app/issues/367) (not v1-critical); heading "Your CV, reviewed" stays on a partly unchecked CV; a drafted line's source names its job → [#368](https://github.com/adrien-mounier/jobcrush-app/issues/368) (Opus, medium). **Still open:** a partly failed run keeps the finished jobs' marks (#341), and a complete job may still show OPTIONAL boxes (#342).
 
 **Next: Chat with JobCrush** (spec [#350](https://github.com/adrien-mounier/jobcrush-app/issues/350),
 owner call: right after #332, ahead of the rest of the spine): talk to improve the master CV; it replaces
@@ -61,7 +61,8 @@ first candidates #171, #168, #203) or when real visitors return, and then #288 g
 
 ## Live risks / ops notes
 
-- **CI minutes:** private repo, metered, $0 limit; a code push costs ~60 Actions-minutes, so ~33–50 pushes a month (2026-10-06/07 spent six on one flaky journey — `lessons.md`, Testing traps). Owner decision open (pay overage ~$0.48/run, run the slow journeys less often, or go public). Until then, budget pushes; docs-only pushes run nothing.
+- **Techmap quota:** 100 calls/month, not 1000 (81 left on 2026-10-10) → #366.
+- **CI minutes:** solved 2026-10-08, repo made public (free Actions minutes). Nothing secret goes in a tracked file.
 - **Real visitors gate:** #288 (sign-in refusal reads as a crash) and #298 (warm machine, $7.23/month) un-park before anyone but the owner is let in.
 - **Tablet widths are untested:** no browser check drives 641–899px (#318). Un-park it on the first slice that restyles a top bar.
 

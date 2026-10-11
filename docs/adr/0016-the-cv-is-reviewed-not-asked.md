@@ -97,7 +97,11 @@ Every drafted line obeys the drafting rules:
 - **R3 — verbs follow seniority** in that job.
 - **R4 — an industry-only guess is flagged** **INDUSTRY GUESS**.
 - **R5 — never repeat** what the job already says.
-- **R6 — never pad;** at most 10 lines per job.
+- **R6 — never pad.** A missing must-have always earns its line; the **OPTIONAL** and
+  **INDUSTRY GUESS** extras stop at 10 per job (owner, 2026-10-11).
+
+A fact the CV states under **another** job may feed a drafted line only as **OPTIONAL**, citing its
+quote (owner, 2026-10-11).
 
 Every drafted line **cites its source** — the must-have it covers and/or the verbatim CV words it came
 from. It arrives **unticked**. A vague phrase inside it is tappable, offering choices with the CV's own

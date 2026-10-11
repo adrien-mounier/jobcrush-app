@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-11 — Owner decisions on #332's open calls; #367, #368 filed (docs-only)
+
+Confirmed: the two #340 review rules (ADR-0016 clause 4 now says a missing must-have always earns its
+line, extras cap at 10, a fact from another job is OPTIONAL with its quote); the 4-attempt retry ceiling
+(root causes → #367, not v1-critical); "Your CV, reviewed" heading on a partly unchecked CV. Asked: a
+drafted line's source names its job → #368. Still open: partial-run marks (#341), OPTIONAL boxes beside
+a COMPLETE stamp (#342). Roadmap: CI-minutes risk retired (repo public since 2026-10-08).
+**Next:** owner re-runs the real CV on staging; #366; then #360 → #359.
+
 ## 2026-10-10 — #361: Product Owner gets a family — product-management v1 published (13ea5a0, 55996df)
 
 Vocabulary-growth run. The labeler was right to answer unmapped: the family was missing. Corpus: 13 techmap
