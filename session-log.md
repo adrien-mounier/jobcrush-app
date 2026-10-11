@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-12 — ADR-0018 written; check mode broken into tickets #377–#387 (docs-only)
+
+ADR-0018: the profile is the master CV's home; check mode (prototype V2.1) replaces the review page; items
+are in or removed (no ticks); every suggestion must be answered before the jobs; edit and remove in place
+(amends ADR-0017's chat-only editing); a fact added at tailoring joins the profile, a stretch never does.
+`/to-tickets` from the ADR (no separate spec, parent #375): #377 walk (tracer) → #378–#384 in parallel,
+with #371, #373, #376 → #385 re-upload, #383 moves → #386 retire the review page. #387 tailoring fact →
+profile (outside this build). Owner: fixes show a quiet "Fixed" tag, never block. Closed as superseded:
+#370, #372, #344. Code map: the profile has no edit/remove today; "kept" ≈ removed; the jobs gate lacks
+work rights and unanswered drafts. **Next:** `/implement #360`, then `/implement #377`.
+
 ## 2026-10-11 — Prototype #375 v3: one suggestion card, "About you"; #371 rewritten (docs-only)
 
 Owner grilling on the prototype's design. A tick means "applications may use this line" (legend: Ready to use /
@@ -120,18 +131,3 @@ review stored before #343 shows none. A picked choice stays tappable to change (
 missing); typed words do not (Edit changes them). QA gate **GO**: API 1945, review.spec 19/19, three
 journeys green incl. the tester's new `word-choices-journey.mjs`. Filed #358: neither review journey
 (#342's, #343's) sits in a CI tier. **Next:** #344 (Fable).
-
-## 2026-10-08 — #342: drafted lines for missing must-haves — unticked, source-cited, tick to accept
-
-A job's drafted lines now land on the paper as claims in a third line state, `drafted`: on the paper,
-printed nowhere (the one print gate refuses them — proven red through the master CV, the tailored
-draft and the export), left alone by the confirm, ticked only through the review's own door, which
-makes a confirmed `drafted-accepted` fact in the person's own wording if they edited it first. Dashed
-gold boxes at the end of the job with a + to tick, flags inline, the source under each without a tap,
-Edit and Tick in the sheet, the "new" tag once ticked, the COMPLETE stamp decided by the model's own
-must-have account (code review caught the stamp reading off surviving drafts). QA gate **GO**: API 1944,
-spec 17/17, six journeys green incl. a new `drafted-lines-gate-journey.mjs` (reloads, wrong-way doors,
-master CV). Filed #357 (the wording polish could reword a rewritten draft; off the v1 path); noted the
-re-upload draft-id carry-over on #344. **Owner to confirm:** a complete job may still show OPTIONAL /
-INDUSTRY GUESS boxes beside its stamp; "From your CV:" does not name which job the quote came from.
-**Next:** `/implement #343` (Opus, medium): word choices; #344 after it (Fable).
