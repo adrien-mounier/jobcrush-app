@@ -186,7 +186,9 @@ criterion, and drives the real app in a browser with evidence — commit only on
 
   **`/implement` and `/implement-spec` are owner-launched.** When a decision unlocks a build, end
   the turn with the exact line to type, ticket number included, plus model and effort from the
-  **Model rule** in `roadmap.md`.
+  **Model rule** in `roadmap.md`. Tickets that share a parent get one `/implement-spec <parent>`
+  line; per-ticket `/implement` lines are for a lone ticket. After `/to-tickets` with no spec issue,
+  wire the tickets as sub-issues of their parent first, so that line has something to build.
 
   **`/code-review`'s fixed point is `HEAD`** (nothing is committed before GO): run
   `git add -N <new files>` first so the diff shows them.

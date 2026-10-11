@@ -11,7 +11,9 @@ are in or removed (no ticks); every suggestion must be answered before the jobs;
 with #371, #373, #376 → #385 re-upload, #383 moves → #386 retire the review page. #387 tailoring fact →
 profile (outside this build). Owner: fixes show a quiet "Fixed" tag, never block. Closed as superseded:
 #370, #372, #344. Code map: the profile has no edit/remove today; "kept" ≈ removed; the jobs gate lacks
-work rights and unanswered drafts. **Next:** `/implement #360`, then `/implement #377`.
+work rights and unanswered drafts. No `/to-spec` was run: #375 + ADR-0018 serve as the spec, with its
+15 sub-issues wired (#387 outside). I first gave per-ticket `/implement` lines; the owner caught that
+`/implement-spec` was the rule (roadmap Build mode). **Next:** owner launches `/implement-spec #375` (Fable 5.1, high).
 
 ## 2026-10-11 — Prototype #375 v3: one suggestion card, "About you"; #371 rewritten (docs-only)
 
@@ -120,14 +122,3 @@ review's new lines are handled. Added CI time: ~3.5 min (106s + 103s locally). T
 narrowing the first draft made: `qaReviewAnswer.ts` had been unmapped, so it selected every journey.
 It now sits in the shared REVIEW area, which selects all 13 review-carrying journeys. QA gate **GO**.
 Still to confirm: a green CI run with both journeys in it. **Next:** #344 (Fable).
-
-## 2026-10-08 — #343: word choices on a drafted line's vague phrase (ddfa8ac)
-
-A vague phrase in an unticked drafted line now wears a dotted gold underline; a tap opens the sheet on
-its choices: From your CV first (with the CV words), then Typical, each tagged, plus "Or type your own".
-A pick or typed words replace the phrase through the draft's edit door, persist, and print once ticked.
-The choices ride on the stored review checkpoint, so opening them makes no request and no AI call; a
-review stored before #343 shows none. A picked choice stays tappable to change (code review caught it
-missing); typed words do not (Edit changes them). QA gate **GO**: API 1945, review.spec 19/19, three
-journeys green incl. the tester's new `word-choices-journey.mjs`. Filed #358: neither review journey
-(#342's, #343's) sits in a CI tier. **Next:** #344 (Fable).

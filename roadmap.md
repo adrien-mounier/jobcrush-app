@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-12 (check mode broken into tickets #377–#387)_
+_Last updated: 2026-10-12 (close-session: check mode ready to build)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,27 +15,22 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Direction decided (owner, 2026-10-11):** the profile in "check mode" replaces "Your CV, reviewed" as the master CV's home. The gate becomes: confirm your facts and answer every suggestion. Prototype [#375](https://github.com/adrien-mounier/jobcrush-app/issues/375) approved, **V2.1** chosen (guided, one screen per section, no step count). Copy without contact details: `docs/design/profile-check-mode-prototype.html`. The rebuild comes **before** finishing v1. Recorded as [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md); broken into tickets 2026-10-12. **Build: `/implement-spec #375`** (#375 + ADR-0018 serve as the spec; its 15 sub-issues incl. #360 are wired; #387 stays outside), one integration branch, `/qa-gate` on its tip, then main.
+**Now: build check mode** (decided 2026-10-11/12; [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)).
+The profile becomes the master CV's home and its guided **check mode** (prototype V2.1,
+`docs/design/profile-check-mode-prototype.html`) replaces "Your CV, reviewed". The jobs open once every
+screen is confirmed, every suggestion answered and work rights set. The rebuild comes **before** finishing v1.
 
-- **Run order:** #360 letterhead (Opus, medium) → **#377 the walk** (Opus, high: the tracer bullet) → in parallel once #377 is in: #378 add suggestions + gate (Fable) · #379 edit in place (Opus, medium) · #380 "Remove this?" (Fable) · #381 your details as fields (Opus, medium; after #360) · #371 About you (Fable) · #382 skills one per item (Fable) · #373 projects section (Opus, medium) · #376 the start stops asking (Opus, medium) · #384 fixes tag (Opus, medium) → #383 moves with a tag (Fable; after #382) · #385 re-upload (Fable; after #378, #380; absorbs #344) · #368 source names its job (after #378) → **#386 retire the review page** (Opus, medium; last).
-- Outside this build: #387 a fact added while tailoring joins the profile (tailoring spine, open points first). Closed as superseded: #370 (→ #378), #372 (→ #386), #344 (→ #385).
+- **Owner: launch `/implement-spec #375`** — Fable 5.1, high (Opus 5.5, high if Fable quota is short).
+  #375 + ADR-0018 serve as the spec (no `/to-spec` was run); its 15 sub-issues are wired with blocking
+  edges: #377 the walk first, then #378–#384 with #360, #371, #373, #376, then #383, #385, #368, last
+  #386 (retire the review page). One integration branch, `/qa-gate` on its tip, then main.
+- Outside this build: #387 a fact added while tailoring joins the profile (tailoring spine).
+- Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
+  medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
-**Before: "Your CV, reviewed"** (spec #332, 12 of 13 closed — #345 left; its page is replaced by check mode above): discovery stops asking, the CV is reviewed instead.
-
-1. ~~[#338](https://github.com/adrien-mounier/jobcrush-app/issues/338) the review screen (layout C, the marked-up CV)~~ done 2026-10-06
-2. ~~[#340](https://github.com/adrien-mounier/jobcrush-app/issues/340) review prompt + blind test on the owner's real CV~~ done 2026-10-06 — measured $1.0–1.4 / 3.5–5 min per CV on Fable 5.1 max
-3. ~~[#339](https://github.com/adrien-mounier/jobcrush-app/issues/339) discovery stops asking~~ done 2026-10-07 — owner OK'd that "Ask me later" re-asks each visit; follow-ups [#354](https://github.com/adrien-mounier/jobcrush-app/issues/354) empty profile points to the CV (decided, `/implement`, Opus, medium) and #355 (journey hygiene)
-4. ~~[#341](https://github.com/adrien-mounier/jobcrush-app/issues/341) the review runs in the background~~ done 2026-10-08 — owner to confirm: a partly failed run keeps the finished jobs' marks; measure the first real per-job run's cost on staging
-5. ~~[#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves~~ done 2026-10-08 — COMPLETE stamp seen on the owner's real CV 2026-10-08; ~~[#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) word choices~~ done 2026-10-08 (review journeys into CI: ~~[#358](https://github.com/adrien-mounier/jobcrush-app/issues/358)~~ done 2026-10-08)
-5b. **Real-CV defects first** (found 2026-10-08, agent, `/implement` one at a time): ~~[#363](https://github.com/adrien-mounier/jobcrush-app/issues/363) auto-stop kills a review~~ done 2026-10-08 (held request through the proxy; staging proof after deploy) → ~~[#364](https://github.com/adrien-mounier/jobcrush-app/issues/364) keep why an attempt failed~~ done 2026-10-09 (SG failure was the #363 stop, confirmed by a clean real run, ~~#365~~) → ~~[#362](https://github.com/adrien-mounier/jobcrush-app/issues/362) failed review reads clean~~ done 2026-10-09 (quiet retry on next read, 4 paid attempts/job cap; no "0 to check" while unchecked) → ~~[#361](https://github.com/adrien-mounier/jobcrush-app/issues/361) Product Owner unplaced~~ done 2026-10-10 (product-management v1 published; techmap quota is 100/month → [#366](https://github.com/adrien-mounier/jobcrush-app/issues/366)) → [#360](https://github.com/adrien-mounier/jobcrush-app/issues/360) letterhead → [#359](https://github.com/adrien-mounier/jobcrush-app/issues/359) scan message (Opus, medium each); ~~#344~~ folded into #385
-5c. **From the 2026-10-11 real-CV run:** #373, #371, #376 now sit in the check-mode run order above; ~~#372~~ superseded.
-6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what
-7. ~~#346 grilling — talk to the product to improve your CV~~ decided 2026-10-06 (ADR-0017).
-8. ~~**Owner decisions**~~ settled 2026-10-11: the two #340 review rules confirmed (ADR-0016 clause 4 updated); 4 paid attempts/job (~USD 2 worst case) accepted, with root causes to fix in [#367](https://github.com/adrien-mounier/jobcrush-app/issues/367) (not v1-critical); heading "Your CV, reviewed" stays on a partly unchecked CV; a partly failed run keeps the finished jobs' marks; a final failure is logged for the owner, never shown, and a no-family job gets a green "Reviewed" tag → [#369](https://github.com/adrien-mounier/jobcrush-app/issues/369); a COMPLETE job keeps its extra lines. Follow-ups: #368 (now after #378); ~~#370~~ folded into #378.
-
-**Next: Chat with JobCrush** (spec [#350](https://github.com/adrien-mounier/jobcrush-app/issues/350),
-owner call: right after #332, ahead of the rest of the spine): talk to improve the master CV; it replaces
-#316/#317 *Add something new*. `/to-spec` → `/to-tickets` → `/implement-spec`. Small and independent:
+**Next: Chat with JobCrush** (spec [#350](https://github.com/adrien-mounier/jobcrush-app/issues/350)):
+talk to improve the master CV; replaces #316/#317 *Add something new*. Its doors move from the review
+page to the profile (ADR-0018). `/to-spec` → `/to-tickets` → `/implement-spec`. Small and independent:
 [#348](https://github.com/adrien-mounier/jobcrush-app/issues/348) a sign-in door on the landing page.
 
 **Still open on the v1 spine** (spec #301): #314 over two pages, tighten once then ship and tell ·
@@ -44,16 +39,16 @@ owner call: right after #332, ahead of the rest of the spine): talk to improve t
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
 every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
-Never point `/implement` at a parent or spec issue (#54, #86, #127, #301, #332).
-**Build mode (2026-10-06):** finish #332 with `/implement`, one ticket at a time (per-ticket model
-rule; #345 needs the owner mid-ticket). From the next spec on, `/implement-spec <spec>` builds a whole
-spec in parallel; #301 is wired for it (sub-issues linked).
+**Build mode:** a ticket set under one parent is built with `/implement-spec <parent>` (one model for the
+run); `/implement` is for a lone ticket. Never point `/implement` at a parent or spec issue (#54, #86,
+#127, #301, #332, #375).
 
 ## Milestones
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
 - V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 half done (#312, #313); #314–#317 open.
-- V6 — discovery redesign (#326 decided, spec #332): **in progress**, 11 of 13 (#344, #345).
+- V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page is being replaced.
+- V6b — the profile's check mode (ADR-0018, parent #375): **tickets ready**, build not started.
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
 - Phases 2–6 — the profile gets rich (#127), the deck gets cheap and trustworthy, the live-jobs chain (#54), where the jobs come from, the next products: **parked 2026-09-26, not cancelled** — see archive.
 
