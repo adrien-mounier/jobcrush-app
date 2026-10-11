@@ -11,6 +11,8 @@ costs nothing in a profile. A misplaced line moves automatically with a tag; an 
 and only its tool is copied to Skills. The summary becomes "About you": machine-written from the whole CV,
 follows the writing rules, approved or edited (no tick), original viewable. Print still applies "earns its
 place". Personal projects get a section. #371 rewritten (option C replaced); decisions on #375.
+v5: details open as fields; skills split one per line by the machine (any separator), in groups named by the CV or
+the machine, not an item to check; the removal card has a minus mark and strike-through, no box.
 **Next:** owner tries #375 v3 and picks V1/V2/V3.
 
 ## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
