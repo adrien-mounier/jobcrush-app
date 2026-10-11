@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-11 — Prototype #375 v3: one suggestion card, "About you"; #371 rewritten (docs-only)
+
+Owner grilling on the prototype's design. A tick means "applications may use this line" (legend: Ready to use /
+Set aside / Suggested), never "on your CV". Every question uses one dashed suggestion card: add ("Only if
+true") or remove (the line arrives unticked). The "untick a weak line" suggestion is dropped, because a weak line
+costs nothing in a profile. A misplaced line moves automatically with a tag; an achievement stays under its job
+and only its tool is copied to Skills. The summary becomes "About you": machine-written from the whole CV,
+follows the writing rules, approved or edited (no tick), original viewable. Print still applies "earns its
+place". Personal projects get a section. #371 rewritten (option C replaced); decisions on #375.
+**Next:** owner tries #375 v3 and picks V1/V2/V3.
+
 ## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
 
 From the stored review (staging, read-only): COMPLETE stamps are right, but the model refused extras for reasons
@@ -114,37 +125,3 @@ master CV). Filed #357 (the wording polish could reword a rewritten draft; off t
 re-upload draft-id carry-over on #344. **Owner to confirm:** a complete job may still show OPTIONAL /
 INDUSTRY GUESS boxes beside its stamp; "From your CV:" does not name which job the quote came from.
 **Next:** `/implement #343` (Opus, medium): word choices; #344 after it (Fable).
-
-## 2026-10-08 — #341: the review runs in the background — fixes with undo, untick suggestions (32b1457)
-
-The CV review (`cv-review.md`, the "review" step) now starts from the import the moment the lines are
-stored and the jobs placed: one call per job in parallel, the sections on the first, checkpointed per job
-in a new store (`cvReviewStore.ts`), retried once, resumed after a restart for unfinished jobs only, never
-re-asked once answered; a run that fails after its retries leaves the lines as read and says nothing. On
-the paper: fixes applied by default to the line's own text (undo restores the exact original), the
-corrected word green; untick suggestions as an amber band with their reason, the line ticked until the
-person acts; a progress card while it runs, unanswered jobs greyed, the confirm locked (409 server-side).
-Code review: `start()` never rejects into the pipeline; one fake reviewer (`qaReviewAnswer.ts`) for the
-QA stack and the HTTP tests; the review deadline 30 → 10 min (a hung provider locked the jobs for an hour).
-QA gate **GO** (API 1937, spec 12/12, journeys 65/0 + 23/0, Postgres probe); it found #356 ("Next ↓" never
-leaves the letterhead, shipped with #338) and a journey-hold hygiene item (noted on #355). **Owner to
-confirm:** a partly failed run keeps the finished jobs' marks (spec says "no fixes"); per-job calls may cost
-more than #340's one-call $1.0–1.4 — measure the first real run on staging; the marks' colours and the
-band's amber edge are the prototype's, outside DESIGN.md (the design hook flags them).
-**Next:** `/implement #342` (Fable, xhigh): drafted lines; `/implement #354` (Opus, medium) is independent.
-
-## 2026-10-07 — #339: discovery stops asking (c520a1d)
-
-Discovery now asks question 1, then work rights once per chosen market and languages once — the floor
-questions, the reader-only question, the countdown and its section rail are gone (web + wire). "Ask me
-later" stores nothing (no claim, no fact): the screen moves past it for the visit, a later visit asks again
-— owner confirmed 2026-10-08 that re-asking is fine. The floor-coverage jobs gate is deleted; the completed
-review is the one gate, and coverage left the retrieval fingerprint so it can't buy a paid search.
-Ratchet 648 → 536. ~90 API tests and ~45 journeys moved onto real fact sources (CV via `factsFromCv`,
-tailor answers); discovery-earns-reveal-gate and non-answer-skip deleted. QA gate GO (46/46 live checks).
-The push hit GitHub "Internal Server Error" on every route (both protocols, any branch) for ~1 h with the
-status page green; a plain retry later went through. Owner decisions: re-asking a put-off question each
-visit is fine (only work rights + languages can come back); #354 empty profile points to the CV
-("Add your CV"), ready-for-agent. Filed #355 (journey hygiene).
-**Next:** `/implement #341` (Fable, xhigh); `/implement #354` (Opus, medium) is small and independent.
-
