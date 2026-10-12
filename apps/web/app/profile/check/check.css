@@ -412,3 +412,35 @@
     transition: none !important;
   }
 }
+
+/* #379 — an item's words edited in place (prototype V2.1 `li.pt.edit`) */
+.check .pt.edit {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding-left: 8px;
+  background: rgba(31, 38, 47, 0.75);
+}
+.check .pt.edit::before {
+  display: none;
+}
+.check textarea.ed {
+  width: 100%;
+  min-height: 76px;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 16px/1.5 var(--serif);
+}
+.check .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.check .btn.sm {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 9px;
+}
