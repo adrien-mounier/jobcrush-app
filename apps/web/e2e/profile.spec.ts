@@ -2176,6 +2176,36 @@ test("#384: a fixed fact wears the tag on the profile, as a row and as a chip; a
   await expect(page.locator(".fact .tag")).toHaveCount(1);
 });
 
+// #383 (ADR-0018 clause 6): a fact the review moved, or a tool it copied from an achievement, wears
+// where it came from on the profile too — as check mode wears it — and a fact that never moved
+// wears nothing. The words are the tag's whole job, so they are what the test reads.
+test("#383: moved and copied facts wear where they came from on the profile; a fact that never moved wears no tag", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      PROFILE.domains[0]!,
+      {
+        ...PROFILE.domains[1]!,
+        facts: [
+          PROFILE.domains[1]!.facts[0]!,
+          { id: "skill-nrg-tools-jira", text: "JIRA", colour: "gold", source: "read", job: null, group: "Tools", movedFrom: "Nordic Retail Group" },
+          { id: "skill-nrg-splunk-splunk", text: "Splunk", colour: "gold", source: "read", job: null, group: "Skills", movedFrom: "Nordic Retail Group", copied: true },
+        ],
+      },
+      { tag: "lang", heading: "Languages", facts: [{ id: "sum-langs", text: "Fluent in French and English.", colour: "gold", source: "read", job: null, movedFrom: "your summary" }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await expect(page.locator(".fact", { hasText: "JIRA" }).locator(".tag.moved")).toHaveText("Moved from Nordic Retail Group");
+  await expect(page.locator(".fact", { hasText: "Splunk" }).locator(".tag.moved")).toHaveText("Taken from Nordic Retail Group");
+  await expect(page.locator(".fact", { hasText: "Fluent in French" }).locator(".tag.moved")).toHaveText("Moved from your summary");
+  await expect(page.locator(".tag.moved")).toHaveCount(3);
+  await expect(page.locator(".fact", { hasText: "SQL." }).locator(".tag")).toHaveCount(0);
+  await expect(page.locator(".frow .tag")).toHaveCount(0);
+});
+
 // #379 (ADR-0018 clause 2): after check mode, an item's words are edited in place from its detail —
 // the same door check mode's ✎ uses. Save sends the trimmed words and the profile re-reads them;
 // Cancel sends nothing; empty words are never sent. Selected by structure, not copy.

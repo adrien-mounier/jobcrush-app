@@ -138,6 +138,16 @@ CV's own label when the line carries one, else the machine's ("Skills"); the per
 group or move a skill. So the tailor curates from single skills, each offered to it once, and still
 regroups them for the posting (preview-tailor rule 9); the master CV prints every skill once.
 
+Tools found under a job reach Skills too (#383, ADR-0018 clause 6), without asking and always
+tagged. A job line that is only a list of tools ("Tools: JIRA, Confluence, MS Project") **leaves the
+job** for Skills, split by the same rule, each item tagged "Moved from <employer>". An achievement
+that uses a tool **stays under its job, word for word**; only the tool's name, exactly as the line
+writes it, is **copied** to Skills, tagged "Taken from <employer>". Nothing the person wrote is
+shortened. Skills never gets a second copy of a skill it already lists — case, spaces, dots and
+dashes aside ("Jira" = "JIRA"): the item already there wins and stays untagged, and between two new
+ones the first in CV order wins. The review's own job call names the tool lists and the tools
+(`cv-review.md` H), so detection costs no extra call.
+
 Languages are conserved one by one (#337): every language the person holds prints on every tailored
 CV, found by name on any "additional" line whatever its label says, and a missing one is **fatal** —
 the draft is refused and the export gate blocks it, like a denied capability.

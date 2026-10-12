@@ -1297,16 +1297,20 @@ describe("#380 removal suggestions", () => {
 //   - an unanswered draft on a changed job is replaced by the new run's; an added or edited one
 //     keeps its words.
 // ---------------------------------------------------------------------------------------------
+async function reupload(app: App, cookie: string): Promise<void> {
+  const { jobId } = (await post(app, cookie, "/cv/paste", { text: CV_TEXT })).json();
+  await until(async () => (await get(app, cookie, `/jobs/${jobId}`)).json(), (job) => isTerminal(job.status), "the second paste settled");
+}
+/** Every suggestion answered (No thanks to each draft), then Finish. */
+async function finish(app: App, cookie: string): Promise<void> {
+  await answerDrafts(app, cookie);
+  expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+}
+/** The real miner names an item afresh on each read: the same items, under new ids. */
+const renamed = (claims: CandidateClaim[]) => claims.map((c) => ({ ...c, id: `${c.id}-again`, semantic_key: `${c.semantic_key}-again` }));
+
 describe("#385 a re-upload", () => {
   const NEW_LINE = claim({ id: "nrg-pos-rollout", role: NRG, text: "Rolled out the new point of sale to 40 stores." });
-  async function reupload(app: App, cookie: string): Promise<void> {
-    const { jobId } = (await post(app, cookie, "/cv/paste", { text: CV_TEXT })).json();
-    await until(async () => (await get(app, cookie, `/jobs/${jobId}`)).json(), (job) => isTerminal(job.status), "the second paste settled");
-  }
-  async function finish(app: App, cookie: string): Promise<void> {
-    await answerDrafts(app, cookie);
-    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
-  }
   const pending = async (app: App, cookie: string) => (await get(app, cookie, "/onboarding/cards")).json().reviewPending === true;
 
   it("the same CV again opens no check mode and changes nothing — even read back under new ids", async () => {
@@ -1321,7 +1325,7 @@ describe("#385 a re-upload", () => {
 
     await reupload(app, cookie);
     // The real miner names an item afresh on each read: the same words under a new id are the same item.
-    mined.splice(0, mined.length, ...MINED.map((c) => ({ ...c, id: `${c.id}-again`, semantic_key: `${c.semantic_key}-again` })));
+    mined.splice(0, mined.length, ...renamed(MINED));
     await reupload(app, cookie);
     expect(await review(app, cookie)).toEqual(before);
     expect(before).toMatchObject({ completed: true, newItems: null });
@@ -1459,5 +1463,145 @@ describe("#385 a re-upload", () => {
     await finish(app, cookie);
     expect(await pending(app, cookie)).toBe(false);
     expect(writer.calls).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #383 — misplaced items move with a tag (ADR-0018 clause 6, ADR-0013 clause 1). The job call names
+// a line that is only a list of tools (`toolLists`) and the tools an achievement uses (`toolsUsed`);
+// zero extra calls. A tool list leaves its job for Skills, split one per item, each wearing "Moved
+// from <employer>"; an achievement stays where it is, word for word, and only the tool's name is
+// copied to Skills, wearing "Taken from <employer>". Skills never gets a second copy of a skill it
+// already lists — the item already there wins, untagged. No item's words change.
+// ---------------------------------------------------------------------------------------------
+const TOOL_LIST = "Tools: JIRA, Confluence, MS Project";
+const SPLUNK_LINE = "Cut incident triage time by 40% using Splunk dashboards.";
+const MIRO_LINE = "Ran remote planning workshops using Miro.";
+const MINED_383: CandidateClaim[] = [
+  MINED[0]!,
+  MINED[1]!,
+  claim({ id: "nrg-tools", role: NRG, text: TOOL_LIST }),
+  claim({ id: "nrg-splunk", role: NRG, text: SPLUNK_LINE }),
+  MINED[3]!,
+  claim({ id: "bsh-miro", role: BSH, text: MIRO_LINE }),
+  claim({ id: "skill-list", text: "Miro, Figma" }),
+];
+const NRG_EMPLOYER = "Nordic Retail Group";
+const skillsOf = (state: ReviewState) => linesOf(state, "skill").map((l) => ({ id: l.id, text: l.text, state: l.state, movedFrom: l.movedFrom, copied: l.copied ?? false }));
+const EXPECTED_SKILLS = [
+  { id: "skill-list-miro", text: "Miro", state: "ticked", movedFrom: null, copied: false },
+  { id: "skill-list-figma", text: "Figma", state: "ticked", movedFrom: null, copied: false },
+  { id: "skill-nrg-tools-jira", text: "JIRA", state: "ticked", movedFrom: NRG_EMPLOYER, copied: false },
+  { id: "skill-nrg-tools-confluence", text: "Confluence", state: "ticked", movedFrom: NRG_EMPLOYER, copied: false },
+  { id: "skill-nrg-tools-ms-project", text: "MS Project", state: "ticked", movedFrom: NRG_EMPLOYER, copied: false },
+  { id: "skill-nrg-splunk-splunk", text: "Splunk", state: "ticked", movedFrom: NRG_EMPLOYER, copied: true },
+];
+
+describe("#383 tools move to Skills", () => {
+  it("a tool list leaves its job for Skills one per item, tagged Moved from the employer; an achievement stays word for word and its tool is copied, tagged Taken from; a tool Skills already lists is not copied again", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, MINED_383);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(2); // no extra call: the tools ride on each job's call
+
+    const nrg = jobsOf(state).find((j) => j.id === "nrg")!;
+    expect(nrg.lines.map((l) => l.id)).not.toContain("nrg-tools");
+    expect(nrg.lines.filter((l) => !l.draft).map((l) => ({ id: l.id, text: l.text, movedFrom: l.movedFrom }))).toEqual([
+      { id: "nrg-led-checkout", text: "Led the checkout replatform.", movedFrom: null },
+      { id: "nrg-splunk", text: SPLUNK_LINE, movedFrom: null },
+    ]);
+    expect(jobsOf(state).find((j) => j.id === "bsh")!.lines.find((l) => l.id === "bsh-miro")).toMatchObject({ text: MIRO_LINE, movedFrom: null });
+
+    // Miro is listed once — the CV's own item, untagged; the tool list's group name comes with it.
+    expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
+    const skills = state.sections.find((s) => s.tag === "skill")!;
+    expect("groups" in skills && skills.groups).toEqual([
+      { name: "Skills", ids: ["skill-list-miro", "skill-list-figma", "skill-nrg-splunk-splunk"] },
+      { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence", "skill-nrg-tools-ms-project"] },
+    ]);
+    // No item's words were changed by a move: each moved or copied item reads exactly as its line wrote it.
+    for (const s of EXPECTED_SKILLS.filter((s) => s.movedFrom)) expect((s.copied ? SPLUNK_LINE : TOOL_LIST).includes(s.text)).toBe(true);
+  });
+
+  it("the tags survive a reload, a removal and a put back; after the finish the profile wears them and the master CV prints the tools under Skills and the achievement under its job, never the tool list", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, MINED_383);
+    await reviewed(app, cookie);
+    expect(skillsOf(await review(app, cookie))).toEqual(EXPECTED_SKILLS);
+
+    expect((await put(app, cookie, "/cv/lines/skill-nrg-tools-jira", { state: "kept" })).json()).toEqual({ id: "skill-nrg-tools-jira", state: "kept" });
+    expect(skillsOf(await review(app, cookie))[2]).toEqual({ ...EXPECTED_SKILLS[2], state: "kept" });
+    await put(app, cookie, "/cv/lines/skill-nrg-tools-jira", { state: "ticked" });
+    expect(skillsOf(await review(app, cookie))).toEqual(EXPECTED_SKILLS);
+
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-tools@example.com");
+    await answerDrafts(app, cookie);
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+
+    const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ tag: string; facts: Array<{ id: string; text: string; movedFrom?: string; copied?: true }> }> };
+    expect(profile.domains.find((d) => d.tag === "skill")!.facts.map((f) => ({ text: f.text, movedFrom: f.movedFrom ?? null, copied: f.copied ?? false }))).toEqual(
+      EXPECTED_SKILLS.map((s) => ({ text: s.text, movedFrom: s.movedFrom, copied: s.copied })),
+    );
+    const experience = profile.domains.find((d) => d.tag === "experience")!.facts;
+    expect(experience.find((f) => f.id === "nrg-splunk")).toMatchObject({ text: SPLUNK_LINE });
+    expect(experience.find((f) => f.id === "nrg-splunk")!.movedFrom).toBeUndefined();
+    expect(experience.map((f) => f.id)).not.toContain("nrg-tools");
+
+    const markdown = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    const skillsPart = markdown.slice(markdown.indexOf("## Skills"));
+    for (const tool of ["JIRA", "Confluence", "MS Project", "Splunk"]) expect(skillsPart).toContain(tool);
+    expect(markdown).toContain(SPLUNK_LINE);
+    expect(markdown).not.toContain(TOOL_LIST);
+    expect(writer.calls).toHaveLength(2);
+  });
+
+  it("a tool list naming a line outside its job, or a tool its line never says, is dropped and counted", async () => {
+    const writer = fakeWriter({ bogus: true });
+    const { app, cookie } = await withCv(writer, MINED_383);
+    const state = await reviewed(app, cookie);
+    expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
+    expect(readCounters()["cvReview.tool_dropped"]).toBe(4); // two per job: a ghost list line, a tool not in the line
+  });
+});
+
+// #385 with #371 and #383: what the first review moved and copied stays as it is through a
+// re-upload — read again under new ids, the tool list stays out of its job, its items and the copied
+// tool are not listed twice, the summary fact stays where it moved; the re-upload's run moves and
+// copies from the new line only, and Finish confirms what it brought.
+describe("#385 a re-upload keeps what the review moved", () => {
+  const JENKINS_LINE = "Automated the release checks using Jenkins pipelines.";
+  const SUMMARY_FACT = claim({ id: "sum-langs", text: "Fluent in French and English." });
+
+  it("moved and copied items are not duplicated or moved back; a tool in the new line is copied once; Finish confirms the new items", async () => {
+    const writer = fakeWriter();
+    const mined = [SUMMARY_FACT, ...MINED_383];
+    const { app, cookie, server, sessionId } = await withCv(writer, mined);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await finish(app, cookie);
+    const claimsBefore = await server.claims.list(sessionId);
+    const before = await review(app, cookie);
+    expect(skillsOf(before)).toEqual(EXPECTED_SKILLS);
+    expect(linesOf(before, "lang").map((l) => [l.id, l.movedFrom])).toEqual([["sum-langs", "your summary"]]);
+
+    const jenkins = claim({ id: "nrg-jenkins-again", role: NRG, text: JENKINS_LINE });
+    mined.splice(0, mined.length, ...renamed([SUMMARY_FACT, ...MINED_383]), jenkins);
+    await reupload(app, cookie);
+    const state = await reviewed(app, cookie);
+
+    // Nothing the first review moved or copied moved again, or came back twice.
+    const ids = new Set(claimsBefore.map((c) => c.id));
+    expect((await server.claims.list(sessionId)).filter((c) => ids.has(c.id))).toEqual(claimsBefore);
+    expect(jobsOf(state).find((j) => j.id === "nrg")!.lines.map((l) => l.id)).not.toContain("nrg-tools");
+    expect(linesOf(state, "lang").map((l) => [l.id, l.movedFrom])).toEqual([["sum-langs", "your summary"]]);
+    // The new line's tool is copied to Skills once, tagged; the others are listed as before.
+    const copied = { id: "skill-nrg-jenkins-again-jenkins", text: "Jenkins", state: "ticked", movedFrom: NRG_EMPLOYER, copied: true };
+    expect(skillsOf(state)).toEqual([...EXPECTED_SKILLS, copied]);
+    expect(state.newItems).toEqual([jenkins.id, copied.id]);
+
+    await finish(app, cookie);
+    const after = await server.claims.list(sessionId);
+    for (const id of [jenkins.id, copied.id]) expect(after.find((c) => c.id === id)).toMatchObject({ decision: "confirmed", lineState: "ticked" });
   });
 });

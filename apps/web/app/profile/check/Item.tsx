@@ -21,8 +21,9 @@ const C_WHY = "Why: ";
 const C_REMOVE_IT = "Remove it";
 const C_KEEP_IT = "Keep it";
 const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hide" : "Show"}`;
-/** #371/#383: a line the review moved wears where it came from ("Moved from your summary"). */
-const movedCopy = (from: string) => `Moved from ${from}`;
+/** #371/#383: a line the review moved wears where it came from ("Moved from your summary"); a tool
+ *  copied from an achievement that stays put wears "Taken from <job>". */
+export const movedCopy = (from: string, copied?: boolean) => `${copied ? "Taken" : "Moved"} from ${from}`;
 
 const PEN = (
   <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -173,7 +174,7 @@ export function Item({
       <span className="txt">
         {line.text}
         {line.draft && <span className="tag">{C_NEW}</span>}
-        {line.movedFrom && <span className="tag moved">{movedCopy(line.movedFrom)}</span>}
+        {line.movedFrom && <span className="tag moved">{movedCopy(line.movedFrom, line.copied)}</span>}
         {fix && (
           <button type="button" className="tag fixed" aria-expanded={fixOpen} onClick={() => setFixOpen((o) => !o)}>
             {fix.applied ? C_FIXED : C_FIX_UNDONE}

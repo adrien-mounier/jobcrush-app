@@ -917,6 +917,17 @@ for (const [name, make] of claimDrivers) {
       expect((await store.confirmed(sid))[0]).toMatchObject({ text: "Fluent in French and English.", section: "lang", movedFrom: "your summary" });
     });
 
+    // #383: a copy (a tool taken from an achievement) is told apart from a move; a move reads not copied.
+    it("move records a copy apart from a move; a line never moved reads neither", async () => {
+      await store.seed(sid, [claim({ id: "skill-a-splunk", text: "Splunk" }), claim({ id: "skill-b-jira", text: "JIRA" }), claim({ id: "c" })]);
+      expect(await store.move(sid, "skill-a-splunk", "skill", "BRED", true)).toBe(true);
+      expect(await store.move(sid, "skill-b-jira", "skill", "BRED")).toBe(true);
+      const [copy, moved, c] = await store.list(sid);
+      expect(copy).toMatchObject({ text: "Splunk", section: "skill", movedFrom: "BRED", copied: true });
+      expect(moved).toMatchObject({ text: "JIRA", section: "skill", movedFrom: "BRED", copied: false });
+      expect(c!.copied ?? false).toBe(false);
+    });
+
     // #379 (ADR-0018 clause 2) — the person's own words on an item, in place: edit() keeps the first
     // original once (a second edit never overwrites it), records the words as theirs, and leaves the
     // tick alone — a removed item stays removed. Lines never edited read a null original on both

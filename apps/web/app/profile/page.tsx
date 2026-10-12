@@ -12,6 +12,7 @@ import "../profile.css";
 import { FactBadge } from "../factbadge";
 import { PasteDoor } from "../pastedoor";
 import { useReducedMotion } from "../jobcard";
+import { movedCopy } from "./check/Item";
 import {
   answerDiscovery,
   answerDiscoveryMulti,
@@ -251,6 +252,10 @@ const FIXED_TAG = "Fixed";
 function FixedTag({ fact }: { fact: ProfileFact }) {
   return fact.fix?.applied ? <span className="tag">{FIXED_TAG}</span> : null;
 }
+// #371/#383 — a fact the review moved, or a tool it copied, wears where it came from, as in check mode.
+function MovedTag({ fact }: { fact: ProfileFact }) {
+  return fact.movedFrom ? <span className="tag moved">{movedCopy(fact.movedFrom, fact.copied)}</span> : null;
+}
 
 // #379 (ADR-0018 clause 2) — a fact's words, edited in place from its detail: the same door as check
 // mode's ✎ (PUT /cv/lines/:id/text — kept as the person's own words, the original kept, the tick
@@ -361,6 +366,7 @@ function FactRow({
       <i className="fdot" aria-hidden="true" />
       <span className="ftxt">
         {fact.text}
+        <MovedTag fact={fact} />
         <FixedTag fact={fact} />
       </span>
     </button>
@@ -391,6 +397,7 @@ function ChipButton({
       onClick={() => onOpenFact(fact)}
     >
       {chipText(fact.text)}
+      <MovedTag fact={fact} />
       <FixedTag fact={fact} />
     </button>
   );

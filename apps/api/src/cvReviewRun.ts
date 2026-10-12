@@ -33,7 +33,10 @@ import type { CandidateClaim } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
-import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
+import { readPaper, running, type Paper, type ReviewJob, type ReviewLine } from "./cvReview.js";
+import { slug } from "./discovery.js";
+import { kindTag } from "./graph.js";
+import { FALLBACK_GROUP, splitSkillClaims, type SkillClaim } from "./skillsSplit.js";
 import { SECTIONS } from "./rootcv.js";
 import { DRAFT_FLAGS, rerunUnit, SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
@@ -82,6 +85,9 @@ const JobReview = z.object({
   drafted: z.array(DraftedLine),
   endDateMissing: z.boolean(),
   conflicts: z.array(z.object({ what: z.string(), values: z.array(z.string()) })),
+  // #383: nullish like `moves` — the answers recorded before #383 have neither.
+  toolLists: z.array(z.string()).nullish(),
+  toolsUsed: z.array(z.object({ line: z.string(), tools: z.array(z.string()) })).nullish(),
 });
 const SectionReview = z.object({ section: z.string(), fixes: z.array(Fix), judgements: z.array(Judgement) });
 export const ReviewAnswer = z.object({
@@ -372,6 +378,83 @@ export function resolveMoves(answer: ReviewAnswer, paper: Paper): Array<{ line: 
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// #383 — a job's tools move to Skills (ADR-0018 clause 6). The job's own call names them; this
+// turns its answer into new Skills items. No item's words change: a moved item is a piece of the
+// tool list as #382's split cuts it, a copied one the tool's name exactly as the line writes it.
+// ---------------------------------------------------------------------------------------------
+export interface ToolPlan {
+  /** Tool-list lines that leave their job — their items are in `add`. */
+  leave: string[];
+  /** New Skills items: moved out of a tool list, or copied (a tool an achievement names). */
+  add: Array<{ claim: SkillClaim; copied: boolean }>;
+}
+
+/** Two spellings of one skill: case, spaces, dots, dashes and underscores aside ("Node.js" =
+ *  "NodeJS", "MS-Project" = "ms project"); "C#" and "C++" stay apart. */
+const sameSkill = (s: string) => s.toLowerCase().replace(/[\s._-]+/g, "");
+
+/** A Skills item read off a job line: the line's words as its source, filed as a skill. */
+const skillFrom = (line: ClaimRecord, id: string, semanticKey: string, text: string): SkillClaim => ({
+  id,
+  semantic_key: semanticKey,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "profile",
+  text,
+  machine_touch: line.machine_touch,
+  classification: line.classification,
+  source_quote: line.text.slice(0, 200),
+  needs_grill: false,
+  grill_hint: null,
+  groupName: FALLBACK_GROUP,
+});
+
+/** The job's answer → what moves and what is copied. `lines` are the job's lines still in; a line
+ *  the answer names outside them, or a tool its line never says, is dropped and counted.
+ *  Duplicates: Skills never gets a second copy of a skill it already lists (in or removed) — the
+ *  item already there wins and stays untagged; between two new ones, the first in CV order wins. */
+export function planTools(answer: ReviewAnswer["jobs"][number], lines: ClaimRecord[], skills: ClaimRecord[]): ToolPlan {
+  const own = new Map(lines.map((c) => [c.id, c]));
+  const listed = new Set(skills.map((c) => sameSkill(c.text)));
+  const plan: ToolPlan = { leave: [], add: [] };
+  const drop = () => incrementCounter("cvReview.tool_dropped");
+  const take = (claim: SkillClaim, copied: boolean) => {
+    if (listed.has(sameSkill(claim.text))) return;
+    listed.add(sameSkill(claim.text));
+    plan.add.push({ claim, copied });
+  };
+  for (const id of answer.toolLists ?? []) {
+    const line = own.get(id);
+    if (!line || plan.leave.includes(id)) {
+      drop();
+      continue;
+    }
+    plan.leave.push(id);
+    // #382's split, as at import: one item per tool, the list's own label as the group.
+    for (const item of splitSkillClaims([skillFrom(line, `skill-${line.id}`, `skill-${line.semantic_key}`, line.text)])) take(item as SkillClaim, false);
+  }
+  for (const { line: id, tools } of answer.toolsUsed ?? []) {
+    const line = own.get(id);
+    for (const tool of tools) {
+      const name = tool.trim();
+      const at = line && name ? line.text.toLowerCase().indexOf(name.toLowerCase()) : -1;
+      if (!line || plan.leave.includes(id) || at < 0) {
+        drop();
+        continue;
+      }
+      const text = line.text.slice(at, at + name.length);
+      const suffix = slug(text) || String(at);
+      take(skillFrom(line, `skill-${line.id}-${suffix}`, `skill-${line.semantic_key}-${suffix}`, text), true);
+    }
+  }
+  return plan;
+}
+
+/** The job as the tag names it: its employer as the CV writes it, else its title. */
+const jobName = (job: ReviewJob): string => job.employer || job.title;
+
 export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): ResolvedSuggestion[] {
   const lines = linesOf(paper);
   const out: ResolvedSuggestion[] = [];
@@ -397,7 +480,7 @@ export interface ReviewRunDeps {
   llm: LlmClient;
   reviews: CvReviewStore;
   sessions: Pick<SessionStore, "getById">;
-  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState" | "move" | "reject">;
+  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState" | "move" | "seed" | "reject">;
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
@@ -474,6 +557,32 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
   // read's ensure, or two reads racing each other). Added synchronously, before the first await.
   const active = new Set<string>();
   const retryable = (u: ReviewUnit) => u.result === null && u.attempts < maxStarts;
+  // #383: the jobs' calls land in parallel; their tool moves run one at a time, so two jobs naming
+  // the same tool still give Skills one copy. ponytail: one queue for every session in the process —
+  // per-session queues if this ever waits on anything slower than the store.
+  let toolQueue: Promise<unknown> = Promise.resolve();
+  const oneAtATime = <T>(fn: () => Promise<T>): Promise<T> => {
+    const next = toolQueue.then(fn);
+    toolQueue = next.catch(() => {});
+    return next;
+  };
+  async function moveTools(sessionId: string, job: ReviewJob, answer: ReviewAnswer["jobs"][number]): Promise<void> {
+    if (!answer.toolLists?.length && !answer.toolsUsed?.length) return;
+    await oneAtATime(async () => {
+      const claims = await deps.claims.list(sessionId);
+      const read = new Set(job.lines.map((l) => l.id));
+      const lines = claims.filter((c) => read.has(c.id) && c.lineState === "ticked");
+      const skills = claims.filter((c) => kindTag(c) === "skill" && (c.decision === "pending" || c.decision === "confirmed") && c.lineState !== "drafted" && c.lineState !== "dismissed");
+      const plan = planTools(answer, lines, skills);
+      // The items land before the list leaves: a crash in between leaves the list in its job and
+      // its items in Skills, and the retry lands the same ids again (seed ignores a stored one).
+      await deps.claims.seed(sessionId, plan.add.map((a) => a.claim));
+      for (const a of plan.add) await deps.claims.move(sessionId, a.claim.id, "skill", jobName(job), a.copied);
+      // The tool list itself leaves every view the way any read line does — rejected, never deleted:
+      // its words stay stored, and each of its items carries them as its source.
+      for (const id of plan.leave) await deps.claims.reject(sessionId, id);
+    });
+  }
 
   // Failures are counted per drive, so a run reopened by a later read (#362) gets its own retry;
   // attempts started are counted for good — they are the paid bound across every drive.
@@ -540,6 +649,12 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         // #371: a summary fact moves to the section a reader expects, without asking, and says so
         // (ADR-0018 clause 6). Its words are untouched; a retry re-applies the same move.
         for (const m of withSections ? resolveMoves(answer, paper).filter((m) => fresh(m.line)) : []) await deps.claims.move(sessionId, m.line, m.section, FROM_SUMMARY);
+        // #383: a job's tool list moves to Skills and an achievement's tools are copied there — on a
+        // re-upload's run (#385), from the new lines only: a line already checked stays where it is.
+        const reviewed = paper.jobs.find((j) => j.job.id === job)?.job;
+        const tools = translated.jobs[0];
+        if (reviewed && tools)
+          await moveTools(sessionId, reviewed, { ...tools, toolLists: tools.toolLists?.filter((id) => fresh(id)), toolsUsed: tools.toolsUsed?.filter((t) => fresh(t.line)) });
         await deps.reviews.recordResult(sessionId, unit, result);
         return;
       } catch (err) {
