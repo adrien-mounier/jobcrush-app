@@ -798,6 +798,12 @@ export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ state }) });
 }
 
+// #379: the person's own words on an item, in place (check mode's ✎ and the profile). The server
+// keeps the first original and records the words as theirs; the tick does not move.
+export function setLineText(id: string, text: string): Promise<{ id: string; text: string }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/text`, { method: "PUT", body: JSON.stringify({ text }) });
+}
+
 export function settleReviewConflict(fieldId: string, value: string): Promise<{ ok: true }> {
   return jfetch(`/api/review/conflicts/${encodeURIComponent(fieldId)}`, {
     method: "POST",

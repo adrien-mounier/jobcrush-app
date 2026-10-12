@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, saveAbout, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
+import { completeReview, ensureSession, getReview, saveAbout, setLineState, setLineText, type ReviewLine, type ReviewState } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -141,6 +141,8 @@ export default function CheckPage() {
     setBusy(false);
     return true;
   };
+  // #379: the words saved; on a failure the editor stays open with what was typed.
+  const edit = (id: string, text: string) => write(() => setLineText(id, text));
   const remove = (id: string) =>
     write(
       () => setLineState(id, "kept"),
@@ -263,6 +265,7 @@ export default function CheckPage() {
             bump: fx.bump === screen.key,
             onRemove: remove,
             onPutBack: putBack,
+            onEdit: edit,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
           aboutDraft={{ draft: aboutDraft, onDraft: setAboutDraft }}

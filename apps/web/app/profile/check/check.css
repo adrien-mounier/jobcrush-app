@@ -413,22 +413,51 @@
   }
 }
 
-/* #371 — About you in a plain card (prototype V2.1 aboutCard), and the tag a moved item wears */
-.check .card.form {
-  display: grid;
-  gap: 10px;
-  padding: 14px 8px;
+/* #379 — an item's words edited in place (prototype V2.1 `li.pt.edit`) */
+.check .pt.edit {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding-left: 8px;
+  background: rgba(31, 38, 47, 0.75);
+}
+.check .pt.edit::before {
+  display: none;
+}
+.check textarea.ed {
+  width: 100%;
+  min-height: 76px;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 16px/1.5 var(--serif);
 }
 .check .row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
-  padding-left: 8px;
 }
 .check .btn.sm {
   padding: 6px 10px;
   font-size: 13px;
+  border-radius: 9px;
+}
+
+/* #371 — About you in a plain card (prototype V2.1 aboutCard), and the tag a moved item wears */
+.check .card.form {
+  display: grid;
+  gap: 10px;
+  padding: 14px 8px;
+}
+.check .card.form .row {
+  padding-left: 8px;
+}
+.check .card.form textarea.ed {
+  margin: 0 8px;
+  width: calc(100% - 16px);
+  min-height: 170px;
 }
 .check .about {
   margin: 0;
@@ -436,17 +465,6 @@
   max-width: 64ch;
   font: 16.5px/1.6 var(--serif);
   text-wrap: pretty;
-}
-.check textarea.ed {
-  margin: 0 8px;
-  width: calc(100% - 16px);
-  min-height: 170px;
-  background: var(--raised);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
-  font: 16px/1.5 var(--serif);
 }
 .check .orig {
   margin: 4px 8px 0;

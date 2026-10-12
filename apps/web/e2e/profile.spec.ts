@@ -2087,3 +2087,49 @@ test("#303: the profile's top bar carries the paste door, named, on phone and on
     else await expect(wordsLocator, `words should be hidden at ${width}px`).toBeHidden();
   }
 });
+
+// #379 (ADR-0018 clause 2): after check mode, an item's words are edited in place from its detail —
+// the same door check mode's ✎ uses. Save sends the trimmed words and the profile re-reads them;
+// Cancel sends nothing; empty words are never sent. Selected by structure, not copy.
+test("#379 a fact's words are edited from its detail: Save sends them and the profile shows them, Cancel and empty send nothing", async ({ page }) => {
+  await stubSession(page);
+  const box = { state: PROFILE };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: box.state });
+  });
+  const sent: unknown[] = [];
+  await page.route("**/api/cv/lines/*/text", async (route) => {
+    const text = (route.request().postDataJSON() as { text: string }).text.trim();
+    sent.push({ url: new URL(route.request().url()).pathname, text });
+    box.state = {
+      ...box.state,
+      domains: box.state.domains.map((d) => ({ ...d, facts: d.facts.map((f) => (f.id === "e3" ? { ...f, text } : f)) })),
+    };
+    await route.fulfill({ json: { id: "e3", text } });
+  });
+  await page.goto("/profile");
+  const dialog = page.locator("dialog.detail");
+  const fact = page.locator(".frow", { hasText: "Led SAP cutover planning." });
+  const editor = dialog.locator("textarea");
+  const save = dialog.locator(".rbtns .rbtn").first();
+  const cancel = dialog.locator(".rbtns .rbtn").last();
+
+  // Cancel, and empty words: nothing is sent.
+  await fact.click();
+  await dialog.locator(".detailedit").click();
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue("Led SAP cutover planning.");
+  await editor.fill("   ");
+  await expect(save).toBeDisabled();
+  await page.keyboard.press("Enter");
+  await cancel.click();
+  await expect(editor).toHaveCount(0);
+  expect(sent).toEqual([]);
+
+  await dialog.locator(".detailedit").click();
+  await editor.fill("  Led SAP cutover planning for 3 plants.  ");
+  await save.click();
+  expect(sent).toEqual([{ url: "/api/cv/lines/e3/text", text: "Led SAP cutover planning for 3 plants." }]);
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".frow", { hasText: "Led SAP cutover planning for 3 plants." })).toHaveCount(1);
+});
