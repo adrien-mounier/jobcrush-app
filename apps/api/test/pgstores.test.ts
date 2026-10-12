@@ -889,6 +889,31 @@ for (const [name, make] of claimDrivers) {
       expect((await store.list(sid))[0]!.text).toBe("Led the migration.");
     });
 
+    // #379 (ADR-0018 clause 2) — the person's own words on an item, in place: edit() keeps the first
+    // original once (a second edit never overwrites it), records the words as theirs, and leaves the
+    // tick alone — a removed item stays removed. Lines never edited read a null original on both
+    // drivers. A draft is not edited here (setDraftText is its door); an unknown line is reported.
+    it("edit keeps the original once, records user-authored, leaves the tick alone; refuses a draft; reports an unknown line", async () => {
+      await store.seed(sid, [claim({ id: "a", text: "Led teh migration." }), claim({ id: "k", text: "Kept line." })]);
+      await store.setLineState(sid, "k", "kept");
+      expect((await store.list(sid)).map((c) => c.originalText)).toEqual([null, null]);
+
+      expect(await store.edit(sid, "a", "Led the migration.")).toBe(true);
+      expect(await store.edit(sid, "a", "Led the data migration.")).toBe(true);
+      expect(await store.edit(sid, "k", "Kept line, reworded.")).toBe(true);
+      const [a, k] = await store.list(sid);
+      expect(a).toMatchObject({ text: "Led the data migration.", originalText: "Led teh migration.", origin: "user-authored", lineState: "ticked" });
+      expect(k).toMatchObject({ text: "Kept line, reworded.", originalText: "Kept line.", origin: "user-authored", lineState: "kept" });
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
+
+      await store.seedDrafted(sid, [claim({ id: "d", text: "A draft." })]);
+      expect(await store.edit(sid, "d", "Edited draft.")).toBe(false);
+      expect((await store.list(sid)).find((c) => c.id === "d")).toMatchObject({ text: "A draft.", origin: "drafted", lineState: "drafted", originalText: null });
+      expect(await store.edit(sid, "nope", "x")).toBe(false);
+      expect(await store.edit("other-session", "a", "x")).toBe(false);
+      expect((await store.list(sid))[0]!.text).toBe("Led the data migration.");
+    });
+
     // #382 — a skill's group: seeded with the claim, read back as null when none, moved one claim
     // at a time, renamed for every claim of the group at once. A correction upsert never loses it.
     it("group_name round-trips through seed, survives an upsert, and the two doors move one claim or rename a whole group", async () => {
@@ -942,6 +967,31 @@ for (const [name, make] of claimDrivers) {
       expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
       expect(await store.setLineState(sid, "draft-1", "ticked")).toBe(true);
       expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a", "draft-1"]);
+    });
+
+    // #378 — "No thanks" on a draft: the row stays (dismissed, pending), off every print path, out of
+    // every other door until Undo puts it back to drafted; a second seeding of the same id (a re-run
+    // over unchanged evidence) never revives it.
+    it("dismissDraft takes a draft to dismissed and back; a dismissed draft is refused by every other door and survives a re-seed", async () => {
+      await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Owned delivery end to end." })]);
+      expect(await store.dismissDraft(sid, "draft-1", true)).toBe(true);
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ decision: "pending", origin: "drafted", lineState: "dismissed" });
+      expect(await store.confirmed(sid)).toEqual([]);
+
+      expect(await store.dismissDraft(sid, "draft-1", true)).toBe(false); // already dismissed
+      expect(await store.acceptDraft(sid, "draft-1")).toBe(false);
+      expect(await store.setLineState(sid, "draft-1", "ticked")).toBe(false);
+      expect(await store.setLineState(sid, "draft-1", "kept")).toBe(false);
+      await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Different wording, second run." })]);
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ text: "Owned delivery end to end.", lineState: "dismissed" });
+
+      expect(await store.dismissDraft(sid, "draft-1", false)).toBe(true); // Undo
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ lineState: "drafted" });
+      expect(await store.dismissDraft(sid, "draft-1", false)).toBe(false); // nothing to undo
+      expect(await store.acceptDraft(sid, "draft-1")).toBe(true);
+      expect(await store.dismissDraft(sid, "draft-1", true)).toBe(false); // an added line is no draft
+      expect(await store.dismissDraft(sid, "nope", true)).toBe(false);
+      expect(await store.dismissDraft("other-session", "draft-1", true)).toBe(false);
     });
 
     // #13 — the "no" write path + fact correction, proven on both drivers.

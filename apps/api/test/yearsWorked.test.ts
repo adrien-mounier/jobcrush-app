@@ -79,6 +79,20 @@ describe("computeYearsWorked", () => {
     expect(worked).toEqual({ state: "computed", years: 2, unknownEnds: 0 });
   });
 
+  // #373: a personal project with dates of its own is a `project` block — its own section on the
+  // profile and the master CV, never a job, so it adds no years whatever its dates.
+  it("#373: a dated personal project adds no years", () => {
+    const worked = computeYearsWorked(
+      [
+        block("job", month(2020, 1), endedAt(month(2021, 12))),
+        block("garden-sensors", month(2016, 1), { state: "ongoing" }, "project", "Garden sensor network"),
+      ],
+      OK,
+      NOW,
+    );
+    expect(worked).toEqual({ state: "computed", years: 2, unknownEnds: 0 });
+  });
+
   it("counts an unknown end as zero and reports the hole", () => {
     const worked = computeYearsWorked(
       [

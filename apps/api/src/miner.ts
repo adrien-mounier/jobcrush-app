@@ -40,7 +40,8 @@ export function extractJson(raw: string): unknown {
  *   quotes past the cap despite the prompt. Clamp to the 200-char prefix — still a verbatim
  *   fragment of the CV, same as the grill does for answers.
  * - #323: a claim of a kind that can legitimately repeat (the prompt's rule-8 inventory ids:
- *   `edu-`, `cert-`, `lang-`, `skill-`) is never a single-valued field, whatever the model tagged
+ *   `edu-`, `cert-`, `lang-`, `skill-`, and #373's `project-`, `additional-`) is never a
+ *   single-valued field, whatever the model tagged
  *   it with. Left in place, two degrees sharing one field_key read as a contradiction
  *   (buildImportProof) and collapse to one at import (reconcileImport) — the owner's own CV did
  *   both. Dropping the tags here, before validation, fixes both readers at once.
@@ -48,7 +49,7 @@ export function extractJson(raw: string): unknown {
  *   attempts) failed the whole upload. Fall back to the claim's own id — unique, so it never
  *   merges two facts; it only forgoes deduplication for that one claim.
  */
-const REPEATABLE_CLAIM_ID = /^(edu|cert|lang|skill)-/;
+const REPEATABLE_CLAIM_ID = /^(edu|cert|lang|skill|project|additional)-/;
 
 export function repairClaims(doc: unknown): unknown {
   if (typeof doc !== "object" || doc === null || !Array.isArray((doc as { claims?: unknown[] }).claims)) {

@@ -217,8 +217,9 @@ export function buildProfileState(
   const byTag = new Map<string, ProfileFact[]>();
   // #342: a draft the person has not ticked is a proposal on the review, not a fact about them —
   // the profile shows facts. A ticked draft is theirs ("told": they vouched for it), and kept after
-  // an untick like any line.
-  for (const c of facts.filter((c) => c.lineState !== "drafted")) {
+  // an untick like any line. #378: a draft they said No thanks to is held only so it is never
+  // proposed again — it is no fact either.
+  for (const c of facts.filter((c) => c.lineState !== "drafted" && c.lineState !== "dismissed")) {
     const tag = kindTag(c);
     const bucket = byTag.get(tag) ?? [];
     bucket.push({

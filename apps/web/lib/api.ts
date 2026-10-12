@@ -683,8 +683,9 @@ export interface ContactRecord {
 }
 
 // --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
-/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere. */
-export type ReviewLineState = "ticked" | "kept" | "drafted";
+/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere.
+ *  `dismissed` (#378): a draft the person said No thanks to — held so it is never proposed again, shown nowhere. */
+export type ReviewLineState = "ticked" | "kept" | "drafted" | "dismissed";
 export type ReviewDraftFlag = "OPTIONAL" | "INDUSTRY GUESS";
 /** #342: a drafted line's source — the must-have it covers, in the family's words, and/or the CV's
  *  own words it came from — and its flags. Worn whatever the line's state. */
@@ -787,6 +788,11 @@ export function tickDraft(lineId: string): Promise<{ id: string; text: string; s
   return jfetch(`/api/review/drafts/${encodeURIComponent(lineId)}/tick`, { method: "POST" });
 }
 
+// #378: No thanks on a draft (dismissed: true) — never proposed again — or its Undo (false).
+export function dismissDraft(lineId: string, dismissed: boolean): Promise<{ id: string; state: "drafted" | "dismissed" }> {
+  return jfetch(`/api/review/drafts/${encodeURIComponent(lineId)}/dismissed`, { method: "PUT", body: JSON.stringify({ dismissed }) });
+}
+
 export function completeReview(): Promise<{ completed: true }> {
   return jfetch("/api/review/complete", { method: "POST" });
 }
@@ -794,6 +800,12 @@ export function completeReview(): Promise<{ completed: true }> {
 // #335's tap: untick (→ kept) or re-tick. The print gate is the server's; this only records it.
 export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id: string; state: ReviewLineState }> {
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ state }) });
+}
+
+// #379: the person's own words on an item, in place (check mode's ✎ and the profile). The server
+// keeps the first original and records the words as theirs; the tick does not move.
+export function setLineText(id: string, text: string): Promise<{ id: string; text: string }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/text`, { method: "PUT", body: JSON.stringify({ text }) });
 }
 
 // #382: rename a skills group (every skill in it), and move one skill to another group.
