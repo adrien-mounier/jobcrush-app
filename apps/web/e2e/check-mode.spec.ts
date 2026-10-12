@@ -1510,7 +1510,7 @@ test.describe("#376 where you can work and languages", () => {
     await card.locator(".sugg button").click();
     await expect(card.locator("input")).toHaveValue("English, ");
     // A known language the person leaves out is simply not listed; one the list never heard of stays.
-    await card.locator("input").pressSequentially("Wolof");
+    await card.locator("input").fill("English, Wolof");
     await expect(card.locator(".sugg button")).toHaveCount(0);
     await expect(card.locator(".note")).toContainText('"Wolof"');
     await card.locator(".row button").click(); // Save
