@@ -138,7 +138,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
         facts: [{ id: "sap", text: "Ran SAP rollouts across three sites.", colour: "gold", source: "told", job: null }],
       },
     ],
-    contact: { phone: null, email: null },
+    contact: { name: null, title: null, location: null, phone: null, email: null },
     location: { areas: [], workRights: [] },
     languagesQuestion: {
       questionId: "eligibility-languages",

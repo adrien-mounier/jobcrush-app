@@ -27,6 +27,7 @@ import {
 } from "../../lib/api";
 import { areaSuggestions, matchAreaText } from "../../lib/areaMatch";
 import {
+  type ContactField as ContactFieldName,
   type ProfileContact,
   type ProfileDomain,
   type ProfileFact,
@@ -124,6 +125,16 @@ const CX_PHONE_QUESTION = "What's the best phone number for your CV?";
 const CX_EMAIL_QUESTION = "What email should your CV show?";
 const CX_PHONE_DOOR = "Not your number?";
 const CX_EMAIL_DOOR = "Not the right email?";
+// #381: the letterhead's other three fields, the same door each.
+const CX_NAME_LABEL = "Name";
+const CX_NAME_QUESTION = "What name should your CV show?";
+const CX_NAME_DOOR = "Not your name?";
+const CX_TITLE_LABEL = "Title";
+const CX_TITLE_QUESTION = "What title should your CV show?";
+const CX_TITLE_DOOR = "Not the right title?";
+const CX_LOCATION_LABEL = "Location";
+const CX_LOCATION_QUESTION = "Where should your CV say you live?";
+const CX_LOCATION_DOOR = "Not the right place?";
 
 // #192 the phone pull-up sheet (design-192.md §6). PS2/PS3 are aria-hidden (touch-specific wording);
 // the grabber's accessible name comes from PS1 + the sr-only count instead (§7).
@@ -783,7 +794,7 @@ function ContactField({
   onUpdated,
   onAnnounce,
 }: {
-  field: "phone" | "email";
+  field: ContactFieldName;
   label: string;
   question: string;
   doorLabel: string;
@@ -966,6 +977,24 @@ function ContactPanel({
       </h2>
       <p className="rsub">{CT_SUB}</p>
       <ContactField
+        field="name"
+        label={CX_NAME_LABEL}
+        question={CX_NAME_QUESTION}
+        doorLabel={CX_NAME_DOOR}
+        contact={contact}
+        onUpdated={onUpdated}
+        onAnnounce={onAnnounce}
+      />
+      <ContactField
+        field="title"
+        label={CX_TITLE_LABEL}
+        question={CX_TITLE_QUESTION}
+        doorLabel={CX_TITLE_DOOR}
+        contact={contact}
+        onUpdated={onUpdated}
+        onAnnounce={onAnnounce}
+      />
+      <ContactField
         field="phone"
         label={CX_PHONE_LABEL}
         question={CX_PHONE_QUESTION}
@@ -979,6 +1008,15 @@ function ContactPanel({
         label={CX_EMAIL_LABEL}
         question={CX_EMAIL_QUESTION}
         doorLabel={CX_EMAIL_DOOR}
+        contact={contact}
+        onUpdated={onUpdated}
+        onAnnounce={onAnnounce}
+      />
+      <ContactField
+        field="location"
+        label={CX_LOCATION_LABEL}
+        question={CX_LOCATION_QUESTION}
+        doorLabel={CX_LOCATION_DOOR}
         contact={contact}
         onUpdated={onUpdated}
         onAnnounce={onAnnounce}

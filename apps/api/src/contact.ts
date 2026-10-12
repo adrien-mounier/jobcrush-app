@@ -8,12 +8,13 @@
 // gets it for free without having to remember the rule.
 import type { Pool } from "pg";
 import { getPool } from "./db.js";
+import { splitLetterhead } from "./extract.js";
 
-// #310 adds "header": the CV's own letterhead block, stored as read at mine time so the tailored
-// draft can print a name and city long after the raw CV is gone. It rides this store because it is
-// contact-adjacent session fact data with the same lifecycle (same sweep, same origin rules); it is
-// NOT part of getRecord()'s phone/email shape and no person-said door writes it.
-export type ContactField = "phone" | "email" | "header";
+// #381: the letterhead is five fields — name, title, email, phone, location — each read at mine
+// time (extract.ts's splitLetterhead) and editable through the same person-said door. They ride
+// this store because they share the lifecycle and the origin rules. (#310's one raw "header" row
+// is gone: the tailor's candidate header is built from these fields — letterheadText below.)
+export type ContactField = "name" | "title" | "email" | "phone" | "location";
 export type ContactOrigin = "read" | "person-said";
 
 export interface ContactValue {
@@ -24,16 +25,25 @@ export interface ContactValue {
   sourceText: string;
 }
 
-export interface ContactRecord {
-  phone: ContactValue | null;
-  email: ContactValue | null;
-}
+export type ContactRecord = Record<ContactField, ContactValue | null>;
 
 export interface SupersededContactValue extends ContactValue {
   supersededAt: string;
 }
 
-const FIELDS: ContactField[] = ["phone", "email"];
+export const CONTACT_FIELDS: ContactField[] = ["name", "title", "email", "phone", "location"];
+export const EMPTY_CONTACT_RECORD: ContactRecord = { name: null, title: null, email: null, phone: null, location: null };
+
+const recordOf = async (get: (field: ContactField) => Promise<ContactValue | null>): Promise<ContactRecord> =>
+  Object.fromEntries(await Promise.all(CONTACT_FIELDS.map(async (f) => [f, await get(f)]))) as ContactRecord;
+
+/** #381: the CANDIDATE-HEADER the tailor copies name and contact data from (preview-tailor.md rule
+ *  3), built from the saved fields so an edit in Your details prints on every draft and export.
+ *  Name, then title, then the contact line in the prompt's own order (city · phone · email). */
+export function letterheadText(record: ContactRecord): string {
+  const contact = [record.location, record.phone, record.email].map((v) => v?.value).filter(Boolean).join(" · ");
+  return [record.name?.value, record.title?.value, contact].filter(Boolean).join("\n");
+}
 
 export interface ContactStore {
   init(): Promise<void>;
@@ -95,8 +105,7 @@ export class InMemoryContactStore implements ContactStore {
   }
 
   async getRecord(sessionId: string): Promise<ContactRecord> {
-    const [phone, email] = await Promise.all(FIELDS.map((f) => this.get(sessionId, f)));
-    return { phone: phone ?? null, email: email ?? null };
+    return recordOf((f) => this.get(sessionId, f));
   }
 
   async history(sessionId: string, field: ContactField): Promise<SupersededContactValue[]> {
@@ -134,6 +143,33 @@ export class PgContactStore implements ContactStore {
   async init(): Promise<void> {
     await this.pool.query(CONTACT_TABLE);
     await this.pool.query(CONTACT_HISTORY_TABLE);
+    await this.upgradeLegacyHeaders();
+  }
+
+  /** #381: a pre-fields import stored its letterhead as one "header" row. Split it into the read
+   *  fields that session has none of yet, then move the row to history (kept, never deleted) so the
+   *  upgrade runs once and never overrides a later upload or the person's own answer. */
+  private async upgradeLegacyHeaders(): Promise<void> {
+    const { rows } = await this.pool.query(`SELECT session_id, value, origin, source_text FROM contact_facts WHERE field = 'header'`);
+    type Row = { session_id: string; value: string; origin: string; source_text: string };
+    for (const { session_id: sessionId, value, origin, source_text } of rows as Row[]) {
+      const fields = splitLetterhead(value);
+      for (const field of ["name", "title", "location"] as const) {
+        const read = fields[field];
+        if (!read) continue;
+        await this.pool.query(
+          `INSERT INTO contact_facts (session_id, field, value, origin, source_text) VALUES ($1,$2,$3,'read',$4)
+           ON CONFLICT (session_id, field) DO NOTHING`,
+          [sessionId, field, read.value, read.sourceText],
+        );
+      }
+      await this.pool.query(
+        `INSERT INTO contact_fact_history (session_id, field, value, origin, source_text)
+         VALUES ($1,'header',$2,$3,$4)`,
+        [sessionId, value, origin, source_text],
+      );
+      await this.pool.query(`DELETE FROM contact_facts WHERE session_id = $1 AND field = 'header'`, [sessionId]);
+    }
   }
 
   async put(sessionId: string, field: ContactField, value: ContactValue): Promise<void> {
@@ -172,8 +208,7 @@ export class PgContactStore implements ContactStore {
   }
 
   async getRecord(sessionId: string): Promise<ContactRecord> {
-    const [phone, email] = await Promise.all(FIELDS.map((f) => this.get(sessionId, f)));
-    return { phone: phone ?? null, email: email ?? null };
+    return recordOf((f) => this.get(sessionId, f));
   }
 
   async history(sessionId: string, field: ContactField): Promise<SupersededContactValue[]> {

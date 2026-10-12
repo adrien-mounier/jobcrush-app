@@ -12,11 +12,11 @@
 //
 // Four stores meet here, one of them new: the lines are the claims (ticked/kept is #335's line
 // state on the claim; a fix is the claim's own text, #341), the jobs' dates are the job-block
-// records (#162), the letterhead is the contact store's as-read header plus phone/email (#190/#310),
+// records (#162), the letterhead is the contact store's five fields (#190/#381),
 // and the review run is cvReviewStore.ts. The review adds ONE fact of its own to the session,
 // `reviewCompletedAt`, and that is what the jobs gate reads.
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
-import type { ContactStore, ContactValue } from "./contact.js";
+import { CONTACT_FIELDS, type ContactField, type ContactStore, type ContactValue } from "./contact.js";
 import type { CvReviewStore, DraftFlag, DraftVague, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
 import type { ReviewRunner } from "./cvReviewRun.js";
 import type { EligibilityStore } from "./eligibility.js";
@@ -97,12 +97,8 @@ export interface ReviewProgress {
 }
 export interface ReviewState {
   completed: boolean;
-  letterhead: {
-    /** The CV's own letterhead block, as read (#310). Null when the read captured none. */
-    header: string | null;
-    phone: ReviewLetterheadField | null;
-    email: ReviewLetterheadField | null;
-  };
+  /** #381: Your details — the letterhead's five fields, each null when the CV has none. */
+  letterhead: Record<ContactField, ReviewLetterheadField | null>;
   /** #323: a field the CV gave two values for, asked once here. Null once settled or when none. */
   conflict: { fieldId: string; question: string; values: string[] } | null;
   progress: ReviewProgress | null;
@@ -228,10 +224,9 @@ export interface PaperDeps {
 }
 
 export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Paper> {
-  const [claims, blocks, header, record] = await Promise.all([
+  const [claims, blocks, record] = await Promise.all([
     deps.claims.list(sessionId),
     deps.jobBlocks.list(sessionId),
-    deps.contact.get(sessionId, "header"),
     deps.contact.getRecord(sessionId),
   ]);
   // list() already returns CV order (seq) on both drivers; the sort only pins it for a hand-built record.
@@ -245,7 +240,7 @@ export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Pap
     v ? { value: v.value, origin: v.origin } : null;
   const { jobs, roles } = jobsOf(byTag.get("experience") ?? [], blocks);
   return {
-    letterhead: { header: header?.value ?? null, phone: field(record.phone), email: field(record.email) },
+    letterhead: Object.fromEntries(CONTACT_FIELDS.map((f) => [f, field(record[f])])) as Paper["letterhead"],
     sections: SECTIONS.map(([tag, heading]) =>
       tag === "experience"
         ? { tag, heading, jobs }

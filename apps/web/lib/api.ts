@@ -624,10 +624,9 @@ export interface ProfileContactField {
   value: string;
   origin: "read" | "person-said";
 }
-export interface ProfileContact {
-  phone: ProfileContactField | null;
-  email: ProfileContactField | null;
-}
+/** #381: the letterhead's five fields — mirrors apps/api/src/contact.ts's ContactField. */
+export type ContactField = "name" | "title" | "email" | "phone" | "location";
+export type ProfileContact = Record<ContactField, ProfileContactField | null>;
 
 // #214: the rail's Location data is a LIST now — mirrors apps/api/src/profile.ts's ProfileLocation.
 // `areas` are the target-location chips (`label` is what the chip shows — city when a city was
@@ -675,10 +674,7 @@ export interface ContactValue {
   origin: ContactOrigin;
   sourceText: string;
 }
-export interface ContactRecord {
-  phone: ContactValue | null;
-  email: ContactValue | null;
-}
+export type ContactRecord = Record<ContactField, ContactValue | null>;
 
 // --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
 /** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere.
@@ -747,11 +743,8 @@ export interface ReviewProgress {
 }
 export interface ReviewState {
   completed: boolean;
-  letterhead: {
-    header: string | null;
-    phone: ProfileContactField | null;
-    email: ProfileContactField | null;
-  };
+  /** #381: Your details' five fields. */
+  letterhead: ProfileContact;
   conflict: { fieldId: string; question: string; values: string[] } | null;
   progress: ReviewProgress | null;
   /** #362: some part of the CV has no review answer (still going, given up, or no run) — the screen never
@@ -815,10 +808,18 @@ export function answerReviewEndDate(blockId: string, answer: string): Promise<{ 
   });
 }
 
-export function saveContact(field: "phone" | "email", value: string): Promise<ContactRecord> {
+export function saveContact(field: ContactField, value: string): Promise<ContactRecord> {
   return jfetch("/api/contact", {
     method: "PUT",
     body: JSON.stringify({ field, value }),
+  });
+}
+
+/** #381: Your details saves the whole card in one request; an empty value is skipped server-side. */
+export function saveContactFields(fields: Partial<Record<ContactField, string>>): Promise<ContactRecord> {
+  return jfetch("/api/contact", {
+    method: "PUT",
+    body: JSON.stringify({ fields }),
   });
 }
 

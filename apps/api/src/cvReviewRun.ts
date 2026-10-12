@@ -146,11 +146,10 @@ export function buildReviewInput(
   const ids = promptJobIds(paper);
   const line = (l: ReviewLine) => `- [${l.id}] ${l.text}`;
   const cv: string[] = [];
-  if (paper.letterhead.header) {
-    const [name, ...rest] = paper.letterhead.header.split("\n");
-    cv.push(`# ${name}`, ...rest);
-  }
-  const contact = [paper.letterhead.phone?.value, paper.letterhead.email?.value].filter(Boolean).join(" · ");
+  const { name, title, location, phone, email } = paper.letterhead;
+  if (name) cv.push(`# ${name.value}`);
+  if (title) cv.push(title.value);
+  const contact = [location?.value, phone?.value, email?.value].filter(Boolean).join(" · ");
   if (contact) cv.push(contact);
   for (const section of paper.sections) {
     if ("jobs" in section) {
@@ -491,7 +490,7 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         // they signed off, unseen, is exactly the silent change ADR-0016 forbids.
         if ((await deps.sessions.getById(sessionId))?.reviewCompletedAt) return;
         const paper = await readPaper(deps, sessionId);
-        const hasSections = paper.sections.some((s) => !("jobs" in s) && s.lines.length > 0) || paper.letterhead.header !== null;
+        const hasSections = paper.sections.some((s) => !("jobs" in s) && s.lines.length > 0) || Object.values(paper.letterhead).some((v) => v !== null);
         const units = paper.jobs.length ? paper.jobs.map(({ job }) => job.id) : hasSections ? [SECTIONS_UNIT] : [];
         if (units.length === 0) return; // nothing was read, nothing to review
         await deps.reviews.create(sessionId, stamp(), units);
