@@ -105,6 +105,16 @@ export interface ReviewRunRecord {
   units: ReviewUnit[];
 }
 
+/** #385: a re-upload's units join the session's run under their own names — `<job>@rerun-<since>`,
+ *  `since` being the claim seq the re-upload started from — so the first run's answers stay on their
+ *  own units (the marks on the items they reviewed) and one re-upload's run is recognisable. */
+export const rerunUnit = (job: string, since: number): string => `${job}@rerun-${since}`;
+/** A unit's job (or the sections unit) and the seq its run counts "new" from — null for the first run. */
+export function unitOf(unit: string): { job: string; since: number | null } {
+  const m = /^(.*)@rerun-(\d+)$/.exec(unit);
+  return m ? { job: m[1]!, since: Number(m[2]) } : { job: unit, since: null };
+}
+
 export interface CvReviewStore {
   init(): Promise<void>;
   get(sessionId: string): Promise<ReviewRunRecord | null>;
@@ -119,6 +129,9 @@ export interface CvReviewStore {
   /** #362: a failed run, going again from `startedAt` (the progress counts down from it); its units
    *  keep their answers, attempts and failures. */
   reopen(sessionId: string, startedAt: string): Promise<void>;
+  /** #385: a finished run, going again from `startedAt` with `units` added after its own, no attempts
+   *  spent; the units it had keep everything. */
+  extend(sessionId: string, startedAt: string, units: string[]): Promise<void>;
 }
 
 export class InMemoryCvReviewStore implements CvReviewStore {
@@ -173,6 +186,15 @@ export class InMemoryCvReviewStore implements CvReviewStore {
   async reopen(sessionId: string, startedAt: string): Promise<void> {
     const run = this.runs.get(sessionId);
     if (run) Object.assign(run, { startedAt, finishedAt: null, outcome: null });
+  }
+
+  async extend(sessionId: string, startedAt: string, units: string[]): Promise<void> {
+    const run = this.runs.get(sessionId);
+    if (!run) return;
+    Object.assign(run, { startedAt, finishedAt: null, outcome: null });
+    for (const unit of units) {
+      if (!run.units.some((u) => u.unit === unit)) run.units.push({ unit, attempts: 0, failures: 0, lastError: null, result: null });
+    }
   }
 }
 
@@ -291,6 +313,17 @@ export class PgCvReviewStore implements CvReviewStore {
       `UPDATE cv_reviews SET started_at = $2, finished_at = NULL, outcome = NULL WHERE session_id = $1`,
       [sessionId, startedAt],
     );
+  }
+
+  async extend(sessionId: string, startedAt: string, units: string[]): Promise<void> {
+    const { rows } = await this.pool.query(`SELECT COALESCE(MAX(position), -1) AS last FROM cv_review_units WHERE session_id = $1`, [sessionId]);
+    for (const [i, unit] of units.entries()) {
+      await this.pool.query(
+        `INSERT INTO cv_review_units (session_id, unit, position, attempts, result) VALUES ($1,$2,$3,0,NULL) ON CONFLICT (session_id, unit) DO NOTHING`,
+        [sessionId, unit, Number(rows[0].last) + 1 + i],
+      );
+    }
+    await this.reopen(sessionId, startedAt);
   }
 }
 

@@ -114,6 +114,8 @@ const ReviewStateSchema = z.object({
   ),
   // #376: the languages the person said they speak — the Languages screen's card when the CV has none.
   languages: z.array(z.string()),
+  // #385: check mode brought back by a re-upload shows only these items; null for the first one.
+  newItems: z.array(z.string()).nullable(),
 });
 const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 const Ok = z.object({ ok: z.literal(true) });

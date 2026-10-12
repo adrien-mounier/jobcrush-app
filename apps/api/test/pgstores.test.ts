@@ -691,6 +691,17 @@ for (const [name, make] of sessionDrivers) {
       expect((await store.getById(s.id))?.reviewCompletedAt).toBe(first);
     });
 
+    // #385: a re-upload with new items is the one door that clears it, and says where new starts.
+    it("reopenReview clears the completion and records the seq new items start after; the next completion stamps again", async () => {
+      const s = await store.create();
+      expect(s.reviewSince).toBeNull();
+      await store.completeReview(s.id);
+      await store.reopenReview(s.id, 42);
+      expect(await store.getById(s.id)).toMatchObject({ reviewCompletedAt: null, reviewSince: 42 });
+      await store.completeReview(s.id);
+      expect(await store.getById(s.id)).toMatchObject({ reviewCompletedAt: expect.any(String), reviewSince: 42 });
+    });
+
     it("setTailorTarget persists the tailor stage and selected ad id together", async () => {
       const s = await store.create();
       await store.setTailorTarget(s.id, "ad-1");
@@ -1866,6 +1877,24 @@ for (const [name, make] of cvReviewDrivers) {
         units: [
           { unit: "j1", attempts: 0, failures: 0, lastError: null, result: result("the") },
           { unit: "j2", attempts: 1, failures: 1, lastError: "down", result: null },
+        ],
+      });
+    });
+
+    it("#385: extend sets a finished run going again with the new units after its own; the old units keep what landed; a unit it already has is not added twice", async () => {
+      await store.create(sid, "2026-10-08T08:00:00.000Z", ["j1", "j2"]);
+      await store.recordAttempt(sid, "j1");
+      await store.recordResult(sid, "j1", result("the"));
+      await store.finish(sid, "done", "2026-10-08T08:04:00.000Z");
+      await store.extend(sid, "2026-10-09T08:00:00.000Z", ["j1@rerun-7", "j2"]);
+      expect(await store.get(sid)).toEqual({
+        startedAt: "2026-10-09T08:00:00.000Z",
+        finishedAt: null,
+        outcome: null,
+        units: [
+          { unit: "j1", attempts: 1, failures: 0, lastError: null, result: result("the") },
+          { unit: "j2", attempts: 0, failures: 0, lastError: null, result: null },
+          { unit: "j1@rerun-7", attempts: 0, failures: 0, lastError: null, result: null },
         ],
       });
     });

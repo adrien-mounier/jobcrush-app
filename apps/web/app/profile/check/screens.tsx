@@ -80,28 +80,35 @@ const shown = (lines: ReviewLine[]) => lines.some((l) => l.state !== "dismissed"
 
 export function screensOf(state: ReviewState): Screen[] {
   const out: Screen[] = [];
-  if (Object.values(state.letterhead).some(Boolean)) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
+  // #385: check mode brought back by a re-upload shows only the new items (and the suggestions made
+  // on them); a screen with nothing new — Your details among them — is skipped.
+  const fresh = state.newItems && new Set(state.newItems);
+  const its = (lines: ReviewLine[]) => (fresh ? lines.filter((l) => fresh.has(l.id)) : lines);
+  if (!fresh && Object.values(state.letterhead).some(Boolean)) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
   for (const section of state.sections) {
     if ("jobs" in section) {
       for (const job of section.jobs) {
-        if (!shown(job.lines)) continue;
-        out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines: job.lines });
+        const lines = its(job.lines);
+        if (!shown(lines)) continue;
+        out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines });
       }
     } else if (section.tag === "profile" && state.about) {
       // #371: About you replaces the summary's lines with the text written from the whole CV — even
       // for a CV with no summary. Until the review wrote one, the summary shows as read, below.
-      out.push({ kind: "about", key: "about", title: TITLES.profile!, sub: null, about: state.about });
+      // #385: it is not an item a re-upload brings, so check mode brought back skips it.
+      if (!fresh) out.push({ kind: "about", key: "about", title: TITLES.profile!, sub: null, about: state.about });
     } else {
-      const extra = sectionExtras(state, section.tag, section.lines);
-      if (!shown(section.lines) && !extra) continue;
-      const base = { key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines };
-      out.push(section.groups && shown(section.lines) ? { ...base, kind: "skills", groups: section.groups } : { ...base, kind: "section", ...extra });
+      const lines = its(section.lines);
+      const extra = sectionExtras(state, section.tag, lines, !!fresh);
+      if (!shown(lines) && !extra) continue;
+      const base = { key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines };
+      out.push(section.groups && shown(lines) ? { ...base, kind: "skills", groups: section.groups } : { ...base, kind: "section", ...extra });
     }
   }
   // #376: no Additional information section on the paper yet, but a market to answer — the screen
   // exists for the card alone, last.
   if (!out.some((s) => s.key === `section:${ADDITIONAL}`)) {
-    const extra = sectionExtras(state, ADDITIONAL, []);
+    const extra = sectionExtras(state, ADDITIONAL, [], !!fresh);
     if (extra) out.push({ kind: "section", key: `section:${ADDITIONAL}`, title: TITLES[ADDITIONAL]!, sub: null, tag: ADDITIONAL, lines: [], ...extra });
   }
   return out;
@@ -109,10 +116,18 @@ export function screensOf(state: ReviewState): Screen[] {
 
 const ADDITIONAL = "additional";
 /** #376: what a section's screen carries besides its items — null when nothing, which (with no
- *  items) skips the screen. */
-function sectionExtras(state: ReviewState, tag: string, lines: ReviewLine[]): { workRights: ReviewWorkRights[] } | { languages: string[] } | null {
-  if (tag === ADDITIONAL && state.workRights.length > 0) return { workRights: state.workRights };
-  if (tag === "lang" && !shown(lines)) return { languages: state.languages };
+ *  items) skips the screen. On check mode brought back by a re-upload (#385, `reupload`), the
+ *  work-rights card shows only while a market is unanswered or the screen has something new, and
+ *  the Languages card not at all — it was answered, or passed, the first time. */
+function sectionExtras(
+  state: ReviewState,
+  tag: string,
+  lines: ReviewLine[],
+  reupload: boolean,
+): { workRights: ReviewWorkRights[] } | { languages: string[] } | null {
+  const open = state.workRights.some((r) => r.answer === null);
+  if (tag === ADDITIONAL && state.workRights.length > 0 && (!reupload || open || shown(lines))) return { workRights: state.workRights };
+  if (tag === "lang" && !reupload && !shown(lines)) return { languages: state.languages };
   return null;
 }
 

@@ -12,6 +12,7 @@
 //      corrected text, with a conflict the person has already answered cleared rather than re-asked.
 import { createHash } from "node:crypto";
 import type { CandidateClaim } from "@jobcrush/contracts";
+import type { ClaimRecord } from "./claims.js";
 import type { ImportProof } from "./sessions.js";
 import { slug } from "./discovery.js";
 
@@ -34,6 +35,24 @@ export interface ReconciledImport<C extends CandidateClaim = CandidateClaim> {
  *  miner's semantic_key. */
 export function claimIdentity(claim: CandidateClaim): string {
   return claim.field_key ?? claim.semantic_key;
+}
+
+/** #385 (ADR-0018 clause 3): the items a re-upload really brings. The miner names an item afresh on
+ *  every read, so an item read again under a new id is the same item when its job (role heading)
+ *  already holds it in the same words — as the CV says them (source_quote), as they read now (a
+ *  review fix, a correction), or as they read before the person edited them. Those are dropped:
+ *  the item keeps its state, and check mode does not count it new. A drafted item matches nothing
+ *  (its quote is another line's words); a structured field keeps its own key-based identity. Same
+ *  words under another job are a new item there. */
+export function newItemsOnly<C extends CandidateClaim>(imported: C[], existing: readonly ClaimRecord[]): C[] {
+  const words = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const key = (role: string, text: string | null | undefined) => `${words(role)}\n${words(text)}`;
+  const held = new Set(
+    existing
+      .filter((c) => c.field_key === null && c.origin !== "drafted" && c.origin !== "drafted-accepted")
+      .flatMap((c) => [c.text, c.source_quote, c.originalText].filter(Boolean).map((t) => key(c.role, t))),
+  );
+  return imported.filter((c) => c.field_key !== null || !(held.has(key(c.role, c.text)) || held.has(key(c.role, c.source_quote))));
 }
 
 // Generic over the claim so whatever rides on it (#382: a skill's group) reaches the seed intact.

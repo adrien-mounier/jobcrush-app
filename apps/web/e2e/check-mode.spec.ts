@@ -38,6 +38,7 @@ const REVIEW: ReviewState = {
   conflict: null,
   progress: null,
   unchecked: false,
+  newItems: null,
   about: null,
   sections: [
     { tag: "profile", heading: "Professional Summary", lines: [line("p1", "Delivery-accountable project manager.")] },
@@ -1121,6 +1122,48 @@ test.describe("#373 personal projects and additional information", () => {
   });
 });
 
+test.describe("#385 a re-upload brings check mode back, for new items only", () => {
+  // The server lists the items the re-upload brought (`newItems`): the walk shows those alone,
+  // skipping every screen with nothing new — Your details included — and finishes as before.
+  const NEW_ITEM = line("bsh-new", "Ran the quarterly release review with the business owners.");
+  const NEW_SUGGESTION = line("draft-bsh-rerun-9-1", "Reported release progress to the steering committee.", {
+    state: "drafted",
+    draft: { mustHave: "How did you report progress or translate delivery detail for stakeholders?", quote: null, flags: [], vague: [] },
+  });
+  const REUPLOADED: ReviewState = {
+    ...REVIEW,
+    newItems: [NEW_ITEM.id, NEW_SUGGESTION.id],
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "bsh" ? { ...j, lines: [...j.lines, NEW_ITEM, NEW_SUGGESTION] } : j)) } : s,
+    ),
+  };
+
+  test("only the job with something new is a screen, showing only the new item and the new suggestion; the footer waits for the suggestion", async ({ page }) => {
+    const { calls } = await stubReview(page, REUPLOADED);
+    await page.goto("/profile/check");
+    await expect(heading(page)).toHaveText("Baltic Software House");
+    await expect(segments(page)).toHaveCount(1);
+    await expect(items(page)).toHaveCount(1);
+    await expect(items(page).first()).toContainText(NEW_ITEM.text);
+    await expect(page.locator("li.sg")).toHaveCount(1);
+    await expect(page.locator("li.sg .stxt")).toHaveText(NEW_SUGGESTION.text);
+    await expect(primary(page)).toBeDisabled();
+
+    await page.locator("li.sg .row button").nth(2).click(); // No thanks
+    await expect(primary(page)).toBeEnabled();
+    await primary(page).click();
+    await expect(page.locator(".donepanel")).toBeVisible();
+    expect(calls.map((c) => c.url)).toContain("/api/review/complete");
+  });
+
+  test("the first check mode (no newItems) still walks every screen", async ({ page }) => {
+    await stubReview(page, { ...REUPLOADED, newItems: null });
+    await page.goto("/profile/check");
+    await expect(heading(page)).toHaveText("Your details");
+    await expect(segments(page)).toHaveCount(SCREENS.length);
+  });
+});
+
 // #368 — a drafted line's source names where its quote sits on the CV (the server resolves it on
 // read: `draft.source`, a job's "<employer>, <title>" or a section's heading). The card prints it in
 // the source line beside the quote; a quote the server placed nowhere prints the quote alone.
@@ -1465,5 +1508,35 @@ test.describe("#376 where you can work and languages", () => {
     await expect(heading(page)).toHaveText("Languages");
     await expect(items(page)).toHaveText(["Polish (Native)", "English (Fluent)"]);
     await expect(page.locator(".langs")).toHaveCount(0);
+  });
+
+  // #385: check mode brought back by a re-upload shows new items only. The card comes back with it
+  // only while a market is still unanswered — a market added since, say — never for answered ones.
+  const NEW_ITEM = line("bsh-new", "Ran the quarterly release review with the business owners.");
+  const reuploaded = (workRights: ReviewWorkRights[]): ReviewState => ({
+    ...REVIEW,
+    newItems: [NEW_ITEM.id],
+    workRights,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "bsh" ? { ...j, lines: [...j.lines, NEW_ITEM] } : j)) } : s,
+    ),
+  });
+
+  test("on a re-upload, the card comes back while a market is unanswered, and holds the button on it", async ({ page }) => {
+    await stubReview(page, reuploaded([row("Hong Kong"), row("Australia", { answer: "eligible" })]));
+    await page.goto("/profile/check");
+    await expect(segments(page)).toHaveCount(2); // the job with something new, then the card
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Additional information");
+    await expect(wrRows(page)).toHaveCount(2);
+    await expect(primary(page)).toHaveText("Answer Hong Kong to continue");
+  });
+
+  test("on a re-upload with every market answered, the card stays away", async ({ page }) => {
+    await stubReview(page, reuploaded([row("Hong Kong", { answer: "needs-sponsorship" })]));
+    await page.goto("/profile/check");
+    await expect(heading(page)).toHaveText("Baltic Software House");
+    await expect(segments(page)).toHaveCount(1);
+    await expect(wrRows(page)).toHaveCount(0);
   });
 });

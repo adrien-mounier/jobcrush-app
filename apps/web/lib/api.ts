@@ -781,6 +781,9 @@ export interface ReviewState {
   workRights: ReviewWorkRights[];
   /** #376: the languages the person said they speak — the Languages card when the CV lists none. */
   languages: string[];
+  /** #385: check mode brought back by a re-upload shows only these items (the new ones and the
+   *  suggestions made on them); null for the first check mode, which shows every item. */
+  newItems: string[] | null;
 }
 /** #376: one market on the "Where you can work" card. `answer` is stored; `proposed` is what the CV
  *  implies — shown pre-selected, never stored until tapped. */
