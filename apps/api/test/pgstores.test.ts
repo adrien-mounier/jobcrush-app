@@ -889,6 +889,31 @@ for (const [name, make] of claimDrivers) {
       expect((await store.list(sid))[0]!.text).toBe("Led the migration.");
     });
 
+    // #379 (ADR-0018 clause 2) — the person's own words on an item, in place: edit() keeps the first
+    // original once (a second edit never overwrites it), records the words as theirs, and leaves the
+    // tick alone — a removed item stays removed. Lines never edited read a null original on both
+    // drivers. A draft is not edited here (setDraftText is its door); an unknown line is reported.
+    it("edit keeps the original once, records user-authored, leaves the tick alone; refuses a draft; reports an unknown line", async () => {
+      await store.seed(sid, [claim({ id: "a", text: "Led teh migration." }), claim({ id: "k", text: "Kept line." })]);
+      await store.setLineState(sid, "k", "kept");
+      expect((await store.list(sid)).map((c) => c.originalText)).toEqual([null, null]);
+
+      expect(await store.edit(sid, "a", "Led the migration.")).toBe(true);
+      expect(await store.edit(sid, "a", "Led the data migration.")).toBe(true);
+      expect(await store.edit(sid, "k", "Kept line, reworded.")).toBe(true);
+      const [a, k] = await store.list(sid);
+      expect(a).toMatchObject({ text: "Led the data migration.", originalText: "Led teh migration.", origin: "user-authored", lineState: "ticked" });
+      expect(k).toMatchObject({ text: "Kept line, reworded.", originalText: "Kept line.", origin: "user-authored", lineState: "kept" });
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
+
+      await store.seedDrafted(sid, [claim({ id: "d", text: "A draft." })]);
+      expect(await store.edit(sid, "d", "Edited draft.")).toBe(false);
+      expect((await store.list(sid)).find((c) => c.id === "d")).toMatchObject({ text: "A draft.", origin: "drafted", lineState: "drafted", originalText: null });
+      expect(await store.edit(sid, "nope", "x")).toBe(false);
+      expect(await store.edit("other-session", "a", "x")).toBe(false);
+      expect((await store.list(sid))[0]!.text).toBe("Led the data migration.");
+    });
+
     // #342 — a drafted line: stored once, on the paper (pending) and off every print path until the
     // person's tick, which is acceptDraft() alone — the line door cannot tick it. After the tick it is
     // an ordinary confirmed, ticked line with its drafted-then-accepted origin.

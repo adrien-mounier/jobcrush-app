@@ -100,8 +100,8 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     box.state = { ...box.state, completed: true };
     await route.fulfill({ json: { completed: true } });
   });
-  const swapLine = (id: string, change: (l: ReviewLine) => ReviewLine) => {
-    const swap = (l: ReviewLine) => (l.id === id ? change(l) : l);
+  const swapLine = (id: string, over: Partial<ReviewLine> | ((l: ReviewLine) => ReviewLine)) => {
+    const swap = (l: ReviewLine) => (l.id !== id ? l : typeof over === "function" ? over(l) : { ...l, ...over });
     box.state = {
       ...box.state,
       sections: box.state.sections.map((s) =>
@@ -113,7 +113,7 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     record(route);
     const id = new URL(route.request().url()).pathname.split("/").pop()!;
     const { state } = route.request().postDataJSON() as { state: ReviewLine["state"] };
-    swapLine(id, (l) => ({ ...l, state }));
+    swapLine(id, { state });
     await route.fulfill({ json: { id, state } });
   });
   // #384: undo / use the fix — the line reads the original or the corrected words, as the server does it.
@@ -127,6 +127,14 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
       return { ...l, text, fix: { ...l.fix!, applied } };
     });
     await route.fulfill({ json: { id, text, applied } });
+  });
+  // #379: the words door — the server trims and stores them; a re-read shows them.
+  await page.route("**/api/cv/lines/*/text", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").at(-2)!;
+    const text = (route.request().postDataJSON() as { text: string }).text.trim();
+    swapLine(id, { text });
+    await route.fulfill({ json: { id, text } });
   });
   return { calls, box };
 }
@@ -391,6 +399,136 @@ test.describe("#384 fixes", () => {
   });
 });
 
+// #379 (ADR-0018 clause 2): an item's words edited in place. ✎ (the item's non-removing action)
+// turns the item into a text box with Save / Cancel; the item stays where it is. Selected by
+// structure: `li.pt.edit`, its textarea, its primary (Save) and ghost (Cancel) buttons.
+test.describe("#379 edit an item's words in place", () => {
+  const editButton = (item: ReturnType<Page["locator"]>) => item.locator(".ib:not(.rmv)");
+  const editor = (page: Page) => page.locator("li.pt.edit");
+  const textbox = (page: Page) => editor(page).locator("textarea");
+  const TEXT_CALL = (id: string, text: string) => ({ method: "PUT", url: `/api/cv/lines/${id}/text`, body: { text } });
+
+  async function toNordic(page: Page) {
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+  }
+
+  test("✎ opens the editor; Enter saves the words and the item keeps its place with them across a reload; Escape cancels and sends nothing; an empty save is refused", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await toNordic(page);
+    const first = items(page).first();
+    await first.hover();
+    await editButton(first).click();
+    await expect(editor(page)).toHaveCount(1);
+    await expect(textbox(page)).toHaveValue("Led the checkout replatform.");
+    await expect(textbox(page)).toBeFocused();
+
+    await textbox(page).fill("Led the checkout replatform for 12 stores.");
+    await page.keyboard.press("Enter");
+    expect(calls).toEqual([TEXT_CALL("nrg-1", "Led the checkout replatform for 12 stores.")]);
+    await expect(editor(page)).toHaveCount(0);
+    await expect(items(page)).toHaveCount(2);
+    await expect(items(page).first()).toContainText("Led the checkout replatform for 12 stores."); // still first
+    await page.reload();
+    await toNordic(page);
+    await expect(items(page).first()).toContainText("Led the checkout replatform for 12 stores.");
+
+    // Cancel: typed words are dropped, nothing is sent.
+    const second = items(page).nth(1);
+    await second.hover();
+    await editButton(second).click();
+    await textbox(page).fill("Something else entirely.");
+    await page.keyboard.press("Escape");
+    await expect(editor(page)).toHaveCount(0);
+    expect(calls).toHaveLength(1);
+    await expect(items(page).nth(1)).toContainText("Managed a budget of EUR 1.2M");
+
+    // Empty: Save is held and Enter sends nothing; the words stay.
+    await second.hover();
+    await editButton(second).click();
+    await textbox(page).fill("   ");
+    await expect(editor(page).locator(".btn.primary")).toBeDisabled();
+    await page.keyboard.press("Enter");
+    expect(calls).toHaveLength(1);
+    await expect(editor(page)).toHaveCount(1);
+    await editor(page).locator(".btn.ghost").click();
+    await expect(items(page).nth(1)).toContainText("Managed a budget of EUR 1.2M");
+  });
+
+  test("by keyboard: focus on the item's ✎ shows the actions, Enter opens the editor with the text box focused, Enter saves", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await toNordic(page);
+    const first = items(page).first();
+    await expect(first.locator(".acts")).toHaveCSS("opacity", "0");
+    await editButton(first).focus();
+    await expect(first.locator(".acts")).toHaveCSS("opacity", "1");
+    await page.keyboard.press("Enter");
+    await expect(textbox(page)).toBeFocused();
+    await textbox(page).fill("Led the checkout replatform, on time.");
+    await page.keyboard.press("Enter");
+    expect(calls).toEqual([TEXT_CALL("nrg-1", "Led the checkout replatform, on time.")]);
+    await expect(items(page).first()).toContainText("Led the checkout replatform, on time.");
+  });
+
+  test.describe("by tap", () => {
+    test.use({ hasTouch: true });
+    test("a tap on the item shows ✎, a tap on it opens the editor, a tap on Save sends the words", async ({ page }) => {
+      const { calls } = await stubReview(page);
+      await toNordic(page);
+      const first = items(page).first();
+      await first.locator(".txt").tap();
+      await expect(first).toHaveClass(/\bact\b/);
+      await editButton(first).tap();
+      await expect(editor(page)).toHaveCount(1);
+      await textbox(page).fill("Led the checkout replatform, tapped.");
+      await editor(page).locator(".btn.primary").tap();
+      expect(calls).toEqual([TEXT_CALL("nrg-1", "Led the checkout replatform, tapped.")]);
+      await expect(items(page).first()).toContainText("Led the checkout replatform, tapped.");
+    });
+  });
+
+  test("every section's items offer ✎ except About you, whose editing is its own (#371)", async ({ page }) => {
+    await stubReview(page);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(items(page).locator(".ib.rmv")).toHaveCount(1);
+    await expect(items(page).locator(".ib:not(.rmv)")).toHaveCount(0);
+    for (const title of ["Nordic Retail Group", "Baltic Software House", "Skills", "Education"]) {
+      await primary(page).click();
+      await expect(heading(page)).toHaveText(title);
+      await expect(items(page).first().locator(".ib:not(.rmv)")).toHaveCount(1);
+    }
+  });
+
+  test("Personal projects and Additional information items offer ✎ too, and save through the same door", async ({ page }) => {
+    const { calls } = await stubReview(page, {
+      ...REVIEW,
+      sections: [
+        ...REVIEW.sections,
+        { tag: "project", heading: "Personal Projects", lines: [line("pr1", "Built a garden sensor network.")] },
+        { tag: "additional", heading: "Additional Information", lines: [line("ad1", "Nationality: Portuguese")] },
+      ],
+    });
+    await page.goto("/profile/check");
+    // Personal projects is the 7th screen here (after SCREENS' six), Additional information the 8th.
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    for (const [title, id] of [["Personal projects", "pr1"], ["Additional information", "ad1"]] as const) {
+      await primary(page).click();
+      await expect(heading(page)).toHaveText(title);
+      const first = items(page).first();
+      await first.hover();
+      await editButton(first).click();
+      await textbox(page).fill(`Edited ${id}.`);
+      await page.keyboard.press("Enter");
+      await expect(items(page).first()).toContainText(`Edited ${id}.`);
+    }
+    expect(calls).toEqual([TEXT_CALL("pr1", "Edited pr1."), TEXT_CALL("ad1", "Edited ad1.")]);
+  });
+});
+
 test.describe("#373 personal projects and additional information", () => {
   // The server now files a CV's personal projects and its nationality line in their own sections
   // (rootcv.ts SECTIONS: project right after experience, additional last), so the walk shows a
@@ -431,3 +569,4 @@ test.describe("#373 personal projects and additional information", () => {
     await expect(primary(page)).toHaveText("Finish my profile");
   });
 });
+

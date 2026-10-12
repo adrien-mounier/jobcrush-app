@@ -59,5 +59,26 @@ export function cvRoutes(deps: CvDeps) {
         return { id: req.params.id, state: req.body.state };
       },
     );
+
+    // #379 (ADR-0018 clause 2): the person's own words on an item, in place — check mode's ✎ and the
+    // profile's. Pre-wall like the line door. The store's edit() records the words as theirs, keeps
+    // the first original and leaves the tick alone, so a removed item reworded stays removed; empty
+    // words are refused here, before anything moves. A draft is not edited here (its door is
+    // PUT /review/drafts/:id) — 404 like an unknown line.
+    app.put(
+      "/cv/lines/:id/text",
+      {
+        schema: {
+          params: z.object({ id: z.string() }),
+          body: z.object({ text: z.string().trim().min(1) }),
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        if (!(await deps.claims.edit(session.id, req.params.id, req.body.text)))
+          return reply.status(404).send({ error: { code: "not_found", message: "unknown line" } });
+        return { id: req.params.id, text: req.body.text };
+      },
+    );
   };
 }

@@ -22,6 +22,7 @@ import {
   saveContact,
   saveIntent,
   saveTargetTitles,
+  setLineText,
   type IntentState,
 } from "../../lib/api";
 import { areaSuggestions, matchAreaText } from "../../lib/areaMatch";
@@ -238,6 +239,96 @@ function DetailBody({ fact }: { fact: ProfileFact }) {
 const FIXED_TAG = "Fixed";
 function FixedTag({ fact }: { fact: ProfileFact }) {
   return fact.fix?.applied ? <span className="tag">{FIXED_TAG}</span> : null;
+}
+
+// #379 (ADR-0018 clause 2) — a fact's words, edited in place from its detail: the same door as check
+// mode's ✎ (PUT /cv/lines/:id/text — kept as the person's own words, the original kept, the tick
+// untouched). Enter saves, Escape cancels (and only that — the dialog stays open). After a save the
+// profile is re-read; a failed re-read is never reported as a save failure.
+const FE_EDIT = "Edit";
+const FE_SAVE = "Save";
+const FE_CANCEL = "Cancel";
+
+function FactEdit({ fact, onSaved }: { fact: ProfileFact; onSaved: (fresh: ProfileState | null) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const editing = draft !== null;
+  useEffect(() => {
+    if (editing) boxRef.current?.focus();
+  }, [editing]);
+  const words = draft?.trim() ?? "";
+
+  async function save() {
+    if (!words || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await setLineText(fact.id, words);
+    } catch {
+      setSaving(false);
+      setError(R12);
+      return;
+    }
+    let fresh: ProfileState | null = null;
+    try {
+      fresh = await getProfile();
+    } catch {
+      // the save landed; the next load shows it
+    }
+    setSaving(false);
+    setDraft(null);
+    onSaved(fresh);
+  }
+
+  if (!editing) {
+    return (
+      <button type="button" className="detailclose detailedit" onClick={() => setDraft(fact.text)}>
+        {FE_EDIT}
+      </button>
+    );
+  }
+  const boxId = `fact-edit-${fact.id}`;
+  return (
+    <div className="rq">
+      <label className="sr-only" htmlFor={boxId}>
+        {FE_EDIT}
+      </label>
+      <textarea
+        className="rin"
+        id={boxId}
+        ref={boxRef}
+        rows={3}
+        value={draft}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void save();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            setDraft(null);
+          }
+        }}
+      />
+      <div className="rbtns">
+        <button type="button" className="rbtn" disabled={saving || !words} onClick={() => void save()}>
+          {FE_SAVE}
+        </button>
+        <button type="button" className="rbtn" disabled={saving} onClick={() => setDraft(null)}>
+          {FE_CANCEL}
+        </button>
+      </div>
+      {error && (
+        <p className="rerr" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
 // #186 A2 — a sentence fact as a full row (profile / experience / edu domains). A real <button>,
@@ -2142,6 +2233,14 @@ function ReadyScreen({
         {selected && (
           <>
             <DetailBody fact={selected.fact} />
+            <FactEdit
+              key={selected.fact.id}
+              fact={selected.fact}
+              onSaved={(fresh) => {
+                if (fresh) onProfileRefreshed(fresh);
+                onCloseDialog();
+              }}
+            />
             <button type="button" className="detailclose" onClick={onCloseDialog}>
               {P26}
             </button>

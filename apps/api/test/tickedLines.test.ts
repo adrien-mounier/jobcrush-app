@@ -248,7 +248,7 @@ async function tailoringWithCv(email: string, opts: Parameters<typeof buildServe
   await post(app, cookie, "/review/complete"); // #338: a brought CV is reviewed before any job is shown
   await warmRetrieval(app, cookie);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
-  return { app, cookie };
+  return { app, cookie, server };
 }
 
 async function draft(app: App, cookie: string) {
@@ -369,5 +369,93 @@ describe("#377 a removed item (check mode's ⊖ = the kept state underneath) rea
     await warmRetrieval(app, cookie);
     expect(onMasterCv(await build(app, cookie), LINE, LINE_TEXT)).toBe(true);
     expect((await draft(app, cookie)).json().html).toContain(LINE_TEXT);
+  });
+});
+
+// --- #379 the person's own words on an item, in place (ADR-0018 clause 2) -------------------------
+
+const EDITED = "Replaced the checkout platform, live 2 months early.";
+const editLine = (app: App, cookie: string, id: string, text: string) => put(app, cookie, `/cv/lines/${id}/text`, { text });
+type WalkLine = { id: string; text: string; state: string };
+const walkLine = async (app: App, cookie: string, id: string) => {
+  const walk = (await get(app, cookie, "/review")).json() as {
+    sections: Array<{ jobs?: Array<{ lines: WalkLine[] }>; lines?: WalkLine[] }>;
+  };
+  return walk.sections.flatMap((s) => s.jobs?.flatMap((j) => j.lines) ?? s.lines ?? []).find((l) => l.id === id);
+};
+
+describe("#379 an item's words edited in place, over HTTP", () => {
+  it("before the wall: Save persists across a reload with the first original kept and the words recorded as the person's own; an empty save, an unknown line and another person's line are refused; a removed item stays removed", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const { app } = server;
+    const cookie = await anonSession(app);
+    const created = await post(app, cookie, "/cv/paste", { text: "Experience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(5) });
+    await settled(app, cookie, created.json().jobId);
+    const asRead = MINED[0]!.text;
+    expect(await walkLine(app, cookie, LINE)).toMatchObject({ text: asRead, state: "ticked" });
+
+    const saved = await editLine(app, cookie, LINE, `  ${EDITED}  `);
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ id: LINE, text: EDITED });
+    // A fresh read: what the server stored, trimmed, not what the response echoed.
+    expect(await walkLine(app, cookie, LINE)).toMatchObject({ text: EDITED, state: "ticked" });
+    expect(await profileFact(app, cookie, LINE)).toMatchObject({ source: "told" });
+
+    for (const empty of ["", "   "]) expect((await editLine(app, cookie, LINE, empty)).statusCode).toBe(400);
+    expect((await editLine(app, cookie, "no-such-line", "x")).statusCode).toBe(404);
+    const stranger = await anonSession(app);
+    expect((await editLine(app, stranger, LINE, "x")).statusCode).toBe(404);
+    expect(await walkLine(app, cookie, LINE)).toMatchObject({ text: EDITED });
+
+    // The original is kept once: a second edit keeps the words as read, not the first edit.
+    expect((await editLine(app, cookie, LINE, "Third wording.")).statusCode).toBe(200);
+    const session = await server.sessions.getByToken(cookie.split("=")[1]!);
+    const record = (await server.claims.list(session!.id)).find((c) => c.id === LINE);
+    expect(record).toMatchObject({ text: "Third wording.", originalText: asRead, origin: "user-authored", lineState: "ticked" });
+
+    // Editing a removed item rewords it where it is held — it is not put back.
+    expect((await setLine(app, cookie, LINE, "kept")).statusCode).toBe(200);
+    expect((await editLine(app, cookie, LINE, "Fourth wording.")).statusCode).toBe(200);
+    expect(await walkLine(app, cookie, LINE)).toMatchObject({ text: "Fourth wording.", state: "kept" });
+  });
+
+  it("the edited words are what the master CV, the tailored draft's input and page, and the export print — the words as read nowhere", async () => {
+    const prompts: string[] = [];
+    const { sent, mailer } = recordingMailer();
+    const printed: string[] = [];
+    const documentMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const { app, cookie } = await tailoringWithCv("edited-words@example.com", { tailorLlm: echoingLlm(prompts), documentMaker, mailer });
+
+    // As read: the words print everywhere (the positive half — the fake tailor prints what it is given).
+    expect(onMasterCv(await build(app, cookie), LINE, LINE_TEXT)).toBe(true);
+    const before = (await draft(app, cookie)).json();
+    expect(prompts[0]).toContain(LINE_TEXT);
+    expect(before.html).toContain(LINE_TEXT);
+
+    expect((await editLine(app, cookie, LINE, EDITED)).statusCode).toBe(200);
+    await warmRetrieval(app, cookie);
+    const cv = await build(app, cookie);
+    expect(cv.rootCv.markdown).toContain(EDITED);
+    expect(cv.rootCv.markdown).not.toContain(LINE_TEXT);
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404); // the old draft carried the old words
+    const after = (await draft(app, cookie)).json();
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain(EDITED);
+    expect(prompts[1]).not.toContain(LINE_TEXT);
+    expect(after.html).toContain(EDITED);
+    expect(after.html).not.toContain(LINE_TEXT);
+
+    const sentRes = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: after.draftedAt });
+    expect(sentRes.statusCode).toBe(202);
+    expect((await settled(app, cookie, sentRes.json().jobId)).status).toBe("completed");
+    expect(printed).toHaveLength(1);
+    expect(printed[0]).toContain(EDITED);
+    expect(printed[0]).not.toContain(LINE_TEXT);
+    expect(sent).toEqual(["edited-words@example.com"]);
   });
 });
