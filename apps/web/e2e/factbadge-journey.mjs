@@ -91,18 +91,16 @@ await qa.note(
 );
 
 // ---------------------------------------------------------------------------------------------
-// 3. #339: an eligibility answer is not a fact either. After Q1 discovery asks work rights and
-//    languages only — neither is counted — so the badge stays unborn and no chip flies.
+// 3. #376/#386: nothing is asked after Q1 any more (work rights and languages moved into the
+//    profile's check mode) — discovery shows its hand-off, the badge stays unborn and no chip flies.
 // ---------------------------------------------------------------------------------------------
 await resetChips();
-const eligOpt = page.locator('.discovery .opts .opt').first();
-await eligOpt.waitFor({ state: 'visible', timeout: 15000 });
-const eligText = (await eligOpt.textContent()).trim();
-await qa.click(eligOpt, `answer the work-rights question: "${eligText}"`);
+await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 15000 });
+await qa.expectVisible('.discovery .handoff', 'discovery hands off: no question after Q1');
 await page.waitForTimeout(1800);
 await assert(
-  (await page.locator('a.prof').count()) === 0 && (await chips()).length === 0,
-  `#339: an eligibility answer mints no fact — still no badge, no chip (chips=${(await chips()).length})`,
+  (await page.locator('.discovery .opts').count()) === 0 && (await page.locator('a.prof').count()) === 0 && (await chips()).length === 0,
+  `nothing asked, no fact minted — still no badge, no chip (chips=${(await chips()).length})`,
 );
 
 // ---------------------------------------------------------------------------------------------
