@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, saveAbout, setLineState, setLineText, type ReviewLine, type ReviewState } from "../../../lib/api";
+import { completeReview, dismissDraft, ensureSession, getReview, saveAbout, setDraftText, setLineState, setLineText, tickDraft, type ReviewLine, type ReviewState } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -42,6 +42,8 @@ const C_CHECKING = "Checking your CV…";
 const minutesCopy = (n: number) => `About ${n} ${n === 1 ? "minute" : "minutes"} left.`;
 /** How often the walk re-reads the paper while the run is going. */
 const POLL_MS = 3000;
+/** #378: how long "No thanks. I won't suggest it again." stays, with its Undo (the prototype's 6 s). */
+const UNDO_MS = 6000;
 
 interface Fx {
   /** The screen whose segment fills: the one just finished. */
@@ -49,6 +51,8 @@ interface Fx {
   /** The screen whose removed count glows. */
   bump?: string;
   arm?: boolean;
+  /** #378: the item just added from a suggestion — its gold rule fades. */
+  landed?: string;
 }
 
 const allLines = (state: ReviewState): ReviewLine[] =>
@@ -67,6 +71,8 @@ export default function CheckPage() {
   const [pollTick, setPollTick] = useState(0);
   /** #371: About you's words while the person edits them; null when not editing. */
   const [aboutDraft, setAboutDraft] = useState<string | null>(null);
+  /** #378: drafts dismissed moments ago — their No thanks row shows, with Undo, for UNDO_MS. */
+  const [justDismissed, setJustDismissed] = useState<ReadonlySet<string>>(new Set());
   const headingRef = useRef<HTMLHeadingElement>(null);
   /** The screen the footer button was last held on — it pulses once when released there. */
   const heldOn = useRef<string | null>(null);
@@ -151,6 +157,36 @@ export default function CheckPage() {
       },
     );
   const putBack = (id: string) => write(() => setLineState(id, "ticked"));
+  // #378: the three answers to an add suggestion. Edit first saves the person's wording, then adds.
+  const forget = (id: string) =>
+    setJustDismissed((s) => {
+      const next = new Set(s);
+      next.delete(id);
+      return next;
+    });
+  const drafts = {
+    justDismissed,
+    onAdd: (id: string, text?: string) =>
+      write(
+        async () => {
+          if (text !== undefined) await setDraftText(id, text);
+          await tickDraft(id);
+        },
+        () => {
+          if (!reduced) setFx((f) => ({ ...f, landed: id }));
+        },
+      ),
+    onSaveText: (id: string, text: string) => write(() => setDraftText(id, text)),
+    onDismiss: (id: string) =>
+      write(
+        () => dismissDraft(id, true),
+        () => {
+          setJustDismissed((s) => new Set(s).add(id));
+          setTimeout(() => forget(id), UNDO_MS);
+        },
+      ),
+    onUndo: (id: string) => write(() => dismissDraft(id, false), () => forget(id)),
+  };
   const go = (dir: 1 | -1) => {
     const to = screens[k + dir];
     if (!to || !screen) return;
@@ -263,11 +299,14 @@ export default function CheckPage() {
           list={{
             busy,
             bump: fx.bump === screen.key,
+            landed: fx.landed ?? null,
+            onLandedEnd: () => setFx((f) => ({ ...f, landed: undefined })),
             onRemove: remove,
             onPutBack: putBack,
             onEdit: edit,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
+          drafts={drafts}
           aboutDraft={{ draft: aboutDraft, onDraft: setAboutDraft }}
         />
         {last && running && state.progress && (

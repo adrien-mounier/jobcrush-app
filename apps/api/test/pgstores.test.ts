@@ -967,6 +967,31 @@ for (const [name, make] of claimDrivers) {
       expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a", "draft-1"]);
     });
 
+    // #378 — "No thanks" on a draft: the row stays (dismissed, pending), off every print path, out of
+    // every other door until Undo puts it back to drafted; a second seeding of the same id (a re-run
+    // over unchanged evidence) never revives it.
+    it("dismissDraft takes a draft to dismissed and back; a dismissed draft is refused by every other door and survives a re-seed", async () => {
+      await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Owned delivery end to end." })]);
+      expect(await store.dismissDraft(sid, "draft-1", true)).toBe(true);
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ decision: "pending", origin: "drafted", lineState: "dismissed" });
+      expect(await store.confirmed(sid)).toEqual([]);
+
+      expect(await store.dismissDraft(sid, "draft-1", true)).toBe(false); // already dismissed
+      expect(await store.acceptDraft(sid, "draft-1")).toBe(false);
+      expect(await store.setLineState(sid, "draft-1", "ticked")).toBe(false);
+      expect(await store.setLineState(sid, "draft-1", "kept")).toBe(false);
+      await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Different wording, second run." })]);
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ text: "Owned delivery end to end.", lineState: "dismissed" });
+
+      expect(await store.dismissDraft(sid, "draft-1", false)).toBe(true); // Undo
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ lineState: "drafted" });
+      expect(await store.dismissDraft(sid, "draft-1", false)).toBe(false); // nothing to undo
+      expect(await store.acceptDraft(sid, "draft-1")).toBe(true);
+      expect(await store.dismissDraft(sid, "draft-1", true)).toBe(false); // an added line is no draft
+      expect(await store.dismissDraft(sid, "nope", true)).toBe(false);
+      expect(await store.dismissDraft("other-session", "draft-1", true)).toBe(false);
+    });
+
     // #13 — the "no" write path + fact correction, proven on both drivers.
     it("answerNegative persists a negative — distinct from rejected, absent from confirmed, present in negatives", async () => {
       await store.answerNegative(sid, claim({ id: "grill-1", text: "No PMP certification." }));

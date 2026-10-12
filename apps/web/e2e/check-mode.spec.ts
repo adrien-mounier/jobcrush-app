@@ -93,12 +93,8 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
   await page.route("**/api/review", async (route) => {
     await route.fulfill({ json: box.state });
   });
-  await page.route("**/api/review/complete", async (route) => {
-    record(route);
-    box.state = { ...box.state, completed: true };
-    await route.fulfill({ json: { completed: true } });
-  });
-  const swapLine = (id: string, over: Partial<ReviewLine>) => {
+  /** Moves one line the way the server would. */
+  const move = (id: string, over: Partial<ReviewLine>) => {
     const swap = (l: ReviewLine) => (l.id === id ? { ...l, ...over } : l);
     box.state = {
       ...box.state,
@@ -107,11 +103,45 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
       ),
     };
   };
+  const lineIdOf = (route: Parameters<Parameters<Page["route"]>[1]>[0], back = 0) => {
+    const parts = new URL(route.request().url()).pathname.split("/");
+    return decodeURIComponent(parts[parts.length - 1 - back]!);
+  };
+  await page.route("**/api/review/complete", async (route) => {
+    record(route);
+    // #378: the server refuses while a suggestion is unanswered.
+    const open = box.state.sections.some((s) => ("jobs" in s ? s.jobs.flatMap((j) => j.lines) : s.lines).some((l) => l.state === "drafted"));
+    if (open) return route.fulfill({ status: 409, json: { error: { code: "suggestions_open", message: "Answer every suggestion to finish your profile." } } });
+    box.state = { ...box.state, completed: true };
+    await route.fulfill({ json: { completed: true } });
+  });
   await page.route("**/api/cv/lines/*", async (route) => {
     record(route);
-    const id = new URL(route.request().url()).pathname.split("/").pop()!;
+    const id = lineIdOf(route);
     const { state } = route.request().postDataJSON() as { state: ReviewLine["state"] };
-    swapLine(id, { state });
+    move(id, { state });
+    await route.fulfill({ json: { id, state } });
+  });
+  // #378: a draft's three answers — its wording (Edit first), the tick (Add it), No thanks and its Undo.
+  await page.route("**/api/review/drafts/*", async (route) => {
+    record(route);
+    const id = lineIdOf(route);
+    const { text } = route.request().postDataJSON() as { text: string };
+    move(id, { text });
+    await route.fulfill({ json: { id, text } });
+  });
+  await page.route("**/api/review/drafts/*/tick", async (route) => {
+    record(route);
+    const id = lineIdOf(route, 1);
+    move(id, { state: "ticked" });
+    await route.fulfill({ json: { id, text: "", state: "ticked" } });
+  });
+  await page.route("**/api/review/drafts/*/dismissed", async (route) => {
+    record(route);
+    const id = lineIdOf(route, 1);
+    const { dismissed } = route.request().postDataJSON() as { dismissed: boolean };
+    const state = dismissed ? "dismissed" : "drafted";
+    move(id, { state });
     await route.fulfill({ json: { id, state } });
   });
   // #371: About you's footer save — the saved words read back on the next GET /review.
@@ -126,7 +156,7 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     record(route);
     const id = new URL(route.request().url()).pathname.split("/").at(-2)!;
     const text = (route.request().postDataJSON() as { text: string }).text.trim();
-    swapLine(id, { text });
+    move(id, { text });
     await route.fulfill({ json: { id, text } });
   });
   return { calls, box };
@@ -314,6 +344,182 @@ test("at phone width nothing scrolls sideways, and the footer button sits at thu
   // Docked to the bottom of an 844px-tall phone: its lower edge within the bottom 100px.
   expect(844 - (box.y + box.height)).toBeLessThan(100);
   expect(box.height).toBeGreaterThanOrEqual(44); // a thumb-sized target
+});
+
+// #378 — add suggestions answered in place (ADR-0018 clauses 4 and 7): a drafted line shows inline
+// in its job as an add card; Add it, Edit first and No thanks each persist across a reload; Undo
+// after No thanks restores the card; the footer waits until every suggestion on the screen is
+// answered. Cards are selected by structure: `li.sg`, its `.row` buttons in the prototype's order
+// (Add it, Edit first, No thanks), the "Only if true" badge as `.hd b`, the source as `.meta q`.
+test.describe("#378 add suggestions answered in place", () => {
+  const VAGUE = "the business and technical groups";
+  const MUST = line("draft-nrg-1", `Owned end to end delivery for ${VAGUE}.`, {
+    state: "drafted",
+    draft: {
+      mustHave: "Owns delivery end to end",
+      quote: null,
+      flags: [],
+      vague: [{ phrase: VAGUE, options: [{ text: "the vendor teams", from: "CV", quote: "Led the checkout replatform." }, { text: "the steering committee", from: "TYPICAL", quote: null }] }],
+    },
+  });
+  const OPTIONAL = line("draft-nrg-2", "Also coordinated releases for 4 agile squads.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", flags: ["OPTIONAL"], vague: [] },
+  });
+  const GUESS = line("draft-nrg-3", "Followed the employer's release calendar.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Led the checkout replatform.", flags: ["INDUSTRY GUESS"], vague: [] },
+  });
+  const WITH_DRAFTS: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, family: "IT Project Manager", lines: [...j.lines, MUST, OPTIONAL, GUESS] } : j)) } : s,
+    ),
+  };
+  const cards = (page: Page) => page.locator("li.sg");
+  const answer = (card: ReturnType<Page["locator"]>, n: 0 | 1 | 2) => card.locator(".row button").nth(n); // Add it · Edit first · No thanks
+  const gone = (page: Page) => page.locator("li.gone");
+  const toNrg = async (page: Page) => {
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+  };
+
+  test("drafts show inline in their job as add cards, Only if true only on the flagged ones; the footer waits until every one is answered, then pulses once", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_DRAFTS);
+    await page.goto("/profile/check");
+    await expect(cards(page)).toHaveCount(0); // not on Your details
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+
+    // Inline, after the job's own items, in the job's list.
+    await expect(page.locator("ul.pts > li")).toHaveCount(5);
+    await expect(items(page)).toHaveCount(2);
+    await expect(cards(page)).toHaveCount(3);
+    await expect(cards(page).nth(0).locator(".stxt")).toHaveText(MUST.text);
+    await expect(cards(page).nth(0).locator(".hd")).toContainText("Nordic Retail Group");
+    await expect(cards(page).nth(0).locator(".mark.plus")).toHaveCount(1);
+    await expect(cards(page).nth(0).locator(".hd b")).toHaveCount(0); // a must-have: no badge
+    await expect(cards(page).nth(1).locator(".hd b")).toHaveCount(1); // OPTIONAL
+    await expect(cards(page).nth(2).locator(".hd b")).toHaveCount(1); // INDUSTRY GUESS
+    await expect(cards(page).nth(0).locator(".meta q")).toHaveCount(0); // no quote, no source line
+    await expect(cards(page).nth(1).locator(".meta q")).toHaveText(OPTIONAL.draft!.quote!);
+    await expect(cards(page).nth(0).locator(".meta")).toContainText(MUST.draft!.mustHave!);
+    await expect(page.locator(".lead")).toContainText("3");
+
+    // Held while any is open; the footer names what is left.
+    await expect(primary(page)).toBeDisabled();
+    await expect(primary(page)).toHaveText("Answer the suggestions to continue");
+
+    await answer(cards(page).nth(0), 0).click(); // Add it
+    await expect(cards(page)).toHaveCount(2);
+    await expect(items(page)).toHaveCount(3);
+    await expect(items(page).nth(2)).toContainText(MUST.text);
+    await expect(items(page).nth(2).locator(".tag")).toHaveCount(1); // the "new" tag
+    await expect(items(page).nth(0).locator(".tag")).toHaveCount(0);
+
+    await answer(cards(page).nth(0), 2).click(); // No thanks
+    await expect(gone(page)).toHaveCount(1);
+    await expect(gone(page).locator("button")).toHaveCount(1); // Undo
+    await expect(primary(page)).toBeDisabled();
+    await expect(primary(page)).toHaveText("Answer the suggestion to continue");
+
+    await answer(cards(page).nth(0), 1).click(); // Edit first
+    const box = cards(page).nth(0).locator("textarea.ed");
+    await expect(box).toHaveValue(GUESS.text);
+    await expect(page.locator(".foot .primary.arm")).toHaveCount(0);
+    await box.fill("Worked to the bank's release calendar.");
+    await cards(page).nth(0).locator(".row button.primary").click(); // Add it
+    await expect(cards(page)).toHaveCount(0);
+    await expect(items(page).nth(3)).toContainText("Worked to the bank's release calendar.");
+
+    await expect(primary(page)).toBeEnabled();
+    await expect(primary(page)).toHaveText("Next: Baltic Software House  →");
+    await expect(page.locator(".foot .primary.arm")).toHaveCount(1);
+    await expect(page.locator(".foot .primary.arm")).toHaveCount(0); // once
+
+    expect(calls).toEqual([
+      { method: "POST", url: "/api/review/drafts/draft-nrg-1/tick", body: null },
+      { method: "PUT", url: "/api/review/drafts/draft-nrg-2/dismissed", body: { dismissed: true } },
+      { method: "PUT", url: "/api/review/drafts/draft-nrg-3", body: { text: "Worked to the bank's release calendar." } },
+      { method: "POST", url: "/api/review/drafts/draft-nrg-3/tick", body: null },
+    ]);
+  });
+
+  test("each answer persists across a reload — added items keep the new tag, the dismissed one never comes back — and the walk finishes", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_DRAFTS);
+    await toNrg(page);
+    await answer(cards(page).nth(0), 0).click(); // Add it
+    await expect(cards(page)).toHaveCount(2);
+    await answer(cards(page).nth(0), 2).click(); // No thanks
+    await expect(gone(page)).toHaveCount(1);
+    await answer(cards(page).nth(0), 1).click(); // Edit first
+    await cards(page).nth(0).locator("textarea.ed").fill("Worked to the bank's release calendar.");
+    await cards(page).nth(0).locator(".row button.primary").click();
+    await expect(cards(page)).toHaveCount(0);
+
+    await page.reload();
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    await expect(cards(page)).toHaveCount(0);
+    await expect(gone(page)).toHaveCount(0); // No thanks is stored, and says nothing after a reload
+    await expect(items(page)).toHaveCount(4);
+    await expect(items(page).nth(2)).toContainText(MUST.text);
+    await expect(items(page).nth(3)).toContainText("Worked to the bank's release calendar.");
+    await expect(items(page).locator(".tag")).toHaveCount(2);
+    await expect(page.locator("ul.pts")).not.toContainText(OPTIONAL.text);
+    await expect(primary(page)).toBeEnabled();
+
+    for (let i = 3; i < SCREENS.length; i++) await primary(page).click();
+    await primary(page).click(); // Finish my profile
+    await expect(heading(page)).toHaveText("Your profile is ready");
+    expect(calls.at(-1)).toEqual({ method: "POST", url: "/api/review/complete", body: null });
+    const tally = await page.locator(".tally b").evaluateAll((els) => els.map((el) => el.textContent));
+    expect(tally).toEqual(["8", "2", "0"]); // in · added · removed
+  });
+
+  test("Undo after No thanks restores the card and holds the footer again; left alone, the No thanks row goes after a few seconds", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_DRAFTS);
+    await toNrg(page);
+    await answer(cards(page).nth(1), 2).click(); // No thanks on the OPTIONAL one
+    await expect(cards(page)).toHaveCount(2);
+    await gone(page).locator("button").click(); // Undo
+    await expect(gone(page)).toHaveCount(0);
+    await expect(cards(page)).toHaveCount(3);
+    await expect(cards(page).nth(1).locator(".stxt")).toHaveText(OPTIONAL.text);
+    expect(calls).toEqual([
+      { method: "PUT", url: "/api/review/drafts/draft-nrg-2/dismissed", body: { dismissed: true } },
+      { method: "PUT", url: "/api/review/drafts/draft-nrg-2/dismissed", body: { dismissed: false } },
+    ]);
+
+    await answer(cards(page).nth(1), 2).click();
+    await expect(gone(page)).toHaveCount(1);
+    await expect(gone(page)).toHaveCount(0, { timeout: 10_000 });
+    await expect(cards(page)).toHaveCount(2);
+  });
+
+  test("a vague phrase on the card opens its word choices, CV first; a choice saves the line in those words", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_DRAFTS);
+    await toNrg(page);
+    const phrase = cards(page).nth(0).locator(".stxt button.ph");
+    await expect(phrase).toHaveText(VAGUE);
+    await expect(phrase).toHaveAttribute("aria-expanded", "false");
+    await phrase.click();
+    await expect(phrase).toHaveAttribute("aria-expanded", "true");
+    const chips = cards(page).nth(0).locator(".wordchoices .chip");
+    await expect(chips).toHaveCount(2);
+    await expect(chips.nth(0)).toHaveClass(/cv/);
+    await expect(chips.nth(1)).toHaveClass(/typ/);
+    expect(calls).toEqual([]); // opening them sends nothing
+    await chips.nth(0).click();
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/drafts/draft-nrg-1", body: { text: "Owned end to end delivery for the vendor teams." } }]);
+    await expect(cards(page).nth(0).locator(".stxt")).toHaveText("Owned end to end delivery for the vendor teams.");
+    await expect(cards(page).nth(0).locator(".wordchoices")).toHaveCount(0);
+    await expect(primary(page)).toBeDisabled(); // a word choice is not an answer
+  });
 });
 
 test("with the check failed to load, the screen says so and offers a retry", async ({ page }) => {
