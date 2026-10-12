@@ -85,15 +85,33 @@ await qa.expectText(heading, 'Your details', 'check mode opens on her details');
 
 // ---------------------------------------------------------------------------------------------
 // 2. The walk, to the last screen. Languages is one of them: her CV's languages are its items.
+//    The fake reviewer drafts suggestions (#378/#380) and they hold their screens; this journey is
+//    not about them, so she answers each the way that leaves the CV as read — No thanks to an
+//    add, Keep it to a removal — as qa-driver.mjs completeReview() does over the wire. The walk
+//    starts once the background check is done, so no suggestion lands behind her.
 // ---------------------------------------------------------------------------------------------
+for (let i = 0; i < 80 && (await json('/review')).body?.progress; i += 1) await page.waitForTimeout(250);
+await page.reload();
+await qa.expectText(heading, 'Your details', 'the check is done; she starts the walk');
+const answerSuggestions = async () => {
+  for (let n = 0; n < 20; n += 1) {
+    const add = page.locator('li.sg:not(.rmv)').first();
+    const removal = page.locator('li.sg.rmv').first();
+    if (await add.count()) await qa.click(add.locator('.row button').nth(2), 'No thanks — the suggestions are not this journey');
+    else if (await removal.count()) await qa.click(removal.locator('.row .ghost'), 'Keep it');
+    else return;
+  }
+};
 let languagesItems = null;
 for (let i = 0; i < 20 && (await heading.innerText()) !== 'Additional information'; i += 1) {
   const before = await heading.innerText();
   if (before === 'Languages') languagesItems = await page.locator('li.pt').count();
+  await answerSuggestions();
   await qa.click(primary, `Next, from "${before}"`);
   await page.waitForFunction((b) => document.querySelector('h1')?.textContent !== b, before);
 }
 await qa.expectText(heading, 'Additional information', 'the last screen');
+await answerSuggestions();
 await assert(languagesItems !== null && languagesItems > 0, `she passed Languages, listing her CV's languages (${languagesItems} items)`);
 
 // ---------------------------------------------------------------------------------------------
