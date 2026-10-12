@@ -12,8 +12,10 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
 import { DRAFT_FLAGS, SUGGESTION_KINDS, VAGUE_SOURCES } from "../cvReviewStore.js";
 import { answerWorkRights, WORK_RIGHTS_ANSWERS } from "../workRightsCard.js";
-import { answerEligibilityItem, LANGUAGE_ITEM_ID } from "../eligibilityDiscovery.js";
+import { answerEligibilityItem, LANGUAGE_ITEM_ID, MAX_LANGUAGES } from "../eligibilityDiscovery.js";
+import { MAX_LANGUAGE_WORD } from "../languageLevel.js";
 import { resolvedMarketsFor } from "../postingRetrieval.js";
+import { answerStatus, Refusal, refusal } from "./refusal.js";
 import {
   answerReviewEndDate,
   buildReviewState,
@@ -118,7 +120,6 @@ const ReviewStateSchema = z.object({
   // #385: check mode brought back by a re-upload shows only these items; null for the first one.
   newItems: z.array(z.string()).nullable(),
 });
-const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 const Ok = z.object({ ok: z.literal(true) });
 
 export function reviewRoutes(deps: ReviewDeps) {
@@ -139,7 +140,7 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await completeReview(deps, session);
-        if (!result.ok) return reply.status(409).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(409).send(refusal(result));
         return { completed: true as const };
       },
     );
@@ -158,7 +159,7 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await setReviewFixApplied(deps, session.id, req.params.lineId, req.body.applied);
-        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(404).send(refusal(result));
         return { id: req.params.lineId, text: result.text, applied: req.body.applied };
       },
     );
@@ -177,7 +178,7 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await setDraftText(deps, session.id, req.params.lineId, req.body.text);
-        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(404).send(refusal(result));
         return { id: req.params.lineId, text: result.text };
       },
     );
@@ -195,7 +196,7 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await tickDraft(deps, session.id, req.params.lineId);
-        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(404).send(refusal(result));
         return { id: req.params.lineId, text: result.text, state: "ticked" as const };
       },
     );
@@ -227,8 +228,8 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await dismissDraft(deps, session.id, req.params.lineId, req.body.dismissed);
-        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
-        return { id: req.params.lineId, state: result.state as "drafted" | "dismissed" };
+        if (!result.ok) return reply.status(404).send(refusal(result));
+        return { id: req.params.lineId, state: result.state };
       },
     );
 
@@ -244,7 +245,7 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await settleReviewConflict(deps, session, req.params.fieldId, req.body.value);
-        if (!result.ok) return reply.status(result.status).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(result.status).send(refusal(result));
         return { ok: true as const };
       },
     );
@@ -263,8 +264,7 @@ export function reviewRoutes(deps: ReviewDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const result = await answerWorkRights(deps.eligibility, session.id, session.intent.searchAreas, req.params.itemId, req.body.answer);
-        if (!result.ok)
-          return reply.status(result.status === 404 ? 404 : 400).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(answerStatus(result)).send(refusal(result));
         return { ok: true as const };
       },
     );
@@ -273,15 +273,20 @@ export function reviewRoutes(deps: ReviewDeps) {
     // is the languages question's own (a dropped language goes back to unknown, never to a "no").
     app.put(
       "/review/languages",
-      { schema: { body: z.object({ languages: z.array(z.string()) }), response: { 200: Ok, 400: Refusal, 404: Refusal } } },
+      {
+        schema: {
+          // Capped at the door like the languages question's own check (isValidLanguageSelection).
+          body: z.object({ languages: z.array(z.string().max(MAX_LANGUAGE_WORD)).max(MAX_LANGUAGES) }),
+          response: { 200: Ok, 400: Refusal, 404: Refusal },
+        },
+      },
       async (req, reply) => {
         const session = requireSession(req);
         const markets = resolvedMarketsFor(session.intent.searchAreas);
         const result = await answerEligibilityItem({ eligibility: deps.eligibility }, session.id, markets, LANGUAGE_ITEM_ID, {
           answers: req.body.languages,
         });
-        if (!result.ok)
-          return reply.status(result.status === 404 ? 404 : 400).send({ error: { code: result.code, message: result.message } });
+        if (!result.ok) return reply.status(answerStatus(result)).send(refusal(result));
         return { ok: true as const };
       },
     );
@@ -302,7 +307,7 @@ export function reviewRoutes(deps: ReviewDeps) {
         if (!result.ok)
           return reply
             .status(result.code === "not_found" ? 404 : 400)
-            .send({ error: { code: result.code, message: result.message } });
+            .send(refusal(result));
         return { ok: true as const };
       },
     );

@@ -28,6 +28,9 @@ export type LineState = "ticked" | "kept" | "drafted" | "dismissed" | "removal-s
 /** The states setLineState moves a line between — never a draft's own (`drafted`, `dismissed`). */
 export type SettableLineState = Exclude<LineState, "drafted" | "dismissed">;
 const SETTABLE: ReadonlySet<LineState> = new Set<LineState>(["ticked", "kept", "removal-suggested"]);
+/** A draft the person has not added — unanswered (`drafted`) or said No thanks to (`dismissed`): a
+ *  suggestion, not a fact about them. PgClaimStore.edit() states the same pair in SQL. */
+export const isUnaddedDraft = (state: LineState): boolean => state === "drafted" || state === "dismissed";
 
 /** #382: what seed() takes — a contract claim, plus the skills group the import split gave it
  *  (skillsSplit.ts). Every other claim carries none. */
@@ -83,7 +86,7 @@ export interface ClaimStore {
   /** The person's own words on a line (deck edit, check mode's ✎, the profile): user-authored,
    *  auto-confirmed (they vouched for it), the first original kept in `originalText` (#379). The tick
    *  is untouched — a removed item stays removed. False when the session has no such line, or it is
-   *  a draft nobody has ticked (setDraftText is a draft's door). */
+   *  a draft nobody has added — unanswered or dismissed (setDraftText is a draft's door). */
   edit(sessionId: string, id: string, text: string): Promise<boolean>;
   /** Grill answer: a new confirmed, user-authored claim. */
   add(sessionId: string, claim: CandidateClaim): Promise<void>;
@@ -212,7 +215,7 @@ export class InMemoryClaimStore implements ClaimStore {
 
   async edit(sessionId: string, id: string, text: string): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (!c || c.lineState === "drafted") return false;
+    if (!c || isUnaddedDraft(c.lineState)) return false;
     c.originalText ??= c.text;
     c.text = text;
     c.origin = "user-authored";
@@ -498,7 +501,7 @@ export class PgClaimStore implements ClaimStore {
     const { rowCount } = await this.pool.query(
       `UPDATE claims SET original_text = COALESCE(original_text, text), text = $3,
          origin = 'user-authored', decision = 'confirmed', decision_seq = COALESCE(decision_seq, $4)
-       WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
+       WHERE session_id = $1 AND id = $2 AND line_state NOT IN ('drafted', 'dismissed')`,
       [sessionId, id, text, decisionSeq],
     );
     return (rowCount ?? 0) > 0;

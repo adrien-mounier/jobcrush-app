@@ -1021,6 +1021,8 @@ for (const [name, make] of claimDrivers) {
       expect(await store.acceptDraft(sid, "draft-1")).toBe(false);
       expect(await store.setLineState(sid, "draft-1", "ticked")).toBe(false);
       expect(await store.setLineState(sid, "draft-1", "kept")).toBe(false);
+      expect(await store.edit(sid, "draft-1", "Reworded, which would confirm it.")).toBe(false);
+      expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ decision: "pending", text: "Owned delivery end to end." });
       await store.seedDrafted(sid, [claim({ id: "draft-1", text: "Different wording, second run." })]);
       expect((await store.list(sid)).find((c) => c.id === "draft-1")).toMatchObject({ text: "Owned delivery end to end.", lineState: "dismissed" });
 

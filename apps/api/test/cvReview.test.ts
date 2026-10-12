@@ -489,6 +489,10 @@ describe("#376 languages, their own screen", () => {
     expect((await review(app, cookie)).languages).toEqual(["English"]);
     expect(await eligibility.get(sessionId, "language", "Polish")).toBeNull();
     expect((await put(app, cookie, "/review/languages", { languages: ["   "] })).statusCode).toBe(400); // not a word: refused, nothing stored
+    // Capped at the door: 21 languages, or one word past 60 characters, is refused before any write.
+    const many = Array.from({ length: 21 }, (_, i) => `Language ${i}`);
+    expect((await put(app, cookie, "/review/languages", { languages: many })).statusCode).toBe(400);
+    expect((await put(app, cookie, "/review/languages", { languages: ["x".repeat(61)] })).statusCode).toBe(400);
     expect((await review(app, cookie)).languages).toEqual(["English"]);
   });
 

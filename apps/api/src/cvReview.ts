@@ -529,7 +529,7 @@ export async function saveAbout(deps: Pick<ReviewDeps, "claims">, sessionId: str
  *  it, which puts the draft back unanswered. Only a draft in the state the move leaves answers
  *  here: a line read from the CV, an added draft, a second No thanks or an undo with nothing to
  *  undo are all "no such draft". */
-export async function dismissDraft(deps: ReviewDeps, sessionId: string, lineId: string, dismissed: boolean): Promise<{ ok: true; state: LineState } | { ok: false; code: "not_found"; message: string }> {
+export async function dismissDraft(deps: ReviewDeps, sessionId: string, lineId: string, dismissed: boolean): Promise<{ ok: true; state: Extract<LineState, "drafted" | "dismissed"> } | { ok: false; code: "not_found"; message: string }> {
   if (!(await deps.claims.dismissDraft(sessionId, lineId, dismissed))) return { ok: false, code: "not_found", message: dismissed ? "no unticked draft on that line" : "no dismissed draft on that line" };
   return { ok: true, state: dismissed ? "dismissed" : "drafted" };
 }

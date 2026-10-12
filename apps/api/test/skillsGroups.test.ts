@@ -98,7 +98,7 @@ async function withCv(email = "skills@example.com", opts: Parameters<typeof buil
   const cookie = await anonSession(server.app);
   await signIn(server.app, cookie, email);
   const jobId = await paste(server.app, cookie);
-  return { app: server.app, cookie, jobId };
+  return { server, app: server.app, cookie, jobId };
 }
 
 describe("#382 the import splits skills one per item, in named groups", () => {
@@ -183,6 +183,23 @@ describe("#382 rename a group, move a skill — both persist", () => {
     expect((await app.inject({ method: "PUT", url: "/cv/skills/groups/Applied%20AI", payload: { name: "x" } })).statusCode).toBe(401);
     // Nothing moved.
     expect((await skillSection(app, cookie)).groups.map((g) => g.name)).toEqual(["Delivery and governance", "Applied AI", FALLBACK_GROUP]);
+  });
+
+  // Fail closed: a rename that finds no group writes nothing — not even the fallback name onto a
+  // skill stored without one (it reads under the fallback, but its row stays as it was).
+  it("a rename that matches no group writes nothing; one that matches the fallback names the skills stored without a group", async () => {
+    const { server, app, cookie } = await withCv("skills-rename-404@example.com");
+    const session = (await server.sessions.getByToken(cookie.split("=")[1]!))!;
+    await server.claims.add(session.id, claim({ id: "skill-legacy", text: "Excel" }));
+    const legacy = async () => (await server.claims.list(session.id)).find((c) => c.id === "skill-legacy")!.groupName;
+    expect(await legacy()).toBeNull();
+
+    expect((await put(app, cookie, "/cv/skills/groups/No%20such%20group", { name: "x" })).statusCode).toBe(404);
+    expect(await legacy()).toBeNull();
+
+    const renamed = await put(app, cookie, `/cv/skills/groups/${encodeURIComponent(FALLBACK_GROUP)}`, { name: "Tools" });
+    expect(renamed.json()).toEqual({ name: "Tools", moved: TOOLS.length + 1 });
+    expect(await legacy()).toBe("Tools");
   });
 });
 

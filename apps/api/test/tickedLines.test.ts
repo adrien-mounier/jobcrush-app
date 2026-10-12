@@ -402,6 +402,8 @@ describe("#379 an item's words edited in place, over HTTP", () => {
     expect(await profileFact(app, cookie, LINE)).toMatchObject({ source: "told" });
 
     for (const empty of ["", "   "]) expect((await editLine(app, cookie, LINE, empty)).statusCode).toBe(400);
+    // Capped like a draft's own words (PUT /review/drafts/:id): 600 characters go in, 601 do not.
+    expect((await editLine(app, cookie, LINE, "x".repeat(601))).statusCode).toBe(400);
     expect((await editLine(app, cookie, "no-such-line", "x")).statusCode).toBe(404);
     const stranger = await anonSession(app);
     expect((await editLine(app, stranger, LINE, "x")).statusCode).toBe(404);

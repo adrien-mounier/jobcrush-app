@@ -403,7 +403,7 @@ export function languageDeclarationPlan(
 
 /** A person naming forty languages is not a person, it is a script. The per-word cap lives in
  *  languageLevel.ts (MAX_LANGUAGE_WORD) — both doors into a language fact share it. */
-const MAX_LANGUAGES = 20;
+export const MAX_LANGUAGES = 20;
 
 /** #165 — the list is no longer closed, so this no longer checks membership. An unknown word is KEPT
  *  (a French speaker in Asia, #125): it is stored, it shows on the profile, and it simply matches no

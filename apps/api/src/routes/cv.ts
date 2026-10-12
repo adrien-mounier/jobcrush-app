@@ -16,6 +16,9 @@ import { kindTag } from "../graph.js";
 import { groupOf } from "../skillsSplit.js";
 import type { JobStore } from "../jobs.js";
 import { runOnboardingJob, type PipelineDeps } from "../pipeline.js";
+import { Refusal, refusal } from "./refusal.js";
+
+const unknownLine = refusal({ code: "not_found", message: "unknown line" });
 
 export interface CvDeps {
   store: JobStore;
@@ -53,12 +56,13 @@ export function cvRoutes(deps: CvDeps) {
         schema: {
           params: z.object({ id: z.string() }),
           body: z.object({ state: z.enum(["ticked", "kept"]) }),
+          response: { 200: z.object({ id: z.string(), state: z.enum(["ticked", "kept"]) }), 404: Refusal },
         },
       },
       async (req, reply) => {
         const session = requireSession(req);
         if (!(await deps.claims.setLineState(session.id, req.params.id, req.body.state)))
-          return reply.status(404).send({ error: { code: "not_found", message: "unknown line" } });
+          return reply.status(404).send(unknownLine);
         return { id: req.params.id, state: req.body.state };
       },
     );
@@ -66,31 +70,33 @@ export function cvRoutes(deps: CvDeps) {
     // #379 (ADR-0018 clause 2): the person's own words on an item, in place — check mode's ✎ and the
     // profile's. Pre-wall like the line door. The store's edit() records the words as theirs, keeps
     // the first original and leaves the tick alone, so a removed item reworded stays removed; empty
-    // words are refused here, before anything moves. A draft is not edited here (its door is
+    // words are refused here, before anything moves, and so are words past a draft's own cap
+    // (PUT /review/drafts/:id). A draft, unanswered or dismissed, is not edited here (its door is
     // PUT /review/drafts/:id) — 404 like an unknown line.
     app.put(
       "/cv/lines/:id/text",
       {
         schema: {
           params: z.object({ id: z.string() }),
-          body: z.object({ text: z.string().trim().min(1) }),
+          body: z.object({ text: z.string().trim().min(1).max(600) }),
+          response: { 200: z.object({ id: z.string(), text: z.string() }), 404: Refusal },
         },
       },
       async (req, reply) => {
         const session = requireSession(req);
         if (!(await deps.claims.edit(session.id, req.params.id, req.body.text)))
-          return reply.status(404).send({ error: { code: "not_found", message: "unknown line" } });
+          return reply.status(404).send(unknownLine);
         return { id: req.params.id, text: req.body.text };
       },
     );
 
     const GroupName = z.string().trim().min(1).max(60);
-    const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
-    const notFound = { error: { code: "not_found", message: "unknown group or skill" } };
+    const notFound = refusal({ code: "not_found", message: "unknown group or skill" });
 
     // #382 (ADR-0018 clause 6): rename a skills group — every skill of the session in it. A skill
-    // stored without a group reads under the fallback name, so it is given that name first and the
-    // rename finds it like any other. Renaming onto a name in use merges the two groups.
+    // stored without a group reads under the fallback name, so when the fallback is renamed it is
+    // given that name first and the rename finds it like any other. A rename that finds no group
+    // writes nothing (fail closed). Renaming onto a name in use merges the two groups.
     app.put(
       "/cv/skills/groups/:name",
       {
@@ -102,7 +108,8 @@ export function cvRoutes(deps: CvDeps) {
       },
       async (req, reply) => {
         const session = requireSession(req);
-        const skills = (await deps.claims.list(session.id)).filter((c) => kindTag(c) === "skill");
+        const skills = (await deps.claims.list(session.id)).filter((c) => kindTag(c) === "skill" && groupOf(c) === req.params.name);
+        if (skills.length === 0) return reply.status(404).send(notFound);
         for (const c of skills) if (c.groupName === null) await deps.claims.setGroup(session.id, c.id, groupOf(c));
         const moved = await deps.claims.renameGroup(session.id, req.params.name, req.body.name);
         if (moved === 0) return reply.status(404).send(notFound);
