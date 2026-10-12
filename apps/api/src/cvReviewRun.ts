@@ -464,8 +464,8 @@ export function planTools(answer: ReviewAnswer["jobs"][number], lines: ClaimReco
       drop();
       continue;
     }
-    const listed = new Set(tools.map(sameSkill));
-    if (!splitSkillText(line.text).items.every((item) => listed.has(sameSkill(item)))) {
+    const named = new Set(tools.map(sameSkill));
+    if (!splitSkillText(line.text).items.every((item) => named.has(sameSkill(item)))) {
       incrementCounter("cvReview.tool_list_refused");
       used.push({ line: id, tools });
       continue;

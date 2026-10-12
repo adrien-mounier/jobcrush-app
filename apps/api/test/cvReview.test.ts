@@ -311,7 +311,7 @@ describe("#338 the jobs gate — review completed", () => {
     expect((await get(app, cookie, "/onboarding/discovery")).json()).toMatchObject({ reviewPending: false });
     const deck = (await getCardsWhenRetrieved(app, cookie)).json();
     expect(deck.reviewPending).toBeUndefined();
-    expect(deck.cards.length).toBeGreaterThan(0);
+    expect(deck.cards.length).toBe(8); // the fixture deck's eight cards
     expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).json()).toMatchObject({ stage: "tailor" });
     expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(200);
   });
@@ -341,7 +341,7 @@ describe("#338 the jobs gate — review completed", () => {
     expect((await get(app, cookie, "/onboarding/discovery")).json()).toMatchObject({ reviewPending: false });
     const deck = (await getCardsWhenRetrieved(app, cookie)).json();
     expect(deck.reviewPending).toBeUndefined();
-    expect(deck.cards.length).toBeGreaterThan(0);
+    expect(deck.cards.length).toBe(8); // the fixture deck's eight cards
   });
 
   it("completing confirms the lines as read: ticked ones print on the master CV, a kept one does not", async () => {
@@ -367,7 +367,7 @@ describe("#338 the jobs gate — review completed", () => {
     await put(app, cookie, "/cv/lines/nrg-led-checkout", { state: "kept" });
     expect(jobsOf(await review(app, cookie))[0]!.lines[0]).toMatchObject({ id: "nrg-led-checkout", state: "kept" });
     expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200); // confirming again moves nothing
-    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBeGreaterThan(0);
+    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBe(8); // the fixture deck's eight cards
   });
 });
 
@@ -434,7 +434,7 @@ describe("#376 where you can work, on check mode's last screen", () => {
     expect(await eligibility.get(sessionId, "work-rights", "hong-kong")).toMatchObject({ value: "needs-sponsorship" });
 
     expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
-    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBeGreaterThan(0);
+    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBe(8); // the fixture deck's eight cards
   });
 
   it("the door answers only this session's markets, and only in the store's two words", async () => {

@@ -381,7 +381,7 @@ describe("#341 the run", () => {
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-down@example.com");
     expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
-    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBeGreaterThan(0);
+    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBe(8); // the fixture deck's eight cards
   });
 
   it("while the run is going: progress counts the jobs that landed, an unanswered job is still being checked, and the confirm waits", async () => {
