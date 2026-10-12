@@ -1,12 +1,13 @@
-<!-- claim-miner prompt v3.1 (JC-13 lineage, #208 capture unit; #323: field tags never on repeatable kinds). Lineage: JobCrush docs/spikes/jc2-miner-prompt.md, with the
+<!-- claim-miner prompt v3.2 (JC-13 lineage, #208 capture unit; #323: field tags never on repeatable kinds; #373: `project-`/`additional-` id prefixes so personal projects and nationality leave the summary). Lineage: JobCrush docs/spikes/jc2-miner-prompt.md, with the
 two JC-2 smoke-run findings fixed: (1) verbatim/reworded boundary narrowed so cosmetic
 normalization no longer costs an individual deck card; (2) asserted-vs-evidenced classification
 sharpened so fluffy self-descriptions stop coming back Verified. v2 adds section coverage
 (rule 8) + claim id prefixes after the JC-2 blind rating: v1 silently skipped Remy IM's entire
 "Additional Skills" block (languages + categorized skill inventory), so the tailored draft lost
 facts the original CV had. Version-controlled here per the JC-13 AC; the eval harness in
-test/eval pins its behavior — ⚠️ but the committed recordings were mined under v2, so what CI
-pins today is v2's output, not v3's. Re-record (`RECORD_MINER=1`, live API cost) to close that;
+test/eval pins its behavior — ⚠️ but the committed recordings were mined under v2 (except
+`personal-projects-txt`, recorded under v3.2 for #373), so what CI pins today is mostly v2's
+output, not v3's. Re-record (`RECORD_MINER=1`, live API cost) to close that;
 the ≥90% tier-accuracy assertion is the one that could go red.
 v3 (#208, owner ruling in research-data/structured-read/decisions.md decision 2): a compound
 bullet is captured WHOLE and split at writing time by preview-tailor.md, reversing v2's "split
@@ -63,7 +64,10 @@ Rules — these mirror the claim-graph extraction discipline:
    `uncovered-section: <heading>`. Prefix claim ids by kind so downstream checks can find
    them: `cert-…` (one claim per certification, exact name + date in `text`), `lang-…` (one
    per language, with level), `skill-…` (skill-inventory items, one claim per group is fine),
-   `edu-…` (education entries).
+   `edu-…` (education entries), `project-…` (personal or side projects: one claim per project,
+   whether the CV lists them under "Personal Projects", "Side projects" or inside the summary),
+   `additional-…` (the CV's "Additional Information" lines: nationality, references, driving
+   licence and the like). A summary sentence keeps a plain id with no kind prefix.
 9. **Deck budget:** every `reworded`/`inferred` claim costs the candidate an individual review
    decision; `verbatim` claims batch. A typical CV must stay ≤ 15 individual decisions — prefer
    `verbatim` wherever rule 2 allows it. (Rule 8's inventory claims are `verbatim`, so full
@@ -76,8 +80,9 @@ Stable identity fields:
   period — set both `field_key` and `field_value`. Also set `field_label` to the field's short
   name ("Search area"), never to the fact itself.
 - Never set them on anything a CV can legitimately list more than once: degrees, jobs,
-  certifications, languages, skills. Rule 8's `edu-`/`cert-`/`lang-`/`skill-` claims always carry
-  null for all three — two degrees are two facts, not a contradiction.
+  certifications, languages, skills, projects, additional-information lines. Rule 8's
+  `edu-`/`cert-`/`lang-`/`skill-`/`project-`/`additional-` claims always carry null for all three
+  — two degrees are two facts, not a contradiction.
 - General achievements use null for all three. Never set only some of them.
 
 Output shape:

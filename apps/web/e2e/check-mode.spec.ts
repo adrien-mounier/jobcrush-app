@@ -423,4 +423,70 @@ test.describe("#379 edit an item's words in place", () => {
       await expect(items(page).first().locator(".ib:not(.rmv)")).toHaveCount(1);
     }
   });
+
+  test("Personal projects and Additional information items offer ✎ too, and save through the same door", async ({ page }) => {
+    const { calls } = await stubReview(page, {
+      ...REVIEW,
+      sections: [
+        ...REVIEW.sections,
+        { tag: "project", heading: "Personal Projects", lines: [line("pr1", "Built a garden sensor network.")] },
+        { tag: "additional", heading: "Additional Information", lines: [line("ad1", "Nationality: Portuguese")] },
+      ],
+    });
+    await page.goto("/profile/check");
+    // Personal projects is the 7th screen here (after SCREENS' six), Additional information the 8th.
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    for (const [title, id] of [["Personal projects", "pr1"], ["Additional information", "ad1"]] as const) {
+      await primary(page).click();
+      await expect(heading(page)).toHaveText(title);
+      const first = items(page).first();
+      await first.hover();
+      await editButton(first).click();
+      await textbox(page).fill(`Edited ${id}.`);
+      await page.keyboard.press("Enter");
+      await expect(items(page).first()).toContainText(`Edited ${id}.`);
+    }
+    expect(calls).toEqual([TEXT_CALL("pr1", "Edited pr1."), TEXT_CALL("ad1", "Edited ad1.")]);
+  });
+});
+
+test.describe("#373 personal projects and additional information", () => {
+  // The server now files a CV's personal projects and its nationality line in their own sections
+  // (rootcv.ts SECTIONS: project right after experience, additional last), so the walk shows a
+  // Personal projects screen between the last job and Skills and an Additional information screen
+  // at the end, and About you keeps only the summary's own sentence.
+  const WITH_PROJECTS: ReviewState = {
+    ...REVIEW,
+    sections: [
+      ...REVIEW.sections.slice(0, 2),
+      {
+        tag: "project",
+        heading: "Personal Projects",
+        lines: [line("pr1", "Built a solar-powered garden sensor network."), line("pr2", "Maintain a family recipe wiki with 300 entries.")],
+      },
+      ...REVIEW.sections.slice(2),
+      { tag: "additional", heading: "Additional Information", lines: [line("ad1", "Nationality: Portuguese")] },
+    ],
+  };
+  const TITLES_WITH_PROJECTS = ["Your details", "About you", "Nordic Retail Group", "Baltic Software House", "Personal projects", "Skills", "Education", "Additional information"];
+
+  test("the walk shows Personal projects between the last job and Skills, and Additional information last", async ({ page }) => {
+    await stubReview(page, WITH_PROJECTS);
+    await page.goto("/profile/check");
+    await expect(segments(page)).toHaveCount(TITLES_WITH_PROJECTS.length);
+    await expect(heading(page)).toHaveText(TITLES_WITH_PROJECTS[0]!);
+    for (let i = 1; i < TITLES_WITH_PROJECTS.length; i++) {
+      await primary(page).click();
+      await expect(heading(page)).toHaveText(TITLES_WITH_PROJECTS[i]!);
+      if (i === 1) await expect(items(page)).toHaveCount(1); // About you: the summary sentence only
+      if (i === 4) {
+        await expect(items(page)).toHaveCount(2);
+        await expect(items(page).nth(0)).toContainText("garden sensor");
+        await expect(items(page).nth(1)).toContainText("recipe wiki");
+      }
+    }
+    await expect(items(page)).toHaveCount(1);
+    await expect(items(page).first()).toContainText("Nationality");
+    await expect(primary(page)).toHaveText("Finish my profile");
+  });
 });
