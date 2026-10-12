@@ -127,4 +127,36 @@ describe("JC-13 miner plumbing", () => {
     expect(buildImportProof(mined.claims).conflict).toBeNull();
     expect(reconcileImport(buildImportProof(mined.claims), mined.claims, {}).claims).toHaveLength(2);
   });
+
+  // #373: the owner's CV came back with its personal projects and its nationality line ided
+  // `personal-project-*` / `current-location` under role "profile" — the miner knew what they were
+  // but had no prefix to say so, and the section assignment (kindTag) filed them as summary.
+  it("#373: rule 8 prescribes project- and additional- ids, and they repeat like the other inventory kinds", async () => {
+    expect(buildMinerInput("cv")).toMatch(/`project-…`/);
+    expect(buildMinerInput("cv")).toMatch(/`additional-…`/);
+
+    const doc = structuredClone(validDoc);
+    const tagged = (id: string, text: string) => ({
+      ...doc.claims[0]!,
+      id,
+      semantic_key: id,
+      role: "profile",
+      text,
+      source_quote: text,
+      field_key: "personal-project",
+      field_value: text,
+      field_label: "Personal project",
+    });
+    doc.claims = [
+      tagged("project-garden-sensors", "Built a solar-powered garden sensor network."),
+      tagged("project-recipe-wiki", "Maintain a family recipe wiki with 300 entries."),
+      tagged("additional-nationality", "Nationality: Portuguese"),
+    ];
+    const mined = await mineClaims("cv text", fakeLlm([JSON.stringify(doc)]));
+    for (const claim of mined.claims) {
+      expect(claim).toMatchObject({ field_key: null, field_value: null, field_label: null });
+    }
+    expect(buildImportProof(mined.claims).conflict).toBeNull();
+    expect(reconcileImport(buildImportProof(mined.claims), mined.claims, {}).claims).toHaveLength(3);
+  });
 });

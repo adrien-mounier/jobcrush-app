@@ -308,3 +308,44 @@ test("with the check failed to load, the screen says so and offers a retry", asy
   await page.locator(".check .loadstate button").click();
   await expect(heading(page)).toHaveText("Your details");
 });
+
+test.describe("#373 personal projects and additional information", () => {
+  // The server now files a CV's personal projects and its nationality line in their own sections
+  // (rootcv.ts SECTIONS: project right after experience, additional last), so the walk shows a
+  // Personal projects screen between the last job and Skills and an Additional information screen
+  // at the end, and About you keeps only the summary's own sentence.
+  const WITH_PROJECTS: ReviewState = {
+    ...REVIEW,
+    sections: [
+      ...REVIEW.sections.slice(0, 2),
+      {
+        tag: "project",
+        heading: "Personal Projects",
+        lines: [line("pr1", "Built a solar-powered garden sensor network."), line("pr2", "Maintain a family recipe wiki with 300 entries.")],
+      },
+      ...REVIEW.sections.slice(2),
+      { tag: "additional", heading: "Additional Information", lines: [line("ad1", "Nationality: Portuguese")] },
+    ],
+  };
+  const TITLES_WITH_PROJECTS = ["Your details", "About you", "Nordic Retail Group", "Baltic Software House", "Personal projects", "Skills", "Education", "Additional information"];
+
+  test("the walk shows Personal projects between the last job and Skills, and Additional information last", async ({ page }) => {
+    await stubReview(page, WITH_PROJECTS);
+    await page.goto("/profile/check");
+    await expect(segments(page)).toHaveCount(TITLES_WITH_PROJECTS.length);
+    await expect(heading(page)).toHaveText(TITLES_WITH_PROJECTS[0]!);
+    for (let i = 1; i < TITLES_WITH_PROJECTS.length; i++) {
+      await primary(page).click();
+      await expect(heading(page)).toHaveText(TITLES_WITH_PROJECTS[i]!);
+      if (i === 1) await expect(items(page)).toHaveCount(1); // About you: the summary sentence only
+      if (i === 4) {
+        await expect(items(page)).toHaveCount(2);
+        await expect(items(page).nth(0)).toContainText("garden sensor");
+        await expect(items(page).nth(1)).toContainText("recipe wiki");
+      }
+    }
+    await expect(items(page)).toHaveCount(1);
+    await expect(items(page).first()).toContainText("Nationality");
+    await expect(primary(page)).toHaveText("Finish my profile");
+  });
+});

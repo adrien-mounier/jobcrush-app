@@ -46,6 +46,18 @@
       ]
     },
     {
+      "name": "personal-projects-txt",
+      "file": "eval/cvs/personal-projects.txt",
+      "kind": "txt",
+      "expectations": [
+        { "match": "140 stores", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "three agile squads", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "garden sensor", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "recipe wiki", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "Nationality", "touchIn": ["verbatim"], "classIn": ["Verified"] }
+      ]
+    },
+    {
       "name": "plain-txt",
       "file": "fixtures/plain.txt",
       "kind": "txt",
