@@ -29,6 +29,10 @@ export type LineState = "ticked" | "kept" | "drafted" | "dismissed" | "removal-s
 export type SettableLineState = Exclude<LineState, "drafted" | "dismissed">;
 const SETTABLE: ReadonlySet<LineState> = new Set<LineState>(["ticked", "kept", "removal-suggested"]);
 
+/** #382: what seed() takes — a contract claim, plus the skills group the import split gave it
+ *  (skillsSplit.ts). Every other claim carries none. */
+export type SeedClaim = CandidateClaim & { groupName?: string | null };
+
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
   origin: ClaimOrigin;
@@ -36,6 +40,10 @@ export interface ClaimRecord extends CandidateClaim {
   /** #379 (ADR-0018 clause 2): the words the item had before the person's first edit, kept once so
    *  the change can be traced; null until then. edit() alone writes it, and only when it is null. */
   originalText: string | null;
+  /** #382 (ADR-0018 clause 6): the named group a skill sits in — the CV's own label or the import's
+   *  fallback. Null on every claim that is not a skill. Renamed for a whole group by renameGroup(),
+   *  moved one claim at a time by setGroup(); a correction upsert never touches it. */
+  groupName: string | null;
   /** #28: a monotonic per-session ordinal — the order this claim's answer was FIRST RECORDED, so a
    *  derived view (tailor.ts's buildTailorLedger) can replay confirmed() and negatives() — two
    *  separately-ordered lists — as ONE true answer order instead of stamping every line from today's
@@ -50,13 +58,19 @@ export interface ClaimRecord extends CandidateClaim {
   seq?: number;
   /** #37: decision order for replaying confirmed/negative history; hand-built records may only have seq. */
   decisionSeq?: number;
+  /** #371 (ADR-0018 clause 6): the section a moved line now sits in — a kind tag (graph.ts kindTag
+   *  reads it before the id prefix). Null/absent on a line that never moved. */
+  section?: string | null;
+  /** #371/#383: where a moved line came from, as the tag names it ("your summary", a job's short
+   *  name). Null/absent on a line that never moved. */
+  movedFrom?: string | null;
 }
 
 export interface ClaimStore {
   /** Create the backing table if needed (no-op for in-memory). Call once at startup. */
   init(): Promise<void>;
   /** Load the miner's candidate claims for a session as pending (no decisions yet). */
-  seed(sessionId: string, claims: CandidateClaim[]): Promise<void>;
+  seed(sessionId: string, claims: SeedClaim[]): Promise<void>;
   list(sessionId: string): Promise<ClaimRecord[]>;
   /** The print gate: confirmed AND ticked (`prints`). The graph builder + gate, the tailored draft
    *  and the export consume exactly this, so a kept line reaches none of them. */
@@ -97,6 +111,14 @@ export interface ClaimStore {
    *  pending line leaves it pending and a fix on a kept line leaves it kept. False when the session
    *  has no such line. */
   setText(sessionId: string, id: string, text: string): Promise<boolean>;
+  /** #371 (ADR-0018 clause 6): the review re-homes a line to the section a reader expects, and
+   *  records where it came from. Text, decision, origin and tick are untouched; a re-seed or a
+   *  correction never un-moves it. False when the session has no such line. */
+  move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean>;
+  /** #382: move one skill to a group. False when the session has no such line. */
+  setGroup(sessionId: string, id: string, group: string): Promise<boolean>;
+  /** #382: rename a group — every line of the session in it. Returns how many moved (0 = no such group). */
+  renameGroup(sessionId: string, from: string, to: string): Promise<number>;
 }
 
 /** #335: the one rule for what prints — the in-memory confirmed() and the profile's gold.
@@ -150,13 +172,13 @@ export class InMemoryClaimStore implements ClaimStore {
     return existing?.decisionSeq ?? this.nextDecisionSeq(sessionId);
   }
 
-  async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
+  async seed(sessionId: string, claims: SeedClaim[]): Promise<void> {
     const m = this.forSession(sessionId);
     // Idempotent: never clobber an existing claim's decision on re-seed (matches PgClaimStore's
     // ON CONFLICT DO NOTHING — the store-contract test pins the two drivers together).
-    for (const c of claims) {
+    for (const { groupName, ...c } of claims) {
       if (!m.has(c.id))
-        m.set(c.id, { ...withFields(c), decision: "pending", origin: "mined", lineState: "ticked", seq: this.nextSeq(sessionId) });
+        m.set(c.id, { ...withFields(c), decision: "pending", origin: "mined", lineState: "ticked", groupName: groupName ?? null, seq: this.nextSeq(sessionId) });
     }
   }
 
@@ -208,6 +230,9 @@ export class InMemoryClaimStore implements ClaimStore {
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
       originalText: existing?.originalText ?? null,
+      section: existing?.section ?? null,
+      movedFrom: existing?.movedFrom ?? null,
+      groupName: existing?.groupName ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -227,6 +252,9 @@ export class InMemoryClaimStore implements ClaimStore {
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
       originalText: existing?.originalText ?? null,
+      section: existing?.section ?? null,
+      movedFrom: existing?.movedFrom ?? null,
+      groupName: existing?.groupName ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -253,12 +281,37 @@ export class InMemoryClaimStore implements ClaimStore {
     return c !== undefined;
   }
 
+  async move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (!c) return false;
+    c.section = section;
+    c.movedFrom = movedFrom;
+    return true;
+  }
+
   async seedDrafted(sessionId: string, claims: CandidateClaim[]): Promise<void> {
     const m = this.forSession(sessionId);
     for (const c of claims) {
       if (!m.has(c.id))
-        m.set(c.id, { ...withFields(c), decision: "pending", origin: "drafted", lineState: "drafted", seq: this.nextSeq(sessionId) });
+        m.set(c.id, { ...withFields(c), decision: "pending", origin: "drafted", lineState: "drafted", groupName: null, seq: this.nextSeq(sessionId) });
     }
+  }
+
+  async setGroup(sessionId: string, id: string, group: string): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (c) c.groupName = group;
+    return c !== undefined;
+  }
+
+  async renameGroup(sessionId: string, from: string, to: string): Promise<number> {
+    let n = 0;
+    for (const c of this.forSession(sessionId).values()) {
+      if (c.groupName === from) {
+        c.groupName = to;
+        n++;
+      }
+    }
+    return n;
   }
 
   async acceptDraft(sessionId: string, id: string): Promise<boolean> {
@@ -321,6 +374,13 @@ const CLAIMS_ALTERS = [
   // is untouched, so every positional placeholder keeps its index): a new line has no original, and
   // edit() alone fills it, once.
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS original_text text",
+  // #371: a moved line's section override and where it came from (ADR-0018 clause 6). Set only by
+  // move(); no insert or upsert names either, so a new line takes NULL and a re-seed or a
+  // correction never un-moves a line. #383 shares both for a job line moved or copied to Skills.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS section text",
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS moved_from text",
+  // #382: a skill's group (null on every other claim). Appended last, like every column here.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS group_name text",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -328,9 +388,11 @@ const CLAIMS_ALTERS = [
 // make toClaim's `Number(undefined)` -> NaN, and a NaN comparator silently degrades a `.sort()` to
 // input order with no error (#28).
 // The structured-field trio is appended last so every existing positional placeholder keeps its
-// index; only $13–$15 are new, and decision_seq moves to $16 where callers pass it.
+// index; only $13–$15 are new, and decision_seq moves to $16 where callers pass it. #382 appends
+// group_name as $16 the same way, and decision_seq moves to $17.
 const CLAIM_COLS =
-  "session_id, id, semantic_key, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin, field_key, field_value, field_label";
+  "session_id, id, semantic_key, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin, field_key, field_value, field_label, group_name";
+const CLAIM_VALS = "$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16";
 
 function toClaim(r: Record<string, unknown>): ClaimRecord {
   return {
@@ -350,6 +412,9 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     origin: r.origin as ClaimOrigin,
     lineState: r.line_state as LineState,
     originalText: (r.original_text as string | null) ?? null,
+    section: (r.section as string | null) ?? null,
+    movedFrom: (r.moved_from as string | null) ?? null,
+    groupName: (r.group_name as string | null) ?? null,
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
     seq: Number(r.seq),
@@ -367,9 +432,9 @@ export class PgClaimStore implements ClaimStore {
     for (const alter of CLAIMS_ALTERS) await this.pool.query(alter);
   }
 
-  private vals(sessionId: string, c: CandidateClaim, decision: ClaimDecision, origin: ClaimOrigin) {
+  private vals(sessionId: string, c: SeedClaim, decision: ClaimDecision, origin: ClaimOrigin) {
     return [sessionId, c.id, c.semantic_key, c.role, c.text, c.machine_touch, c.classification, c.source_quote,
-      c.needs_grill, c.grill_hint, decision, origin, c.field_key, c.field_value, c.field_label];
+      c.needs_grill, c.grill_hint, decision, origin, c.field_key, c.field_value, c.field_label, c.groupName ?? null];
   }
 
   private async nextDecisionSeq(sessionId: string): Promise<number> {
@@ -381,10 +446,10 @@ export class PgClaimStore implements ClaimStore {
     return Number(rows[0].next);
   }
 
-  async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
+  async seed(sessionId: string, claims: SeedClaim[]): Promise<void> {
     for (const c of claims) {
       await this.pool.query(
-        `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        `INSERT INTO claims (${CLAIM_COLS}) VALUES (${CLAIM_VALS})
          ON CONFLICT (session_id, id) DO NOTHING`,
         this.vals(sessionId, c, "pending", "mined"),
       );
@@ -431,7 +496,7 @@ export class PgClaimStore implements ClaimStore {
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES (${CLAIM_VALS},$17)
        ON CONFLICT (session_id, id) DO UPDATE SET
          semantic_key = EXCLUDED.semantic_key,
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
@@ -456,7 +521,7 @@ export class PgClaimStore implements ClaimStore {
   async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES (${CLAIM_VALS},$17)
        ON CONFLICT (session_id, id) DO UPDATE SET
          semantic_key = EXCLUDED.semantic_key,
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
@@ -490,14 +555,38 @@ export class PgClaimStore implements ClaimStore {
     return (rowCount ?? 0) > 0;
   }
 
+  async move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET section = $3, moved_from = $4 WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, section, movedFrom],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
   async seedDrafted(sessionId: string, claims: CandidateClaim[]): Promise<void> {
     for (const c of claims) {
       await this.pool.query(
-        `INSERT INTO claims (${CLAIM_COLS}, line_state) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'drafted')
+        `INSERT INTO claims (${CLAIM_COLS}, line_state) VALUES (${CLAIM_VALS},'drafted')
          ON CONFLICT (session_id, id) DO NOTHING`,
         this.vals(sessionId, c, "pending", "drafted"),
       );
     }
+  }
+
+  async setGroup(sessionId: string, id: string, group: string): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET group_name = $3 WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, group],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async renameGroup(sessionId: string, from: string, to: string): Promise<number> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET group_name = $3 WHERE session_id = $1 AND group_name = $2`,
+      [sessionId, from, to],
+    );
+    return rowCount ?? 0;
   }
 
   async acceptDraft(sessionId: string, id: string): Promise<boolean> {

@@ -27,6 +27,7 @@ import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
 import type { JobBlockStore, JobBlockView } from "./jobBlockStore.js";
 import { SECTIONS } from "./rootcv.js";
+import { skillGroups } from "./skillsSplit.js";
 import type { SessionRecord, SessionStore } from "./sessions.js";
 import { answerJobDateHole, dateHoleQuestions, JOB_DATE_ITEM_PREFIX, type JobDateAnswerResult } from "./yearsWorked.js";
 import type { MinedDate, MinedEndValue } from "@jobcrush/contracts";
@@ -49,6 +50,9 @@ export interface ReviewDraft {
   mustHave: string | null;
   /** The verbatim CV words it came from. */
   quote: string | null;
+  /** #368: where those words sit on the CV — "<employer>, <title>" for a job (its own job too), the
+   *  section's heading for a quote from outside any job. Null with no quote, or when no line holds it. */
+  source: string | null;
   flags: DraftFlag[];
   /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
   vague: DraftVague[];
@@ -62,6 +66,8 @@ export interface ReviewLine {
    *  person acts (ADR-0016 clause 3). */
   suggestion: ReviewSuggestion | null;
   draft: ReviewDraft | null;
+  /** #371: where the review moved this line from ("your summary"), worn as a tag; null otherwise. */
+  movedFrom: string | null;
 }
 export interface ReviewJob {
   /** The job-block id when the lines matched a dated record, else the role heading's own key. */
@@ -86,7 +92,9 @@ export interface ReviewJob {
 }
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
-  | { tag: string; heading: string; lines: ReviewLine[] };
+  /** #382: `groups` on the Skills section only — its lines as named groups, by line id, in the
+   *  order each group first appears. Grouping is never an item to answer. */
+  | { tag: string; heading: string; lines: ReviewLine[]; groups?: Array<{ name: string; ids: string[] }> };
 export interface ReviewLetterheadField {
   value: string;
   origin: ContactValue["origin"];
@@ -109,6 +117,11 @@ export interface ReviewState {
   /** #362: some part of the CV has no review answer — the run is still going, it gave up on a part,
    *  or there is no run. The screen then never reads as a finished check ("0 to check"); nothing says why. */
   unchecked: boolean;
+  /** #371 (ADR-0018 clause 5): About you — the person's saved text once they kept or edited it, else
+   *  the one the review wrote from the whole CV — and the CV's own summary as it read ("See what your
+   *  CV said"; null when the CV had none). Null until the review's sections answer lands with one,
+   *  and when it never does: the screen then shows the summary lines as read. */
+  about: { text: string; original: string | null } | null;
   /** The paper, in the master CV's own print order (rootcv.ts's SECTIONS). */
   sections: ReviewSection[];
   /** #385 (ADR-0018 clause 3): check mode brought back by a re-upload shows only these items — the
@@ -144,7 +157,7 @@ const endText = (end: MinedEndValue): string | null =>
 /** The lines a person can see on the paper: everything read or said, minus what they rejected or
  *  answered "no" to — the same cut the profile makes. In CV order (seq). */
 const onPaper = (c: ClaimRecord) => c.decision === "pending" || c.decision === "confirmed";
-const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null, draft: null });
+const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null, draft: null, movedFrom: c.movedFrom ?? null });
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -252,7 +265,9 @@ export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Pap
     sections: SECTIONS.map(([tag, heading]) =>
       tag === "experience"
         ? { tag, heading, jobs }
-        : { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine) },
+        : tag === "skill"
+          ? { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine), groups: skillGroups(byTag.get(tag) ?? []) }
+          : { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine) },
     ),
     jobs: jobs.map((job) => ({ job, block: blocks.find((b) => b.id === job.blockId) ?? null, role: roles.get(job.id)! })),
   };
@@ -263,17 +278,22 @@ export const running = (run: ReviewRunRecord | null): run is ReviewRunRecord => 
 /** The marks a run's checkpoints lay on a line. A fix wears its mark only while the line reads
  *  the corrected text (applied) or the original (undone): a line that reads neither has been
  *  changed since, and the fix no longer describes it. */
-function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: ResolvedSuggestion | undefined, draft: ResolvedDraft | undefined): ReviewLine {
-  const wearsFix = fix && (line.text === fix.corrected || line.text === fix.original);
+export function fixOf(text: string, fix: ResolvedFix | undefined): ReviewFix | null {
+  const wearsFix = fix && (text === fix.corrected || text === fix.original);
+  return wearsFix ? { original: fix.original, corrected: fix.corrected, applied: text === fix.corrected } : null;
+}
+
+function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: ResolvedSuggestion | undefined, draft: ResolvedDraft | undefined, source: string | null): ReviewLine {
   return {
     ...line,
-    fix: wearsFix ? { original: fix.original, corrected: fix.corrected, applied: line.text === fix.corrected } : null,
+    fix: fixOf(line.text, fix),
     suggestion: suggestion ? { kind: suggestion.kind, reason: suggestion.reason } : null,
-    draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, flags: draft.flags, vague: draft.vague ?? [] } : null,
+    draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, source, flags: draft.flags, vague: draft.vague ?? [] } : null,
   };
 }
 
-function lineMarks(run: ReviewRunRecord | null) {
+/** #384: the profile reads the same marks, so a fix shows there after check mode. */
+export function lineMarks(run: ReviewRunRecord | null) {
   const fixes = new Map<string, ResolvedFix>();
   const suggestions = new Map<string, ResolvedSuggestion>();
   const drafts = new Map<string, ResolvedDraft>();
@@ -285,6 +305,21 @@ function lineMarks(run: ReviewRunRecord | null) {
     for (const d of unit.result?.drafts ?? []) drafts.set(d.line, d);
   }
   return { fixes, suggestions, drafts };
+}
+
+/** #368: where a draft's quote sits on the paper — the first line, in CV order, whose text holds it
+ *  (case and spacing aside), named by its job or its section. A draft is never its own source. The
+ *  run records no place for a quote, so this reads the lines as stored; a quote reworded by the model
+ *  or spanning two lines finds none, and the card then says only "From your CV". */
+function quoteSources(paper: Paper, drafts: ReadonlyMap<string, ResolvedDraft>): (quote: string) => string | null {
+  const flat = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const places = paper.sections.flatMap((section) =>
+    "jobs" in section
+      ? section.jobs.map((job) => ({ name: [job.employer, job.title].filter(Boolean).join(", "), lines: job.lines }))
+      : [{ name: section.heading, lines: section.lines }],
+  );
+  const read = places.flatMap(({ name, lines }) => lines.filter((l) => !drafts.has(l.id)).map((l) => ({ name, text: flat(l.text) })));
+  return (quote) => read.find((l) => l.text.includes(flat(quote)))?.name ?? null;
 }
 
 /** #342: the stamp — decided when the answer landed (cvReviewRun.ts resolveDrafts), by the model's
@@ -301,7 +336,11 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   // first read that finds it, spending only on the units with no answer yet.
   if (running(run)) deps.runner?.ensure(session.id);
   const { fixes, suggestions, drafts } = lineMarks(run);
-  const mark = (line: ReviewLine) => markLine(line, fixes.get(line.id), suggestions.get(line.id), drafts.get(line.id));
+  const sourceOf = quoteSources(paper, drafts);
+  const mark = (line: ReviewLine) => {
+    const draft = drafts.get(line.id);
+    return markLine(line, fixes.get(line.id), suggestions.get(line.id), draft, draft?.quote ? sourceOf(draft.quote) : null);
+  };
   // By job: a re-upload's unit (#385) answers for the same job as the first run's, and the latest wins.
   const results = new Map(run?.units.flatMap((u) => (u.result ? [[unitOf(u.unit).job, u.result] as const] : [])) ?? []);
   const asking = new Set(run?.units.flatMap((u) => (u.result ? [] : [unitOf(u.unit).job])) ?? []);
@@ -309,6 +348,10 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   const newItems =
     since === null ? null : (await deps.claims.list(session.id)).filter((c) => onPaper(c) && (c.seq ?? 0) > since).map((c) => c.id);
   const conflict = session.importProof?.conflict ?? null;
+  // Off the units, not `results`: a re-upload's unit (#385) replaces its job's result and writes none.
+  const generated = run?.units.find((u) => u.result?.about)?.result?.about ?? null;
+  const summary = paper.sections.find((s) => s.tag === "profile");
+  const saved = summary && "lines" in summary ? summary.lines.find((l) => l.id === ABOUT_YOU_ID) : undefined;
   const minutesLeft = (startedAt: string) =>
     Math.max(1, Math.ceil(EXPECTED_RUN_MINUTES - ((deps.now?.() ?? Date.now()) - Date.parse(startedAt)) / 60_000));
   return {
@@ -320,6 +363,7 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
       : null,
     // No run at all is no check either: a build with no review model, or a run that never opened.
     unchecked: !run || run.units.some((u) => u.result === null),
+    about: saved ? { text: saved.text, original: generated?.original ?? null } : generated,
     sections: paper.sections.map((section) =>
       "jobs" in section
         ? {
@@ -425,6 +469,33 @@ export async function tickDraft(deps: ReviewDeps, sessionId: string, lineId: str
   if (!(await deps.claims.acceptDraft(sessionId, lineId))) return { ok: false, code: "not_found", message: "no unticked draft on that line" };
   const line = (await deps.claims.list(sessionId)).find((c) => c.id === lineId)!;
   return { ok: true, text: line.text };
+}
+
+/** #371: the claim About you is saved as — one per session, filed under the summary (`profile`). */
+export const ABOUT_YOU_ID = "about-you";
+
+/** #371 (ADR-0018 clause 5): the person keeps About you (the text unchanged) or saves their own
+ *  words — either way it becomes theirs: one confirmed, user-authored profile claim. The profile's
+ *  About you shows it and the tailor reads it as one claim line among the rest: source material,
+ *  never print-ready — whether a tailored CV prints a summary is preview-tailor.md rule 10's, per
+ *  job. Saving again replaces the words; the CV's own summary lines are left exactly as they were
+ *  (authored data is never removed behind the person's back). */
+export async function saveAbout(deps: Pick<ReviewDeps, "claims">, sessionId: string, text: string): Promise<{ text: string }> {
+  await deps.claims.add(sessionId, {
+    id: ABOUT_YOU_ID,
+    semantic_key: ABOUT_YOU_ID,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text,
+    machine_touch: "reworded",
+    classification: "Derived",
+    source_quote: text.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+  });
+  return { text };
 }
 
 /** #378: the person's "No thanks" on a draft they have not ticked — it is held as dismissed, never

@@ -1,6 +1,7 @@
 // The paste intake: the front door's "Paste my CV text" tile (#270) POSTs here, and an
 // unparseable upload's failure screen offers the same route. Same job, same pipeline, same
-// event stream as an uploaded file. #335 adds a line's tick: untick (→ kept) and re-tick.
+// event stream as an uploaded file. #335 adds a line's tick: untick (→ kept) and re-tick. #382
+// adds the skills groups' two doors: rename a group, move one skill to another group.
 //
 // There is deliberately NO export, share, download, PDF, or DOCX route for unverified content
 // anywhere on this API — a spec §8-3 acceptance criterion enforced server-side
@@ -11,6 +12,8 @@ import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
 import type { ClaimStore } from "../claims.js";
+import { kindTag } from "../graph.js";
+import { groupOf } from "../skillsSplit.js";
 import type { JobStore } from "../jobs.js";
 import { runOnboardingJob, type PipelineDeps } from "../pipeline.js";
 
@@ -78,6 +81,52 @@ export function cvRoutes(deps: CvDeps) {
         if (!(await deps.claims.edit(session.id, req.params.id, req.body.text)))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown line" } });
         return { id: req.params.id, text: req.body.text };
+      },
+    );
+
+    const GroupName = z.string().trim().min(1).max(60);
+    const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
+    const notFound = { error: { code: "not_found", message: "unknown group or skill" } };
+
+    // #382 (ADR-0018 clause 6): rename a skills group — every skill of the session in it. A skill
+    // stored without a group reads under the fallback name, so it is given that name first and the
+    // rename finds it like any other. Renaming onto a name in use merges the two groups.
+    app.put(
+      "/cv/skills/groups/:name",
+      {
+        schema: {
+          params: z.object({ name: z.string().min(1) }),
+          body: z.object({ name: GroupName }),
+          response: { 200: z.object({ name: z.string(), moved: z.number().int() }), 404: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const skills = (await deps.claims.list(session.id)).filter((c) => kindTag(c) === "skill");
+        for (const c of skills) if (c.groupName === null) await deps.claims.setGroup(session.id, c.id, groupOf(c));
+        const moved = await deps.claims.renameGroup(session.id, req.params.name, req.body.name);
+        if (moved === 0) return reply.status(404).send(notFound);
+        return { name: req.body.name, moved };
+      },
+    );
+
+    // #382: move one skill to another group (an existing one, or a new name). A line that is not a
+    // skill has no group to move to.
+    app.put(
+      "/cv/lines/:id/group",
+      {
+        schema: {
+          params: z.object({ id: z.string() }),
+          body: z.object({ group: GroupName }),
+          response: { 200: z.object({ id: z.string(), group: z.string() }), 404: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const line = (await deps.claims.list(session.id)).find((c) => c.id === req.params.id);
+        if (!line || kindTag(line) !== "skill") return reply.status(404).send(notFound);
+        await deps.claims.setGroup(session.id, line.id, req.body.group);
+        return { id: line.id, group: req.body.group };
       },
     );
   };

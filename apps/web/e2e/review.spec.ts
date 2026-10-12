@@ -34,6 +34,7 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
   fix: null,
   suggestion: null,
   draft: null,
+  movedFrom: null,
   ...over,
 });
 
@@ -50,6 +51,7 @@ const REVIEW: ReviewState = {
   progress: null,
   unchecked: false,
   newItems: null,
+  about: null,
   sections: [
     { tag: "profile", heading: "Professional Summary", lines: [line("p1", "Delivery-accountable project manager.")] },
     {

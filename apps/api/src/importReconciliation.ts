@@ -19,13 +19,13 @@ import { slug } from "./discovery.js";
 /** The stored corrections, keyed by claim identity — SessionRecord.importResolutions. */
 export type ImportResolutions = Readonly<Record<string, string>>;
 
-export interface ReconciledImport {
+export interface ReconciledImport<C extends CandidateClaim = CandidateClaim> {
   /** Deduped, correction-applied claims to seed for this session. */
-  claims: CandidateClaim[];
+  claims: C[];
   /** The subset the person had already corrected. These are additionally CONFIRMED (claims.add), not
    *  left pending: the person supplied the value, so re-asking them to approve their own correction
    *  is the re-do this whole path exists to prevent. */
-  corrected: CandidateClaim[];
+  corrected: C[];
   /** The proof as the person should see it — corrected text, and no conflict they already resolved. */
   proof: ImportProof;
 }
@@ -44,7 +44,7 @@ export function claimIdentity(claim: CandidateClaim): string {
  *  the item keeps its state, and check mode does not count it new. A drafted item matches nothing
  *  (its quote is another line's words); a structured field keeps its own key-based identity. Same
  *  words under another job are a new item there. */
-export function newItemsOnly(imported: CandidateClaim[], existing: readonly ClaimRecord[]): CandidateClaim[] {
+export function newItemsOnly<C extends CandidateClaim>(imported: C[], existing: readonly ClaimRecord[]): C[] {
   const words = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const key = (role: string, text: string | null | undefined) => `${words(role)}\n${words(text)}`;
   const held = new Set(
@@ -55,11 +55,12 @@ export function newItemsOnly(imported: CandidateClaim[], existing: readonly Clai
   return imported.filter((c) => c.field_key !== null || !(held.has(key(c.role, c.text)) || held.has(key(c.role, c.source_quote))));
 }
 
-export function reconcileImport(
+// Generic over the claim so whatever rides on it (#382: a skill's group) reaches the seed intact.
+export function reconcileImport<C extends CandidateClaim>(
   proof: ImportProof,
-  importedClaims: CandidateClaim[],
+  importedClaims: C[],
   resolutions: ImportResolutions,
-): ReconciledImport {
+): ReconciledImport<C> {
   // Map-by-key keeps the LAST claim for any repeated key (new Map(entries) — a later entry
   // overwrites an earlier one). The key is the identity, except (#323) for a field the person has
   // not answered: there, two different values are two facts — a genuine contradiction the deck

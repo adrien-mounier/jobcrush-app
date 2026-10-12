@@ -596,6 +596,10 @@ export interface ProfileFact {
   // #335: true only for a line the person unticked — grey under "Kept for when a job needs it",
   // never the not-yet-confirmed grey. Absent on every other fact.
   kept?: true;
+  // #384: the review's spelling fix on this line, as GET /review wears it. Absent on every other fact.
+  fix?: ReviewFix;
+  // #382: the named group a skill sits in. Absent on every fact that is not a skill.
+  group?: string;
 }
 
 export interface ProfileDomain {
@@ -687,6 +691,10 @@ export type ReviewDraftFlag = "OPTIONAL" | "INDUSTRY GUESS";
 export interface ReviewDraft {
   mustHave: string | null;
   quote: string | null;
+  /** #368: where the quote sits on the CV — "<employer>, <title>" for a job, a section's heading
+   *  otherwise; null when no line holds it. Always sent; optional only so fixtures written before
+   *  it (review.spec.ts, deleted by #386) still type. */
+  source?: string | null;
   flags: ReviewDraftFlag[];
   /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
   vague: ReviewVague[];
@@ -716,6 +724,8 @@ export interface ReviewLine {
   fix: ReviewFix | null;
   suggestion: ReviewSuggestion | null;
   draft: ReviewDraft | null;
+  /** #371: where the review moved this line from ("your summary"); null on a line that never moved. */
+  movedFrom: string | null;
 }
 export interface ReviewJob {
   id: string;
@@ -732,9 +742,15 @@ export interface ReviewJob {
   complete: boolean;
   lines: ReviewLine[];
 }
+/** #382: a skills group — its name and its lines, by id, in CV order. */
+export interface SkillGroup {
+  name: string;
+  ids: string[];
+}
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
-  | { tag: string; heading: string; lines: ReviewLine[] };
+  /** #382: `groups` comes on the Skills section only. */
+  | { tag: string; heading: string; lines: ReviewLine[]; groups?: SkillGroup[] };
 /** #341: the run while it is going; null once finished (a failed run reads the same — the person
  *  is never told). */
 export interface ReviewProgress {
@@ -751,10 +767,18 @@ export interface ReviewState {
   /** #362: some part of the CV has no review answer (still going, given up, or no run) — the screen never
    *  reads as a finished check then. */
   unchecked: boolean;
+  /** #371: About you — the person's saved text, else the one the review wrote from the whole CV —
+   *  and the CV's own summary (null when it had none). Null until the review wrote one. */
+  about: { text: string; original: string | null } | null;
   sections: ReviewSection[];
   /** #385: check mode brought back by a re-upload shows only these items (the new ones and the
    *  suggestions made on them); null for the first check mode, which shows every item. */
   newItems: string[] | null;
+}
+
+// #371: check mode's About you footer — keep the text (unchanged) or save the person's own words.
+export function saveAbout(text: string): Promise<{ text: string }> {
+  return jfetch("/api/review/about", { method: "PUT", body: JSON.stringify({ text }) });
 }
 
 // #341: undo a fix (applied: false) or use it again (applied: true). The text comes back as the
@@ -795,6 +819,14 @@ export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id
 // keeps the first original and records the words as theirs; the tick does not move.
 export function setLineText(id: string, text: string): Promise<{ id: string; text: string }> {
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/text`, { method: "PUT", body: JSON.stringify({ text }) });
+}
+
+// #382: rename a skills group (every skill in it), and move one skill to another group.
+export function renameSkillGroup(from: string, name: string): Promise<{ name: string; moved: number }> {
+  return jfetch(`/api/cv/skills/groups/${encodeURIComponent(from)}`, { method: "PUT", body: JSON.stringify({ name }) });
+}
+export function moveSkill(id: string, group: string): Promise<{ id: string; group: string }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/group`, { method: "PUT", body: JSON.stringify({ group }) });
 }
 
 export function settleReviewConflict(fieldId: string, value: string): Promise<{ ok: true }> {

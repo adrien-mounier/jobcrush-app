@@ -16,6 +16,7 @@ import {
   buildReviewState,
   completeReview,
   dismissDraft,
+  saveAbout,
   setDraftText,
   setReviewFixApplied,
   settleReviewConflict,
@@ -39,6 +40,7 @@ const ReviewVague = z.object({
 const ReviewDraft = z.object({
   mustHave: z.string().nullable(),
   quote: z.string().nullable(),
+  source: z.string().nullable(),
   flags: z.array(z.enum(DRAFT_FLAGS)),
   vague: z.array(ReviewVague),
 });
@@ -49,6 +51,8 @@ const ReviewLine = z.object({
   fix: ReviewFix.nullable(),
   suggestion: ReviewSuggestion.nullable(),
   draft: ReviewDraft.nullable(),
+  // #371: where the review moved the line from ("your summary").
+  movedFrom: z.string().nullable(),
 });
 const ReviewJob = z.object({
   id: z.string(),
@@ -64,7 +68,13 @@ const ReviewJob = z.object({
 });
 const ReviewSection = z.union([
   z.object({ tag: z.literal("experience"), heading: z.string(), jobs: z.array(ReviewJob) }),
-  z.object({ tag: z.string(), heading: z.string(), lines: z.array(ReviewLine) }),
+  z.object({
+    tag: z.string(),
+    heading: z.string(),
+    lines: z.array(ReviewLine),
+    // #382: the Skills section's named groups, by line id.
+    groups: z.array(z.object({ name: z.string(), ids: z.array(z.string()) })).optional(),
+  }),
 ]);
 const LetterheadField = z.object({ value: z.string(), origin: z.enum(["read", "person-said"]) });
 const ReviewStateSchema = z.object({
@@ -82,6 +92,8 @@ const ReviewStateSchema = z.object({
   progress: z.object({ done: z.number().int(), total: z.number().int(), minutesLeft: z.number().int() }).nullable(),
   // #362: some part of the CV has no review answer (still going, given up, or no run) — no finished-check claim.
   unchecked: z.boolean(),
+  // #371: About you (the person's saved text, else the review's), beside the CV's own summary.
+  about: z.object({ text: z.string(), original: z.string().nullable() }).nullable(),
   sections: z.array(ReviewSection),
   // #385: check mode brought back by a re-upload shows only these items; null for the first one.
   newItems: z.array(z.string()).nullable(),
@@ -166,6 +178,18 @@ export function reviewRoutes(deps: ReviewDeps) {
         if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
         return { id: req.params.lineId, text: result.text, state: "ticked" as const };
       },
+    );
+
+    // #371: check mode's About you footer — keep (the text unchanged) or save the person's words.
+    app.put(
+      "/review/about",
+      {
+        schema: {
+          body: z.object({ text: z.string().trim().min(1).max(2000) }),
+          response: { 200: z.object({ text: z.string() }) },
+        },
+      },
+      async (req) => saveAbout(deps, requireSession(req).id, req.body.text),
     );
 
     // #378: No thanks (dismissed: true) — the draft is held, never proposed again, printed nowhere —

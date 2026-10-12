@@ -650,6 +650,7 @@ export function buildServer(opts: BuildOptions = {}) {
     eligibility,
     jobBlocks,
     contact,
+    reviews: cvReviews,
     familyFloors,
     productionFamilyFloors,
     placeFamily,

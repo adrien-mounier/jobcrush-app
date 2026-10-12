@@ -23,8 +23,12 @@ import {
   dismissDraft,
   ensureSession,
   getReview,
+  saveAbout,
+  moveSkill,
+  renameSkillGroup,
   saveContactFields,
   setDraftText,
+  setFixApplied,
   setLineState,
   setLineText,
   tickDraft,
@@ -82,6 +86,8 @@ export default function CheckPage() {
   const [error, setError] = useState<string | null>(null);
   const [fx, setFx] = useState<Fx>({});
   const [pollTick, setPollTick] = useState(0);
+  /** #371: About you's words while the person edits them; null when not editing. */
+  const [aboutDraft, setAboutDraft] = useState<string | null>(null);
   /** #378: drafts dismissed moments ago — their No thanks row shows, with Undo, for UNDO_MS. */
   const [justDismissed, setJustDismissed] = useState<ReadonlySet<string>>(new Set());
   /** #381: what the person typed into Your details, by field. Page state, so it outlives Back/Next
@@ -171,6 +177,8 @@ export default function CheckPage() {
       },
     );
   const putBack = (id: string) => write(() => setLineState(id, "ticked"));
+  const renameGroup = (from: string, to: string) => write(() => renameSkillGroup(from, to));
+  const moveToGroup = (id: string, group: string) => write(() => moveSkill(id, group));
   // #378: the three answers to an add suggestion. Edit first saves the person's wording, then adds.
   const forget = (id: string) =>
     setJustDismissed((s) => {
@@ -220,7 +228,14 @@ export default function CheckPage() {
             .filter(([field, value]) => value !== saved(field as ContactField)),
         );
   /** The footer button: saves Your details when they changed, then moves on (or finishes). */
-  const advance = () => {
+  /** On About you it saves first (#371): the person's words, or the text as it stands — keeping it
+   *  unchanged makes it theirs too. Emptied words keep the text (the prototype's rule). A failed
+   *  save stays on the screen with the words. */
+  const advance = async () => {
+    if (screen?.kind === "about") {
+      if (!(await write(() => saveAbout(aboutDraft?.trim() || screen.about.text)))) return;
+      setAboutDraft(null);
+    }
     const changes = detailChanges();
     const save = Object.keys(changes).length > 0 ? () => saveContactFields(changes) : null;
     if (last)
@@ -327,8 +342,10 @@ export default function CheckPage() {
             onRemove: remove,
             onPutBack: putBack,
             onEdit: edit,
+            onFix: (id, applied) => void write(() => setFixApplied(id, applied)),
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
+          groups={{ onRename: renameGroup, onMove: moveToGroup }}
           drafts={drafts}
           details={{
             values: {
@@ -340,6 +357,7 @@ export default function CheckPage() {
             },
             onChange: (field, value) => setTyped((t) => ({ ...t, [field]: value })),
           }}
+          aboutDraft={{ draft: aboutDraft, onDraft: setAboutDraft }}
         />
         {last && running && state.progress && (
           <p className="hint" aria-live="polite">
@@ -364,7 +382,7 @@ export default function CheckPage() {
             className={`btn primary${fx.arm ? " arm" : ""}`}
             disabled={busy || !canGo}
             onAnimationEnd={() => setFx((f) => ({ ...f, arm: undefined }))}
-            onClick={advance}
+            onClick={() => void advance()}
           >
             {label}
           </button>

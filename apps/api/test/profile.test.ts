@@ -453,6 +453,32 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     expect(domains.map((d) => d.heading)).not.toContain("Professional Summary");
   });
 
+  // #371: the About you text the person kept or edited in check mode is one profile claim, theirs
+  // ("told"), and it prints — so it heads "About you" gold with no further plumbing; a moved summary
+  // fact sits under the section it moved to.
+  it("#371: the saved About you heads the profile's About you as the person's own words; a moved summary fact shows under its new section", async () => {
+    const claims: CandidateClaim[] = [
+      claim({ id: "acme-led-migration" }),
+      claim({ id: "sum-langs", role: "profile", text: "Fluent in French and English." }),
+    ];
+    const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims, roles: 1, needsGrill: 0 }) } });
+    const cookie = await anonSession(server.app);
+    await signIn(server.app, cookie, "e2e-about-you-saved@example.com");
+    const jobId = await mineAndGetJob(server, cookie);
+    await post(server.app, cookie, "/onboarding/deck", { jobId });
+    await post(server.app, cookie, "/onboarding/claims/acme-led-migration/confirm");
+    await post(server.app, cookie, "/onboarding/claims/sum-langs/confirm");
+    const sessionId = await sessionIdOf(server, cookie);
+    await server.claims.move(sessionId, "sum-langs", "lang", "your summary");
+    const text = "Led the checkout replatform, delivering on time.";
+    expect((await put(server.app, cookie, "/review/about", { text })).statusCode).toBe(200);
+
+    const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(domains[0]).toMatchObject({ tag: "profile", heading: "About you" });
+    expect(domains[0]!.facts).toEqual([{ id: "about-you", text, colour: "gold", source: "told", job: null }]);
+    expect(domains.find((d) => d.tag === "lang")!.facts.map((f) => f.id)).toEqual(["sum-langs"]);
+  });
+
   // #185 AC: experience facts from two jobs each carry their OWN job attribution.
   it("#185: experience facts from two jobs each carry their own job attribution", async () => {
     const claims: CandidateClaim[] = [

@@ -74,6 +74,11 @@ export interface ReviewUnitResult {
   complete?: boolean;
   /** #342: absent on a result stored before #342. */
   drafts?: ResolvedDraft[];
+  /** #371: About you as the model wrote it from the whole CV, on the sections unit only, with the
+   *  CV's own summary as it read when the answer landed (null when the CV had none). The person's
+   *  kept or edited text is a claim (cvReview.ts ABOUT_YOU_ID), not here. Absent on every job unit
+   *  and on a result stored before #371. */
+  about?: { text: string; original: string | null };
 }
 
 export interface ReviewUnit {

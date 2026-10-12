@@ -996,6 +996,29 @@ test("#186 AC3: skills/certifications/languages render as chips, sentence facts 
   await expect(page.locator(".fact", { hasText: "MBA, INSEAD." })).toHaveCount(0);
 });
 
+test("#382: skills chips sit under their named groups, in the order the profile sends them; other chip sections stay ungrouped", async ({ page }) => {
+  await stubSession(page);
+  const skill = (id: string, text: string, group: string) => ({ id, text, colour: "gold" as const, source: "read" as const, job: null, group });
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { tag: "skill", heading: "Skills", facts: [skill("s1", "Agile / Scrum", "Delivery and governance"), skill("s2", "Jira", "Tools"), skill("s3", "Stakeholder Management", "Delivery and governance")] },
+      { tag: "cert", heading: "Certifications", facts: [{ id: "c1", text: "PMP.", colour: "gold", source: "told", job: null }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const skills = page.locator(".dom").filter({ has: page.locator(".dname", { hasText: "Skills" }) });
+  await expect(skills.locator(".sgrp .sgname")).toHaveText(["Delivery and governance", "Tools"]);
+  await expect(skills.locator(".sgrp").nth(0).locator(".fact")).toHaveText(["Agile / Scrum", "Stakeholder Management"]);
+  await expect(skills.locator(".sgrp").nth(1).locator(".fact")).toHaveText(["Jira"]);
+  // A section with no groups draws its chips as before.
+  const certs = page.locator(".dom").filter({ has: page.locator(".dname", { hasText: "Certifications" }) });
+  await expect(certs.locator(".fact")).toHaveText(["PMP"]);
+  await expect(certs.locator(".sgrp")).toHaveCount(0);
+});
+
 test("#186 AC4/AC5 (#335 wording): the grey caption shows verbatim in list runs and in detail, told/read shows on every fact, and the dead 'waiting for a job that asks' phrasing is gone", async ({
   page,
 }) => {
@@ -2131,6 +2154,26 @@ test("#303: the profile's top bar carries the paste door, named, on phone and on
     if (words) await expect(wordsLocator, `words should show at ${width}px`).toBeVisible();
     else await expect(wordsLocator, `words should be hidden at ${width}px`).toBeHidden();
   }
+});
+
+// #384: a line the review fixed wears a quiet tag on the profile too — on a sentence row and on a
+// chip — and nothing else does.
+test("#384: a fixed fact wears the tag on the profile, as a row and as a chip; an unfixed fact wears none", async ({ page }) => {
+  await stubSession(page);
+  const fix = { original: "Managed a team of six enginers.", corrected: "Managed a team of six engineers.", applied: true };
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { ...PROFILE.domains[0]!, facts: PROFILE.domains[0]!.facts.map((f, i) => (i === 0 ? { ...f, fix } : f)) },
+      { ...PROFILE.domains[1]!, facts: [{ ...PROFILE.domains[1]!.facts[0]!, fix: { original: "SQl.", corrected: "SQL.", applied: true } }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await expect(page.locator(".frow .tag")).toHaveCount(1);
+  await expect(page.locator(".frow").first().locator(".tag")).toHaveCount(1);
+  await expect(page.locator(".frow").nth(1).locator(".tag")).toHaveCount(0);
+  await expect(page.locator(".fact .tag")).toHaveCount(1);
 });
 
 // #379 (ADR-0018 clause 2): after check mode, an item's words are edited in place from its detail —

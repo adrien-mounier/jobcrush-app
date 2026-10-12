@@ -245,6 +245,13 @@ function DetailBody({ fact }: { fact: ProfileFact }) {
   );
 }
 
+// #384 — the review fixed a spelling mistake on this line: the same quiet tag check mode shows. Its
+// Undo lives in check mode; an undone fix wears no tag here.
+const FIXED_TAG = "Fixed";
+function FixedTag({ fact }: { fact: ProfileFact }) {
+  return fact.fix?.applied ? <span className="tag">{FIXED_TAG}</span> : null;
+}
+
 // #379 (ADR-0018 clause 2) — a fact's words, edited in place from its detail: the same door as check
 // mode's ✎ (PUT /cv/lines/:id/text — kept as the person's own words, the original kept, the tick
 // untouched). Enter saves, Escape cancels (and only that — the dialog stays open). After a save the
@@ -352,7 +359,10 @@ function FactRow({
       onClick={() => onOpenFact(fact)}
     >
       <i className="fdot" aria-hidden="true" />
-      <span className="ftxt">{fact.text}</span>
+      <span className="ftxt">
+        {fact.text}
+        <FixedTag fact={fact} />
+      </span>
     </button>
   );
 }
@@ -381,6 +391,7 @@ function ChipButton({
       onClick={() => onOpenFact(fact)}
     >
       {chipText(fact.text)}
+      <FixedTag fact={fact} />
     </button>
   );
 }
@@ -751,7 +762,17 @@ function DomainSection({
         <ExperienceBody domain={domain} onOpenFact={onOpenFact} />
       ) : isChips ? (
         <>
-          <ChipGroup domain={domain} onOpenFact={onOpenFact} />
+          {domain.facts.some((f) => f.group) ? (
+            // #382: skills sit under their named groups, each group its own chip runs.
+            [...new Set(domain.facts.map((f) => f.group ?? ""))].map((name) => (
+              <div className="sgrp" key={name}>
+                <h3 className="sgname">{name}</h3>
+                <ChipGroup domain={{ ...domain, facts: domain.facts.filter((f) => (f.group ?? "") === name) }} onOpenFact={onOpenFact} />
+              </div>
+            ))
+          ) : (
+            <ChipGroup domain={domain} onOpenFact={onOpenFact} />
+          )}
           {domain.tag === "lang" && (
             <LanguageDoor languagesQuestion={languagesQuestion} onProfileRefreshed={onProfileRefreshed} onAnnounce={onAnnounce} />
           )}
