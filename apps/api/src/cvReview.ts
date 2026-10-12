@@ -14,10 +14,12 @@
 // state on the claim; a fix is the claim's own text, #341), the jobs' dates are the job-block
 // records (#162), the letterhead is the contact store's five fields (#190/#381),
 // and the review run is cvReviewStore.ts. The review adds ONE fact of its own to the session,
-// `reviewCompletedAt`, and that is what the jobs gate reads.
+// `reviewCompletedAt`, and that is what the jobs gate reads. #385: a re-upload with new items clears
+// it (sessions.ts reopenReview) and records `reviewSince`, where its new items start — check mode
+// then shows those alone (`newItems`).
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import { CONTACT_FIELDS, type ContactField, type ContactStore, type ContactValue } from "./contact.js";
-import { SUGGESTION_KINDS, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord, type ReviewUnitResult } from "./cvReviewStore.js";
+import { SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord, type ReviewUnitResult } from "./cvReviewStore.js";
 
 const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 import type { ReviewRunner } from "./cvReviewRun.js";
@@ -109,6 +111,10 @@ export interface ReviewState {
   unchecked: boolean;
   /** The paper, in the master CV's own print order (rootcv.ts's SECTIONS). */
   sections: ReviewSection[];
+  /** #385 (ADR-0018 clause 3): check mode brought back by a re-upload shows only these items — the
+   *  ones the re-upload brought, and the suggestions made on them. Null for the first check mode,
+   *  which shows every item. */
+  newItems: string[] | null;
 }
 
 export interface ReviewDeps {
@@ -296,8 +302,12 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   if (running(run)) deps.runner?.ensure(session.id);
   const { fixes, suggestions, drafts } = lineMarks(run);
   const mark = (line: ReviewLine) => markLine(line, fixes.get(line.id), suggestions.get(line.id), drafts.get(line.id));
-  const results = new Map(run?.units.flatMap((u) => (u.result ? [[u.unit, u.result] as const] : [])) ?? []);
-  const landed = new Set(results.keys());
+  // By job: a re-upload's unit (#385) answers for the same job as the first run's, and the latest wins.
+  const results = new Map(run?.units.flatMap((u) => (u.result ? [[unitOf(u.unit).job, u.result] as const] : [])) ?? []);
+  const asking = new Set(run?.units.flatMap((u) => (u.result ? [] : [unitOf(u.unit).job])) ?? []);
+  const since = session.reviewSince;
+  const newItems =
+    since === null ? null : (await deps.claims.list(session.id)).filter((c) => onPaper(c) && (c.seq ?? 0) > since).map((c) => c.id);
   const conflict = session.importProof?.conflict ?? null;
   const minutesLeft = (startedAt: string) =>
     Math.max(1, Math.ceil(EXPECTED_RUN_MINUTES - ((deps.now?.() ?? Date.now()) - Date.parse(startedAt)) / 60_000));
@@ -306,7 +316,7 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
     letterhead: paper.letterhead,
     conflict: conflict ? { fieldId: conflict.fieldId, question: conflict.label, values: conflict.values } : null,
     progress: running(run)
-      ? { done: landed.size, total: run.units.length, minutesLeft: minutesLeft(run.startedAt) }
+      ? { done: run.units.filter((u) => u.result).length, total: run.units.length, minutesLeft: minutesLeft(run.startedAt) }
       : null,
     // No run at all is no check either: a build with no review model, or a run that never opened.
     unchecked: !run || run.units.some((u) => u.result === null),
@@ -318,7 +328,7 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
               const result = results.get(job.id);
               return {
                 ...job,
-                checking: running(run) && run.units.some((u) => u.unit === job.id) && !landed.has(job.id),
+                checking: running(run) && asking.has(job.id),
                 family: result?.family ?? null,
                 complete: result ? isComplete(result) : false,
                 lines: job.lines.map(mark),
@@ -327,6 +337,7 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
           }
         : { ...section, lines: section.lines.map(mark) },
     ),
+    newItems,
   };
 }
 
@@ -340,7 +351,8 @@ export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_run
  *  `removal-suggested` a removal one (#380) — one set, one gate. A `dismissed` draft is answered.
  *  Mirrored on the screen by screens.tsx OPEN_SUGGESTION_STATES. */
 const OPEN_SUGGESTION_STATES: ReadonlySet<LineState> = new Set<LineState>(["drafted", "removal-suggested"]);
-const isOpenSuggestion = (c: ClaimRecord) => OPEN_SUGGESTION_STATES.has(c.lineState);
+// A draft a re-upload's run replaced (#385) is rejected: off the paper, nothing left to answer.
+const isOpenSuggestion = (c: ClaimRecord) => onPaper(c) && OPEN_SUGGESTION_STATES.has(c.lineState);
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
  *  IS the look at each line the old confirm deck asked for — in the state it is in (a kept line

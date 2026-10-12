@@ -3,7 +3,8 @@
 // over HTTP (uploads.test.ts) — the end-to-end path stays there; these are the rules themselves.
 import { describe, expect, it } from "vitest";
 import type { CandidateClaim } from "@jobcrush/contracts";
-import { claimIdentity, reconcileImport } from "../src/importReconciliation.js";
+import type { ClaimRecord } from "../src/claims.js";
+import { claimIdentity, newItemsOnly, reconcileImport } from "../src/importReconciliation.js";
 import type { ImportProof } from "../src/sessions.js";
 
 function claim(over: Partial<CandidateClaim> = {}): CandidateClaim {
@@ -150,5 +151,55 @@ describe("reconcileImport", () => {
     reconcileImport(proof, claims, { "sk-1": "corrected" });
     expect(claims).toEqual(snapshot);
     expect(proof).toEqual(proofSnapshot);
+  });
+});
+
+// #385 (ADR-0018 clause 3): a re-upload brings check mode back for new items only. The miner names
+// an item afresh on every read, so an item read again under a new id is still the same item when its
+// job already holds it in the same words — as read from the CV, as the review fixed it, or as it was
+// before the person edited it. Matching is within the same job only.
+describe("newItemsOnly", () => {
+  const ROLE = "IT Project Manager - Nordic Retail Group";
+  const held = (over: Partial<ClaimRecord> & Pick<ClaimRecord, "id" | "text">): ClaimRecord => ({
+    ...claim({ role: ROLE, source_quote: over.text }),
+    decision: "confirmed",
+    origin: "mined",
+    lineState: "ticked",
+    originalText: null,
+    ...over,
+  });
+
+  it("drops an item its job already holds in the same words, under any id; keeps new words, and the same words under another job", () => {
+    const existing = [held({ id: "led", text: "Led the checkout replatform." })];
+    const read = [
+      claim({ id: "x1", semantic_key: "led-again", role: ROLE, text: "Led the  checkout replatform", source_quote: "- Led the checkout replatform" }),
+      claim({ id: "x2", semantic_key: "new", role: ROLE, text: "Rolled out the new point of sale." }),
+      claim({ id: "x3", semantic_key: "other-job", role: "Project Coordinator - Baltic Software House", text: "Led the checkout replatform." }),
+    ];
+    expect(newItemsOnly(read, existing).map((c) => c.id)).toEqual(["x2", "x3"]);
+  });
+
+  it("knows an item the review fixed by its CV words, and one the person edited by its words before the edit", () => {
+    const existing = [
+      held({ id: "fixed", text: "Managed a budget across 3 vendor teams.", source_quote: "Managed a budget accross 3 vendor teams." }),
+      held({ id: "edited", text: "My own words.", originalText: "Coordinated releases for 4 squads.", origin: "user-authored" }),
+    ];
+    const read = [
+      claim({ id: "a", semantic_key: "a", role: ROLE, text: "Managed a budget accross 3 vendor teams." }),
+      claim({ id: "b", semantic_key: "b", role: ROLE, text: "Coordinated releases for 4 squads." }),
+    ];
+    expect(newItemsOnly(read, existing)).toEqual([]);
+  });
+
+  it("a drafted item matches nothing: its quote is another line's words", () => {
+    const existing = [held({ id: "draft-nrg-1", text: "Owned delivery.", source_quote: "Led the checkout replatform.", origin: "drafted-accepted" })];
+    const read = [claim({ id: "led", semantic_key: "led", role: ROLE, text: "Led the checkout replatform." })];
+    expect(newItemsOnly(read, existing).map((c) => c.id)).toEqual(["led"]);
+  });
+
+  it("a first upload keeps everything; a structured field is matched by its key, never its words", () => {
+    const read = [claim({ id: "a", text: "Led." }), claim({ id: "email", semantic_key: "email", field_key: "email", field_value: "a@x.com", text: "a@x.com" })];
+    expect(newItemsOnly(read, [])).toEqual(read);
+    expect(newItemsOnly(read, [held({ id: "e", role: "profile", text: "a@x.com" })]).map((c) => c.id)).toEqual(["a", "email"]);
   });
 });

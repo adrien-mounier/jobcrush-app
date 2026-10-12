@@ -75,7 +75,7 @@ import { pasteRoutes } from "./routes/paste.js";
 import { tailorRoutes } from "./routes/tailor.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
-import { reconcileImport } from "./importReconciliation.js";
+import { newItemsOnly, reconcileImport } from "./importReconciliation.js";
 import { refreshWorkedYears } from "./yearsWorked.js";
 import { publishedFamilies } from "./familyLabeler.js";
 import { publishedIndustryVocabulary, type IndustryVocabulary } from "./industryVocabulary.js";
@@ -559,9 +559,18 @@ export function buildServer(opts: BuildOptions = {}) {
       (async (sessionId, proof, importedClaims) => {
         const current = await sessions.getById(sessionId);
         const reconciled = reconcileImport(proof, importedClaims, current?.importResolutions ?? {});
-        await claims.seed(sessionId, reconciled.claims);
+        const before = await claims.list(sessionId);
+        await claims.seed(sessionId, newItemsOnly(reconciled.claims, before));
         for (const claim of reconciled.corrected) await claims.add(sessionId, claim);
         await sessions.setImportProof(sessionId, reconciled.proof);
+        // #385 (ADR-0018 clause 3): a re-upload that brought new items brings check mode back for
+        // them — reopened if it was finished (the jobs gate holds again), and reviewed by a run of
+        // their own. The same CV again brings nothing, and nothing moves.
+        const since = Math.max(0, ...before.map((c) => c.seq ?? 0));
+        if (before.length && (await claims.list(sessionId)).some((c) => (c.seq ?? 0) > since)) {
+          if (current?.reviewCompletedAt) await sessions.reopenReview(sessionId, since);
+          await reviewRunner?.rerun(sessionId, since);
+        }
         return reconciled.proof;
       }),
     // #190: shared by both the upload and paste pipeline entry points — sessionId travels as a

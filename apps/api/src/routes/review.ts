@@ -83,6 +83,8 @@ const ReviewStateSchema = z.object({
   // #362: some part of the CV has no review answer (still going, given up, or no run) — no finished-check claim.
   unchecked: z.boolean(),
   sections: z.array(ReviewSection),
+  // #385: check mode brought back by a re-upload shows only these items; null for the first one.
+  newItems: z.array(z.string()).nullable(),
 });
 const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 const Ok = z.object({ ok: z.literal(true) });

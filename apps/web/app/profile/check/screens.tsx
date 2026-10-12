@@ -53,15 +53,20 @@ const shown = (lines: ReviewLine[]) => lines.some((l) => l.state !== "dismissed"
 
 export function screensOf(state: ReviewState): Screen[] {
   const out: Screen[] = [];
-  if (Object.values(state.letterhead).some(Boolean)) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
+  // #385: check mode brought back by a re-upload shows only the new items (and the suggestions made
+  // on them); a screen with nothing new — Your details among them — is skipped.
+  const fresh = state.newItems && new Set(state.newItems);
+  const its = (lines: ReviewLine[]) => (fresh ? lines.filter((l) => fresh.has(l.id)) : lines);
+  if (!fresh && Object.values(state.letterhead).some(Boolean)) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
   for (const section of state.sections) {
     if ("jobs" in section) {
       for (const job of section.jobs) {
-        if (!shown(job.lines)) continue;
-        out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines: job.lines });
+        const lines = its(job.lines);
+        if (!shown(lines)) continue;
+        out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines });
       }
-    } else if (shown(section.lines)) {
-      out.push({ kind: "section", key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines });
+    } else if (shown(its(section.lines))) {
+      out.push({ kind: "section", key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: its(section.lines) });
     }
   }
   return out;

@@ -1132,3 +1132,180 @@ describe("#380 removal suggestions", () => {
     expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).toContain(DOB_LINE);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// #385 — a re-upload brings check mode back, for new items only (ADR-0018 clause 3). Over the same
+// seam: the second paste mines what `mined` holds by then. What it proves:
+//   - the same CV again: no run, no check mode, nothing on the paper moves;
+//   - a new item in one job: a new review run for that job alone (the sections riding on it), check
+//     mode reopens with only the new item in it, and the jobs are locked until it finishes;
+//   - removed, edited and answered items keep their state, on the changed job and the others;
+//   - a dismissed suggestion stays dismissed while its evidence is unchanged, and a suggestion
+//     citing new evidence is shown;
+//   - an unanswered draft on a changed job is replaced by the new run's; an added or edited one
+//     keeps its words.
+// ---------------------------------------------------------------------------------------------
+describe("#385 a re-upload", () => {
+  const NEW_LINE = claim({ id: "nrg-pos-rollout", role: NRG, text: "Rolled out the new point of sale to 40 stores." });
+  async function reupload(app: App, cookie: string): Promise<void> {
+    const { jobId } = (await post(app, cookie, "/cv/paste", { text: CV_TEXT })).json();
+    await until(async () => (await get(app, cookie, `/jobs/${jobId}`)).json(), (job) => isTerminal(job.status), "the second paste settled");
+  }
+  async function finish(app: App, cookie: string): Promise<void> {
+    await answerDrafts(app, cookie);
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+  }
+  const pending = async (app: App, cookie: string) => (await get(app, cookie, "/onboarding/cards")).json().reviewPending === true;
+
+  it("the same CV again opens no check mode and changes nothing — even read back under new ids", async () => {
+    const writer = fakeWriter();
+    const mined = [...MINED];
+    const { app, cookie, server, sessionId } = await withCv(writer, mined);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await finish(app, cookie);
+    const before = await review(app, cookie);
+    const claims = await server.claims.list(sessionId);
+
+    await reupload(app, cookie);
+    // The real miner names an item afresh on each read: the same words under a new id are the same item.
+    mined.splice(0, mined.length, ...MINED.map((c) => ({ ...c, id: `${c.id}-again`, semantic_key: `${c.semantic_key}-again` })));
+    await reupload(app, cookie);
+    expect(await review(app, cookie)).toEqual(before);
+    expect(before).toMatchObject({ completed: true, newItems: null });
+    expect(await server.claims.list(sessionId)).toEqual(claims);
+    expect(await pending(app, cookie)).toBe(false);
+    expect(writer.calls).toHaveLength(2);
+  });
+
+  it("removed, edited and answered items keep their state, words and marks — on the changed job and the others", async () => {
+    const writer = fakeWriter();
+    const mined = [...MINED_WITH_DOB];
+    const { app, cookie, server, sessionId } = await withCv(writer, mined);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await put(app, cookie, "/cv/lines/nrg-led-checkout", { state: "kept" }); // removed, on the job that changes
+    await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: false }); // a fix undone
+    await put(app, cookie, "/cv/lines/bsh-release-calendar/text", { text: "Set up the release calendar for four squads." }); // edited
+    await tick(app, cookie, "draft-nrg-2"); // an add suggestion answered: added
+    await put(app, cookie, `/cv/lines/${DOB}`, { state: "ticked" }); // a removal suggestion answered: Keep it
+    await finish(app, cookie); // the other drafts answered: No thanks
+    const claimsBefore = await server.claims.list(sessionId);
+    const linesBefore = allLines(await review(app, cookie));
+
+    mined.push(NEW_LINE);
+    await reupload(app, cookie);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(3); // the re-run asked again about the fix, the date of birth and the drafts
+    expect(state.newItems).toEqual([NEW_LINE.id]);
+    const ids = new Set(claimsBefore.map((c) => c.id));
+    expect((await server.claims.list(sessionId)).filter((c) => ids.has(c.id))).toEqual(claimsBefore);
+    expect(allLines(state).filter((l) => ids.has(l.id))).toEqual(linesBefore);
+    expect(lineById(state, "nrg-managed-budget")).toMatchObject({ text: TYPO_LINE, fix: { applied: false } });
+    expect(lineById(state, DOB)).toMatchObject({ state: "ticked" });
+    expect(lineById(state, "bsh-release-calendar")).toMatchObject({ text: "Set up the release calendar for four squads." });
+  });
+
+  it("a dismissed suggestion is not proposed again while its evidence is unchanged; one citing the new item is shown, and holds the finish", async () => {
+    // The re-run's model cites the new item as the INDUSTRY GUESS draft's evidence; every other draft
+    // it makes cites what the first run's did.
+    const base = fakeWriter();
+    const writer = {
+      ...base,
+      llm: {
+        model: "fake-review",
+        async complete(prompt: string) {
+          const answer = JSON.parse(await base.llm.complete(prompt)) as { jobs: Array<{ drafted: Array<{ flags: string[]; quote: string | null }> }> };
+          if (prompt.includes(NEW_LINE.text))
+            for (const d of answer.jobs.flatMap((j) => j.drafted)) if (d.flags.includes("INDUSTRY GUESS")) d.quote = NEW_LINE.text;
+          return JSON.stringify(answer);
+        },
+      },
+    };
+    const mined = [...MINED];
+    const { app, cookie } = await withCv(writer, mined);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await finish(app, cookie); // every draft: No thanks
+    const dismissed = allLines(await review(app, cookie)).filter((l) => l.state === "dismissed");
+    expect(dismissed.length).toBeGreaterThan(1);
+
+    mined.push(NEW_LINE);
+    await reupload(app, cookie);
+    const state = await reviewed(app, cookie);
+    const shown = allLines(state).filter((l) => state.newItems!.includes(l.id));
+    expect(shown.map((l) => [l.state, l.draft?.quote ?? null])).toEqual([
+      ["ticked", null], // the new item
+      ["drafted", NEW_LINE.text], // the suggestion citing it
+    ]);
+    // The dismissed ones stay dismissed, in their words, off the walk.
+    for (const d of dismissed) expect(lineById(state, d.id)).toEqual(d);
+    expect((await post(app, cookie, "/review/complete")).json().error.code).toBe("suggestions_open");
+    expect(await pending(app, cookie)).toBe(true);
+    await finish(app, cookie);
+    expect(await pending(app, cookie)).toBe(false);
+  });
+
+  it("an unanswered draft on a changed job is replaced by the new run's; an added or edited one keeps its words, and an unchanged job keeps all of its own", async () => {
+    const writer = fakeWriter();
+    const mined = [...MINED];
+    const { app, cookie, server, sessionId } = await withCv(writer, mined, {}, { nrg: IT_PROJECT_DELIVERY_PLACEMENT, bsh: IT_PROJECT_DELIVERY_PLACEMENT });
+    await reviewed(app, cookie);
+    const mine = "Owned delivery of the checkout replatform from planning to go-live.";
+    await tick(app, cookie, "draft-nrg-2"); // added as written
+    await put(app, cookie, "/review/drafts/draft-nrg-3", { text: mine });
+    await tick(app, cookie, "draft-nrg-3"); // edited, then added
+    await put(app, cookie, "/review/drafts/draft-bsh-1", { text: mine }); // edited, not answered, on the job that stays
+    const untouched = allLines(await review(app, cookie)).filter((l) => l.id.startsWith("draft-nrg-") && l.state === "drafted");
+    expect(untouched.map((l) => l.id)).toEqual(["draft-nrg-1", "draft-nrg-4", "draft-nrg-5", "draft-nrg-6"]);
+    const bshBefore = jobsOf(await review(app, cookie))[1]!.lines;
+
+    // Re-uploaded before check mode finished: the changed job's drafts are settled per slot.
+    mined.push(NEW_LINE);
+    await reupload(app, cookie);
+    const state = await reviewed(app, cookie);
+    expect(writer.asked().slice(2)).toEqual(["sections, j1"]);
+    const nrg = jobsOf(state)[0]!.lines;
+    // The untouched ones are gone from the paper — and from the finish gate.
+    for (const { id } of untouched) expect(nrg.find((l) => l.id === id)).toBeUndefined();
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "draft-nrg-1")).toMatchObject({ decision: "rejected" });
+    // The added ones keep their words and state.
+    expect(nrg.find((l) => l.id === "draft-nrg-2")).toMatchObject({ state: "ticked", text: DRAFT_TEXT("stakeholder-coordination") });
+    expect(nrg.find((l) => l.id === "draft-nrg-3")).toMatchObject({ state: "ticked", text: mine });
+    // The new run's drafts replace the untouched ones — and only those: the two added slots' evidence is not proposed again.
+    const replacements = nrg.filter((l) => l.state === "drafted");
+    expect(replacements.map((l) => l.draft!.mustHave)).toEqual([MEANINGS[0], MEANINGS[3], null, null]);
+    expect(replacements.every((l) => !l.id.startsWith("draft-nrg-") || /^draft-nrg-rerun-\d+-\d+$/.test(l.id))).toBe(true);
+    // The job that did not change keeps every draft as it was, the edited one in the person's words.
+    expect(jobsOf(state)[1]!.lines).toEqual(bshBefore);
+    expect(bshBefore.find((l) => l.id === "draft-bsh-1")).toMatchObject({ state: "drafted", text: mine });
+    // Answering the new run's drafts finishes check mode.
+    await finish(app, cookie);
+  });
+
+  it("a new item in one job starts a new review run for that job alone; check mode reopens with only the new item; the jobs are locked until it finishes", async () => {
+    const writer = fakeWriter();
+    const mined = [...MINED];
+    const { app, cookie } = await withCv(writer, mined);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await finish(app, cookie);
+    expect(await pending(app, cookie)).toBe(false);
+    expect((await review(app, cookie)).newItems).toBeNull(); // the first check mode shows everything
+    expect(writer.calls).toHaveLength(2);
+
+    mined.push(NEW_LINE);
+    await reupload(app, cookie);
+    const state = await reviewed(app, cookie);
+    // One more call, for the changed job only (j1), the sections riding on it.
+    expect(writer.asked().slice(2)).toEqual(["sections, j1"]);
+    expect(state.completed).toBe(false);
+    expect(state.newItems).toEqual([NEW_LINE.id]);
+    expect(jobsOf(state)[0]!.lines.map((l) => l.id)).toContain(NEW_LINE.id);
+    // Server-side: the jobs wait for this check mode as for the first.
+    expect(await pending(app, cookie)).toBe(true);
+    await finish(app, cookie);
+    expect(await pending(app, cookie)).toBe(false);
+    expect(writer.calls).toHaveLength(3);
+  });
+});

@@ -30,11 +30,11 @@ import { setTimeout as setTimeoutAsync } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { CandidateClaim } from "@jobcrush/contracts";
-import type { ClaimStore } from "./claims.js";
+import type { ClaimRecord, ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
-import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
+import { DRAFT_FLAGS, rerunUnit, SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { LlmClient } from "./llm.js";
@@ -147,6 +147,9 @@ export function buildReviewInput(
 ): string {
   const { families, placements } = familiesOf(paper, floors);
   const ids = promptJobIds(paper);
+  // A draft nobody added (unanswered or dismissed) is a suggestion, not the CV: shown to a later run
+  // (#385, a unit retried after another's drafts landed) it would read as a must-have already shown.
+  const cvLines = (lines: ReviewLine[]) => lines.filter((l) => l.state !== "drafted" && l.state !== "dismissed");
   const line = (l: ReviewLine) => `- [${l.id}] ${l.text}`;
   const cv: string[] = [];
   const { name, title, location, phone, email } = paper.letterhead;
@@ -160,12 +163,12 @@ export function buildReviewInput(
       cv.push("", `## ${section.heading}`);
       for (const job of section.jobs) {
         const dates = job.dates ? `**${job.dates.start} – ${job.dates.end ?? "?"}**` : "**dates not read**";
-        cv.push("", `### ${job.title}${job.employer ? ` — ${job.employer}` : ""} (${ids.get(job.id)})`, dates, "", ...job.lines.map(line));
+        cv.push("", `### ${job.title}${job.employer ? ` — ${job.employer}` : ""} (${ids.get(job.id)})`, dates, "", ...cvLines(job.lines).map(line));
       }
       continue;
     }
-    if (section.lines.length === 0) continue;
-    cv.push("", `## ${section.heading}`, "", ...section.lines.map(line));
+    if (cvLines(section.lines).length === 0) continue;
+    cv.push("", `## ${section.heading}`, "", ...cvLines(section.lines).map(line));
   }
   return [
     "=== JOB FAMILIES ===",
@@ -229,7 +232,8 @@ export function resolveFixes(answer: ReviewAnswer, paper: Paper): ResolvedFix[] 
 }
 
 /** #342: the drafted lines of one job, as the claims to store and the marks to keep. Each is
- *  stored under the job's own role heading with a deterministic id, so a retry after a crash
+ *  stored under the job's own role heading with a deterministic id — per unit, so a re-upload's run
+ *  (#385, `<job>@rerun-<since>`) never lands on the first run's ids — so a retry after a crash
  *  between the seed and the checkpoint stores nothing twice (seedDrafted is idempotent). The claim's
  *  text drops the [square brackets] the prompt puts round a vague phrase (#343 reads the phrases
  *  off the stored answer): a line the person ticks prints exactly as it reads on the paper.
@@ -243,9 +247,10 @@ export function resolveDrafts(
   unit: string,
 ): { family: string | null; complete: boolean; claims: CandidateClaim[]; drafts: ResolvedDraft[] } {
   const { families, placements } = familiesOf(paper, floors);
-  const placed = families.filter((f) => (placements.get(unit) ?? []).includes(f.familyId));
-  const job = answer.jobs.find((j) => j.job === unit);
-  const role = paper.jobs.find((j) => j.job.id === unit)?.role;
+  const jobId = unitOf(unit).job;
+  const placed = families.filter((f) => (placements.get(jobId) ?? []).includes(f.familyId));
+  const job = answer.jobs.find((j) => j.job === jobId);
+  const role = paper.jobs.find((j) => j.job.id === jobId)?.role;
   const none = { family: null, complete: false, claims: [], drafts: [] };
   if (!job || !role) return none;
   if (placed.length === 0) {
@@ -328,7 +333,7 @@ export interface ReviewRunDeps {
   llm: LlmClient;
   reviews: CvReviewStore;
   sessions: Pick<SessionStore, "getById">;
-  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState">;
+  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState" | "reject">;
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
@@ -357,6 +362,11 @@ export interface ReviewRunner {
   /** Resumes a run left going by a restart, for its unfinished units only. A no-op while the run
    *  is active in this process, and for a run that has finished. */
   ensure(sessionId: string): void;
+  /** #385: a re-upload brought items past `since` (a claim seq) into a session whose run has
+   *  finished: a new run for the jobs holding them — the sections riding on the first, or on their
+   *  own when only they changed — added to the run and driven like it. Its answer lands on the new
+   *  items only; the items before keep their state and marks. Once per re-upload. */
+  rerun(sessionId: string, since: number): Promise<void>;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -404,6 +414,7 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
   // Failures are counted per drive, so a run reopened by a later read (#362) gets its own retry;
   // attempts started are counted for good — they are the paid bound across every drive.
   async function runUnit(sessionId: string, unit: string, withSections: boolean, startedBefore: number): Promise<void> {
+    const { job, since } = unitOf(unit);
     let attempts = startedBefore;
     let failures = 0;
     while (failures < maxAttempts && attempts < maxStarts) {
@@ -412,8 +423,8 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
       attempts += 1;
       try {
         const paper = await readPaper(deps, sessionId);
-        const jobs = unit === SECTIONS_UNIT ? [] : [unit];
-        if (jobs.length && !paper.jobs.some(({ job }) => job.id === unit)) throw new Error(`job ${unit} is no longer on the paper`);
+        const jobs = job === SECTIONS_UNIT ? [] : [job];
+        if (jobs.length && !paper.jobs.some((j) => j.job.id === job)) throw new Error(`job ${job} is no longer on the paper`);
         const toReview = withSections ? [SECTIONS_UNIT, ...jobs] : jobs;
         const text = await deps.llm.complete(`${reviewPrompt()}\n\n${buildReviewInput(paper, deps.floors, toReview)}`);
         const answer = parseReviewAnswer(text);
@@ -430,18 +441,22 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
           jobs: answer.jobs.map((j) => ({ ...j, job: back.get(j.job) ?? j.job })),
           refused: answer.refused.map((r) => ({ ...r, job: back.get(r.job) ?? r.job })),
         };
-        const drafted = unit === SECTIONS_UNIT ? { family: null, complete: false, claims: [], drafts: [] } : resolveDrafts(translated, paper, deps.floors, unit);
+        const drafted = job === SECTIONS_UNIT ? { family: null, complete: false, claims: [], drafts: [] } : resolveDrafts(translated, paper, deps.floors, unit);
+        const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c]));
+        // #385: a re-upload's run marks only the items it brought — the ones before were answered in
+        // a check mode already, and keep their state, words and marks.
+        const fresh = (line: string) => since === null || (current.get(line)?.seq ?? 0) > since;
+        if (since !== null) await settleDrafts(sessionId, job, drafted, current);
         const result: ReviewUnitResult = {
           answer: translated,
-          fixes: resolveFixes(answer, paper),
-          suggestions: resolveSuggestions(answer, paper),
+          fixes: resolveFixes(answer, paper).filter((f) => fresh(f.line)),
+          suggestions: resolveSuggestions(answer, paper).filter((f) => fresh(f.line)),
           family: drafted.family,
           complete: drafted.complete,
           drafts: drafted.drafts,
         };
         // Applied by default (ADR-0016 clause 5) — to a line that still reads what the model was
         // shown; a line changed meanwhile keeps its new text and wears no fix.
-        const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c]));
         for (const fix of result.fixes) {
           if (current.get(fix.line)?.text === fix.original) await deps.claims.setText(sessionId, fix.line, fix.corrected);
         }
@@ -475,11 +490,13 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
   async function drive(sessionId: string): Promise<void> {
     const run = await deps.reviews.get(sessionId);
     if (!running(run)) return;
-    const first = run.units[0]?.unit;
+    // The sections ride on the first unit of each run: the first run's, and each re-upload's (#385).
+    const firsts = new Map<number | null, string>();
+    for (const { unit } of run.units) if (!firsts.has(unitOf(unit).since)) firsts.set(unitOf(unit).since, unit);
     const pending = run.units.filter(retryable);
     const release = pending.length ? deps.keepAlive?.() : undefined;
     try {
-      await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, u.unit === first, u.attempts)));
+      await Promise.all(pending.map((u) => runUnit(sessionId, u.unit, firsts.get(unitOf(u.unit).since) === u.unit, u.attempts)));
       const final = await deps.reviews.get(sessionId);
       if (!running(final)) return;
       await deps.reviews.finish(sessionId, final.units.every((u) => u.result !== null) ? "done" : "failed", stamp());
@@ -488,7 +505,62 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
     }
   }
 
+  /** #385: the drafts a re-upload's run brings to a job that had drafts before. An earlier draft
+   *  still unanswered is replaced — rejected, so it leaves the paper and the finish gate — by this
+   *  run's, which read the new CV. An answered one (added, dismissed, removed after adding) keeps
+   *  its state and words, and this run's draft citing the same evidence (the same must-have, the
+   *  same CV words) is not made at all: a dismissed suggestion is never proposed again from the
+   *  same evidence (ADR-0018 clause 4), and an added one is already in. Matching is within the job. */
+  async function settleDrafts(
+    sessionId: string,
+    job: string,
+    drafted: { claims: CandidateClaim[]; drafts: ResolvedDraft[] },
+    current: Map<string, ClaimRecord>,
+  ): Promise<void> {
+    const run = await deps.reviews.get(sessionId);
+    const earlier = (run?.units ?? []).filter((u) => unitOf(u.unit).job === job).flatMap((u) => u.result?.drafts ?? []);
+    const evidence = (d: ResolvedDraft) => `${d.mustHave ?? ""}\n${(d.quote ?? "").trim().toLowerCase()}`;
+    const answered = new Set<string>();
+    for (const d of earlier) {
+      const line = current.get(d.line);
+      if (!line || line.decision === "rejected") continue;
+      if (line.lineState === "drafted") await deps.claims.reject(sessionId, d.line);
+      else answered.add(evidence(d));
+    }
+    const kept = new Set(drafted.drafts.filter((d) => !answered.has(evidence(d))).map((d) => d.line));
+    drafted.drafts = drafted.drafts.filter((d) => kept.has(d.line));
+    drafted.claims = drafted.claims.filter((c) => kept.has(c.id));
+  }
+
   return {
+    async rerun(sessionId, since) {
+      if (active.has(sessionId)) return;
+      active.add(sessionId);
+      let driving = false;
+      try {
+        const run = await deps.reviews.get(sessionId);
+        // ponytail: a re-upload while the first run is still going gets no run of its own (its items
+        // show as read); extend the going run instead if that ever matters.
+        if (!run || run.outcome === null || run.units.some((u) => unitOf(u.unit).since === since)) return;
+        const [paper, claims] = await Promise.all([readPaper(deps, sessionId), deps.claims.list(sessionId)]);
+        const fresh = new Set(claims.filter((c) => (c.seq ?? 0) > since).map((c) => c.id));
+        const changed = paper.jobs.filter(({ job }) => job.lines.some((l) => fresh.has(l.id))).map(({ job }) => job.id);
+        const sectionsChanged = paper.sections.some((s) => !("jobs" in s) && s.lines.some((l) => fresh.has(l.id)));
+        const jobs = changed.length ? changed : sectionsChanged ? [SECTIONS_UNIT] : [];
+        if (jobs.length === 0) return;
+        await deps.reviews.extend(sessionId, stamp(), jobs.map((job) => rerunUnit(job, since)));
+        driving = true;
+        void drive(sessionId)
+          .catch((err) => console.error(`[ops] cv review re-run failed: ${err instanceof Error ? err.message : String(err)}`))
+          .finally(() => active.delete(sessionId));
+      } catch (err) {
+        // Like start: nothing the review does may fail the upload that called it.
+        incrementCounter("cvReview.unit_attempt_failed");
+        console.error(`[ops] cv review re-run failed: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        if (!driving) active.delete(sessionId);
+      }
+    },
     async start(sessionId) {
       if (active.has(sessionId)) return;
       active.add(sessionId);

@@ -49,6 +49,7 @@ const REVIEW: ReviewState = {
   conflict: { fieldId: "city", question: "City: your CV says Paris and also Lyon. Which one is right?", values: ["Paris", "Lyon"] },
   progress: null,
   unchecked: false,
+  newItems: null,
   sections: [
     { tag: "profile", heading: "Professional Summary", lines: [line("p1", "Delivery-accountable project manager.")] },
     {

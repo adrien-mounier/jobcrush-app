@@ -752,6 +752,9 @@ export interface ReviewState {
    *  reads as a finished check then. */
   unchecked: boolean;
   sections: ReviewSection[];
+  /** #385: check mode brought back by a re-upload shows only these items (the new ones and the
+   *  suggestions made on them); null for the first check mode, which shows every item. */
+  newItems: string[] | null;
 }
 
 // #341: undo a fix (applied: false) or use it again (applied: true). The text comes back as the
