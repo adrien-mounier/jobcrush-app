@@ -412,3 +412,66 @@
     transition: none !important;
   }
 }
+
+/* #371 — About you in a plain card (prototype V2.1 aboutCard), and the tag a moved item wears */
+.check .card.form {
+  display: grid;
+  gap: 10px;
+  padding: 14px 8px;
+}
+.check .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-left: 8px;
+}
+.check .btn.sm {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.check .about {
+  margin: 0;
+  padding: 0 8px;
+  max-width: 64ch;
+  font: 16.5px/1.6 var(--serif);
+  text-wrap: pretty;
+}
+.check textarea.ed {
+  margin: 0 8px;
+  width: calc(100% - 16px);
+  min-height: 170px;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 16px/1.5 var(--serif);
+}
+.check .orig {
+  margin: 4px 8px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+}
+.check .orig .hd {
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .orig p {
+  margin: 0;
+  font: 14px/1.55 var(--serif);
+  color: var(--muted-r);
+  white-space: pre-line;
+}
+.check .tag.moved {
+  font: 11px var(--sans);
+  color: var(--muted-r);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 4px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}

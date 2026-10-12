@@ -14,6 +14,7 @@ import {
   answerReviewEndDate,
   buildReviewState,
   completeReview,
+  saveAbout,
   setDraftText,
   setReviewFixApplied,
   settleReviewConflict,
@@ -45,6 +46,8 @@ const ReviewLine = z.object({
   fix: ReviewFix.nullable(),
   suggestion: ReviewSuggestion.nullable(),
   draft: ReviewDraft.nullable(),
+  // #371: where the review moved the line from ("your summary").
+  movedFrom: z.string().nullable(),
 });
 const ReviewJob = z.object({
   id: z.string(),
@@ -71,6 +74,8 @@ const ReviewStateSchema = z.object({
   progress: z.object({ done: z.number().int(), total: z.number().int(), minutesLeft: z.number().int() }).nullable(),
   // #362: some part of the CV has no review answer (still going, given up, or no run) — no finished-check claim.
   unchecked: z.boolean(),
+  // #371: About you (the person's saved text, else the review's), beside the CV's own summary.
+  about: z.object({ text: z.string(), original: z.string().nullable() }).nullable(),
   sections: z.array(ReviewSection),
 });
 const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
@@ -152,6 +157,18 @@ export function reviewRoutes(deps: ReviewDeps) {
         if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
         return { id: req.params.lineId, text: result.text, state: "ticked" as const };
       },
+    );
+
+    // #371: check mode's About you footer — keep (the text unchanged) or save the person's words.
+    app.put(
+      "/review/about",
+      {
+        schema: {
+          body: z.object({ text: z.string().trim().min(1).max(2000) }),
+          response: { 200: z.object({ text: z.string() }) },
+        },
+      },
+      async (req) => saveAbout(deps, requireSession(req).id, req.body.text),
     );
 
     app.post(

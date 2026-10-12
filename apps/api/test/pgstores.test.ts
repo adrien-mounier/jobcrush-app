@@ -889,6 +889,23 @@ for (const [name, make] of claimDrivers) {
       expect((await store.list(sid))[0]!.text).toBe("Led the migration.");
     });
 
+    // #371 — a move (ADR-0018 clause 6): the review re-homes a line to the section a reader expects,
+    // and records where it came from. Text, decision, origin and tick are untouched; a later
+    // correction or re-seed never un-moves it; a line not moved reads no section and no origin.
+    it("move sets the section override and where the line came from, and nothing else; survives a re-seed and a correction; unknown line reported", async () => {
+      await store.seed(sid, [claim({ id: "sum-langs", text: "Fluent in French." }), claim({ id: "b" })]);
+      expect(await store.move(sid, "sum-langs", "lang", "your summary")).toBe(true);
+      expect(await store.move(sid, "nope", "lang", "your summary")).toBe(false);
+      expect(await store.move("other-session", "sum-langs", "lang", "your summary")).toBe(false);
+      const [moved, b] = await store.list(sid);
+      expect(moved).toMatchObject({ id: "sum-langs", text: "Fluent in French.", section: "lang", movedFrom: "your summary", decision: "pending", origin: "mined", lineState: "ticked" });
+      expect(b!.section ?? null).toBeNull();
+      expect(b!.movedFrom ?? null).toBeNull();
+      await store.seed(sid, [claim({ id: "sum-langs", text: "re-read" })]);
+      await store.add(sid, claim({ id: "sum-langs", text: "Fluent in French and English." }));
+      expect((await store.confirmed(sid))[0]).toMatchObject({ text: "Fluent in French and English.", section: "lang", movedFrom: "your summary" });
+    });
+
     // #342 — a drafted line: stored once, on the paper (pending) and off every print path until the
     // person's tick, which is acceptDraft() alone — the line door cannot tick it. After the tick it is
     // an ordinary confirmed, ticked line with its drafted-then-accepted origin.

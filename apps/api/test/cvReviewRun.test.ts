@@ -43,7 +43,7 @@ import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { ReviewLine, ReviewState } from "../src/cvReview.js";
-import { keepAliveOverHttp, parseReviewAnswer } from "../src/cvReviewRun.js";
+import { aboutIssues, keepAliveOverHttp, parseReviewAnswer } from "../src/cvReviewRun.js";
 import { parseReviewPrompt, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
@@ -262,6 +262,7 @@ describe("#341 the run", () => {
       fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: true },
       suggestion: null,
       draft: null,
+      movedFrom: null,
     });
     expect(nrg!.lines[0]!.fix).toBeNull();
     // The suggestion, on a job placed in no family: shown with its reason, the line still ticked.
@@ -272,6 +273,7 @@ describe("#341 the run", () => {
       fix: null,
       suggestion: { kind: "aim-without-result", reason: "States an aim and no delivered result." },
       draft: null,
+      movedFrom: null,
     });
     // A fix outside the jobs — the skills section — lands where the line sits.
     expect(linesOf(state, "skill")[0]).toMatchObject({ text: "Has skills in Jira and MS Project.", fix: { applied: true } });
@@ -841,6 +843,109 @@ describe("#342 drafted lines", () => {
     expect(readCounters()["cvReview.draft_dropped"]).toBe(3);
     // The must-have whose draft was dropped is still missing by the model's own account: no stamp.
     expect(jobsOf(again)[0]).toMatchObject({ family: "IT Project Manager", complete: false });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #371 — About you (ADR-0018 clause 5): the sections call writes one text from the whole CV, under
+// the brain's Professional Summary rules (cv-authoring-rules.md); a summary fact that belongs in
+// another section moves there, tagged (clause 6). The person keeps or edits it through one door;
+// the saved text is one profile claim the profile and the tailor read as source material.
+// ---------------------------------------------------------------------------------------------
+const WITH_SUMMARY: CandidateClaim[] = [MINED[0]!, claim({ id: "sum-langs", text: "Fluent in French and English." }), ...MINED.slice(1)];
+const NO_SUMMARY = MINED.filter((c) => c.id !== "sum-pm");
+const ORIGINAL = "Delivery-accountable project manager.\nFluent in French and English.";
+
+describe("#371 About you", () => {
+  it("arrives with the sections, written from the whole CV, clean under the lint, beside the summary as the CV said it; a summary fact that belongs elsewhere moves there tagged, its words untouched", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, WITH_SUMMARY);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(2); // no extra call: About you rides on the sections call
+    expect(state.about).toEqual({ text: expect.stringContaining("Led the checkout replatform"), original: ORIGINAL });
+    expect(aboutIssues(state.about!.text)).toEqual([]);
+    expect(readCounters()["cvReview.about_issue"] ?? 0).toBe(0);
+    // The languages line left the summary for Languages, as written, wearing where it came from.
+    expect(linesOf(state, "lang")).toEqual([{ id: "sum-langs", text: "Fluent in French and English.", state: "ticked", fix: null, suggestion: null, draft: null, movedFrom: "your summary" }]);
+    expect(linesOf(state, "profile").map((l) => l.id)).toEqual(["sum-pm"]);
+    expect(linesOf(state, "profile")[0]!.movedFrom).toBeNull();
+    // A reload reads the same, from the store.
+    expect((await review(app, cookie)).about).toEqual(state.about);
+  });
+
+  it("a CV with no summary still gets one, with nothing to show as the original", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, NO_SUMMARY);
+    const state = await reviewed(app, cookie);
+    expect(state.about).toEqual({ text: expect.stringContaining("Led the checkout replatform"), original: null });
+    expect(linesOf(state, "profile")).toEqual([]);
+  });
+
+  it("the footer keeps or saves it as one profile claim the profile and the tailor read as source material; the CV's own summary lines are left as they were; a reload reads the saved words; empty is refused", async () => {
+    const prompts: string[] = [];
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer, WITH_SUMMARY, { tailorLlm: echoingLlm(prompts) });
+    const generated = (await reviewed(app, cookie)).about!.text;
+    const spent = writer.calls.length;
+
+    // Keep: the unchanged text is saved as the person's own.
+    expect((await put(app, cookie, "/review/about", { text: generated })).json()).toEqual({ text: generated });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "about-you")).toMatchObject({ role: "profile", text: generated, decision: "confirmed", origin: "user-authored", lineState: "ticked" });
+    // Edit: the person's words replace it; the original stays what the CV said.
+    const mine = "Led the checkout replatform at Nordic Retail Group, managing EUR 1.2M across three vendor teams.";
+    expect((await put(app, cookie, "/review/about", { text: `  ${mine}  ` })).json()).toEqual({ text: mine });
+    const state = await review(app, cookie);
+    expect(state.about).toEqual({ text: mine, original: ORIGINAL });
+    expect((await put(app, cookie, "/review/about", { text: "   " })).statusCode).toBe(400);
+    expect((await review(app, cookie)).about!.text).toBe(mine);
+    // The migration rule: the CV's own summary lines are the person's authored data — saving About
+    // you neither deletes, removes nor rewords them (owner to decide if they should step aside).
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-pm")).toMatchObject({ lineState: "ticked", text: "Delivery-accountable project manager." });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-langs")).toMatchObject({ lineState: "ticked", text: "Fluent in French and English." });
+
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-about@example.com");
+    await post(app, cookie, "/review/complete");
+    // The profile: About you holds the person's text as theirs; the moved fact sits under Languages.
+    const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ tag: string; heading: string; facts: Array<{ id: string; text: string; source: string; colour: string; kept?: true }> }> };
+    const about = profile.domains.find((d) => d.heading === "About you")!;
+    expect(about.facts.find((f) => f.id === "about-you")).toMatchObject({ text: mine, source: "told", colour: "gold" });
+    expect(about.facts.find((f) => f.id === "sum-pm")).toMatchObject({ source: "read" });
+    expect(profile.domains.find((d) => d.tag === "lang")!.facts.map((f) => f.id)).toEqual(["sum-langs"]);
+    // The master CV prints the saved text, and the moved fact under Languages.
+    const markdown = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    expect(markdown).toContain(mine);
+    expect(markdown.slice(markdown.indexOf("## Languages"))).toContain("Fluent in French and English.");
+    // The tailor reads About you as a claim line — source material under preview-tailor.md rule 10
+    // (preview.test.ts "#159 tailor prompt": the summary prints only when it earns its place).
+    await warmRetrieval(app, cookie);
+    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
+    await tailorDraft(app, cookie);
+    expect(prompts.at(-1)).toContain(`- about-you [profile] ${mine}`);
+    expect(writer.calls.length).toBe(spent);
+  });
+
+  it("a summary move naming a line outside the summary, or a section the profile does not have, is dropped and counted", async () => {
+    const writer = fakeWriter({ bogus: true });
+    const { app, cookie } = await withCv(writer, WITH_SUMMARY);
+    const state = await reviewed(app, cookie);
+    expect(jobsOf(state)[0]!.lines[0]).toMatchObject({ id: "nrg-led-checkout", movedFrom: null });
+    expect(linesOf(state, "lang").map((l) => l.id)).toEqual(["sum-langs"]);
+    expect(readCounters()["cvReview.move_dropped"]).toBe(2);
+  });
+});
+
+describe("#371 the About you lint — the brain's banned shapes, counted", () => {
+  it("catches the identity opener and a capability claim; a text that leads with an achievement passes", () => {
+    expect(aboutIssues("Senior Project Manager with 7+ years of experience leading IT delivery in retail.")).toEqual(["identity opener"]);
+    expect(aboutIssues("Proven ability to deliver complex programmes on time.")).toEqual(["capability claim: proven ability to"]);
+    expect(aboutIssues("Results-driven leader. Proven ability to deliver. Expertise in Jira. I led the migration.")).toEqual([
+      "capability claim: results-driven",
+      "capability claim: proven ability to",
+      "capability claim: expertise in",
+      "first person",
+    ]);
+    expect(aboutIssues("Led the checkout replatform for Nordic Retail Group, managing EUR 1.2M across 3 vendor teams. Coordinated releases for 4 agile squads at Baltic Software House.")).toEqual([]);
   });
 });
 

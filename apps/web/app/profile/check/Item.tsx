@@ -11,6 +11,8 @@ const C_EDIT = "Edit";
 const C_REMOVE = "Remove";
 const C_PUT_BACK = "Put back";
 const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hide" : "Show"}`;
+/** #371/#383: a line the review moved wears where it came from ("Moved from your summary"). */
+const movedCopy = (from: string) => `Moved from ${from}`;
 
 const PEN = (
   <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -34,7 +36,15 @@ export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy:
         if (!(e.target as HTMLElement).closest("button")) setActive((a) => !a);
       }}
     >
-      <span className="txt">{line.text}</span>
+      <span className="txt">
+        {line.text}
+        {line.movedFrom && (
+          <>
+            {" "}
+            <span className="tag moved">{movedCopy(line.movedFrom)}</span>
+          </>
+        )}
+      </span>
       <span className="acts">
         {onEdit && (
           <button type="button" className="ib" aria-label={C_EDIT} title={C_EDIT} disabled={busy} onClick={() => onEdit(line.id)}>

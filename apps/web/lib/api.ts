@@ -718,6 +718,8 @@ export interface ReviewLine {
   fix: ReviewFix | null;
   suggestion: ReviewSuggestion | null;
   draft: ReviewDraft | null;
+  /** #371: where the review moved this line from ("your summary"); null on a line that never moved. */
+  movedFrom: string | null;
 }
 export interface ReviewJob {
   id: string;
@@ -756,7 +758,15 @@ export interface ReviewState {
   /** #362: some part of the CV has no review answer (still going, given up, or no run) — the screen never
    *  reads as a finished check then. */
   unchecked: boolean;
+  /** #371: About you — the person's saved text, else the one the review wrote from the whole CV —
+   *  and the CV's own summary (null when it had none). Null until the review wrote one. */
+  about: { text: string; original: string | null } | null;
   sections: ReviewSection[];
+}
+
+// #371: check mode's About you footer — keep the text (unchanged) or save the person's own words.
+export function saveAbout(text: string): Promise<{ text: string }> {
+  return jfetch("/api/review/about", { method: "PUT", body: JSON.stringify({ text }) });
 }
 
 // #341: undo a fix (applied: false) or use it again (applied: true). The text comes back as the

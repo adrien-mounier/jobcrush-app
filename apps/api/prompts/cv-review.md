@@ -1,4 +1,4 @@
-<!-- cv-review prompt v1 (#340; ADR-0016 clauses 2–4; spec #332). Lineage: the research input
+<!-- cv-review prompt v2 (#340; #371 adds F. ABOUT YOU and the summary moves, ADR-0018 clauses 5–6; ADR-0016 clauses 2–4; spec #332). Lineage: the research input
 docs/cv-brain/research/2026-10-03_thin-job-line-generation/input-full-review.md, whose two Opus 5.5
 runs exposed the two defects fixed here. (1) It judged every job against ONE family and unticked a
 real revenue result as "off-topic for an IT PM role": fit is decided per advert (ADR-0007), so
@@ -99,6 +99,27 @@ E. HOLES. Say whether the job's end date is missing from the CV (`endDateMissing
    "Present" or "now" is not missing one), and list any conflict where the CV gives two values for
    one thing about this job (two end years, two titles) as `conflicts`.
 
+F. ABOUT YOU. Only when `sections` is listed. Write `about`: one short text about the candidate,
+   from the WHOLE CV — the summary if there is one (reuse and improve its own words), the jobs, the
+   personal projects, everything. When the CV has no summary, write it from the rest of the CV all
+   the same. It is the profile's "About you": the candidate keeps or edits it, and each job
+   application later decides whether to print a summary and writes it for that job — so this is
+   source material, not a finished CV section. The Professional Summary rules apply:
+   - The achievement first: a named thing done, with a result or a number, in the CV's own facts.
+   - No identity opener ("Senior Project Manager with 7+ years of experience…"): the title and the
+     years are already on the page. Never restate a title, employer, date or count of years.
+   - No capability claims as content: never "proven ability to", "expertise in", "strong in",
+     "comfortable bridging", "results-driven", or the like. Say what was done instead.
+   - No first-person pronouns. No fact the CV does not state; no padding.
+
+G. MOVES. Only when `sections` is listed. A line in the summary that belongs in another section a
+   reader expects (a language in the summary belongs in Languages; a certification in
+   Certifications; a degree in Education; a tool list in Skills) is named in `moves` with the
+   section it moves to, by that section's name: skills | certifications | education | languages.
+   Only summary lines move, and only to one of those sections. A move changes no word of the line;
+   the caller moves it and tags it. A line that reads as a sentence about the candidate stays in the
+   summary.
+
 A job with nothing to fix, nothing to untick, every must-have of its family shown, no missing end
 date and no conflict is `complete: true`. That is the review telling the candidate the CV already
 did the work.
@@ -112,6 +133,8 @@ including the candidate's own mistakes.
 
 {
   "letterhead": { "checks": ["<one sentence per thing to check, or none>"] },
+  "about": { "text": "<the About you text>" },
+  "moves": [{ "line": "<id of a summary line>", "to": "<skills | certifications | education | languages>" }],
   "sections": [
     {
       "section": "<summary | skills | education | languages | additional | projects>",
@@ -151,7 +174,9 @@ including the candidate's own mistakes.
   "refused": [{ "job": "<id>", "what": "<what you did not draft>", "rule": "<R1 | R2 | R3 | R4 | R5 | R6>" }]
 }
 
-`letterhead` and `sections` are `null` when `sections` is not in JOBS TO REVIEW. `mustHaves` lists
+`letterhead` and `sections` are `null` when `sections` is not in JOBS TO REVIEW. `about` is `null` when `sections` is not in JOBS TO REVIEW, and so
+are `moves`; with `sections` listed, `about` is always written (no summary on the CV is no reason to
+skip it) and `moves` is `[]` when nothing moves. `mustHaves` lists
 every must-have of the job's family with the existing lines that show it (`shownBy`, empty when
 none does — then a drafted line covers it or `refused` says why not). A job placed in `none` has
 `family: null`, `mustHaves: []` and `drafted: []`. `flags` is `[]` for a plain must-have line.

@@ -386,6 +386,11 @@ const counts = {
   // #342 — a drafted line for a job in no published family, or one citing neither a must-have nor
   // the CV's words, is dropped: the prompt forbids both, and the paper never shows an unsourced line.
   "cvReview.draft_dropped": 0,
+  // #371 — About you as the model wrote it carries a shape the Professional Summary rules ban
+  // (identity opener, capability claim, first person): counted, never fixed — the eval on real runs.
+  "cvReview.about_issue": 0,
+  // #371 — a summary move naming a line outside the summary, or a section the profile lacks.
+  "cvReview.move_dropped": 0,
 };
 
 export type CounterName = keyof typeof counts;

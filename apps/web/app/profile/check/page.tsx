@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
+import { completeReview, ensureSession, getReview, saveAbout, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -65,6 +65,8 @@ export default function CheckPage() {
   const [error, setError] = useState<string | null>(null);
   const [fx, setFx] = useState<Fx>({});
   const [pollTick, setPollTick] = useState(0);
+  /** #371: About you's words while the person edits them; null when not editing. */
+  const [aboutDraft, setAboutDraft] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   /** The screen the footer button was last held on — it pulses once when released there. */
   const heldOn = useRef<string | null>(null);
@@ -120,7 +122,7 @@ export default function CheckPage() {
 
   /** A write, then a fresh read of the paper. A failed write is reported; a failed re-read is not
    *  a save failure (the profile's own rule) — the next tick or tap re-reads. */
-  const write = async (action: () => Promise<unknown>, then?: () => void) => {
+  const write = async (action: () => Promise<unknown>, then?: () => void): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
@@ -128,7 +130,7 @@ export default function CheckPage() {
     } catch {
       setError(C_SAVE_FAILED);
       setBusy(false);
-      return;
+      return false;
     }
     try {
       setState(await getReview());
@@ -137,6 +139,7 @@ export default function CheckPage() {
     }
     then?.();
     setBusy(false);
+    return true;
   };
   const remove = (id: string) =>
     write(
@@ -162,6 +165,17 @@ export default function CheckPage() {
         window.scrollTo(0, 0);
       },
     );
+  /** The footer button. On About you it saves first (#371): the person's words, or the text as it
+   *  stands — keeping it unchanged makes it theirs too. Emptied words keep the text (the prototype's
+   *  rule). A failed save stays on the screen with the words. */
+  const confirm = async () => {
+    if (screen?.kind === "about") {
+      if (!(await write(() => saveAbout(aboutDraft?.trim() || screen.about.text)))) return;
+      setAboutDraft(null);
+    }
+    if (last) void finish();
+    else go(1);
+  };
 
   if (failed && !state) {
     return (
@@ -251,6 +265,7 @@ export default function CheckPage() {
             onPutBack: putBack,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
+          aboutDraft={{ draft: aboutDraft, onDraft: setAboutDraft }}
         />
         {last && running && state.progress && (
           <p className="hint" aria-live="polite">
@@ -275,7 +290,7 @@ export default function CheckPage() {
             className={`btn primary${fx.arm ? " arm" : ""}`}
             disabled={busy || !canGo}
             onAnimationEnd={() => setFx((f) => ({ ...f, arm: undefined }))}
-            onClick={() => (last ? void finish() : go(1))}
+            onClick={() => void confirm()}
           >
             {label}
           </button>

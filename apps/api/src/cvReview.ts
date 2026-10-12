@@ -58,6 +58,8 @@ export interface ReviewLine {
    *  person acts (ADR-0016 clause 3). */
   suggestion: ReviewSuggestion | null;
   draft: ReviewDraft | null;
+  /** #371: where the review moved this line from ("your summary"), worn as a tag; null otherwise. */
+  movedFrom: string | null;
 }
 export interface ReviewJob {
   /** The job-block id when the lines matched a dated record, else the role heading's own key. */
@@ -109,6 +111,11 @@ export interface ReviewState {
   /** #362: some part of the CV has no review answer — the run is still going, it gave up on a part,
    *  or there is no run. The screen then never reads as a finished check ("0 to check"); nothing says why. */
   unchecked: boolean;
+  /** #371 (ADR-0018 clause 5): About you — the person's saved text once they kept or edited it, else
+   *  the one the review wrote from the whole CV — and the CV's own summary as it read ("See what your
+   *  CV said"; null when the CV had none). Null until the review's sections answer lands with one,
+   *  and when it never does: the screen then shows the summary lines as read. */
+  about: { text: string; original: string | null } | null;
   /** The paper, in the master CV's own print order (rootcv.ts's SECTIONS). */
   sections: ReviewSection[];
 }
@@ -140,7 +147,7 @@ const endText = (end: MinedEndValue): string | null =>
 /** The lines a person can see on the paper: everything read or said, minus what they rejected or
  *  answered "no" to — the same cut the profile makes. In CV order (seq). */
 const onPaper = (c: ClaimRecord) => c.decision === "pending" || c.decision === "confirmed";
-const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null, draft: null });
+const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null, draft: null, movedFrom: c.movedFrom ?? null });
 
 const norm = (s: string) => s.trim().toLowerCase();
 
@@ -300,6 +307,9 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   const results = new Map(run?.units.flatMap((u) => (u.result ? [[u.unit, u.result] as const] : [])) ?? []);
   const landed = new Set(results.keys());
   const conflict = session.importProof?.conflict ?? null;
+  const generated = [...results.values()].find((r) => r.about)?.about ?? null;
+  const summary = paper.sections.find((s) => s.tag === "profile");
+  const saved = summary && "lines" in summary ? summary.lines.find((l) => l.id === ABOUT_YOU_ID) : undefined;
   const minutesLeft = (startedAt: string) =>
     Math.max(1, Math.ceil(EXPECTED_RUN_MINUTES - ((deps.now?.() ?? Date.now()) - Date.parse(startedAt)) / 60_000));
   return {
@@ -311,6 +321,7 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
       : null,
     // No run at all is no check either: a build with no review model, or a run that never opened.
     unchecked: !run || run.units.some((u) => u.result === null),
+    about: saved ? { text: saved.text, original: generated?.original ?? null } : generated,
     sections: paper.sections.map((section) =>
       "jobs" in section
         ? {
@@ -402,6 +413,33 @@ export async function tickDraft(deps: ReviewDeps, sessionId: string, lineId: str
   if (!(await deps.claims.acceptDraft(sessionId, lineId))) return { ok: false, code: "not_found", message: "no unticked draft on that line" };
   const line = (await deps.claims.list(sessionId)).find((c) => c.id === lineId)!;
   return { ok: true, text: line.text };
+}
+
+/** #371: the claim About you is saved as — one per session, filed under the summary (`profile`). */
+export const ABOUT_YOU_ID = "about-you";
+
+/** #371 (ADR-0018 clause 5): the person keeps About you (the text unchanged) or saves their own
+ *  words — either way it becomes theirs: one confirmed, user-authored profile claim. The profile's
+ *  About you shows it and the tailor reads it as one claim line among the rest: source material,
+ *  never print-ready — whether a tailored CV prints a summary is preview-tailor.md rule 10's, per
+ *  job. Saving again replaces the words; the CV's own summary lines are left exactly as they were
+ *  (authored data is never removed behind the person's back). */
+export async function saveAbout(deps: Pick<ReviewDeps, "claims">, sessionId: string, text: string): Promise<{ text: string }> {
+  await deps.claims.add(sessionId, {
+    id: ABOUT_YOU_ID,
+    semantic_key: ABOUT_YOU_ID,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text,
+    machine_touch: "reworded",
+    classification: "Derived",
+    source_quote: text.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+  });
+  return { text };
 }
 
 export type SettleConflictResult = { ok: true } | { ok: false; status: 404 | 400; code: string; message: string };
