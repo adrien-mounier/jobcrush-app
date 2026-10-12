@@ -409,6 +409,38 @@
   }
 }
 
+/* #384 a spelling fix: a quiet tag on the item, opening the original beside the corrected words */
+.check .pt .tag.fixed {
+  font: 11px var(--sans);
+  color: var(--muted-r);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 8px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.check .pt .tag.fixed:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+.check .fixrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-top: 4px;
+  font: 13px/1.45 var(--sans);
+  color: var(--muted-r);
+}
+.check .fixrow s {
+  text-decoration-color: rgba(224, 135, 108, 0.7);
+}
+.check .fixrow .to {
+  color: var(--ink);
+}
+
 @media (hover: none) {
   .check .acts {
     opacity: 0;
@@ -748,6 +780,96 @@
   .check .sg.rmv {
     --ind: 8px;
   }
+}
+/* #371 — About you in a plain card (prototype V2.1 aboutCard), and the tag a moved item wears */
+.check .card.form {
+  display: grid;
+  gap: 10px;
+  padding: 14px 8px;
+}
+.check .card.form .row {
+  padding-left: 8px;
+}
+.check .card.form textarea.ed {
+  margin: 0 8px;
+  width: calc(100% - 16px);
+  min-height: 170px;
+}
+.check .about {
+  margin: 0;
+  padding: 0 8px;
+  max-width: 64ch;
+  font: 16.5px/1.6 var(--serif);
+  text-wrap: pretty;
+}
+.check .orig {
+  margin: 4px 8px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+}
+.check .orig .hd {
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .orig p {
+  margin: 0;
+  font: 14px/1.55 var(--serif);
+  color: var(--muted-r);
+  white-space: pre-line;
+}
+.check .tag.moved {
+  color: var(--muted-r);
+  border-color: var(--line);
+}
+
+/* #382 skills: named groups, two columns on a wide screen, one on a phone (the prototype's 300px
+   column would fit only one inside the walk's 680px, so 250px) */
+.check .groups {
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  columns: 2 250px;
+  column-gap: 28px;
+}
+.check .grp {
+  break-inside: avoid;
+  margin: 0 0 16px;
+}
+.check .gh {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-bottom: 2px;
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted-r);
+  cursor: pointer;
+}
+.check .gh:hover,
+.check .gh:focus-visible {
+  color: var(--ink);
+  background: var(--raised);
+}
+.check .gname {
+  font: 600 16px var(--sans);
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin: 0 0 4px 4px;
+  width: calc(100% - 8px);
+}
+.check select.mv {
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 16px;
+  max-width: 170px;
 }
 /* #376 — the person's own facts in plain cards (prototype V2.1 workCard): "Where you can work" on the
    last screen, "Which languages do you speak?" on an empty Languages screen. Scoped to the two cards. */

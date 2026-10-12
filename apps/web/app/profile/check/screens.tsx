@@ -11,9 +11,10 @@
 // the day #373 gives it lines — with two exceptions (#376, ADR-0018 clauses 5 and 8): Languages is
 // never skipped (a CV with none gets the card asking which languages the person speaks), and
 // Additional information exists whenever there is a target market to answer "Where you can work" for.
-import type { ReactNode } from "react";
-import type { ContactField, ReviewJob, ReviewLine, ReviewState, ReviewWorkRights, WorkRightsAnswer } from "../../../lib/api";
+import { useState, type ReactNode } from "react";
+import type { ContactField, ReviewJob, ReviewLine, ReviewState, ReviewWorkRights, SkillGroup, WorkRightsAnswer } from "../../../lib/api";
 import { ItemList, RemoveCard, type ItemListProps } from "./Item";
+import { SkillsBody, type GroupActions } from "./Skills";
 import { DismissedRow, SuggestionCard } from "./SuggestionCard";
 import { LanguagesCard, WorkCard } from "./cards";
 
@@ -40,6 +41,12 @@ const TITLES: Record<string, string> = {
   additional: "Additional information",
 };
 const LEAD_DETAILS = "Check how I read your details. Fix anything that's wrong.";
+const LEAD_ABOUT = "I wrote this from your whole CV. Keep it, or change it.";
+const C_ABOUT_EDIT = "Edit it";
+const C_ABOUT_UNDO = "Undo my changes";
+const C_ABOUT_SEE = "See what your CV said";
+const C_ABOUT_HIDE = "Hide what your CV said";
+const C_ABOUT_ORIG = "What your CV said";
 const LEAD_QUIET = "Nothing to answer here. Edit or remove anything that's wrong.";
 const LEAD_WORK = "Tell me where you can work.";
 const leadWorkAndSuggestions = (n: number) => `Tell me where you can work, and answer ${n === 1 ? "the suggestion" : "the suggestions"} in the list.`;
@@ -49,6 +56,7 @@ const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} sug
 
 export type Screen =
   | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"] }
+  | { kind: "about"; key: "about"; title: string; sub: null; about: NonNullable<ReviewState["about"]> }
   | { kind: "job"; key: string; title: string; sub: string; job: ReviewJob; lines: ReviewLine[] }
   | {
       kind: "section";
@@ -61,7 +69,9 @@ export type Screen =
       workRights?: ReviewWorkRights[];
       /** #376: the languages the person said they speak — on an empty Languages screen only. */
       languages?: string[];
-    };
+    }
+  /** #382: the Skills section — its items in named groups. Grouping is never an item to answer. */
+  | { kind: "skills"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[]; groups: SkillGroup[] };
 
 const datesOf = (job: ReviewJob) => (job.dates ? [job.dates.start, job.dates.end].filter(Boolean).join(" – ") : "");
 /** #378: a draft the person said No thanks to is shown nowhere (after its few seconds of Undo), so
@@ -77,10 +87,15 @@ export function screensOf(state: ReviewState): Screen[] {
         if (!shown(job.lines)) continue;
         out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines: job.lines });
       }
+    } else if (section.tag === "profile" && state.about) {
+      // #371: About you replaces the summary's lines with the text written from the whole CV — even
+      // for a CV with no summary. Until the review wrote one, the summary shows as read, below.
+      out.push({ kind: "about", key: "about", title: TITLES.profile!, sub: null, about: state.about });
     } else {
       const extra = sectionExtras(state, section.tag, section.lines);
-      if (shown(section.lines) || extra)
-        out.push({ kind: "section", key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines, ...extra });
+      if (!shown(section.lines) && !extra) continue;
+      const base = { key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines };
+      out.push(section.groups && shown(section.lines) ? { ...base, kind: "skills", groups: section.groups } : { ...base, kind: "section", ...extra });
     }
   }
   // #376: no Additional information section on the paper yet, but a market to answer — the screen
@@ -108,7 +123,7 @@ const OPEN_SUGGESTION_STATES: ReadonlySet<ReviewLine["state"]> = new Set<ReviewL
 
 /** The cards on a screen the person must answer, of both kinds — the lead sentence says how many. */
 export function toAnswer(screen: Screen): number {
-  return screen.kind === "details" ? 0 : screen.lines.filter((l) => OPEN_SUGGESTION_STATES.has(l.state)).length;
+  return screen.kind === "details" || screen.kind === "about" ? 0 : screen.lines.filter((l) => OPEN_SUGGESTION_STATES.has(l.state)).length;
 }
 
 /** What still holds the footer button on this screen, named as the button says it ("Answer X and
@@ -132,6 +147,7 @@ export interface DraftAnswers {
 
 export function leadFor(screen: Screen): string {
   if (screen.kind === "details") return LEAD_DETAILS;
+  if (screen.kind === "about") return LEAD_ABOUT;
   const n = toAnswer(screen);
   if (screen.kind === "section" && screen.workRights) return n > 0 ? leadWorkAndSuggestions(n) : LEAD_WORK;
   if (screen.kind === "section" && screen.languages) return LEAD_NO_LANGUAGES;
@@ -158,13 +174,18 @@ export function ScreenBody({
   drafts,
   details,
   answers,
+  aboutDraft,
+  groups,
 }: {
   screen: Screen;
   list: Omit<ItemListProps, "lines" | "card">;
   drafts: DraftAnswers;
   details: DetailsProps;
   answers: CardAnswers;
+  aboutDraft: AboutDraft;
+  groups: GroupActions;
 }): ReactNode {
+  if (screen.kind === "about") return <AboutCard about={screen.about} {...aboutDraft} />;
   if (screen.kind === "details") {
     // #381 (ADR-0018 clause 5): the person's own facts — a plain card of fields, no button of its
     // own; the footer button saves.
@@ -211,6 +232,13 @@ export function ScreenBody({
     if (line.state === "removal-suggested") return <RemoveCard key={line.id} line={line} busy={list.busy} onRemove={list.onRemove} onKeep={list.onPutBack} />;
     return null;
   };
+  if (screen.kind === "skills") {
+    return (
+      <div className="card">
+        <SkillsBody lines={screen.lines} groups={screen.groups} list={{ ...list, card }} actions={groups} />
+      </div>
+    );
+  }
   const items =
     screen.lines.length > 0 ? (
       <div className="card">
@@ -229,4 +257,53 @@ export function ScreenBody({
   if (screen.kind === "section" && screen.languages)
     return <LanguagesCard languages={screen.languages} busy={list.busy} onSave={answers.onLanguages} />;
   return items;
+}
+
+/** #371: the person's words while they edit About you — null when not editing. The walk's engine
+ *  owns it (page.tsx) so it survives Back/Next and the footer button can save it. */
+export interface AboutDraft {
+  draft: string | null;
+  onDraft: (text: string | null) => void;
+}
+
+/** #371 (ADR-0018 clause 5): About you in a plain card — the text, "Edit it", and the CV's own
+ *  summary one tap away, read-only. No confirm here: the footer button keeps or saves it. */
+function AboutCard({ about, draft, onDraft }: { about: NonNullable<ReviewState["about"]> } & AboutDraft) {
+  const [open, setOpen] = useState(false);
+  if (draft !== null) {
+    return (
+      <div className="card form">
+        <label className="sr-only" htmlFor="about-ed">
+          {TITLES.profile}
+        </label>
+        <textarea id="about-ed" className="ed" autoFocus value={draft} onChange={(e) => onDraft(e.target.value)} />
+        <span className="row">
+          <button type="button" className="btn sm ghost" onClick={() => onDraft(null)}>
+            {C_ABOUT_UNDO}
+          </button>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="card form">
+      <p className="about">{about.text}</p>
+      <span className="row">
+        <button type="button" className="btn sm" onClick={() => onDraft(about.text)}>
+          {C_ABOUT_EDIT}
+        </button>
+        {about.original !== null && (
+          <button type="button" className="linkbtn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            {open ? C_ABOUT_HIDE : C_ABOUT_SEE}
+          </button>
+        )}
+      </span>
+      {open && about.original !== null && (
+        <div className="orig">
+          <span className="hd">{C_ABOUT_ORIG}</span>
+          <p>{about.original}</p>
+        </div>
+      )}
+    </div>
+  );
 }

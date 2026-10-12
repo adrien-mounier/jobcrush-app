@@ -17,6 +17,9 @@
 // job's line (R4: a fact under a different job, with its quote) and one INDUSTRY GUESS line. A job
 // whose lines show every must-have gets nothing drafted and reads `complete` when it has no mark
 // either. A job placed in `none` gets no drafts, as the prompt says.
+//
+// #383 — tools, the same way: a job line that opens with "Tools:" (or "Tech stack:",
+// "Technologies:") is a tool list; a line saying "using <Name>" uses that tool.
 
 /** cv-review.md's own opening line — what the stage-aware fake matches on. */
 export const REVIEW_PROMPT_OPENING = "You review a candidate's CV, job by job";
@@ -95,6 +98,14 @@ const fixesOf = (lines: Line[]) =>
   );
 // #380: removal only for what belongs nowhere — a "Date of birth" line is personal data. A weak
 // line ("intended to") is kept: a true but weak item is never suggested for removal.
+// #383: a job's tool lists, and the tools its other lines use.
+const TOOL_LIST = /^(?:tools|tech stack|technologies)\s*:/i;
+const toolListsOf = (lines: Line[]) => lines.filter((l) => TOOL_LIST.test(l.text)).map((l) => l.id);
+const toolsUsedOf = (lines: Line[]) =>
+  lines.flatMap((l) => {
+    const used = TOOL_LIST.test(l.text) ? null : /\busing ([A-Z][\w.+#-]*)/.exec(l.text);
+    return used ? [{ line: l.id, tools: [used[1]!] }] : [];
+  });
 const judgementsOf = (lines: Line[]) =>
   lines.map((l) =>
     /date of birth/i.test(l.text)
@@ -148,8 +159,21 @@ function draftedOf(lines: Line[], family: Family, others: Line[]) {
 export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDrafts?: boolean } = {}): string {
   const { toReview, jobs, sections, families, placements } = parseReviewPrompt(prompt);
   const withSections = toReview.includes("sections");
+  // #371: About you from the whole CV — each job's first line, achievements first, whether or not
+  // the CV has a summary; a summary line about languages moves to Languages. `bogus` also moves a
+  // job line and names a section the profile does not have — the two moves the guard drops.
+  const summary = sections.get("professional summary") ?? [];
+  const firstLines = [...jobs.values()].flatMap((ls) => ls.slice(0, 1).map((l) => l.text));
+  const moves = summary.filter((l) => /\bfluent in\b/i.test(l.text)).map((l) => ({ line: l.id, to: "languages" }));
+  if (opts.bogus) {
+    const job = [...jobs.values()].flat()[0];
+    if (job) moves.push({ line: job.id, to: "skills" });
+    if (summary[0]) moves.push({ line: summary[0].id, to: "hobbies" });
+  }
   return JSON.stringify({
     letterhead: withSections ? { checks: [] } : null,
+    about: withSections ? { text: firstLines.join(" ") || "Delivered the work this CV describes." } : null,
+    moves: withSections ? moves : null,
     sections: withSections
       ? [...sections].map(([section, lines]) => ({ section, fixes: fixesOf(lines), judgements: judgementsOf(lines) }))
       : null,
@@ -159,9 +183,13 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
         const lines = jobs.get(id) ?? [];
         const fixes = fixesOf(lines);
         const judgements = judgementsOf(lines);
+        const toolLists = toolListsOf(lines);
+        const toolsUsed = toolsUsedOf(lines);
         if (opts.bogus && lines[0]) {
           fixes.push({ line: lines[0].id, original: "nope", corrected: "never" });
           judgements.push({ line: "ghost", verdict: "remove", kind: "duplicate", reason: "A line that is not there." });
+          toolLists.push("ghost");
+          toolsUsed.push({ line: lines[0].id, tools: ["Kubernetes"] });
         }
         const familyId = (placements.get(id) ?? [])[0] ?? null;
         const family = familyId ? families.get(familyId) : undefined;
@@ -173,7 +201,7 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
           if (last) last.mustHave = "not-a-must-have";
         }
         const complete = !!family && drafted.length === 0 && fixes.length === 0 && judgements.every((j) => j.verdict === "keep");
-        return { job: id, family: familyId, complete, fixes, judgements, mustHaves, drafted, endDateMissing: false, conflicts: [] };
+        return { job: id, family: familyId, complete, fixes, judgements, mustHaves, drafted, endDateMissing: false, conflicts: [], toolLists, toolsUsed };
       }),
     refused: [],
   });

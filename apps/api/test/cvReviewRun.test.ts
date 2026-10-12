@@ -43,7 +43,7 @@ import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { ReviewLine, ReviewState } from "../src/cvReview.js";
-import { keepAliveOverHttp, parseReviewAnswer } from "../src/cvReviewRun.js";
+import { aboutIssues, keepAliveOverHttp, parseReviewAnswer } from "../src/cvReviewRun.js";
 import { parseReviewPrompt, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
@@ -128,6 +128,8 @@ interface WriterOpts {
   bogus?: boolean;
   /** #342: also draft the two lines the prompt forbids (qaReviewAnswer.ts). */
   badDrafts?: boolean;
+  /** #368: also draft one OPTIONAL line per quote on every job placed in a family. */
+  quotes?: string[];
 }
 function fakeWriter(opts: WriterOpts = {}) {
   const calls: string[] = [];
@@ -145,7 +147,12 @@ function fakeWriter(opts: WriterOpts = {}) {
       if (gate) await gate.wait;
       // The shape undici gives a connection dropped mid-stream: a bare message, the reason in `cause`.
       if (opts.failAlways || n <= (opts.failAttempts ?? 0) || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down", { cause: new Error("other side closed") });
-      return qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
+      const answer = qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
+      if (!opts.quotes) return answer;
+      const parsed = JSON.parse(answer) as { jobs: Array<{ family: string | null; drafted: unknown[] }> };
+      for (const job of parsed.jobs.filter((j) => j.family))
+        for (const quote of opts.quotes) job.drafted.push({ text: `Drafted from: ${quote}`, mustHave: null, quote, flags: ["OPTIONAL"], vague: [] });
+      return JSON.stringify(parsed);
     },
   };
   return {
@@ -273,6 +280,7 @@ describe("#341 the run", () => {
       fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: true },
       suggestion: null,
       draft: null,
+      movedFrom: null,
     });
     expect(nrg!.lines[0]!.fix).toBeNull();
     // #380: a true but weak line (an aim with no result) is never suggested for removal — it stays
@@ -284,6 +292,7 @@ describe("#341 the run", () => {
       fix: null,
       suggestion: null,
       draft: null,
+      movedFrom: null,
     });
     // A fix outside the jobs — the skills section — lands where the line sits.
     expect(linesOf(state, "skill")[0]).toMatchObject({ text: "Has skills in Jira and MS Project.", fix: { applied: true } });
@@ -439,6 +448,24 @@ describe("#341 the run", () => {
     const built = (await post(app, cookie, "/onboarding/build")).json();
     expect(built.rootCv.markdown).toContain(TYPO_LINE);
     expect(jobsOf(await review(app, cookie))[0]!.lines[1]!.fix?.applied).toBe(false);
+  });
+
+  it("#384: the profile wears the fix after check mode — applied, then undone — and a line with no fix carries none", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/review/complete");
+    const factsOf = async (tag: string) =>
+      ((await get(app, cookie, "/profile")).json().domains as Array<{ tag: string; facts: Array<{ id: string; text: string; fix?: unknown }> }>).find((d) => d.tag === tag)!.facts;
+    let facts = await factsOf("experience");
+    expect(facts.find((f) => f.id === "nrg-managed-budget")).toMatchObject({ text: FIXED_LINE, fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: true } });
+    expect(facts.find((f) => f.id === "nrg-led-checkout")).not.toHaveProperty("fix");
+    // A fix outside the jobs — the skills section — is worn where the fact sits.
+    expect((await factsOf("skill"))[0]).toMatchObject({ text: "Has skills in Jira and MS Project.", fix: { applied: true } });
+
+    await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: false });
+    facts = await factsOf("experience");
+    expect(facts.find((f) => f.id === "nrg-managed-budget")).toMatchObject({ text: TYPO_LINE, fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: false } });
   });
 
   it("a fix or judgement naming a line the model was not shown is dropped and counted; the real ones still land", async () => {
@@ -688,7 +715,7 @@ describe("#342 drafted lines", () => {
     expect(drafted.every((l) => l.state === "drafted" && l.fix === null && l.suggestion === null)).toBe(true);
     // One line per missing must-have, citing the must-have in the family's own words.
     expect(drafted.slice(0, 4).map((l) => l.text)).toEqual(MUST_HAVES.map(DRAFT_TEXT));
-    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, flags: [], vague: [VAGUE_CHOICES] })));
+    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, source: null, flags: [], vague: [VAGUE_CHOICES] })));
     // The extras: a fact from another job only as OPTIONAL with its quote; an industry guess flagged.
     expect(drafted[4]).toMatchObject({
       text: "Also coordinated releases for 4 agile squads.",
@@ -914,6 +941,130 @@ describe("#342 drafted lines", () => {
   });
 });
 
+// #368: a drafted line's source names where its quote sits on the CV — the job (employer, title as
+// the CV gives them), or the section for a quote from outside any job. Resolved on read from the
+// lines already stored: no new model field, no new call. A quote found on no line names nothing.
+describe("#368 a drafted line's source names where its quote came from", () => {
+  it("names another job, its own job, or a section; a quote on no line names nothing; no extra writer call", async () => {
+    const writer = fakeWriter({ quotes: ["has skills in jira", "Delivery-accountable project manager.", "Words the CV never says."] });
+    const { app, cookie } = await withCv(writer);
+    const sources = Object.fromEntries(drafts(jobsOf(await reviewed(app, cookie))[0]!).map((l) => [l.draft!.quote ?? l.id, l.draft!.source]));
+    expect(sources).toEqual({
+      ...Object.fromEntries(["draft-nrg-1", "draft-nrg-2", "draft-nrg-3", "draft-nrg-4"].map((id) => [id, null])), // a must-have, no quote
+      "Coordinated releases for 4 agile squads.": "Baltic Software House, Project Coordinator", // another job
+      "Led the checkout replatform.": "Nordic Retail Group, IT Project Manager", // its own job, named too
+      "has skills in jira": "Skills", // case and spacing do not matter
+      "Delivery-accountable project manager.": "Professional Summary",
+      "Words the CV never says.": null,
+    });
+    expect(writer.calls).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #371 — About you (ADR-0018 clause 5): the sections call writes one text from the whole CV, under
+// the brain's Professional Summary rules (cv-authoring-rules.md); a summary fact that belongs in
+// another section moves there, tagged (clause 6). The person keeps or edits it through one door;
+// the saved text is one profile claim the profile and the tailor read as source material.
+// ---------------------------------------------------------------------------------------------
+const WITH_SUMMARY: CandidateClaim[] = [MINED[0]!, claim({ id: "sum-langs", text: "Fluent in French and English." }), ...MINED.slice(1)];
+const NO_SUMMARY = MINED.filter((c) => c.id !== "sum-pm");
+const ORIGINAL = "Delivery-accountable project manager.\nFluent in French and English.";
+
+describe("#371 About you", () => {
+  it("arrives with the sections, written from the whole CV, clean under the lint, beside the summary as the CV said it; a summary fact that belongs elsewhere moves there tagged, its words untouched", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, WITH_SUMMARY);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(2); // no extra call: About you rides on the sections call
+    expect(state.about).toEqual({ text: expect.stringContaining("Led the checkout replatform"), original: ORIGINAL });
+    expect(aboutIssues(state.about!.text)).toEqual([]);
+    expect(readCounters()["cvReview.about_issue"] ?? 0).toBe(0);
+    // The languages line left the summary for Languages, as written, wearing where it came from.
+    expect(linesOf(state, "lang")).toEqual([{ id: "sum-langs", text: "Fluent in French and English.", state: "ticked", fix: null, suggestion: null, draft: null, movedFrom: "your summary" }]);
+    expect(linesOf(state, "profile").map((l) => l.id)).toEqual(["sum-pm"]);
+    expect(linesOf(state, "profile")[0]!.movedFrom).toBeNull();
+    // A reload reads the same, from the store.
+    expect((await review(app, cookie)).about).toEqual(state.about);
+  });
+
+  it("a CV with no summary still gets one, with nothing to show as the original", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, NO_SUMMARY);
+    const state = await reviewed(app, cookie);
+    expect(state.about).toEqual({ text: expect.stringContaining("Led the checkout replatform"), original: null });
+    expect(linesOf(state, "profile")).toEqual([]);
+  });
+
+  it("the footer keeps or saves it as one profile claim the profile and the tailor read as source material; the CV's own summary lines are left as they were; a reload reads the saved words; empty is refused", async () => {
+    const prompts: string[] = [];
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer, WITH_SUMMARY, { tailorLlm: echoingLlm(prompts) });
+    const generated = (await reviewed(app, cookie)).about!.text;
+    const spent = writer.calls.length;
+
+    // Keep: the unchanged text is saved as the person's own.
+    expect((await put(app, cookie, "/review/about", { text: generated })).json()).toEqual({ text: generated });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "about-you")).toMatchObject({ role: "profile", text: generated, decision: "confirmed", origin: "user-authored", lineState: "ticked" });
+    // Edit: the person's words replace it; the original stays what the CV said.
+    const mine = "Led the checkout replatform at Nordic Retail Group, managing EUR 1.2M across three vendor teams.";
+    expect((await put(app, cookie, "/review/about", { text: `  ${mine}  ` })).json()).toEqual({ text: mine });
+    const state = await review(app, cookie);
+    expect(state.about).toEqual({ text: mine, original: ORIGINAL });
+    expect((await put(app, cookie, "/review/about", { text: "   " })).statusCode).toBe(400);
+    expect((await review(app, cookie)).about!.text).toBe(mine);
+    // The migration rule: the CV's own summary lines are the person's authored data — saving About
+    // you neither deletes, removes nor rewords them (owner to decide if they should step aside).
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-pm")).toMatchObject({ lineState: "ticked", text: "Delivery-accountable project manager." });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-langs")).toMatchObject({ lineState: "ticked", text: "Fluent in French and English." });
+
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-about@example.com");
+    await answerDrafts(app, cookie); // #378: Finish waits until every suggestion is answered
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    // The profile: About you holds the person's text as theirs; the moved fact sits under Languages.
+    const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ tag: string; heading: string; facts: Array<{ id: string; text: string; source: string; colour: string; kept?: true }> }> };
+    const about = profile.domains.find((d) => d.heading === "About you")!;
+    expect(about.facts.find((f) => f.id === "about-you")).toMatchObject({ text: mine, source: "told", colour: "gold" });
+    expect(about.facts.find((f) => f.id === "sum-pm")).toMatchObject({ source: "read" });
+    expect(profile.domains.find((d) => d.tag === "lang")!.facts.map((f) => f.id)).toEqual(["sum-langs"]);
+    // The master CV prints the saved text, and the moved fact under Languages.
+    const markdown = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    expect(markdown).toContain(mine);
+    expect(markdown.slice(markdown.indexOf("## Languages"))).toContain("Fluent in French and English.");
+    // The tailor reads About you as a claim line — source material under preview-tailor.md rule 10
+    // (preview.test.ts "#159 tailor prompt": the summary prints only when it earns its place).
+    await warmRetrieval(app, cookie);
+    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
+    await tailorDraft(app, cookie);
+    expect(prompts.at(-1)).toContain(`- about-you [profile] ${mine}`);
+    expect(writer.calls.length).toBe(spent);
+  });
+
+  it("a summary move naming a line outside the summary, or a section the profile does not have, is dropped and counted", async () => {
+    const writer = fakeWriter({ bogus: true });
+    const { app, cookie } = await withCv(writer, WITH_SUMMARY);
+    const state = await reviewed(app, cookie);
+    expect(jobsOf(state)[0]!.lines[0]).toMatchObject({ id: "nrg-led-checkout", movedFrom: null });
+    expect(linesOf(state, "lang").map((l) => l.id)).toEqual(["sum-langs"]);
+    expect(readCounters()["cvReview.move_dropped"]).toBe(2);
+  });
+});
+
+describe("#371 the About you lint — the brain's banned shapes, counted", () => {
+  it("catches the identity opener and a capability claim; a text that leads with an achievement passes", () => {
+    expect(aboutIssues("Senior Project Manager with 7+ years of experience leading IT delivery in retail.")).toEqual(["identity opener"]);
+    expect(aboutIssues("Proven ability to deliver complex programmes on time.")).toEqual(["capability claim: proven ability to"]);
+    expect(aboutIssues("Results-driven leader. Proven ability to deliver. Expertise in Jira. I led the migration.")).toEqual([
+      "capability claim: results-driven",
+      "capability claim: proven ability to",
+      "capability claim: expertise in",
+      "first person",
+    ]);
+    expect(aboutIssues("Led the checkout replatform for Nordic Retail Group, managing EUR 1.2M across 3 vendor teams. Coordinated releases for 4 agile squads at Baltic Software House.")).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------
 // #363 — the keep-alive over HTTP: a request held open through Fly's proxy is the one thing that
 // reads as load to its auto-stop (a request every few seconds does not — see lessons.md).
@@ -1021,6 +1172,7 @@ describe("#380 removal suggestions", () => {
       fix: null,
       suggestion: { kind: "personal-data", reason: "A date of birth hurts on any CV." },
       draft: null,
+      movedFrom: null,
     });
     expect((await server.claims.list(sessionId)).find((c) => c.id === DOB)).toMatchObject({ decision: "pending", lineState: "removal-suggested" });
     // A true but weak line is never suggested for removal: it stays in, with no mark.
@@ -1130,5 +1282,104 @@ describe("#380 removal suggestions", () => {
     expect((await server.claims.list(sessionId)).find((c) => c.id === DOB)).toMatchObject({ lineState: "ticked" });
     expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
     expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).toContain(DOB_LINE);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #383 — misplaced items move with a tag (ADR-0018 clause 6, ADR-0013 clause 1). The job call names
+// a line that is only a list of tools (`toolLists`) and the tools an achievement uses (`toolsUsed`);
+// zero extra calls. A tool list leaves its job for Skills, split one per item, each wearing "Moved
+// from <employer>"; an achievement stays where it is, word for word, and only the tool's name is
+// copied to Skills, wearing "Taken from <employer>". Skills never gets a second copy of a skill it
+// already lists — the item already there wins, untagged. No item's words change.
+// ---------------------------------------------------------------------------------------------
+const TOOL_LIST = "Tools: JIRA, Confluence, MS Project";
+const SPLUNK_LINE = "Cut incident triage time by 40% using Splunk dashboards.";
+const MIRO_LINE = "Ran remote planning workshops using Miro.";
+const MINED_383: CandidateClaim[] = [
+  MINED[0]!,
+  MINED[1]!,
+  claim({ id: "nrg-tools", role: NRG, text: TOOL_LIST }),
+  claim({ id: "nrg-splunk", role: NRG, text: SPLUNK_LINE }),
+  MINED[3]!,
+  claim({ id: "bsh-miro", role: BSH, text: MIRO_LINE }),
+  claim({ id: "skill-list", text: "Miro, Figma" }),
+];
+const NRG_EMPLOYER = "Nordic Retail Group";
+const skillsOf = (state: ReviewState) => linesOf(state, "skill").map((l) => ({ id: l.id, text: l.text, state: l.state, movedFrom: l.movedFrom, copied: l.copied ?? false }));
+const EXPECTED_SKILLS = [
+  { id: "skill-list-miro", text: "Miro", state: "ticked", movedFrom: null, copied: false },
+  { id: "skill-list-figma", text: "Figma", state: "ticked", movedFrom: null, copied: false },
+  { id: "skill-nrg-tools-jira", text: "JIRA", state: "ticked", movedFrom: NRG_EMPLOYER, copied: false },
+  { id: "skill-nrg-tools-confluence", text: "Confluence", state: "ticked", movedFrom: NRG_EMPLOYER, copied: false },
+  { id: "skill-nrg-tools-ms-project", text: "MS Project", state: "ticked", movedFrom: NRG_EMPLOYER, copied: false },
+  { id: "skill-nrg-splunk-splunk", text: "Splunk", state: "ticked", movedFrom: NRG_EMPLOYER, copied: true },
+];
+
+describe("#383 tools move to Skills", () => {
+  it("a tool list leaves its job for Skills one per item, tagged Moved from the employer; an achievement stays word for word and its tool is copied, tagged Taken from; a tool Skills already lists is not copied again", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, MINED_383);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(2); // no extra call: the tools ride on each job's call
+
+    const nrg = jobsOf(state).find((j) => j.id === "nrg")!;
+    expect(nrg.lines.map((l) => l.id)).not.toContain("nrg-tools");
+    expect(nrg.lines.filter((l) => !l.draft).map((l) => ({ id: l.id, text: l.text, movedFrom: l.movedFrom }))).toEqual([
+      { id: "nrg-led-checkout", text: "Led the checkout replatform.", movedFrom: null },
+      { id: "nrg-splunk", text: SPLUNK_LINE, movedFrom: null },
+    ]);
+    expect(jobsOf(state).find((j) => j.id === "bsh")!.lines.find((l) => l.id === "bsh-miro")).toMatchObject({ text: MIRO_LINE, movedFrom: null });
+
+    // Miro is listed once — the CV's own item, untagged; the tool list's group name comes with it.
+    expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
+    const skills = state.sections.find((s) => s.tag === "skill")!;
+    expect("groups" in skills && skills.groups).toEqual([
+      { name: "Skills", ids: ["skill-list-miro", "skill-list-figma", "skill-nrg-splunk-splunk"] },
+      { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence", "skill-nrg-tools-ms-project"] },
+    ]);
+    // No item's words were changed by a move: each moved or copied item reads exactly as its line wrote it.
+    for (const s of EXPECTED_SKILLS.filter((s) => s.movedFrom)) expect((s.copied ? SPLUNK_LINE : TOOL_LIST).includes(s.text)).toBe(true);
+  });
+
+  it("the tags survive a reload, a removal and a put back; after the finish the profile wears them and the master CV prints the tools under Skills and the achievement under its job, never the tool list", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, MINED_383);
+    await reviewed(app, cookie);
+    expect(skillsOf(await review(app, cookie))).toEqual(EXPECTED_SKILLS);
+
+    expect((await put(app, cookie, "/cv/lines/skill-nrg-tools-jira", { state: "kept" })).json()).toEqual({ id: "skill-nrg-tools-jira", state: "kept" });
+    expect(skillsOf(await review(app, cookie))[2]).toEqual({ ...EXPECTED_SKILLS[2], state: "kept" });
+    await put(app, cookie, "/cv/lines/skill-nrg-tools-jira", { state: "ticked" });
+    expect(skillsOf(await review(app, cookie))).toEqual(EXPECTED_SKILLS);
+
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-tools@example.com");
+    await answerDrafts(app, cookie);
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+
+    const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ tag: string; facts: Array<{ id: string; text: string; movedFrom?: string; copied?: true }> }> };
+    expect(profile.domains.find((d) => d.tag === "skill")!.facts.map((f) => ({ text: f.text, movedFrom: f.movedFrom ?? null, copied: f.copied ?? false }))).toEqual(
+      EXPECTED_SKILLS.map((s) => ({ text: s.text, movedFrom: s.movedFrom, copied: s.copied })),
+    );
+    const experience = profile.domains.find((d) => d.tag === "experience")!.facts;
+    expect(experience.find((f) => f.id === "nrg-splunk")).toMatchObject({ text: SPLUNK_LINE });
+    expect(experience.find((f) => f.id === "nrg-splunk")!.movedFrom).toBeUndefined();
+    expect(experience.map((f) => f.id)).not.toContain("nrg-tools");
+
+    const markdown = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    const skillsPart = markdown.slice(markdown.indexOf("## Skills"));
+    for (const tool of ["JIRA", "Confluence", "MS Project", "Splunk"]) expect(skillsPart).toContain(tool);
+    expect(markdown).toContain(SPLUNK_LINE);
+    expect(markdown).not.toContain(TOOL_LIST);
+    expect(writer.calls).toHaveLength(2);
+  });
+
+  it("a tool list naming a line outside its job, or a tool its line never says, is dropped and counted", async () => {
+    const writer = fakeWriter({ bogus: true });
+    const { app, cookie } = await withCv(writer, MINED_383);
+    const state = await reviewed(app, cookie);
+    expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
+    expect(readCounters()["cvReview.tool_dropped"]).toBe(4); // two per job: a ghost list line, a tool not in the line
   });
 });

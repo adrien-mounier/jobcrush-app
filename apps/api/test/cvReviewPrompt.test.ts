@@ -34,6 +34,29 @@ describe("cv-review prompt (#340)", () => {
     expect(prompt).toContain("seems off-topic for the job's family is `keep`");
   });
 
+  // #371: About you rides on the sections call, under the brain's Professional Summary rules
+  // (cv-authoring-rules.md): achievements first, no identity opener, no capability claim; a summary
+  // fact that belongs elsewhere is named as a move, never dropped or reworded.
+  it("writes About you from the whole CV under the summary rules, and names the summary facts that move", () => {
+    expect(prompt).toContain('"about"');
+    expect(prompt).toContain("identity opener");
+    expect(prompt).toContain("proven ability to");
+    expect(prompt).toContain("achievement first");
+    expect(prompt).toContain("no summary");
+    expect(prompt).toContain('"moves"');
+    expect(prompt).toContain("skills | certifications | education | languages");
+    expect(prompt).toContain("`about` is `null` when `sections` is not in JOBS TO REVIEW");
+  });
+
+  // #383: per job, the line that is only a tool list (it moves to Skills) and the tools an
+  // achievement uses (copied to Skills; the achievement stays as written).
+  it("names each job's tool lists and the tools its achievements use, changing no word", () => {
+    expect(prompt).toContain('"toolLists"');
+    expect(prompt).toContain('"toolsUsed"');
+    expect(prompt).toContain("exactly as the line writes it");
+    expect(prompt).toContain("tool stays under its job, unchanged");
+  });
+
   it("drafts from each job's own family and names the output shape", () => {
     expect(prompt).toContain("Only for a job placed in a family (placement not `none`)");
     expect(prompt).toContain("`family: null`, `mustHaves: []` and `drafted: []`");

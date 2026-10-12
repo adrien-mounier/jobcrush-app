@@ -197,6 +197,17 @@ age-proxy stripping rule and its absence is a decision, not an oversight.
   first person. [ADR-0007](../adr/0007-what-prints-is-decided-per-application.md) clause 2 already
   rules that a country page is a strip-list, never a market style guide.
 
+**The profile's "About you" (#371, ADR-0018 clause 5) is written under these same rules, and is
+source material, never print-ready text.** The review's sections call (`apps/api/prompts/cv-review.md`
+F) writes it from the whole CV, reusing and improving the CV's own summary, and writes one even
+when the CV has none. The person keeps or edits it; the saved text is one `profile` claim
+(`about-you`) that the tailor reads among the others. **Whether a tailored CV prints a summary, and
+what it says, is still decided per application by the tailor's rule 10 above.** The banned shapes
+(identity opener, capability claims, first person) are counted on every generated text
+(`aboutIssues`, counter `cvReview.about_issue`) — an eval, not a filter. A summary fact that belongs
+elsewhere (a language, a degree, a certification, a tool list) moves to that section with a visible
+"Moved from your summary" tag (cv-review.md G), its words unchanged (ADR-0013 clause 1).
+
 ⚠️ **Known and accepted:** the summary is **not** a decision signal in the strongest available
 evidence — 221 recruiters over 2,043 eye-tracked screenings advanced CVs on time spent in
 *Experience*, and the top block separated nothing. **No study anywhere measures callback rates for

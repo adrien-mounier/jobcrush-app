@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CardsResponse, ReviewLine, ReviewState, ReviewWorkRights } from "../lib/api";
+import type { CardsResponse, ReviewLine, ReviewState, ReviewWorkRights, SkillGroup } from "../lib/api";
 
 // #377 check mode (ADR-0018 clause 3): the guided walk over the profile that replaced "Your CV,
 // reviewed", route-mocked to the pinned ReviewState shape. What it proves on the screen: the walk
@@ -18,8 +18,13 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
   fix: null,
   suggestion: null,
   draft: null,
+  movedFrom: null,
   ...over,
 });
+
+// #384: the review fixed a typo on one of the job's lines; the item reads the corrected words.
+const TYPO = "Managed a budget of EUR 1.2M accross 3 vendor teams.";
+const FIXED = "Managed a budget of EUR 1.2M across 3 vendor teams.";
 
 const REVIEW: ReviewState = {
   completed: false,
@@ -33,6 +38,7 @@ const REVIEW: ReviewState = {
   conflict: null,
   progress: null,
   unchecked: false,
+  about: null,
   sections: [
     { tag: "profile", heading: "Professional Summary", lines: [line("p1", "Delivery-accountable project manager.")] },
     {
@@ -49,7 +55,7 @@ const REVIEW: ReviewState = {
           checking: false,
           family: null,
           complete: false,
-          lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-2", "Managed a budget of EUR 1.2M across 3 vendor teams.")],
+          lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-2", FIXED, { fix: { original: TYPO, corrected: FIXED, applied: true } })],
         },
         {
           id: "bsh",
@@ -65,7 +71,7 @@ const REVIEW: ReviewState = {
         },
       ],
     },
-    { tag: "skill", heading: "Skills", lines: [line("s1", "Jira, MS Project.")] },
+    { tag: "skill", heading: "Skills", lines: [line("s1", "Jira, MS Project.")], groups: [{ name: "Skills", ids: ["s1"] }] },
     { tag: "cert", heading: "Certifications", lines: [] },
     { tag: "edu", heading: "Education", lines: [line("e1", "MSc, University of Warsaw.")] },
     { tag: "lang", heading: "Languages", lines: [] },
@@ -100,9 +106,9 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
   await page.route("**/api/review", async (route) => {
     await route.fulfill({ json: box.state });
   });
-  /** Moves one line the way the server would. */
-  const move = (id: string, over: Partial<ReviewLine>) => {
-    const swap = (l: ReviewLine) => (l.id === id ? { ...l, ...over } : l);
+  /** Moves one line the way the server would: new fields, or a function of the line as it is. */
+  const move = (id: string, over: Partial<ReviewLine> | ((l: ReviewLine) => ReviewLine)) => {
+    const swap = (l: ReviewLine) => (l.id !== id ? l : typeof over === "function" ? over(l) : { ...l, ...over });
     box.state = {
       ...box.state,
       sections: box.state.sections.map((s) =>
@@ -157,6 +163,25 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     move(id, { state });
     await route.fulfill({ json: { id, state } });
   });
+  // #371: About you's footer save — the saved words read back on the next GET /review.
+  await page.route("**/api/review/about", async (route) => {
+    record(route);
+    const { text } = route.request().postDataJSON() as { text: string };
+    box.state = { ...box.state, about: { text, original: box.state.about?.original ?? null } };
+    await route.fulfill({ json: { text } });
+  });
+  // #384: undo / use the fix — the line reads the original or the corrected words, as the server does it.
+  await page.route("**/api/review/fixes/*", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").pop()!;
+    const { applied } = route.request().postDataJSON() as { applied: boolean };
+    let text = "";
+    move(id, (l) => {
+      text = applied ? l.fix!.corrected : l.fix!.original;
+      return { ...l, text, fix: { ...l.fix!, applied } };
+    });
+    await route.fulfill({ json: { id, text, applied } });
+  });
   // #379: the words door — the server trims and stores them; a re-read shows them.
   await page.route("**/api/cv/lines/*/text", async (route) => {
     record(route);
@@ -175,6 +200,30 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     }
     box.state = { ...box.state, letterhead };
     await route.fulfill({ json: letterhead });
+  });
+  // #382: rename a group (every skill in it) and move one skill — the server's two group doors.
+  const regroup = (fn: (groups: SkillGroup[]) => SkillGroup[]) => {
+    box.state = { ...box.state, sections: box.state.sections.map((s) => ("groups" in s && s.groups ? { ...s, groups: fn(s.groups) } : s)) };
+  };
+  await page.route("**/api/cv/skills/groups/*", async (route) => {
+    record(route);
+    const from = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop()!);
+    const { name } = route.request().postDataJSON() as { name: string };
+    regroup((groups) => groups.map((g) => (g.name === from ? { ...g, name } : g)));
+    await route.fulfill({ json: { name, moved: 1 } });
+  });
+  await page.route("**/api/cv/lines/*/group", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").at(-2)!;
+    const { group } = route.request().postDataJSON() as { group: string };
+    regroup((groups) => {
+      const out = groups.map((g) => ({ ...g, ids: g.ids.filter((x) => x !== id) }));
+      const to = out.find((g) => g.name === group);
+      if (to) to.ids.push(id);
+      else out.push({ name: group, ids: [id] });
+      return out.filter((g) => g.ids.length > 0);
+    });
+    await route.fulfill({ json: { id, group } });
   });
   // #376: a work-rights tap stores that row's answer; the languages card stores the whole list.
   await page.route("**/api/review/work-rights/*", async (route) => {
@@ -501,7 +550,7 @@ test.describe("#378 add suggestions answered in place", () => {
     await expect(items(page)).toHaveCount(4);
     await expect(items(page).nth(2)).toContainText(MUST.text);
     await expect(items(page).nth(3)).toContainText("Worked to the bank's release calendar.");
-    await expect(items(page).locator(".tag")).toHaveCount(2);
+    await expect(items(page).locator(".tag:not(.fixed)")).toHaveCount(2); // the "new" tags (#384's fix tag is its own)
     await expect(page.locator("ul.pts")).not.toContainText(OPTIONAL.text);
     await expect(primary(page)).toBeEnabled();
 
@@ -732,11 +781,176 @@ test.describe("#380 a removal suggestion", () => {
   });
 });
 
+// #371 About you (ADR-0018 clause 5): the text the review wrote from the whole CV, in a plain card
+// with "Edit it" and "See what your CV said"; the footer button keeps it or saves the person's words;
+// a summary fact moved to another section wears where it came from, and can be removed like any item.
+test.describe("#371 About you", () => {
+  const ABOUT = {
+    text: "Led the checkout replatform. Coordinated releases for 4 agile squads.",
+    original: "Delivery-accountable project manager.\nFluent in French and English.",
+  };
+  const WITH_ABOUT: ReviewState = { ...REVIEW, about: ABOUT };
+  const card = (page: Page) => page.locator(".card.form");
+  const original = (page: Page) => card(page).locator("button.linkbtn[aria-expanded]");
+
+  test("the screen shows the text in a plain card; See what your CV said shows the original read-only; the footer keeps the text unchanged", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_ABOUT);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+    // A plain card: no suggestion frame, no item list, no tick box.
+    await expect(page.locator(".sg, li.pt, input[type=checkbox]")).toHaveCount(0);
+    await expect(card(page).locator(".orig")).toHaveCount(0);
+    await expect(original(page)).toHaveAttribute("aria-expanded", "false");
+    await original(page).click();
+    await expect(original(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(card(page).locator(".orig p")).toHaveText(ABOUT.original);
+    await expect(card(page).locator(".orig textarea, .orig input")).toHaveCount(0);
+    await original(page).click();
+    await expect(card(page).locator(".orig")).toHaveCount(0);
+
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/about", body: { text: ABOUT.text } }]);
+  });
+
+  test("Edit it opens the text; the footer saves the person's words, which read back after a reload; Undo my changes puts the text back", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_ABOUT);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await card(page).locator("button.btn").click(); // Edit it
+    const box = card(page).locator("textarea");
+    await expect(box).toHaveValue(ABOUT.text);
+    await expect(box).toBeFocused();
+    await box.fill("Something else.");
+    await card(page).locator("button.btn.ghost").click(); // Undo my changes
+    await expect(card(page).locator("textarea")).toHaveCount(0);
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+
+    await card(page).locator("button.btn").click();
+    const mine = "Led the checkout replatform at Nordic Retail Group, managing EUR 1.2M across three vendor teams.";
+    await card(page).locator("textarea").fill(`  ${mine}  `);
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/about", body: { text: mine } }]);
+
+    await page.reload();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(mine);
+    await original(page).click();
+    await expect(card(page).locator(".orig p")).toHaveText(ABOUT.original);
+  });
+
+  test("a CV with no summary still gets the screen, with nothing to show as the original", async ({ page }) => {
+    const noSummary: ReviewState = {
+      ...REVIEW,
+      about: { text: ABOUT.text, original: null },
+      sections: REVIEW.sections.map((s) => (s.tag === "profile" ? { ...s, lines: [] } : s)),
+    };
+    await stubReview(page, noSummary);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+    await expect(original(page)).toHaveCount(0);
+    await expect(card(page).locator("button.btn")).toHaveCount(1); // Edit it is still there
+  });
+
+  test("a fact moved from the summary sits in its new section with its tag, and is removed like any item", async ({ page }) => {
+    const moved: ReviewState = {
+      ...WITH_ABOUT,
+      sections: REVIEW.sections.map((s) => (s.tag === "lang" ? { ...s, lines: [line("sum-langs", "Fluent in French and English.", { movedFrom: "your summary" })] } : s)),
+    };
+    const { calls } = await stubReview(page, moved);
+    await page.goto("/profile/check");
+    for (let i = 0; i < SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Languages");
+    const item = items(page).first();
+    await expect(item.locator(".txt")).toContainText("Fluent in French and English.");
+    await expect(item.locator(".tag.moved")).toHaveText("Moved from your summary");
+    // A line that never moved wears no tag.
+    await back(page).click();
+    await expect(items(page).first()).toBeVisible();
+    await expect(items(page).locator(".tag")).toHaveCount(0);
+    await primary(page).click();
+    await item.hover();
+    await removeButton(item).click();
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/sum-langs", body: { state: "kept" } });
+    await expect(items(page)).toHaveCount(0);
+    await expect(tray(page)).toHaveCount(1);
+  });
+});
+
+// #384: the review's spelling fixes in check mode (ADR-0016 clause 2, kept by ADR-0018). A fix stays
+// applied without asking; the item wears a quiet tag that opens the original beside the corrected
+// words with Undo, and "Use the fix" after an undo. A fix is never something to answer.
+test.describe("#384 fixes", () => {
+  const fixTag = (item: ReturnType<Page["locator"]>) => item.locator(".tag.fixed");
+  const fixRow = (item: ReturnType<Page["locator"]>) => item.locator(".fixrow");
+
+  test("a fixed item wears the tag; the tag opens original → corrected; Undo restores the original and persists across a reload; the fix can be used again", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    const fixed = items(page).nth(1);
+    await expect(fixed.locator(".txt")).toContainText(FIXED);
+    await expect(fixTag(fixed)).toHaveCount(1);
+    await expect(fixTag(items(page).first())).toHaveCount(0); // no fix, no tag
+    await expect(fixRow(fixed)).toHaveCount(0);
+
+    await fixTag(fixed).click();
+    await expect(fixTag(fixed)).toHaveAttribute("aria-expanded", "true");
+    await expect(fixRow(fixed).locator("s")).toHaveText("accross");
+    await expect(fixRow(fixed).locator(".to")).toHaveText("across");
+    await fixRow(fixed).getByRole("button").click(); // Undo
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/fixes/nrg-2", body: { applied: false } }]);
+    await expect(fixed.locator(".txt")).toContainText(TYPO);
+    await expect(items(page)).toHaveCount(2); // undoing a fix is not a removal
+    await expect(tray(page)).toHaveCount(0);
+
+    await page.reload();
+    await primary(page).click();
+    await primary(page).click();
+    const undone = items(page).nth(1);
+    await expect(undone.locator(".txt")).toContainText(TYPO);
+    await expect(fixTag(undone)).toHaveCount(1);
+    await fixTag(undone).click();
+    await fixRow(undone).getByRole("button").click(); // Use the fix
+    expect(calls[1]).toEqual({ method: "PUT", url: "/api/review/fixes/nrg-2", body: { applied: true } });
+    await expect(undone.locator(".txt")).toContainText(FIXED);
+  });
+
+  test("fixes never hold the footer button: a screen where every item is fixed moves on, and Finish completes with no fix answered", async ({ page }) => {
+    const fix = (l: ReviewLine): ReviewLine => ({ ...l, fix: { original: l.text.replace("a", "aa"), corrected: l.text, applied: true } });
+    const everyLineFixed: ReviewState = {
+      ...REVIEW,
+      sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => ({ ...j, lines: j.lines.map(fix) })) } : { ...s, lines: s.lines.map(fix) })),
+    };
+    const { calls } = await stubReview(page, everyLineFixed);
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) {
+      await expect(primary(page)).toBeEnabled();
+      await expect(primary(page)).toHaveText(`Next: ${SCREENS[i]}  →`);
+      await primary(page).click();
+    }
+    await expect(items(page).first().locator(".tag.fixed")).toHaveCount(1); // the screen really shows fixed items
+    await expect(primary(page)).toHaveText("Finish my profile");
+    await expect(primary(page)).toBeEnabled();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Your profile is ready");
+    expect(calls).toEqual([{ method: "POST", url: "/api/review/complete", body: null }]);
+  });
+});
+
 // #379 (ADR-0018 clause 2): an item's words edited in place. ✎ (the item's non-removing action)
 // turns the item into a text box with Save / Cancel; the item stays where it is. Selected by
 // structure: `li.pt.edit`, its textarea, its primary (Save) and ghost (Cancel) buttons.
 test.describe("#379 edit an item's words in place", () => {
-  const editButton = (item: ReturnType<Page["locator"]>) => item.locator(".ib:not(.rmv)");
+  const editButton = (item: ReturnType<Page["locator"]>) => item.locator(".ib:not(.rmv):not(.move)");
   const editor = (page: Page) => page.locator("li.pt.edit");
   const textbox = (page: Page) => editor(page).locator("textarea");
   const TEXT_CALL = (id: string, text: string) => ({ method: "PUT", url: `/api/cv/lines/${id}/text`, body: { text } });
@@ -828,11 +1042,11 @@ test.describe("#379 edit an item's words in place", () => {
     await primary(page).click();
     await expect(heading(page)).toHaveText("About you");
     await expect(items(page).locator(".ib.rmv")).toHaveCount(1);
-    await expect(items(page).locator(".ib:not(.rmv)")).toHaveCount(0);
+    await expect(items(page).locator(".ib:not(.rmv):not(.move)")).toHaveCount(0);
     for (const title of ["Nordic Retail Group", "Baltic Software House", "Skills", "Education"]) {
       await primary(page).click();
       await expect(heading(page)).toHaveText(title);
-      await expect(items(page).first().locator(".ib:not(.rmv)")).toHaveCount(1);
+      await expect(items(page).first().locator(".ib:not(.rmv):not(.move)")).toHaveCount(1);
     }
   });
 
@@ -900,6 +1114,252 @@ test.describe("#373 personal projects and additional information", () => {
     await expect(items(page)).toHaveCount(1);
     await expect(items(page).first()).toContainText("Nationality");
     await expect(primary(page)).toHaveText("Finish my profile");
+  });
+});
+
+// #368 — a drafted line's source names where its quote sits on the CV (the server resolves it on
+// read: `draft.source`, a job's "<employer>, <title>" or a section's heading). The card prints it in
+// the source line beside the quote; a quote the server placed nowhere prints the quote alone.
+// (Ticket #368 named review.spec.ts; that spec is skipped until #386 retires the review page, and
+// this one replaces it.)
+test.describe("#368 the source names the job its quote came from", () => {
+  const CROSS_JOB = "Baltic Software House, Project Coordinator";
+  const FROM_BSH = line("draft-nrg-1", "Also coordinated releases for 4 agile squads.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", source: CROSS_JOB, flags: ["OPTIONAL"], vague: [] },
+  });
+  const PLACED_NOWHERE = line("draft-nrg-2", "Followed the employer's release calendar.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Kept a release calendar.", source: null, flags: ["INDUSTRY GUESS"], vague: [] },
+  });
+  const WITH_SOURCES: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, family: "IT Project Manager", lines: [...j.lines, FROM_BSH, PLACED_NOWHERE] } : j)) } : s,
+    ),
+  };
+
+  test("a quote from another job names that job beside the quote; a quote placed nowhere shows the quote alone", async ({ page }) => {
+    await stubReview(page, WITH_SOURCES);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    const source = (n: number) => page.locator("li.sg").nth(n).locator(".meta > span", { has: page.locator("q") });
+
+    await expect(source(0)).toContainText(CROSS_JOB);
+    await expect(source(0).locator("q")).toHaveText(FROM_BSH.draft!.quote!);
+    await expect(source(1).locator("q")).toHaveText(PLACED_NOWHERE.draft!.quote!);
+    await expect(source(1)).not.toContainText("Baltic Software House");
+    await expect(source(1)).not.toContainText("Nordic Retail Group");
+  });
+});
+
+// --- #382 skills one per item, in named groups ---------------------------------------------------
+
+test.describe("#382 the Skills screen: named groups, rename, move", () => {
+  const SKILLS: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      s.tag === "skill"
+        ? {
+            tag: "skill",
+            heading: "Skills",
+            lines: [line("d1", "Agile / Scrum"), line("d2", "Stakeholder Management"), line("t1", "Jira"), line("t2", "Confluence"), line("t3", "Splunk")],
+            groups: [
+              { name: "Delivery and governance", ids: ["d1", "d2"] },
+              { name: "Tools", ids: ["t1", "t2", "t3"] },
+            ],
+          }
+        : s,
+    ),
+  };
+  const groupBoxes = (page: Page) => page.locator(".groups .grp");
+  const groupNames = (page: Page) => page.locator(".groups .grp .gh").allTextContents();
+  const itemsOf = (page: Page, i: number) => groupBoxes(page).nth(i).locator("li.pt .txt").allTextContents();
+  async function toSkills(page: Page) {
+    await page.goto("/profile/check");
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== "Skills"; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills");
+  }
+
+  test("the skills show one per item under their group names, and the screen needs no answer to continue", async ({ page }) => {
+    await stubReview(page, SKILLS);
+    await toSkills(page);
+    expect(await groupNames(page)).toEqual(["Delivery and governance", "Tools"]);
+    expect(await itemsOf(page, 0)).toEqual(["Agile / Scrum", "Stakeholder Management"]);
+    expect(await itemsOf(page, 1)).toEqual(["Jira", "Confluence", "Splunk"]);
+    // Grouping is not an item to answer: the button moves on, as on any quiet screen.
+    await expect(primary(page)).toBeEnabled();
+    await expect(primary(page)).toHaveText("Next: Education  →");
+    await expect(page.locator(".lead")).toHaveText("Nothing to answer here. Edit or remove anything that's wrong.");
+
+    // Each skill is an ordinary item: ⊖ removes it into the tray; a group with nothing left hides.
+    for (const [i, name] of ["Agile / Scrum", "Stakeholder Management"].entries()) {
+      const item = page.locator("li.pt", { hasText: name });
+      await item.hover();
+      await removeButton(item).click();
+      await expect(items(page)).toHaveCount(4 - i);
+    }
+    await expect(page.locator(".groups .grp .gh")).toHaveText(["Tools"]);
+    await expect(tray(page).getByRole("button", { expanded: false })).toHaveText("2 removed · Show");
+  });
+
+  test("a skill the review proposes to remove shows its card inside its group, and the button waits for that answer only", async ({ page }) => {
+    const flagged: ReviewState = {
+      ...SKILLS,
+      sections: SKILLS.sections.map((s) =>
+        "lines" in s && s.tag === "skill"
+          ? { ...s, lines: s.lines.map((l) => (l.id === "t3" ? { ...l, state: "removal-suggested" as const, suggestion: { kind: "duplicate" as const, reason: "Listed twice." } } : l)) }
+          : s,
+      ),
+    };
+    await stubReview(page, flagged);
+    await page.goto("/profile/check");
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== "Skills"; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills");
+    const card = groupBoxes(page).nth(1).locator("li.sg.rmv");
+    await expect(card).toContainText("Splunk");
+    expect(await itemsOf(page, 1)).toEqual(["Jira", "Confluence"]);
+    await expect(primary(page)).toBeDisabled();
+    await card.locator(".row .ghost").click(); // Keep it
+    await expect(card).toHaveCount(0);
+    await expect(groupBoxes(page).nth(1).locator("li.pt .txt")).toHaveText(["Jira", "Confluence", "Splunk"]);
+    await expect(primary(page)).toBeEnabled();
+  });
+
+  test("two columns of groups on a wide screen, one on a phone", async ({ page }) => {
+    await stubReview(page, SKILLS);
+    await page.setViewportSize({ width: 1200, height: 900 });
+    await toSkills(page);
+    const [a, b] = [await groupBoxes(page).nth(0).boundingBox(), await groupBoxes(page).nth(1).boundingBox()];
+    expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1); // side by side
+    await page.setViewportSize({ width: 390, height: 844 });
+    const [c, d] = [await groupBoxes(page).nth(0).boundingBox(), await groupBoxes(page).nth(1).boundingBox()];
+    expect(d!.x).toBe(c!.x); // stacked
+    expect(d!.y).toBeGreaterThan(c!.y + c!.height - 1);
+    const [scrollWidth, clientWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    expect(scrollWidth).toBe(clientWidth);
+  });
+
+  test("tapping a group name renames it: Enter sends it, Escape sends nothing, and the new name is still there after a reload", async ({ page }) => {
+    const { calls } = await stubReview(page, SKILLS);
+    await toSkills(page);
+
+    await groupBoxes(page).nth(1).locator(".gh").click();
+    const input = page.locator(".grp input.gname");
+    await expect(input).toBeFocused();
+    await input.fill("Not this one");
+    await input.press("Escape");
+    await expect(input).toHaveCount(0);
+    expect(calls).toEqual([]);
+    expect(await groupNames(page)).toEqual(["Delivery and governance", "Tools"]);
+
+    await groupBoxes(page).nth(1).locator(".gh").click();
+    await page.locator(".grp input.gname").fill("Tools and platforms");
+    await page.locator(".grp input.gname").press("Enter");
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/skills/groups/Tools", body: { name: "Tools and platforms" } }]);
+    await expect(groupBoxes(page).nth(1).locator(".gh")).toHaveText("Tools and platforms");
+
+    await page.reload();
+    await toSkills(page);
+    expect(await groupNames(page)).toEqual(["Delivery and governance", "Tools and platforms"]);
+    expect(await itemsOf(page, 1)).toEqual(["Jira", "Confluence", "Splunk"]);
+  });
+
+  test("the move icon beside ⊖ opens Move to group; choosing a group sends the move, and the skill sits there after a reload", async ({ page }) => {
+    const { calls } = await stubReview(page, SKILLS);
+    await toSkills(page);
+
+    const jira = page.locator("li.pt", { hasText: "Jira" });
+    await jira.hover();
+    await jira.locator(".ib.move").click();
+    const select = jira.locator("select.mv");
+    await expect(select).toBeFocused();
+    await expect(select.locator("option")).toHaveText(["Delivery and governance", "Tools"]);
+    await select.selectOption({ index: 0 });
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/lines/t1/group", body: { group: "Delivery and governance" } }]);
+    expect(await itemsOf(page, 0)).toEqual(["Agile / Scrum", "Stakeholder Management", "Jira"]);
+    expect(await itemsOf(page, 1)).toEqual(["Confluence", "Splunk"]);
+
+    await page.reload();
+    await toSkills(page);
+    expect(await itemsOf(page, 0)).toEqual(["Agile / Scrum", "Stakeholder Management", "Jira"]);
+    expect(await itemsOf(page, 1)).toEqual(["Confluence", "Splunk"]);
+  });
+});
+
+// #383 (ADR-0018 clause 6): a job's tool list has left the job for Skills, one item per tool, each
+// wearing "Moved from <job>"; a tool an achievement uses is copied to Skills wearing "Taken from
+// <job>" while the achievement stays under its job, word for word. A moved item is removed and put
+// back like any other, and the tags are still there after a reload. The tag's words are what the
+// ticket asks for, so they are read; everything else is selected by structure.
+test.describe("#383 tools moved and copied to Skills", () => {
+  const SPLUNK = "Cut incident triage time by 40% using Splunk dashboards.";
+  const FROM = "Nordic Retail Group";
+  const MOVED: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s
+        ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-splunk", SPLUNK)] } : j)) }
+        : s.tag === "skill"
+          ? {
+              tag: "skill",
+              heading: "Skills",
+              lines: [
+                line("s1", "Miro"),
+                line("skill-nrg-splunk-splunk", "Splunk", { movedFrom: FROM, copied: true }),
+                line("skill-nrg-tools-jira", "JIRA", { movedFrom: FROM }),
+                line("skill-nrg-tools-confluence", "Confluence", { movedFrom: FROM }),
+              ],
+              groups: [
+                { name: "Skills", ids: ["s1", "skill-nrg-splunk-splunk"] },
+                { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence"] },
+              ],
+            }
+          : s,
+    ),
+  };
+  const tagOf = (page: Page, text: string) => page.locator(".groups li.pt", { hasText: text }).locator(".tag.moved");
+  async function toScreen(page: Page, name: string) {
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== name; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText(name);
+  }
+
+  test("the job keeps its achievement as written and no tool list; Skills shows the moved tools tagged Moved from the job and the copied tool tagged Taken from it", async ({ page }) => {
+    await stubReview(page, MOVED);
+    await page.goto("/profile/check");
+    await toScreen(page, FROM);
+    await expect(items(page).locator(".txt")).toHaveText(["Led the checkout replatform.", SPLUNK]);
+    await expect(items(page).locator(".tag")).toHaveCount(0);
+
+    await toScreen(page, "Skills");
+    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(tagOf(page, "Confluence")).toHaveText(`Moved from ${FROM}`);
+    await expect(tagOf(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
+    await expect(tagOf(page, "Miro")).toHaveCount(0);
+    await expect(page.locator(".groups .tag.moved")).toHaveCount(3);
+  });
+
+  test("a moved tool is removed and put back like any item, and its tag is still there after a reload", async ({ page }) => {
+    const { calls } = await stubReview(page, MOVED);
+    await page.goto("/profile/check");
+    await toScreen(page, "Skills");
+    const jira = page.locator(".groups li.pt", { hasText: "JIRA" });
+    await jira.hover();
+    await removeButton(jira).click();
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/skill-nrg-tools-jira", body: { state: "kept" } });
+    await expect(jira).toHaveCount(0);
+    await tray(page).getByRole("button", { expanded: false }).click();
+    await expect(tray(page).locator("s")).toHaveText("JIRA");
+    await tray(page).locator("li button").click(); // Put back
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/skill-nrg-tools-jira", body: { state: "ticked" } });
+    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+
+    await page.reload();
+    await toScreen(page, "Skills");
+    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(tagOf(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
   });
 });
 

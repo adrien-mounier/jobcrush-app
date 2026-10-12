@@ -73,12 +73,13 @@ function segments(text: string, vague: ReviewVague[]): Array<string | Spot> {
   return out.filter((s) => s !== "");
 }
 
-/** Where the suggestion's words came from: `From your CV: "<quote>"`. #368 passes the job the quote
- *  came from (`From your CV (BRED, Senior Project Manager): …`). */
-export function DraftSource({ quote, job = null }: { quote: string; job?: string | null }) {
+/** Where the suggestion's words came from: `From your CV: "<quote>"`, naming the place on the CV the
+ *  server found them (#368) — a job, `From your CV (BRED, Senior Project Manager): …`, its own job
+ *  too, or a section, `From your CV (Skills): …`. */
+export function DraftSource({ quote, source = null }: { quote: string; source?: string | null }) {
   return (
     <span>
-      {job ? `${C_FROM_CV} (${job})` : C_FROM_CV}: <q>{quote}</q>
+      {source ? `${C_FROM_CV} (${source})` : C_FROM_CV}: <q>{quote}</q>
     </span>
   );
 }
@@ -192,7 +193,7 @@ export function SuggestionCard({ line, job, family, busy, onAdd, onSaveText, onD
                 {C_WHY} {why}
               </span>
             )}
-            {draft.quote && <DraftSource quote={draft.quote} />}
+            {draft.quote && <DraftSource quote={draft.quote} source={draft.source} />}
           </span>
           <span className="row">
             <button type="button" className="btn sm" disabled={busy} onClick={() => onAdd(line.id)}>

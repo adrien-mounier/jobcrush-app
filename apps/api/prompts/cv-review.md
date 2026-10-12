@@ -1,4 +1,4 @@
-<!-- cv-review prompt v1 (#340; ADR-0016 clauses 2–4; spec #332). Lineage: the research input
+<!-- cv-review prompt v2 (#340; #371 adds F. ABOUT YOU and the summary moves, ADR-0018 clauses 5–6; ADR-0016 clauses 2–4; spec #332). Lineage: the research input
 docs/cv-brain/research/2026-10-03_thin-job-line-generation/input-full-review.md, whose two Opus 5.5
 runs exposed the two defects fixed here. (1) It judged every job against ONE family and unticked a
 real revenue result as "off-topic for an IT PM role": fit is decided per advert (ADR-0007), so
@@ -17,7 +17,10 @@ comment (preview.ts tailorPrompt does the same) and appends the four input block
 v2 (#380; ADR-0018 clause 4, amending ADR-0016 clause 3): section B no longer suggests unticking a
 weak, duplicate or aim-without-result line. It suggests `remove` only for an item that belongs
 nowhere in any CV — a duplicate, a PDF-reading fragment, personal data — and never for a true but
-weak line or for fit. The rest of the prompt is unchanged. -->
+weak line or for fit. The rest of the prompt is unchanged.
+#383 (ADR-0018 clause 6) adds H. TOOLS: per job, the line that is only a tool list (the caller moves
+it to Skills, split one per item) and the tools an achievement uses (the caller copies the names to
+Skills; the achievement stays). Detection rides on the job's own call — zero extra calls. -->
 
 You review a candidate's CV, job by job, before the candidate confirms it. The candidate will see
 every change and keep, remove or edit each line; nothing you write prints until the candidate adds
@@ -107,6 +110,36 @@ E. HOLES. Say whether the job's end date is missing from the CV (`endDateMissing
    "Present" or "now" is not missing one), and list any conflict where the CV gives two values for
    one thing about this job (two end years, two titles) as `conflicts`.
 
+F. ABOUT YOU. Only when `sections` is listed. Write `about`: one short text about the candidate,
+   from the WHOLE CV — the summary if there is one (reuse and improve its own words), the jobs, the
+   personal projects, everything. When the CV has no summary, write it from the rest of the CV all
+   the same. It is the profile's "About you": the candidate keeps or edits it, and each job
+   application later decides whether to print a summary and writes it for that job — so this is
+   source material, not a finished CV section. The Professional Summary rules apply:
+   - The achievement first: a named thing done, with a result or a number, in the CV's own facts.
+   - No identity opener ("Senior Project Manager with 7+ years of experience…"): the title and the
+     years are already on the page. Never restate a title, employer, date or count of years.
+   - No capability claims as content: never "proven ability to", "expertise in", "strong in",
+     "comfortable bridging", "results-driven", or the like. Say what was done instead.
+   - No first-person pronouns. No fact the CV does not state; no padding.
+
+G. MOVES. Only when `sections` is listed. A line in the summary that belongs in another section a
+   reader expects (a language in the summary belongs in Languages; a certification in
+   Certifications; a degree in Education; a tool list in Skills; a personal project in Personal
+   Projects; a nationality or a work permit in Additional Information) is named in `moves` with the
+   section it moves to, by that section's name: skills | certifications | education | languages |
+   personal projects | additional information.
+   Only summary lines move, and only to one of those sections. A move changes no word of the line;
+   the caller moves it and tags it. A line that reads as a sentence about the candidate stays in the
+   summary.
+
+H. TOOLS. For every job in JOBS TO REVIEW. A line under the job that is only a list of tools,
+   software or technologies ("Tools: JIRA, Confluence, MS Project", "Tech stack: Python, AWS") is
+   named in `toolLists`: the caller moves it to Skills, one item per tool. An achievement that uses a
+   tool stays under its job, unchanged; name the tools it uses in `toolsUsed`, each one
+   exactly as the line writes it, and the caller copies those names to Skills. A method, a skill or a domain is not
+   a tool ("Agile", "stakeholder management", "retail"). No tool, nothing to name: `[]`.
+
 A job with nothing to fix, nothing to remove, every must-have of its family shown, no missing end
 date and no conflict is `complete: true`. That is the review telling the candidate the CV already
 did the work.
@@ -120,6 +153,8 @@ including the candidate's own mistakes.
 
 {
   "letterhead": { "checks": ["<one sentence per thing to check, or none>"] },
+  "about": { "text": "<the About you text>" },
+  "moves": [{ "line": "<id of a summary line>", "to": "<skills | certifications | education | languages | personal projects | additional information>" }],
   "sections": [
     {
       "section": "<summary | skills | education | languages | additional | projects>",
@@ -153,13 +188,17 @@ including the candidate's own mistakes.
         }
       ],
       "endDateMissing": false,
-      "conflicts": [{ "what": "<the thing>", "values": ["<value>", "<value>"] }]
+      "conflicts": [{ "what": "<the thing>", "values": ["<value>", "<value>"] }],
+      "toolLists": ["<id of a line that is only a list of tools>"],
+      "toolsUsed": [{ "line": "<id of a line that uses a tool>", "tools": ["<the tool, verbatim>"] }]
     }
   ],
   "refused": [{ "job": "<id>", "what": "<what you did not draft>", "rule": "<R1 | R2 | R3 | R4 | R5 | R6>" }]
 }
 
-`letterhead` and `sections` are `null` when `sections` is not in JOBS TO REVIEW. `mustHaves` lists
+`letterhead` and `sections` are `null` when `sections` is not in JOBS TO REVIEW. `about` is `null` when `sections` is not in JOBS TO REVIEW, and so
+are `moves`; with `sections` listed, `about` is always written (no summary on the CV is no reason to
+skip it) and `moves` is `[]` when nothing moves. `mustHaves` lists
 every must-have of the job's family with the existing lines that show it (`shownBy`, empty when
 none does — then a drafted line covers it or `refused` says why not). A job placed in `none` has
 `family: null`, `mustHaves: []` and `drafted: []`. `flags` is `[]` for a plain must-have line.

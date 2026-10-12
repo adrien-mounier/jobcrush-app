@@ -11,7 +11,7 @@ import {
   retrievalClaimWindow,
   type SessionStore,
 } from "../src/sessions.js";
-import { InMemoryClaimStore, PgClaimStore, type ClaimStore } from "../src/claims.js";
+import { InMemoryClaimStore, PgClaimStore, type ClaimStore, type SeedClaim } from "../src/claims.js";
 import { InMemoryPostingStore, PgPostingStore, type PostingStore } from "../src/postingStore.js";
 import {
   InMemoryUnmappedLabelStore,
@@ -734,7 +734,7 @@ for (const [name, make] of sessionDrivers) {
   });
 }
 
-const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
+const claim = (over: Partial<SeedClaim>): SeedClaim => ({
   id: "acme-led",
   role: "PM - Acme",
   text: "Led X",
@@ -889,6 +889,34 @@ for (const [name, make] of claimDrivers) {
       expect((await store.list(sid))[0]!.text).toBe("Led the migration.");
     });
 
+    // #371 — a move (ADR-0018 clause 6): the review re-homes a line to the section a reader expects,
+    // and records where it came from. Text, decision, origin and tick are untouched; a later
+    // correction or re-seed never un-moves it; a line not moved reads no section and no origin.
+    it("move sets the section override and where the line came from, and nothing else; survives a re-seed and a correction; unknown line reported", async () => {
+      await store.seed(sid, [claim({ id: "sum-langs", text: "Fluent in French." }), claim({ id: "b" })]);
+      expect(await store.move(sid, "sum-langs", "lang", "your summary")).toBe(true);
+      expect(await store.move(sid, "nope", "lang", "your summary")).toBe(false);
+      expect(await store.move("other-session", "sum-langs", "lang", "your summary")).toBe(false);
+      const [moved, b] = await store.list(sid);
+      expect(moved).toMatchObject({ id: "sum-langs", text: "Fluent in French.", section: "lang", movedFrom: "your summary", decision: "pending", origin: "mined", lineState: "ticked" });
+      expect(b!.section ?? null).toBeNull();
+      expect(b!.movedFrom ?? null).toBeNull();
+      await store.seed(sid, [claim({ id: "sum-langs", text: "re-read" })]);
+      await store.add(sid, claim({ id: "sum-langs", text: "Fluent in French and English." }));
+      expect((await store.confirmed(sid))[0]).toMatchObject({ text: "Fluent in French and English.", section: "lang", movedFrom: "your summary" });
+    });
+
+    // #383: a copy (a tool taken from an achievement) is told apart from a move; a move reads not copied.
+    it("move records a copy apart from a move; a line never moved reads neither", async () => {
+      await store.seed(sid, [claim({ id: "skill-a-splunk", text: "Splunk" }), claim({ id: "skill-b-jira", text: "JIRA" }), claim({ id: "c" })]);
+      expect(await store.move(sid, "skill-a-splunk", "skill", "BRED", true)).toBe(true);
+      expect(await store.move(sid, "skill-b-jira", "skill", "BRED")).toBe(true);
+      const [copy, moved, c] = await store.list(sid);
+      expect(copy).toMatchObject({ text: "Splunk", section: "skill", movedFrom: "BRED", copied: true });
+      expect(moved).toMatchObject({ text: "JIRA", section: "skill", movedFrom: "BRED", copied: false });
+      expect(c!.copied ?? false).toBe(false);
+    });
+
     // #379 (ADR-0018 clause 2) — the person's own words on an item, in place: edit() keeps the first
     // original once (a second edit never overwrites it), records the words as theirs, and leaves the
     // tick alone — a removed item stays removed. Lines never edited read a null original on both
@@ -912,6 +940,25 @@ for (const [name, make] of claimDrivers) {
       expect(await store.edit(sid, "nope", "x")).toBe(false);
       expect(await store.edit("other-session", "a", "x")).toBe(false);
       expect((await store.list(sid))[0]!.text).toBe("Led the data migration.");
+    });
+
+    // #382 — a skill's group: seeded with the claim, read back as null when none, moved one claim
+    // at a time, renamed for every claim of the group at once. A correction upsert never loses it.
+    it("group_name round-trips through seed, survives an upsert, and the two doors move one claim or rename a whole group", async () => {
+      await store.seed(sid, [claim({ id: "skill-jira", groupName: "Tools" }), claim({ id: "skill-sql", groupName: "Tools" }), claim({ id: "skill-agile", groupName: "Delivery" }), claim({ id: "plain" })]);
+      const groups = async () => Object.fromEntries((await store.list(sid)).map((c) => [c.id, c.groupName]));
+      expect(await groups()).toEqual({ "skill-jira": "Tools", "skill-sql": "Tools", "skill-agile": "Delivery", plain: null });
+
+      await store.add(sid, claim({ id: "skill-jira", text: "Jira (Expert)" })); // a correction: the group stays
+      expect((await groups())["skill-jira"]).toBe("Tools");
+
+      expect(await store.setGroup(sid, "skill-sql", "Data")).toBe(true);
+      expect(await store.setGroup(sid, "nope", "Data")).toBe(false);
+      expect(await store.setGroup("other-session", "skill-sql", "Data")).toBe(false);
+      expect(await store.renameGroup(sid, "Tools", "Tools and platforms")).toBe(1);
+      expect(await store.renameGroup(sid, "Nope", "x")).toBe(0);
+      expect(await store.renameGroup("other-session", "Delivery", "x")).toBe(0);
+      expect(await groups()).toEqual({ "skill-jira": "Tools and platforms", "skill-sql": "Data", "skill-agile": "Delivery", plain: null });
     });
 
     // #342 — a drafted line: stored once, on the paper (pending) and off every print path until the

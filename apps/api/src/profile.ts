@@ -10,13 +10,17 @@
 // lists what the visitor lacks, while negatives still count in factCount.
 import { buildClaimGraph, kindTag } from "./graph.js";
 import { renderRootCv, SECTIONS } from "./rootcv.js";
-import { prints, type ClaimRecord } from "./claims.js";
-import { CONTACT_FIELDS, EMPTY_CONTACT_RECORD, type ContactField, type ContactRecord } from "./contact.js";
+import { prints, type ClaimRecord, type ClaimStore } from "./claims.js";
+import { CONTACT_FIELDS, EMPTY_CONTACT_RECORD, type ContactField, type ContactRecord, type ContactStore } from "./contact.js";
+import { fixOf, lineMarks, type ReviewFix } from "./cvReview.js";
+import type { CvReviewStore, ResolvedFix } from "./cvReviewStore.js";
+import { factCount } from "./discovery.js";
 import type { EligibilityStore } from "./eligibility.js";
-import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
+import { excludingEligibility, languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
-import type { SearchAreaEntry } from "./sessions.js";
+import { withFactFloor, type SearchAreaEntry, type SessionRecord, type SessionStore } from "./sessions.js";
+import { groupOf } from "./skillsSplit.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
 export interface ProfileFact {
@@ -35,6 +39,18 @@ export interface ProfileFact {
   /** #335: the person unticked this line — grey under "Kept for when a job needs it", never the
    *  not-yet-confirmed grey. Absent on every other fact. */
   kept?: true;
+  /** #384: the review's spelling fix on this line (ADR-0016 clause 2), worn exactly as GET /review
+   *  wears it — only while the text still reads the corrected or the original words. Absent on
+   *  every other fact. */
+  fix?: ReviewFix;
+  /** #382: the named group a skill sits in (ADR-0018 clause 6). Absent on every fact that is not
+   *  a skill. */
+  group?: string;
+  /** #371/#383: where the review moved this line from ("your summary", a job's employer), worn as
+   *  a tag as check mode wears it; `copied` when it is a tool copied from an achievement ("Taken
+   *  from") rather than moved. Both absent on a line that never moved. */
+  movedFrom?: string;
+  copied?: true;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -195,6 +211,32 @@ export async function resolveLanguagesQuestion(
     : composeProfileLanguagesQuestion(declared);
 }
 
+export interface ProfileDeps {
+  claims: ClaimStore;
+  sessions: SessionStore;
+  contact: ContactStore;
+  eligibility: EligibilityStore;
+  reviews: CvReviewStore;
+}
+
+/** GET /profile: the reads behind the payload (moved out of routes/onboarding.ts by #384, which
+ *  added the review run's fixes to them). A decline is a refusal, not a recorded fact (#106 D1). */
+export async function readProfile(deps: ProfileDeps, session: SessionRecord): Promise<ProfileState> {
+  const facts = (await deps.claims.list(session.id)).filter((c) => c.decision !== "rejected" && c.decision !== "negative");
+  const confirmed = facts.filter((c) => c.decision === "confirmed");
+  const negatives = await deps.claims.negatives(session.id);
+  const profileFactCount = await withFactFloor(deps.sessions, session, factCount(excludingEligibility(confirmed), excludingEligibility(negatives)));
+  return buildProfileState(
+    facts,
+    profileFactCount,
+    session.targetTitles[0] ?? null,
+    await deps.contact.getRecord(session.id),
+    await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas),
+    await resolveLanguagesQuestion(deps.eligibility, session.id),
+    lineMarks(await deps.reviews.get(session.id)).fixes,
+  );
+}
+
 /** Assembles GET /profile's payload: facts grouped by kind tag in SECTIONS order, coloured by the
  *  colour law above. `facts` excludes rejected/negative. */
 export function buildProfileState(
@@ -204,6 +246,7 @@ export function buildProfileState(
   contact: ContactRecord = EMPTY_CONTACT_RECORD,
   location: ProfileLocation = EMPTY_PROFILE_LOCATION,
   languages: ProfileLanguagesQuestion = UNANSWERED_LANGUAGES_QUESTION,
+  fixes: ReadonlyMap<string, ResolvedFix> = new Map(),
 ): ProfileState {
   const rootCv = renderRootCv(buildClaimGraph(facts.filter(prints)));
   const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
@@ -223,6 +266,10 @@ export function buildProfileState(
       source: c.origin === "mined" ? "read" : "told",
       job: tag === "experience" ? c.role : null,
       kept: c.lineState === "kept" || undefined,
+      fix: fixOf(c.text, fixes.get(c.id)) ?? undefined,
+      group: tag === "skill" ? groupOf(c) : undefined,
+      movedFrom: c.movedFrom ?? undefined,
+      copied: c.copied || undefined,
     });
     byTag.set(tag, bucket);
   }

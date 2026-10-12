@@ -12,6 +12,8 @@ import type { CvKind } from "./uploads.js";
 import { CandidateClaim } from "@jobcrush/contracts";
 import type { CandidateClaim as CandidateClaimType, MinedJobBlocks } from "@jobcrush/contracts";
 import type { ImportProof } from "./sessions.js";
+import type { SeedClaim } from "./claims.js";
+import { splitSkillClaims } from "./skillsSplit.js";
 
 export type PipelineInput =
   | { type: "upload"; data: Buffer; kind: CvKind; key: string }
@@ -54,7 +56,7 @@ export interface PipelineDeps {
   persistImport?: (
     sessionId: string,
     proof: ImportProof,
-    claims: CandidateClaimType[],
+    claims: SeedClaim[],
   ) => Promise<ImportProof>;
   /** #190: persist phone/email parsed from the raw CV's contact block, once, right after extract —
    *  no LLM call. A "read" write here never overwrites a person-said correction; the contact store
@@ -270,16 +272,20 @@ export async function runOnboardingJob(
       if (!miner) {
         await appendFeed(store, jobId, "Mining your experience into individual claims…");
         const mined = await deps.mine(rawCv);
-        miner = mined;
-        const importedClaims = mined.claims.flatMap((claim) => {
+        const validClaims = mined.claims.flatMap((claim) => {
           const parsed = CandidateClaim.safeParse(claim);
           return parsed.success ? [parsed.data] : [];
         });
-        if (importedClaims.length === 0) throw new Error("miner returned no valid claims");
+        if (validClaims.length === 0) throw new Error("miner returned no valid claims");
         const parserFlags = [
           ...(mined.doc?.parser_flags ?? []),
-          ...(importedClaims.length < mined.claims.length ? ["invalid-miner-claim"] : []),
+          ...(validClaims.length < mined.claims.length ? ["invalid-miner-claim"] : []),
         ];
+        // #382: skills one per item, in named groups — split here, after the mine and before
+        // anything stores a claim. The checkpoint keeps the split claims too: the deck re-seeds
+        // from it (/onboarding/deck), and an unsplit line seeded there would print beside its items.
+        const importedClaims = splitSkillClaims(validClaims);
+        miner = { ...mined, claims: importedClaims };
         let importProof = buildImportProof(importedClaims, parserFlags);
         if (deps.persistImport && job?.sessionId) {
           importProof = await deps.persistImport(
@@ -288,7 +294,7 @@ export async function runOnboardingJob(
             importedClaims,
           );
         }
-        await store.update(jobId, { progress: { miner: mined, importProof } });
+        await store.update(jobId, { progress: { miner, importProof } });
         await appendFeed(
           store,
           jobId,
