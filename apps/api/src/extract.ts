@@ -4,6 +4,7 @@
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import type { CvKind } from "./uploads.js";
+import { marketForLocationText } from "./postingRetrieval.js";
 
 export type BlockKind = "role" | "education" | "skills" | "contact" | "other";
 
@@ -167,6 +168,36 @@ export interface ContactExtraction {
    *  here so the draft door can hand the engine a name and city after the raw CV is gone. Empty
    *  string is an honest absence, never invented. */
   header: string;
+  /** #381: the letterhead split into the fields Your details shows — read from `header`, each an
+   *  honest null when the letterhead has no such line. */
+  name: ContactFieldRead | null;
+  title: ContactFieldRead | null;
+  location: ContactFieldRead | null;
+}
+
+const PART_SEP = /\s*[|·•]\s*/;
+/** "City, Country" — two comma-separated words-only parts. */
+const CITY_COUNTRY_RE = /^[^\d@,]{2,40},\s*[^\d@,]{2,30}$/;
+const isLocation = (part: string) => CITY_COUNTRY_RE.test(part) || marketForLocationText(part) !== null;
+const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
+
+/** #381: name = the first line unless it carries contact details; location = the first part that
+ *  reads as a place ("City, Country" or a known market); title = the first other part. Parts are
+ *  the letterhead's lines split on `|`, `·`, `•`, with email/phone/links taken out.
+ *  ponytail: a title spelled "Director, Operations" reads as a location — widen isLocation with a
+ *  place vocabulary if that shows up. */
+export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
+  const read = (value: string): ContactFieldRead => ({ value, sourceText: value });
+  const lines = header.split("\n").map((l) => l.trim()).filter(Boolean);
+  const first = lines[0];
+  const name = first && !EMAIL_RE.test(first) && !PHONE_RE.test(first) ? read(first) : null;
+  const parts = (name ? lines.slice(1) : lines)
+    .flatMap((l) => l.split(PART_SEP))
+    .map((p) => p.replace(EMAIL_RE, "").replace(PHONE_RE, "").trim())
+    .filter((p) => p && !isLink(p));
+  const location = parts.find(isLocation);
+  const title = parts.find((p) => p !== location);
+  return { name, title: title ? read(title) : null, location: location ? read(location) : null };
 }
 
 /** #190: deterministic phone/email parse over the already-tagged contact block(s) — reuses the same
@@ -179,19 +210,21 @@ export function extractContact(blocks: RawCvBlock[]): ContactExtraction {
     .join("\n");
   const email = text.match(EMAIL_RE);
   const phone = text.match(PHONE_RE);
+  const header = capAtWord(
+    blocks
+      // #360: the letterhead is the preamble (what sits above the first heading) plus an explicit
+      // "Contact" section — never a headed "other" block such as the summary.
+      .filter((b) => b.kind === "contact" || (b.kind === "other" && b.confidence < 0.9))
+      .slice(0, 2)
+      .map((b) => b.text)
+      .join("\n"),
+    600,
+  );
   return {
     email: email ? { value: email[0], sourceText: email[0] } : null,
     phone: phone ? { value: phone[0].trim(), sourceText: phone[0].trim() } : null,
-    header: capAtWord(
-      blocks
-        // #360: the letterhead is the preamble (what sits above the first heading) plus an explicit
-        // "Contact" section — never a headed "other" block such as the summary.
-        .filter((b) => b.kind === "contact" || (b.kind === "other" && b.confidence < 0.9))
-        .slice(0, 2)
-        .map((b) => b.text)
-        .join("\n"),
-      600,
-    ),
+    header,
+    ...splitLetterhead(header),
   };
 }
 

@@ -65,7 +65,14 @@ const ReviewSection = z.union([
 const LetterheadField = z.object({ value: z.string(), origin: z.enum(["read", "person-said"]) });
 const ReviewStateSchema = z.object({
   completed: z.boolean(),
-  letterhead: z.object({ header: z.string().nullable(), phone: LetterheadField.nullable(), email: LetterheadField.nullable() }),
+  // #381: Your details' five fields.
+  letterhead: z.object({
+    name: LetterheadField.nullable(),
+    title: LetterheadField.nullable(),
+    email: LetterheadField.nullable(),
+    phone: LetterheadField.nullable(),
+    location: LetterheadField.nullable(),
+  }),
   conflict: z.object({ fieldId: z.string(), question: z.string(), values: z.array(z.string()) }).nullable(),
   // #341: the run while it is going; null once finished — or failed, which the person is never told.
   progress: z.object({ done: z.number().int(), total: z.number().int(), minutesLeft: z.number().int() }).nullable(),

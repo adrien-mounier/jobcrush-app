@@ -261,21 +261,47 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     const cookie = await anonSession(server.app);
     await reachTailor(server, cookie, "draft-header@example.com");
     // What the pipeline's extract step persists at mine time (server.ts's persistContact default,
-    // extract.ts's extractContact.header) — written directly here because reachTailor's walk has
+    // extract.ts's extractContact fields) — written directly here because reachTailor's walk has
     // no CV upload in it.
     const sessionId = (await get(server.app, cookie, "/sessions/me")).json().id as string;
-    await server.contact.put(sessionId, "header", {
-      value: "Jane Dubois\nParis, France\njane@example.com",
-      origin: "read",
-      sourceText: "Jane Dubois\nParis, France\njane@example.com",
-    });
+    const read = (value: string) => ({ value, origin: "read" as const, sourceText: value });
+    await server.contact.put(sessionId, "name", read("Jane Dubois"));
+    await server.contact.put(sessionId, "location", read("Paris, France"));
+    await server.contact.put(sessionId, "email", read("jane@example.com"));
 
     const started = await post(server.app, cookie, "/onboarding/tailor/draft");
     await awaitJob(server.app, cookie, started.json().jobId);
     // The engine's rule 3 prints name/city from CANDIDATE-HEADER — so the stored letterhead, not
     // "(none captured)", must be what it is handed.
-    expect(prompts[0]).toContain("===CANDIDATE-HEADER===\nJane Dubois\nParis, France");
+    expect(prompts[0]).toContain("===CANDIDATE-HEADER===\nJane Dubois\nParis, France · jane@example.com\n");
     expect(prompts[0]).not.toContain("(none captured)");
+  });
+
+  // #381: the draft prints the SAVED fields — a name and title the person corrected in Your details
+  // (the batched door check mode's footer button sends) are what the engine is handed, never the CV's.
+  it("#381: the candidate header carries the name and title saved in Your details", async () => {
+    const { prompts, llm } = draftingLlm();
+    const server = buildServer({ tailorLlm: llm });
+    const cookie = await anonSession(server.app);
+    await reachTailor(server, cookie, "draft-fields@example.com");
+    const sessionId = (await get(server.app, cookie, "/sessions/me")).json().id as string;
+    const read = (value: string) => ({ value, origin: "read" as const, sourceText: value });
+    await server.contact.put(sessionId, "name", read("Jane Dubois"));
+    await server.contact.put(sessionId, "title", read("PROJECT LEAD"));
+
+    const saved = await server.app.inject({
+      method: "PUT",
+      url: "/contact",
+      headers: { cookie },
+      payload: { fields: { name: "Jane Dubois-Martin", title: "Head of Delivery", location: "Lyon, France" } },
+    });
+    expect(saved.statusCode).toBe(200);
+
+    const started = await post(server.app, cookie, "/onboarding/tailor/draft");
+    await awaitJob(server.app, cookie, started.json().jobId);
+    const header = prompts[0]!.split("===CANDIDATE-HEADER===\n")[1]!.split("\n\n")[0];
+    expect(header).toBe("Jane Dubois-Martin\nHead of Delivery\nLyon, France");
+    expect(prompts[0]).not.toContain("PROJECT LEAD");
   });
 
   it("GET never serves a draft the facts have outgrown — a stale checkpoint reads as no draft", async () => {

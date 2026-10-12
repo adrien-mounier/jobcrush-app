@@ -11,7 +11,7 @@
 import { buildClaimGraph, kindTag } from "./graph.js";
 import { renderRootCv, SECTIONS } from "./rootcv.js";
 import { prints, type ClaimRecord } from "./claims.js";
-import type { ContactRecord } from "./contact.js";
+import { CONTACT_FIELDS, EMPTY_CONTACT_RECORD, type ContactField, type ContactRecord } from "./contact.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { declaredLanguages } from "./languageLevel.js";
@@ -71,10 +71,8 @@ export interface ProfileContactField {
   value: string;
   origin: "read" | "person-said";
 }
-export interface ProfileContact {
-  phone: ProfileContactField | null;
-  email: ProfileContactField | null;
-}
+/** #381: the letterhead's five fields — name, title, email, phone, location. */
+export type ProfileContact = Record<ContactField, ProfileContactField | null>;
 /** #185: the rail's work-rights line — present only once a search area has resolved to a covered
  *  market (never a placeholder market). `answer` is null when THIS market has no stored answer yet
  *  — an honest "unanswered", never another market's answer (see resolveProfileLocation below).
@@ -121,10 +119,10 @@ export function profileSearch(role: string | null): ProfileSearch {
   return { role, family: null, siblingTitles: [], openJobs: null };
 }
 
-const toProfileContactField = (v: ContactRecord["phone"]): ProfileContactField | null =>
-  v ? { value: v.value, origin: v.origin } : null;
+const toProfileContact = (record: ContactRecord): ProfileContact =>
+  Object.fromEntries(CONTACT_FIELDS.map((f) => [f, record[f] ? { value: record[f].value, origin: record[f].origin } : null])) as ProfileContact;
 
-export const EMPTY_PROFILE_CONTACT: ProfileContact = { phone: null, email: null };
+export const EMPTY_PROFILE_CONTACT: ProfileContact = toProfileContact(EMPTY_CONTACT_RECORD);
 export const EMPTY_PROFILE_LOCATION: ProfileLocation = { areas: [], workRights: [] };
 
 /** #214: the rail's Location data, resolved fresh from the session's target locations + the
@@ -203,7 +201,7 @@ export function buildProfileState(
   facts: ClaimRecord[],
   factCount: number,
   role: string | null,
-  contact: ContactRecord = { phone: null, email: null },
+  contact: ContactRecord = EMPTY_CONTACT_RECORD,
   location: ProfileLocation = EMPTY_PROFILE_LOCATION,
   languages: ProfileLanguagesQuestion = UNANSWERED_LANGUAGES_QUESTION,
 ): ProfileState {
@@ -257,7 +255,7 @@ export function buildProfileState(
     domains,
     factCount,
     search: profileSearch(role),
-    contact: { phone: toProfileContactField(contact.phone), email: toProfileContactField(contact.email) },
+    contact: toProfileContact(contact),
     location,
     languagesQuestion: languages,
   };

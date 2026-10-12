@@ -129,17 +129,33 @@
   margin: 10px 0 0;
 }
 
-/* the person's details, as read (#381 replaces this card with fields) */
-.check .clean {
-  font: 14px/1.5 var(--serif);
-  padding: 2px 6px;
-  white-space: pre-line;
+/* #381 Your details: the person's own facts as fields in a plain card (prototype .card.form, .fields) */
+.check .card.form {
+  padding: 14px 8px;
 }
-.check .clean .name {
-  font: 600 19px var(--serif);
+.check .fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  padding: 0 8px;
 }
-.check .clean span {
+.check .fields label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
   color: var(--muted-r);
+}
+.check .fields input {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font: 16px var(--sans);
+  color: var(--ink);
+  min-width: 0;
+}
+.check .fields input::placeholder {
+  color: var(--muted);
 }
 
 /* an item: plain text, two quiet actions that show on hover, focus or a tap */

@@ -10,10 +10,20 @@
 // prototype had no lines for it). A section with no items is skipped — so Personal projects and
 // Languages appear the day #373 and #376 give them lines, with no change here.
 import type { ReactNode } from "react";
-import type { ReviewJob, ReviewLine, ReviewState } from "../../../lib/api";
+import type { ContactField, ReviewJob, ReviewLine, ReviewState } from "../../../lib/api";
 import { ItemList, type ItemListProps } from "./Item";
 
 const C_DETAILS = "Your details";
+const C_NOT_FOUND = "Not found in your CV";
+/** #381: Your details' fields in the prototype's order, each with its label and the browser's
+ *  autofill hint and keyboard. */
+const DETAIL_FIELDS: Array<{ field: ContactField; label: string; type: string; autoComplete: string }> = [
+  { field: "name", label: "Name", type: "text", autoComplete: "name" },
+  { field: "title", label: "Title", type: "text", autoComplete: "organization-title" },
+  { field: "email", label: "Email", type: "email", autoComplete: "email" },
+  { field: "phone", label: "Phone", type: "tel", autoComplete: "tel" },
+  { field: "location", label: "Location", type: "text", autoComplete: "address-level2" },
+];
 /** A section's screen title — the profile's words, not the master CV's headings. A tag not listed
  *  here keeps the heading the server sent. */
 const TITLES: Record<string, string> = {
@@ -38,8 +48,7 @@ const datesOf = (job: ReviewJob) => (job.dates ? [job.dates.start, job.dates.end
 
 export function screensOf(state: ReviewState): Screen[] {
   const out: Screen[] = [];
-  const { header, phone, email } = state.letterhead;
-  if (header || phone || email) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
+  if (Object.values(state.letterhead).some(Boolean)) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
   for (const section of state.sections) {
     if ("jobs" in section) {
       for (const job of section.jobs) {
@@ -74,17 +83,33 @@ export function leadFor(screen: Screen): string {
 
 /** One screen's body. Add a screen kind here: #371 the About you card, #381 the details fields,
  *  #376 the Where you can work card above Additional information, #382 the skills groups. */
-export function ScreenBody({ screen, list }: { screen: Screen; list: Omit<ItemListProps, "lines"> }): ReactNode {
+export interface DetailsProps {
+  /** What each field shows: the person's typing, else the saved value, else "". */
+  values: Record<ContactField, string>;
+  onChange: (field: ContactField, value: string) => void;
+}
+
+export function ScreenBody({ screen, list, details }: { screen: Screen; list: Omit<ItemListProps, "lines">; details: DetailsProps }): ReactNode {
   if (screen.kind === "details") {
-    const { header, phone, email } = screen.letterhead;
-    const [name, ...rest] = (header ?? "").split("\n");
-    const contact = [email?.value, phone?.value].filter(Boolean).join(" · ");
+    // #381 (ADR-0018 clause 5): the person's own facts — a plain card of fields, no button of its
+    // own; the footer button saves.
     return (
-      <div className="card">
-        <div className="clean">
-          {name && <div className="name">{name}</div>}
-          {rest.length > 0 && <div>{rest.join("\n")}</div>}
-          {contact && <span>{contact}</span>}
+      <div className="card form">
+        <div className="fields">
+          {DETAIL_FIELDS.map(({ field, label, type, autoComplete }) => (
+            <label key={field}>
+              {label}
+              <input
+                name={field}
+                type={type}
+                autoComplete={autoComplete}
+                value={details.values[field]}
+                placeholder={C_NOT_FOUND}
+                disabled={list.busy}
+                onChange={(e) => details.onChange(field, e.target.value)}
+              />
+            </label>
+          ))}
         </div>
       </div>
     );

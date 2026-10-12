@@ -290,6 +290,49 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect(longLine.split(" ")).toContain(header.split(/\s/).at(-1));
     });
   });
+
+  // #381: the letterhead arrives as fields — name, title, location — so check mode's Your details
+  // can show each in its own box. An owner-shaped letterhead (name, then a contact line with the
+  // city, then the title, then the summary heading): the title is the title, never the summary.
+  describe("#381 the letterhead splits into name, title and location", () => {
+    const OWNER_SHAPED = [
+      "Priya Raman",
+      "priya.raman@example.com | +44 7700 900123 | Manchester, UK",
+      "SENIOR PROJECT MANAGER",
+      "PROFESSIONAL SUMMARY",
+      "Delivery lead with twelve years across retail and logistics platforms.",
+      "",
+      "PROFESSIONAL EXPERIENCE",
+      "Project Manager — Northwind Retail (2019 – present)",
+      "- Led the till replacement across 140 stores.",
+    ].join("\n");
+
+    it("yields the five fields, the title being the title and not the summary", () => {
+      const contact = extractContact(segment(OWNER_SHAPED));
+      expect(contact.name).toEqual({ value: "Priya Raman", sourceText: "Priya Raman" });
+      expect(contact.title).toEqual({ value: "SENIOR PROJECT MANAGER", sourceText: "SENIOR PROJECT MANAGER" });
+      expect(contact.location).toEqual({ value: "Manchester, UK", sourceText: "Manchester, UK" });
+      expect(contact.email?.value).toBe("priya.raman@example.com");
+      expect(contact.phone?.value).toBe("+44 7700 900123");
+      expect(contact.title?.value).not.toContain("Delivery lead");
+    });
+
+    it("a location on its own line, and a known market without a comma, both read as the location", () => {
+      expect(extractContact(segment("Jane Doe\nParis, France\njane@example.com\n\nExperience\nPM at X")).location?.value).toBe("Paris, France");
+      expect(extractContact(segment("Jane Doe\njane@example.com · Singapore\n\nExperience\nPM at X")).location?.value).toBe("Singapore");
+    });
+
+    it("a CV with no location or title yields honest nulls, never a guess", () => {
+      const contact = extractContact(segment("Jane Doe\njane@example.com | +33 6 00 00 00 00\n\nExperience\nPM at X"));
+      expect(contact.name?.value).toBe("Jane Doe");
+      expect(contact.title).toBeNull();
+      expect(contact.location).toBeNull();
+      const none = extractContact([{ kind: "role", text: "PM at X", confidence: 0.9 }]);
+      expect(none.name).toBeNull();
+      expect(none.title).toBeNull();
+      expect(none.location).toBeNull();
+    });
+  });
 });
 
 describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {

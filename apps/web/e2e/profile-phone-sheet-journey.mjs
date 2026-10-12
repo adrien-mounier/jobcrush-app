@@ -216,7 +216,8 @@ await assert(contactOnPrincipalScreen, 'Contact is on the principal screen, neve
 await page.locator('.rcontact').scrollIntoViewIfNeeded();
 await shot('phone-contact-rail-panel.png');
 
-await qa.click('.rcontact .cxfield .rdoor', 'open the phone-number door from the rail');
+// #381: the panel holds five fields (name first), so the phone's door is the one in the row showing the number.
+await qa.click(page.locator('.rcontact .cxfield').filter({ hasText: '+852 1234 5678' }).locator('.rdoor'), 'open the phone-number door from the rail');
 await qa.expectVisible('#contact-phone-again', 'the contact question opens in place, on the rail');
 const pre = await page.locator('#contact-phone-again').inputValue();
 await assert(pre === '+852 1234 5678', 'the question is pre-filled with the number on the CV — the #190 flow, unchanged');
