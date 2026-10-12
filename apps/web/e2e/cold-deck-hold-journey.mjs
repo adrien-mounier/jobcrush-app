@@ -99,7 +99,6 @@ const before = await counters();
 // ---- 2. The walk a brand-new visitor takes: CV in, intent, discovery ----------------------------
 await page.context().clearCookies();
 await qa.frontDoorPaste(CV_TEXT, 'the front door — a brand-new visitor pastes her CV');
-await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.frontDoorContinueToIntent();
 if (await page.locator('#target-role').count()) {
   await qa.fill('#target-role', ROLE, `the job she is going for: "${ROLE}"`);
@@ -107,6 +106,9 @@ if (await page.locator('#target-role').count()) {
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
   await page.waitForTimeout(1200);
 }
+// #338: a brought CV is checked before any job is shown (ADR-0016 clause 6) — after the area, as a
+// person walks it: ADR-0018 clause 7 holds the jobs until that market's work rights are answered.
+await qa.completeReview();
 await qa.goto('/discovery', 'into discovery');
 if (await page.locator('#q1-role').count()) {
   await qa.fill('#q1-role', ROLE, 'question 1: the role she is going for');

@@ -103,7 +103,6 @@ const json = async (path) => (await api('GET', path)).json();
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'the front door — pastes the dated work history every years number below is worked out from');
-await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 
 // State the target role. This is the ONLY thing that resolves the advert's family on the shipped
 // journey (makeFamilyPlacer reads session.intent.targetRole), so it is load-bearing, not setup.
@@ -112,6 +111,9 @@ await qa.fill('#target-role', ROLE, `the role this visitor is going for: "${ROLE
 await qa.fill('#search-area', AREA, 'where they want to work');
 await qa.click('button:has-text("Save and continue")', 'save what I want next — this is what places the session into a family');
 await page.waitForTimeout(1200);
+// #338: a brought CV is checked before any job is shown (ADR-0016 clause 6) — after the area, as a
+// person walks it: ADR-0018 clause 7 holds the jobs until that market's work rights are answered.
+await qa.completeReview();
 const intentAfter = await (await api('GET', '/sessions/me/intent')).json();
 await qa.note(`the front door recorded targetRole = ${JSON.stringify(intentAfter?.intent?.targetRole)}`);
 await assertTrue(

@@ -264,6 +264,15 @@ await assertTrue(
 const factsBefore = (await json('/onboarding/discovery'))?.factCount;
 const changed = await asVisitor('PUT', '/sessions/me/intent', { searchAreas: ['Singapore'] });
 await assertTrue(changed.status === 200, `she moves her search to Singapore (${changed.status})`);
+// ADR-0018 clause 7: a new market holds the jobs until she says whether she can work there — the
+// card check mode brings back for that market alone. Her tap on it, then the deck re-runs.
+const heldForWorkRights = await cardsState();
+await assertTrue(
+  heldForWorkRights.reviewPending === true && (heldForWorkRights.cards ?? []).length === 0,
+  `a new market with no work-rights answer holds the deck (reviewPending ${heldForWorkRights.reviewPending})`,
+);
+const answered = await asVisitor('PUT', '/review/work-rights/eligibility-work-rights-singapore', { answer: 'eligible' });
+await assertTrue(answered.status === 200, `she answers she can work in Singapore (${answered.status})`);
 const afterChange = await cardsState();
 const factsAfter = (await json('/onboarding/discovery'))?.factCount;
 await qa.goto('/deck', 'the deck after she changed where she is looking');

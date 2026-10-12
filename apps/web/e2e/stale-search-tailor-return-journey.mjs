@@ -110,12 +110,14 @@ await asVisitor('POST', '/qa/stack', { retrievalOutcome: 'relevant_postings' });
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'she pastes her CV — the work history the deck will judge her against');
-await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
 await qa.fill('#search-area', AREA, `where she is looking to start with: ${AREA}`);
 await qa.click('button:has-text("Save and continue")', 'Save and continue');
 await page.waitForTimeout(1200);
+// #338: a brought CV is checked before any job is shown (ADR-0016 clause 6) — after the area, as a
+// person walks it: ADR-0018 clause 7 holds the jobs until that market's work rights are answered.
+await qa.completeReview();
 
 await qa.goto('/discovery', 'into discovery — the sign-up questions');
 // #322: the front door already took the role, so discovery opens on the checklist — no question 1.
@@ -158,6 +160,10 @@ await assertTrue(
 // =============================================================================================
 const changed = await asVisitor('PUT', '/sessions/me/intent', { searchAreas: [MOVED_TO] });
 await assertTrue(changed.status === 200, `she moves her search to ${MOVED_TO} (${changed.status})`);
+// ADR-0018 clause 7: the new market holds the jobs until she says whether she can work there (the
+// work-rights row her profile shows for it). She answers, so what follows is the stale search alone.
+const workRights = await asVisitor('PUT', `/review/work-rights/eligibility-work-rights-${MOVED_TO.toLowerCase()}`, { answer: 'eligible' });
+await assertTrue(workRights.status === 200, `she answers she can work in ${MOVED_TO} (${workRights.status})`);
 
 // 3a. THE SERVER HALF — unchanged and non-negotiable. A different search stales her snapshot, and a
 //     posting she cannot currently be proved to have retrieved is not served to her. Fail-closed

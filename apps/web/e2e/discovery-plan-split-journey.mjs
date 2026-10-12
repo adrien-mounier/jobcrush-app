@@ -102,12 +102,14 @@ const json = async (path) => (await callAsVisitor('GET', path)).json;
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'the front door — she pastes a CV with two dated jobs and one degree');
-await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', ROLE, `the role this visitor is going for: "${ROLE}"`);
 await qa.fill('#search-area', AREA, 'where she wants to work');
 await qa.click('button:has-text("Save and continue")', 'save what I want next — this is what places the session into a family');
 await page.waitForTimeout(1200);
+// #338: a brought CV is checked before any job is shown (ADR-0016 clause 6) — after the area, as a
+// person walks it: ADR-0018 clause 7 holds the jobs until that market's work rights are answered.
+await qa.completeReview();
 const intent = await json('/sessions/me/intent');
 await assertTrue(
   intent?.intent?.targetRole === ROLE,
