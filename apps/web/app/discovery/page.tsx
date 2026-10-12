@@ -11,8 +11,8 @@
 // eligibility asks, their corrections, the languages multi-select) that nothing could reach.
 //
 // The role line Q1 writes is the exact DiscoveryCvLine.text the API returned — never computed here.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import "../discovery.css";
 import { FactBadge, type FactChipFlight } from "../factbadge";
 import {
@@ -58,6 +58,10 @@ const C20_CHECK = "Next, check how I read your CV. Your jobs open when you finis
 // #376: the hand-off waits for the person, so this screen is where they read the confirmation and
 // the count before moving on.
 const C_CONTINUE = "Continue";
+// #228 (spec #241 decision 13): the deck sends her back here when it runs out while question 1 is
+// still open (deck.ts hasOpenDiscoveryQuestions) — answering changes how her jobs SCORE and sort,
+// never how many there are, and this says what that is worth.
+const C22 = "I scored the three closest — tell me more and I'll score them better";
 
 // C8/C9's tail — the count renders beside it in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against), so the two pieces read as
@@ -147,6 +151,7 @@ type TypingInfo = {
 };
 
 function DiscoveryScreen() {
+  const loopbackFromDeck = useSearchParams().get("loop") === "deck-exhausted";
   const router = useRouter();
 
   const [discovery, setDiscovery] = useState<DiscoveryState | null>(null);
@@ -527,6 +532,7 @@ function DiscoveryScreen() {
               </div>
 
               <div className="ask">
+                {loopbackFromDeck && discovery.role === null && <p className="notice">{C22}</p>}
                 {renderAsk(discovery)}
               </div>
             </div>
@@ -537,6 +543,19 @@ function DiscoveryScreen() {
   );
 }
 
+// AC6 (#18): reading `?loop` needs useSearchParams, which requires a Suspense boundary above it or
+// Next.js bails the whole route to client-only rendering with a build warning. The fallback mirrors
+// DiscoveryScreen's own loading state so there's no visible flash between the two.
 export default function DiscoveryPage() {
-  return <DiscoveryScreen />;
+  return (
+    <Suspense
+      fallback={
+        <div className="discovery">
+          <div className="loadstate">Loading your questions…</div>
+        </div>
+      }
+    >
+      <DiscoveryScreen />
+    </Suspense>
+  );
 }

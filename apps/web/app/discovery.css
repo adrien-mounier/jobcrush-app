@@ -291,6 +291,13 @@
   line-height: 1.45;
   color: var(--hud-mute);
 }
+/* #228: the deck's loopback line, above question 1 */
+.discovery .ask .notice {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--hud-mute);
+}
+
 .discovery .field {
   display: flex;
   gap: 8px;

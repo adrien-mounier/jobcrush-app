@@ -144,26 +144,15 @@ async function stubStageReset(page: Page) {
 
 async function stubLoopbackDiscovery(page: Page, overrides: Partial<DiscoveryState> = {}) {
   const state: DiscoveryState = {
+    // #386: the only question left after #376 is question 1 — the deck loops back only while it is
+    // still open (deck.ts hasOpenDiscoveryQuestions), so that is the state discovery serves.
     stage: "discovery",
-    role: "IT Project Manager",
-    family: "project manager",
-    city: "Paris",
-    promise: { count: 142 },
-    questions: [
-      {
-        itemId: "eligibility-work-rights-france",
-        question: "Can you already work in France without visa sponsorship?",
-        options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
-        cvSection: "experience",
-        eligibility: {
-          dimension: "work-rights",
-          familyId: "france",
-          scopeLabel: null,
-          declineOption: "Ask me later",
-        },
-      },
-    ],
-    cvLines: [{ itemId: "role", section: "summary", text: "IT Project Manager" }],
+    role: null,
+    family: null,
+    city: null,
+    promise: null,
+    questions: [],
+    cvLines: [],
     factCount: 2,
     ...overrides,
   };
@@ -281,22 +270,7 @@ test("screen 2b: exhausting the deck loops back to discovery with the widen-net 
   await page.waitForURL("/discovery?loop=deck-exhausted");
   expect(postedStage()).toBe("discovery");
   await expect(page.getByText("I scored the three closest — tell me more and I'll score them better")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Yes — no sponsorship needed" })).toBeFocused();
-});
-
-test("screen 2b: deck-exhausted discovery stage still shows an answering retry, not the old handoff", async ({
-  page,
-}) => {
-  await stubSession(page);
-  await stubLoopbackDiscovery(page, { stage: "deck", questions: [] });
-
-  await page.goto("/discovery?loop=deck-exhausted");
-
-  await expect(page.getByText("I scored the three closest — tell me more and I'll score them better")).toBeVisible();
-  await expect(page.getByText("That's all I need to ask.")).toHaveCount(0);
-  const retry = page.getByRole("button", { name: "Answer more questions" });
-  await expect(retry).toBeVisible();
-  await expect(retry).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "What kind of job are you going for?" })).toBeFocused();
 });
 
 test("screen 2b: an unknown want response shows fixed copy, never the raw envelope", async ({ page }) => {
