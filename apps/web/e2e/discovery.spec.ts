@@ -1,53 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { DiscoveryQuestion, DiscoveryState } from "../lib/api";
+import type { DiscoveryState } from "../lib/api";
 
-// #16 discovery (screen 1a) end to end: front door -> discovery, Q1 -> the promise -> the
-// eligibility questions -> the handoff. Every /api/onboarding/discovery* call is stubbed at the
-// route layer to the pinned DiscoveryState shape — deterministic and self-contained. Session
-// bootstrap (/api/sessions/*) and the front door itself hit the real API.
+// #16 discovery (screen 1a) end to end: front door -> discovery, Q1 -> the promise -> the hand-off.
+// Every /api/onboarding/discovery* call is stubbed at the route layer to the pinned DiscoveryState
+// shape — deterministic and self-contained. Session bootstrap (/api/sessions/*) and the front door
+// itself hit the real API.
 //
-// #339: discovery asks question 1, then work rights once per chosen market and languages once —
-// no floor question, no countdown, no section rail. "Ask me later" stores nothing, so the stub below
-// answers a decline exactly as the server does: with the same questions still open.
-//
-// #376 (ADR-0018 clause 8): the server asks nothing after question 1 any more — work rights and
-// languages are answered in the profile's check mode. The first test after the handoff block below
-// drives that real shape. The eligibility-question tests further down still pin how this screen
-// renders a question the server sends; the server sends none today.
-
-// #106: eligibility questions — copy is verbatim from the #106 design spec's copy table (the
-// contract the backend implements against too), so these fixtures double as a check that the client
-// renders the wire strings as-is rather than composing its own `.q`/options.
-const workRights = (itemId: string, place: string): DiscoveryQuestion => ({
-  itemId,
-  question: `Can you already work in ${place} without visa sponsorship?`,
-  options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
-  cvSection: "experience",
-  eligibility: { dimension: "work-rights", familyId: itemId, scopeLabel: null, declineOption: "Ask me later" },
-});
-const Q_WR_PARIS = workRights("eligibility-work-rights-france", "France");
-const Q_WR_HK = workRights("eligibility-work-rights-hong-kong", "Hong Kong");
-
-// #336: the languages question pre-ticks the CV's languages at Native, Fluent or Professional; any
-// other level shows unticked with the CV's own word; a language with no level shows unticked and
-// bare.
-const Q_ELIG_LANGUAGES: DiscoveryQuestion = {
-  itemId: "eligibility-languages",
-  question: "Which languages do you speak? Start typing — I'll suggest as you go.",
-  consequence: "Nothing you leave out counts against you.",
-  options: ["English", "Mandarin", "Cantonese", "Vietnamese", "Ask me later"],
-  multiSelect: true,
-  typeAhead: true,
-  cvSection: "skills",
-  eligibility: { dimension: "language", familyId: "", scopeLabel: null, declineOption: "Ask me later" },
-  cvLanguages: [
-    { language: "Polish", level: "Native", preTicked: true },
-    { language: "English", level: "Fluent", preTicked: true },
-    { language: "German", level: "Professional working proficiency", preTicked: true },
-    { language: "French", level: "Conversational", preTicked: false },
-    { language: "Italian", level: null, preTicked: false },
-  ],
-};
+// #339: no floor question, no countdown, no section rail. #376 (ADR-0018 clause 8): the server asks
+// nothing after question 1 — work rights and languages are answered in the profile's check mode —
+// and #386 removed this screen's question UI with the tests that pinned it (the eligibility asks,
+// "Ask me later", their corrections, the languages multi-select): the server answers question 1
+// with the hand-off itself, which is the shape every test below drives.
 
 const BEFORE_START: DiscoveryState = {
   stage: "discovery",
@@ -60,28 +23,20 @@ const BEFORE_START: DiscoveryState = {
   factCount: 0,
 };
 
+// The server's real answer to question 1: the hand-off, no question.
 const AFTER_START: DiscoveryState = {
-  stage: "discovery",
+  stage: "deck",
   role: "IT Project Manager",
   family: "project manager",
   city: null,
   promise: { count: 142 },
-  questions: [Q_WR_PARIS, Q_WR_HK],
+  questions: [],
   cvLines: [{ itemId: "role", section: "summary", text: "IT Project Manager" }],
   factCount: 1,
 };
-const WITH_LANGUAGES: DiscoveryState = { ...AFTER_START, questions: [Q_ELIG_LANGUAGES] };
 
-// The server's own rule, stubbed: a real answer closes its question, "Ask me later" closes nothing,
-// and the stage turns "deck" once no question is open.
-function answered(state: DiscoveryState, itemId: string, answer: string | undefined): DiscoveryState {
-  if (answer === "Ask me later") return state;
-  const questions = state.questions.filter((q) => q.itemId !== itemId);
-  return { ...state, questions, stage: questions.length === 0 ? "deck" : "discovery" };
-}
-
-// Mutated by the /start and /answer stubs below so a later GET (including one after a reload)
-// resumes from wherever the flow last landed.
+// Mutated by the /start stub below so a later GET (including one after a reload) resumes from
+// wherever the flow last landed.
 let current: DiscoveryState = BEFORE_START;
 
 async function stubDiscovery(page: Page) {
@@ -103,16 +58,10 @@ async function stubDiscovery(page: Page) {
     current = AFTER_START;
     await route.fulfill({ json: current });
   });
-  await page.route("**/api/onboarding/discovery/answer", async (route) => {
-    const { itemId, answer } = route.request().postDataJSON() as { itemId: string; answer?: string };
-    current = answered(current, itemId, answer);
-    await route.fulfill({ json: current });
-  });
   await page.route("**/api/onboarding/discovery", async (route) => {
     await route.fulfill({ json: current });
   });
 }
-
 
 async function expectDiscoveryFitsViewport(page: Page) {
   const geometry = await page.locator(".discovery").evaluate((root) => {
@@ -241,9 +190,7 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
   ]) {
     await page.setViewportSize(viewport);
 
-    // #106: the work-rights question carries the longest option in the set ("Not yet — I'd need
-    // sponsorship"), the fixture the design spec calls out for the 360-ish px floor (§8).
-    for (const state of [BEFORE_START, AFTER_START, WITH_LANGUAGES]) {
+    for (const state of [BEFORE_START, AFTER_START]) {
       current = state;
       await page.goto("/discovery");
       await expect(page.locator(".discovery .ask")).toBeVisible();
@@ -266,8 +213,8 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
   }
 });
 
-// #339 AC: no countdown anywhere in the journey — from question 1, through every eligibility
-// question and a decline, to the handoff — and no section rail it used to sit on.
+// #339 AC: no countdown anywhere in the journey — from question 1 to the hand-off — and no section
+// rail it used to sit on.
 test("no countdown and no progress rail appear anywhere in the journey", async ({ page }) => {
   current = BEFORE_START;
   await stubDiscovery(page);
@@ -280,132 +227,32 @@ test("no countdown and no progress rail appear anywhere in the journey", async (
   await noCountdown();
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
   await page.getByRole("button", { name: "That's me" }).click();
-  await expect(page.getByText(Q_WR_PARIS.question, { exact: true })).toBeVisible();
-  await noCountdown();
-  await page.getByRole("button", { name: "Ask me later", exact: true }).click();
-  await expect(page.getByText(Q_WR_HK.question, { exact: true })).toBeVisible();
-  await noCountdown();
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
+  await expect(page.locator(".discovery .handoff")).toBeVisible();
   await noCountdown();
 });
 
-test("an eligibility question states its scope in the question itself, offers a first-class decline, and a real answer confirms without touching the CV", async ({
-  page,
-}) => {
-  current = AFTER_START;
+// #386: the hand-off no longer says "That's all I need to ask." to someone asked one question; it
+// says the search is set and what comes next. No completion badge, no question.
+test("question 1 answered: the ask dock shows the hand-off and what comes next, not a completion badge", async ({ page }) => {
+  current = BEFORE_START;
   await stubDiscovery(page);
 
   await page.goto("/discovery");
+  await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
+  await page.getByRole("button", { name: "That's me" }).click();
 
-  // The scope is tellable from the question alone (design spec §3) — not just a sub-line a user
-  // could skim past.
-  await expect(page.getByText(Q_WR_PARIS.question, { exact: true })).toBeVisible();
-  await expect(page.getByText("Either answer is useful — it just changes which jobs I show you.")).toBeVisible();
-
-  // Tap-first: no free-text box on this question, and the decline is a real option, last in order.
-  const options = page.locator(".discovery .opts button");
-  await expect(options).toHaveCount(3);
-  await expect(options.last()).toHaveText("Ask me later");
-  await expect(page.locator(".discovery textarea, .discovery .freetext")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-
-  // A real answer reads exactly like any other — a locked-in confirmation, never a punishment —
-  // and no CV line was added for it.
-  await expect(page.locator(".discovery .notice")).toContainText(
-    "Locked in — I'll use that on every job, so I won't ask again.",
-  );
-  await expect(page.getByRole("button", { name: "Fix that?" })).toBeVisible();
-  await expect(page.locator(".discovery .cv-line")).toHaveCount(0);
-  await expectDiscoveryFitsViewport(page);
-});
-
-test("declining an eligibility question is informative, never a failure, and stays correctable", async ({ page }) => {
-  current = AFTER_START; // France is live; Hong Kong is next
-  await stubDiscovery(page);
-
-  await page.goto("/discovery");
-  await page.getByRole("button", { name: "Ask me later", exact: true }).click();
-
-  await expect(page.locator(".discovery .notice")).toContainText("No problem — I'll ask again when a job needs it.");
-  const answerNow = page.getByRole("button", { name: "Answer it now" });
-  await expect(answerNow).toBeVisible();
-  await expect(page.locator(".err")).toHaveCount(0); // never rendered as an error
-  // The server still lists France (nothing was stored), and the screen moves on anyway.
-  await expect(page.getByText(Q_WR_HK.question, { exact: true })).toBeVisible();
-  await expect(page.getByText(Q_WR_PARIS.question, { exact: true })).toHaveCount(0);
-  await expectDiscoveryFitsViewport(page);
-
-  // Declining is correctable exactly like a real answer (design spec §5.4) — Esc returns focus to
-  // its own fix button, since there is no CV line to return to.
-  await answerNow.click();
-  await expect(page.getByText("Change your answer.")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(answerNow).toBeFocused();
-});
-
-// #339: "Ask me later" stores nothing, so the question it put off is still open on the server. The
-// visit moves past it and hands off once nothing else is open; the next visit asks it again.
-test('"Ask me later" moves this visit on, and the next visit asks again', async ({ page }) => {
-  current = AFTER_START;
-  await stubDiscovery(page);
-  await page.route("**/api/onboarding/cards", (route) => route.fulfill({ json: { stage: "deck", cards: [] } }));
-
-  await page.goto("/discovery");
-  await page.getByRole("button", { name: "Ask me later", exact: true }).click();
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
-  expect(current.questions.map((q) => q.itemId)).toEqual([Q_WR_PARIS.itemId]);
-
-  await page.goto("/discovery");
-  await expect(page.getByText(Q_WR_PARIS.question, { exact: true })).toBeVisible();
-});
-
-test("fixing an answered eligibility question re-opens it with the previous choice already picked", async ({
-  page,
-}) => {
-  current = AFTER_START;
-  await stubDiscovery(page);
-
-  await page.goto("/discovery");
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-  const fixThat = page.getByRole("button", { name: "Fix that?" });
-  await expect(fixThat).toBeVisible();
-
-  await fixThat.click();
-  await expect(page.getByText("Change your answer.")).toBeVisible();
-  // design spec §5.4 point 2: the re-ask opens with the current answer already picked, not blank.
-  await expect(page.getByRole("button", { name: "Yes — no sponsorship needed" })).toHaveClass(/picked/);
-
-  await page.keyboard.press("Escape");
-  await expect(fixThat).toBeFocused();
-
-  // Committing a different answer updates the notice and returns focus to the fix button (#24).
-  await fixThat.click();
-  await page.getByRole("button", { name: "Not yet — I'd need sponsorship" }).click();
-  await expect(page.locator(".discovery .notice")).toContainText(
-    "Locked in — I'll use that on every job, so I won't ask again.",
-  );
-  await expect(page.getByRole("button", { name: "Fix that?" })).toBeFocused();
-});
-
-test("the last question answered: the ask dock shows the handoff, not a completion badge", async ({ page }) => {
-  current = { ...AFTER_START, questions: [Q_WR_HK] };
-  await stubDiscovery(page);
-
-  await page.goto("/discovery");
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-
-  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
-  await expect(page.getByText("Now I'll line these jobs up against everything you told me.", { exact: true })).toBeVisible();
+  const handoff = page.locator(".discovery .handoff");
+  await expect(handoff.locator(".q")).toHaveText("Your search is set.");
+  await expect(handoff.locator(".sub")).toHaveText("Now I'll line these jobs up against everything you told me.");
+  await expect(handoff).not.toContainText("That's all I need to ask");
+  await expect(page.locator(".discovery .opts, .discovery .notice")).toHaveCount(0);
   await expectDiscoveryFitsViewport(page);
   await expect(page.getByText(/100%|done|complete/i)).toHaveCount(0);
 });
 
 // #25: the gate hands off to the /deck reveal instead of dead-ending on the placeholder.
-test("the last question answered: discovery navigates to the /deck reveal, announcing once", async ({ page }) => {
-  current = { ...AFTER_START, questions: [Q_WR_HK] };
+test("question 1 answered with no CV to check: Continue goes to the /deck reveal, announcing once", async ({ page }) => {
+  current = BEFORE_START;
   await stubDiscovery(page);
   // Prior art: deck.spec.ts's GET /onboarding/cards shape — one card is enough to drive the reveal.
   await page.route("**/api/onboarding/cards", async (route) => {
@@ -433,23 +280,25 @@ test("the last question answered: discovery navigates to the /deck reveal, annou
   });
 
   await page.goto("/discovery");
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
+  await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
+  await page.getByRole("button", { name: "That's me" }).click();
 
-  // The #18 handoff still shows first, as a brief bridge — dropping it would break the moment.
-  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
-  // AC2: the discovery side never announces the deck handoff itself — only /deck's own entry
-  // effect does, once.
-  await expect(page.locator(".discovery .sr-only")).not.toContainText("That's all I need to ask.");
+  // AC2: the discovery side never announces the hand-off itself — only /deck's own entry effect
+  // does, once.
+  const handoff = page.locator(".discovery .handoff");
+  await expect(handoff.locator(".go")).toBeVisible();
+  await expect(page.locator(".discovery .sr-only")).not.toContainText("Your search is set.");
 
   // #376: the hand-off waits for the person; Continue takes them to the reveal — the single place
   // focus + the polite announce land.
-  await page.locator(".discovery .handoff .go").click();
+  await handoff.locator(".go").click();
   await page.waitForURL("/deck");
   const heading = page.getByRole("heading", { name: /matched you/ });
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
   await expect(page.locator('[aria-live="polite"]')).toHaveText("1 job just matched you");
 });
+
 
 // #338 (ADR-0016 clause 6): a brought CV is reviewed before any job is shown. The server says so on
 // the state, and the handoff lands on the review instead of the deck — since #377, the profile's
@@ -460,7 +309,7 @@ test("#376: after question 1 nothing is asked — the hand-off holds with the pr
   await stubDiscovery(page);
   // The server's real answer to question 1 now: the hand-off, no question.
   await page.route("**/api/onboarding/discovery/start", async (route) => {
-    current = { ...AFTER_START, stage: "deck", questions: [], reviewPending: true };
+    current = { ...AFTER_START, reviewPending: true };
     await route.fulfill({ json: current });
   });
   const answers: string[] = [];
@@ -492,6 +341,7 @@ test("#376: after question 1 nothing is asked — the hand-off holds with the pr
   await expect(handoff.locator(".go")).toBeVisible();
   await expect(page.locator(".discovery .opts")).toHaveCount(0);
   await expect(page.locator(".discovery")).toContainText("142");
+  await expect(handoff.locator(".sub")).toHaveText("Next, check how I read your CV. Your jobs open when you finish.");
   await page.waitForTimeout(1500);
   expect(new URL(page.url()).pathname).toBe("/discovery");
 
@@ -499,53 +349,4 @@ test("#376: after question 1 nothing is asked — the hand-off holds with the pr
   await page.waitForURL("/profile/check");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your details");
   expect(answers).toEqual([]); // nothing was asked, so nothing was answered
-});
-
-// #336: what the person submits — unticks and additions included — is exactly what is posted.
-test("the languages question pre-ticks the CV's working languages, and what is submitted is what the person chose", async ({
-  page,
-}) => {
-  current = WITH_LANGUAGES;
-  await stubDiscovery(page);
-  const posted: unknown[] = [];
-  await page.route("**/api/onboarding/discovery/answer", async (route) => {
-    posted.push(route.request().postDataJSON());
-    await route.fulfill({ json: { ...AFTER_START, stage: "deck", questions: [] } });
-  });
-
-  await page.goto("/discovery");
-  const box = (name: string) => page.getByRole("checkbox", { name });
-  for (const name of ["Polish", "English", "German"]) await expect(box(name)).toBeChecked();
-  for (const name of ["French", "Italian"]) await expect(box(name)).not.toBeChecked();
-  await expect(page.locator(".opt.check", { hasText: "French" })).toContainText("Conversational");
-  await expect(page.locator(".opt.check", { hasText: "Italian" }).locator(".state")).toHaveCount(0);
-  // No language is shown twice: English is a CV tick-box, never also a chip.
-  await expect(page.locator(".lang-typeahead .chips")).toHaveCount(0);
-
-  await box("German").uncheck();
-  await page.locator("#lang-input").fill("Swedish");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("button", { name: "That's all of them" }).click();
-
-  await expect.poll(() => posted.length).toBe(1);
-  expect(posted[0]).toEqual({ itemId: "eligibility-languages", answers: ["Polish", "English", "Swedish"] });
-});
-
-test('"Ask me later" on the languages question posts the decline, never the pre-ticked languages', async ({ page }) => {
-  current = WITH_LANGUAGES;
-  await stubDiscovery(page);
-  const posted: unknown[] = [];
-  await page.route("**/api/onboarding/discovery/answer", async (route) => {
-    posted.push(route.request().postDataJSON());
-    await route.fulfill({ json: WITH_LANGUAGES }); // nothing stored — the question is still open
-  });
-
-  await page.goto("/discovery");
-  await expect(page.getByRole("checkbox", { name: /^Polish\b/ })).toBeChecked();
-  await page.getByRole("button", { name: /^Ask me later/ }).click();
-
-  await expect.poll(() => posted.length).toBe(1);
-  expect(posted[0]).toEqual({ itemId: "eligibility-languages", answer: "Ask me later" });
-  // #339: it was the last open question for this visit, so the screen hands off.
-  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
 });

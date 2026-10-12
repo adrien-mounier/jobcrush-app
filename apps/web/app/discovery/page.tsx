@@ -1,23 +1,21 @@
 "use client";
 
-// #16 discovery (screen 1a): Q1 (free-text role) -> the promise -> the eligibility questions. Reuses
-// the front door's typewriter/keepInView mechanics (page.tsx, first-question.prototype.html) against
-// the pinned DiscoveryState contract.
+// #16 discovery (screen 1a): Q1 (free-text role) -> the promise -> the hand-off. Reuses the front
+// door's typewriter/keepInView mechanics (page.tsx, first-question.prototype.html) against the
+// pinned DiscoveryState contract.
 //
 // #339: discovery no longer asks people to describe their own work — the floor questions, the
 // reader-only question, the "N answers until your next jobs" countdown and the section rail they fed
-// are gone. What is asked after question 1 is work rights per chosen market and languages, each with
-// its "Ask me later", which stores nothing: the server keeps serving a declined question, so this
-// screen moves past it for the rest of the visit (`passed`) and a later visit asks again.
+// are gone. #376 (ADR-0018 clause 8): work rights and languages moved into the profile's check mode,
+// so the server asks nothing after question 1 — and #386 removed this screen's question UI (the
+// eligibility asks, their corrections, the languages multi-select) that nothing could reach.
 //
 // The role line Q1 writes is the exact DiscoveryCvLine.text the API returned — never computed here.
-import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import "../discovery.css";
 import { FactBadge, type FactChipFlight } from "../factbadge";
 import {
-  answerDiscovery,
-  answerDiscoveryMulti,
   ensureSession,
   getDiscovery,
   getIntent,
@@ -25,10 +23,7 @@ import {
   startDiscovery,
   type CvSection,
   type DiscoveryCvLine,
-  type DiscoveryQuestion,
   type DiscoveryState,
-  type CvLanguage,
-  type EligibilityAsk,
 } from "../../lib/api";
 import { lookForSentence } from "../../lib/intentCopy";
 
@@ -54,27 +49,15 @@ const C6 = "same kind of job";
 const C7 = "Finding jobs like yours…";
 const C10 = "Keep going and I'll score them against you.";
 const C14 = "Answer the question below and this page starts writing itself.";
-// #18 discovery (screen 1b): in-flow correction + the deck-transition placeholder — verbatim from
-// discovery-1b-design-spec.md's copy table.
-const C16 = "Fix that?";
-const C17 = "Change your answer.";
-const C18 = "Leave it as is";
-const C19 = "That's all I need to ask.";
+// #386: the hand-off, after question 1. Nothing is asked here any more, so it no longer says "That's
+// all I need to ask." to someone asked one question: it says what comes next — check mode for a
+// brought CV (the jobs open when it is finished), the jobs themselves otherwise.
+const C19 = "Your search is set.";
 const C20 = "Now I'll line these jobs up against everything you told me.";
-// #376: the hand-off waits for the person — nothing is asked after question 1 (ADR-0018 clause 8),
-// so this screen is where they read the confirmation and the count before moving on.
+const C20_CHECK = "Next, check how I read your CV. Your jobs open when you finish.";
+// #376: the hand-off waits for the person, so this screen is where they read the confirmation and
+// the count before moving on.
 const C_CONTINUE = "Continue";
-const C21 = "Changing your answer.";
-// #228 (spec #241 decision 13): answering changes how her jobs SCORE and sort, never how many there
-// are — the deck only sends her here while a question genuinely remains, and this says what that is
-// worth without promising adverts it cannot produce.
-const C22 = "I scored the three closest — tell me more and I'll score them better";
-// #106: the eligibility questions (design spec §2 "Shared") — the
-// confirmation pair and the fix-button label for a declined answer. C16 ("Fix that?") is reused for
-// a real answer's fix button, unchanged.
-const C23 = "Locked in — I'll use that on every job, so I won't ask again.";
-const C24 = "No problem — I'll ask again when a job needs it.";
-const C26 = "Answer it now";
 
 // C8/C9's tail — the count renders beside it in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against), so the two pieces read as
@@ -95,46 +78,6 @@ const C26 = "Answer it now";
 // and it is his call. If a freshness signal ever reaches the posting record, this is the line that
 // should start earning the word rather than assuming it.
 const C8 = "new jobs are open right now.";
-// #123: joins a ticked-language list in `options` order for L3/L4 (design spec §6's join rule) —
-// sentence case, no quotes, no bold, and never an Oxford comma before "and".
-function joinList(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-}
-// #123: L3/L4 — the multi-select confirm's own "locked in" line, replacing C23 for this question only.
-//
-// #165 rewrote both branches. They used to announce a removal ("jobs that demand anything else are
-// out of your deck"), which was true then and is a lie now: listing languages no longer withdraws
-// anything, because only a deliberate "I don't speak this one" on the ladder can. Saying it anyway
-// would teach the person to fear a question that is now free, which is the exact anxiety this
-// ticket removed. The second branch names what actually happens next instead.
-function multiSelectLockedIn(ticked: string[]): string {
-  return ticked.length === 0
-    ? "Locked in — no languages listed. Nothing was removed from your deck."
-    : `Locked in — ${joinList(ticked)}. When a job needs one, I'll ask how well you speak it.`;
-}
-// #106: the eligibility `.sub` clarifier — the wire contract carries `.q`/`options` fully worded
-// server-side but no clarifier field (EligibilityAsk in lib/api.ts), so this is the one piece of
-// eligibility copy the client still composes.
-// #123 code review: language used to be the plain fallback here, but the server's languages
-// question now always carries `multiSelect: true` (apps/api/src/eligibilityDiscovery.ts's
-// buildQuestion) and renderAsk branches to renderMultiSelect — which renders `consequence`, not
-// `.sub` — before this function is ever called for it. #162 removed the years-experience question
-// entirely (worked out, never asked), so work-rights is the ONE dimension this function renders
-// today; the fallback below is unreachable and intentionally holds no dimension-specific copy —
-// it exists only so the function type-checks against EligibilityAsk's full dimension union.
-function eligibilitySub(elig: EligibilityAsk): string {
-  if (elig.dimension === "work-rights") return "Either answer is useful — it just changes which jobs I show you.";
-  return ""; // unreachable — see comment above
-}
-// #339: the state this visit asks from — the server's, minus the questions "Ask me later" moved past.
-// With none left after question 1, the visit is done asking and hands off.
-function withoutPassed(s: DiscoveryState, passed: ReadonlySet<string>): DiscoveryState {
-  if (passed.size === 0) return s;
-  const questions = s.questions.filter((q) => !passed.has(q.itemId));
-  return { ...s, questions, stage: s.role !== null && questions.length === 0 ? "deck" : s.stage };
-}
 function highlightMatch(title: string, query: string): ReactNode {
   const idx = query ? title.toLowerCase().indexOf(query.toLowerCase()) : -1;
   if (idx < 0) return title;
@@ -204,8 +147,6 @@ type TypingInfo = {
 };
 
 function DiscoveryScreen() {
-  const searchParams = useSearchParams();
-  const loopbackFromDeck = searchParams.get("loop") === "deck-exhausted";
   const router = useRouter();
 
   const [discovery, setDiscovery] = useState<DiscoveryState | null>(null);
@@ -222,33 +163,14 @@ function DiscoveryScreen() {
   const [promiseLoading, setPromiseLoading] = useState(false);
 
   const [typingId, setTypingId] = useState<string | null>(null);
-  const [picked, setPicked] = useState<{ itemId: string; answer: string } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
-  // #18 in-flow correction (design-1b-spec §1), generalised by #106 to an eligibility answer — it
-  // writes no CV line, so it keeps a persistent notice and a way back in (design spec §5.3/§5.4).
-  const [correcting, setCorrecting] = useState<{ itemId: string } | null>(null);
-  // #339: the questions "Ask me later" moved past on this visit. Nothing was stored for them, so the
-  // server still serves them; `view` below leaves them out until the next visit asks again.
-  const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
-  // #123: `answers` is only ever populated for a multi-select confirm (never a decline, never a
-  // single-select answer) — renderNotice reads it to build L3/L4's `{list}`, and a correction
-  // re-entry reads it to pre-tick the previously confirmed languages (design spec §7 point 2).
-  const [noticeSlot, setNoticeSlot] = useState<{ itemId: string; answer: string; answers?: string[] } | null>(
-    null,
-  );
-  // #24: "Fix that?" unmounts while `correcting` is active (renderAsk shows the re-ask instead), so a
-  // cancel or commit focuses it once it is back in the DOM, not immediately.
-  const [focusFixNotice, setFocusFixNotice] = useState(false);
   // #17 the profile badge: the parent owns the data (the loaded/answered count, monotonically
   // clamped) and the click origin; FactBadge owns all the motion.
   const [badgeCount, setBadgeCount] = useState(0);
   const [fly, setFly] = useState<FactChipFlight | null>(null);
-  // The answered control's rect, captured on the root's capture-phase click/keydown — every answer
+  // The answered control's rect, captured on the root's capture-phase click/keydown — the answer
   // handler is triggered BY one of those two, so this is always fresh by the time an answer lands.
-  // Avoids threading a DOMRect through five functions and eleven call sites for a value already
-  // available the same way this screen already stashes other transient per-answer state (typingRef,
-  // seenQuestionsRef): a ref, not a parameter.
   const flyFromRef = useRef<DOMRect | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -263,43 +185,6 @@ function DiscoveryScreen() {
     firstControlRef.current = el;
   };
   const handoffRef = useRef<HTMLParagraphElement>(null);
-  const fixNoticeButtonRef = useRef<HTMLButtonElement>(null);
-  // #24: the previous askKey the focus effect below actually acted on — lets it tell "just left a
-  // correction, back to the same next question" (skip the auto-focus, the resolution site already
-  // placed focus) apart from "genuinely entered a new question" (focus its first control).
-  const prevAskKeyRef = useRef<string | null>(null);
-  // The only source of an answered item's question/options (once answered, it's gone from
-  // `questions`) — a memory of what's been asked this load, not derived state (design-1b-spec §1:
-  // "not recomputable from current props"). Populated fresh every render, below.
-  const seenQuestionsRef = useRef<
-    Map<
-      string,
-      {
-        question: string;
-        options: string[];
-        eligibility?: EligibilityAsk;
-        multiSelect?: true;
-        typeAhead?: true;
-        consequence?: string;
-      }
-    >
-  >(new Map());
-  if (discovery) {
-    for (const q of discovery.questions) {
-      seenQuestionsRef.current.set(q.itemId, {
-        question: q.question,
-        options: q.options,
-        eligibility: q.eligibility,
-        multiSelect: q.multiSelect,
-        typeAhead: q.typeAhead,
-        consequence: q.consequence,
-      });
-    }
-  }
-  // #123: the ticked-language set for the one multi-select question — lives outside noticeSlot so
-  // a failed save keeps every tick exactly as the visitor left it (design spec §10 "in flight").
-  const [langSelected, setLangSelected] = useState<Set<string>>(new Set());
-  const [langQuery, setLangQuery] = useState(""); // #165: the languages type-ahead's own input
 
   const loadDiscovery = useCallback(async () => {
     setLoadError(null);
@@ -345,108 +230,15 @@ function DiscoveryScreen() {
     };
   }, []);
 
-  // Focus follows the current ask target: the Q1 textarea on load, then each new question's
-  // first control as it renders — no per-answer lockout (design §6 a11y). #18 folds in an
-  // in-flow correction's re-ask (design-1b-spec §1 a11y: "moves focus to the re-ask's first
-  // option on entry"); #25 folds in the deck handoff, which navigates instead of focusing here —
-  // see the "deck" branch below.
-  const view = discovery && withoutPassed(discovery, passed);
-  const firstAsk = view?.questions[0];
-  const askKey = !view
-    ? null
-    : view.stage === "deck" && !loopbackFromDeck
-      ? "deck"
-      : correcting
-        ? `fix:${correcting.itemId}`
-        : view.role === null
-          ? "q1"
-          : (view.questions[0]?.itemId ?? (loopbackFromDeck ? "loopback" : null));
+  // Focus follows the ask: the Q1 textarea on load. #25/#376: the hand-off moves on only when the
+  // person presses Continue, and does not focus or announce itself — the next screen's own entry
+  // effect focuses its heading and gives the one polite announce (AC2).
+  const askKey = !discovery ? null : discovery.role === null ? "q1" : "handoff";
   const reviewPending = discovery?.reviewPending === true;
   useEffect(() => {
-    if (!askKey) return;
-    // #24: leaving a correction (askKey was `fix:X`, now isn't) re-lands on whatever question was
-    // already live — never a new one — so the corrected line's own focus (set at the resolution
-    // site, below) must stick instead of this effect re-grabbing the ask dock.
-    const leavingCorrection = !!prevAskKeyRef.current?.startsWith("fix:") && !askKey.startsWith("fix:");
-    prevAskKeyRef.current = askKey;
-    // #25: the gate hands off to the /deck reveal. #376 (tech-lead decision, 2026-10-13): with
-    // nothing asked after question 1, the hand-off no longer moves on by itself after 0.8 s — it
-    // stays up, with the confirmation line and the count, until the person presses Continue
-    // (renderAsk). No focus/announce here: /deck's own entry effect focuses its heading and gives
-    // the one polite announce, so announcing on this side too would double it (AC2).
-    if (askKey !== "deck" && !leavingCorrection) firstControlRef.current?.focus();
+    if (askKey === "q1") firstControlRef.current?.focus();
   }, [askKey]);
 
-  useEffect(() => {
-    if (!focusFixNotice) return;
-    fixNoticeButtonRef.current?.focus();
-    setFocusFixNotice(false);
-  }, [focusFixNotice]);
-
-  // #18: cancelling a correction (Esc, "Leave it as is", or re-picking the same answer) is free —
-  // no server call, the real line stays intact. Shared by the Esc listener below and the dock's own
-  // cancel button.
-  const cancelCorrection = useCallback(() => {
-    if (!correcting) return;
-    setCorrecting(null);
-    setAskError(null);
-    setFocusFixNotice(true);
-  }, [correcting]);
-
-  useEffect(() => {
-    if (!correcting) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") cancelCorrection();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [correcting, cancelCorrection]);
-
-  // #336: the very first ask pre-ticks the languages the CV says the person works in (ADR-0016
-  // clause 1) — once per load, so coming back from a correction never resets their own ticks. A
-  // proposal on screen only: nothing is stored until they submit.
-  const langSeededRef = useRef(false);
-  useEffect(() => {
-    if (!firstAsk?.cvLanguages || askKey !== firstAsk.itemId || langSeededRef.current) return;
-    langSeededRef.current = true;
-    setLangSelected(new Set(firstAsk.cvLanguages.filter((l) => l.preTicked).map((l) => l.language)));
-  }, [askKey, firstAsk]);
-
-  // #123: entering the language question's correction pre-ticks whatever was last confirmed
-  // (design spec §7 point 2) — a prior decline pre-ticks nothing, since noticeSlot.answers is only
-  // ever set by a multi-select confirm.
-  useEffect(() => {
-    if (!correcting) return;
-    const seen = seenQuestionsRef.current.get(correcting.itemId);
-    if (!seen?.multiSelect) return;
-    const prior = noticeSlot?.itemId === correcting.itemId ? noticeSlot.answers : undefined;
-    setLangSelected(new Set(prior ?? []));
-  }, [correcting, noticeSlot]);
-
-  // Case-insensitive, like addLang below: a typed "polish" and the CV's "Polish" are one language.
-  function toggleLang(name: string) {
-    setLangSelected((s) => {
-      const same = [...s].filter((n) => n.toLowerCase() === name.toLowerCase());
-      if (same.length === 0) return new Set([...s, name]);
-      const next = new Set(s);
-      for (const n of same) next.delete(n);
-      return next;
-    });
-  }
-
-  // #165: the languages question is a type-ahead now, so a word the person types is KEPT even when
-  // the suggestion list has never heard of it (a French speaker in Asia has somewhere to say so).
-  // Adding is case-insensitively idempotent but stores THEIR spelling — the server keys the fact on
-  // the words they used, so "french" must not silently become a second entry beside "French".
-  function addLang(raw: string) {
-    const word = raw.trim();
-    if (!word) return;
-    setLangSelected((s) => {
-      if ([...s].some((n) => n.toLowerCase() === word.toLowerCase())) return s;
-      return new Set([...s, word]);
-    });
-    setLangQuery("");
-  }
 
   // Fires the scroll+type sequence once the new (empty) line's span has actually mounted (it and
   // `typingId` land in the same render, from applyAnswerResult below).
@@ -479,17 +271,8 @@ function DiscoveryScreen() {
     setLiveMessage(t.lineText);
   }
 
-  // #339: "Ask me later" stores nothing, so the response still carries the question it declined —
-  // this visit moves past it (`passed`), whether it came from the first ask or a correction.
-  function passIfDeclined(itemId: string, answer: string) {
-    if (answer !== eligibilityFor(itemId)?.declineOption) return;
-    setPassed((p) => new Set(p).add(itemId));
-  }
-
-  // Shared by Q1 submit and every eligibility answer. Q1 writes the role line, typed in before the
-  // state settles; an eligibility answer writes no line and gets its notice slot instead (design
-  // spec §5.3) — `answersList` only for a multi-select confirm, for L3/L4.
-  function applyAnswerResult(next: DiscoveryState, rawAnswer: string, answeredItemId?: string, answersList?: string[]) {
+  // Q1's answer writes the role line, typed in before the state settles.
+  function applyAnswerResult(next: DiscoveryState, rawAnswer: string) {
     finalizeInFlight();
     // #17: unconditional — FactBadge's own guard (fly only if it actually exceeds what's shown) makes
     // a zero-delta a silent no-op. `flyFromRef` was set by the root's capture-phase click/keydown.
@@ -497,11 +280,6 @@ function DiscoveryScreen() {
     if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: rawAnswer });
     const prevIds = new Set((discovery?.cvLines ?? []).map((l) => l.itemId));
     const newLine = next.cvLines.find((l) => !prevIds.has(l.itemId)) ?? null;
-
-    if (answeredItemId && eligibilityFor(answeredItemId)) {
-      landNotice(answeredItemId, next, rawAnswer, answersList);
-      return;
-    }
     if (!newLine) {
       setDiscovery(next);
       return;
@@ -509,80 +287,6 @@ function DiscoveryScreen() {
     setDiscovery((s) => s ?? next);
     typingRef.current = { itemId: newLine.itemId, lineText: newLine.text, fullNextState: next, bag: [] };
     setTypingId(newLine.itemId);
-  }
-
-  // A correction re-answers an eligibility question already in the notice slot: re-set the slot with
-  // the new answer and return focus to its fix button (design spec §5.4 point 3).
-  function applyCorrectionResult(itemId: string, next: DiscoveryState, rawAnswer: string, answersList?: string[]) {
-    finalizeInFlight();
-    setBadgeCount((c) => Math.max(c, next.factCount));
-    if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: rawAnswer });
-    landNotice(itemId, next, rawAnswer, answersList);
-    setFocusFixNotice(true);
-  }
-
-  // An eligibility answer writes no line: it lands in the notice slot (design spec §5.3), and a
-  // decline is moved past for this visit.
-  function landNotice(itemId: string, next: DiscoveryState, rawAnswer: string, answersList?: string[]) {
-    passIfDeclined(itemId, rawAnswer);
-    setDiscovery(next);
-    setNoticeSlot({ itemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
-    setLiveMessage(noticeLine(itemId, rawAnswer, answersList));
-  }
-
-  // #106: the only source of an answered eligibility item's dimension/declineOption once it has
-  // left `questions`.
-  function eligibilityFor(itemId: string): EligibilityAsk | undefined {
-    return seenQuestionsRef.current.get(itemId)?.eligibility;
-  }
-
-  // The notice slot's sentence: C24 for a decline, L3/L4 for a languages confirm, C23 otherwise.
-  function noticeLine(itemId: string, answer: string, answers?: string[]): string {
-    if (answer === eligibilityFor(itemId)?.declineOption) return C24;
-    return seenQuestionsRef.current.get(itemId)?.multiSelect ? multiSelectLockedIn(answers ?? []) : C23;
-  }
-
-  // 1B entry (tap "Fix that?" / "Answer it now" on the notice slot) — client-side-first, no server
-  // call, so the notice stays intact until commit.
-  function enterCorrection(itemId: string) {
-    if (picked) return;
-    setAskError(null);
-    setCorrecting({ itemId });
-    setLiveMessage(C21);
-  }
-
-  // The correction re-ask's commit (design-1b-spec §1): re-answering an item is idempotent
-  // server-side (upsert), so this reuses answerDiscovery — no separate correct/reopen route.
-  async function commitCorrection(itemId: string, answer: string) {
-    if (picked) return;
-    setPicked({ itemId, answer });
-    setAskError(null);
-    try {
-      const next = await answerDiscovery(itemId, answer);
-      setCorrecting(null);
-      applyCorrectionResult(itemId, next, answer);
-    } catch (e) {
-      setAskError(e instanceof Error ? e.message : "could not save that — try again");
-    } finally {
-      setPicked(null);
-    }
-  }
-
-  // #123: the correction re-ask's commit for the multi-select question — mirrors commitCorrection.
-  async function commitMultiCorrection(itemId: string, answers: string[]) {
-    if (picked) return;
-    const label = answers.length > 0 ? joinList(answers) : "no languages listed";
-    setPicked({ itemId, answer: label });
-    setAskError(null);
-    try {
-      const next = await answerDiscoveryMulti(itemId, answers);
-      setCorrecting(null);
-      applyCorrectionResult(itemId, next, label, answers);
-    } catch (e) {
-      setAskError(e instanceof Error ? e.message : "could not save that — try again");
-    } finally {
-      setPicked(null);
-    }
   }
 
   async function submitRole(raw: string) {
@@ -601,36 +305,6 @@ function DiscoveryScreen() {
     }
   }
 
-  async function answerQuestion(item: DiscoveryQuestion, answer: string) {
-    if (picked) return;
-    setPicked({ itemId: item.itemId, answer });
-    setAskError(null);
-    setNoticeSlot(null); // the undo reaches one question past an answer (#106), then clears
-    try {
-      applyAnswerResult(await answerDiscovery(item.itemId, answer), answer, item.itemId);
-    } catch (e) {
-      setAskError(e instanceof Error ? e.message : "could not save that — try again");
-    } finally {
-      setPicked(null);
-    }
-  }
-
-  // #123: the language question's multi-select confirm. The fly/notice label is the ticked list itself
-  // so it can never collide with the decline string, which travels its own path (answerQuestion).
-  async function answerMultiSelect(item: DiscoveryQuestion, answers: string[]) {
-    if (picked) return;
-    const label = answers.length > 0 ? joinList(answers) : "no languages listed";
-    setPicked({ itemId: item.itemId, answer: label });
-    setAskError(null);
-    setNoticeSlot(null);
-    try {
-      applyAnswerResult(await answerDiscoveryMulti(item.itemId, answers), label, item.itemId, answers);
-    } catch (e) {
-      setAskError(e instanceof Error ? e.message : "could not save that — try again");
-    } finally {
-      setPicked(null);
-    }
-  }
 
   function onFamilyInput(v: string) {
     setRoleText(v);
@@ -716,429 +390,67 @@ function DiscoveryScreen() {
     return <p className="cv-role">{role.text}</p>;
   }
 
-  // Ask-dock notice slot (design-1b-spec §3, generalised by #106): an eligibility answer's pair —
-  // C23/C16 for a real answer, L3/L4 for a languages confirm, C24/C26 for a decline (design spec
-  // §4/§5.3/§6).
-  function renderNotice() {
-    if (!noticeSlot) return null;
-    const declined = noticeSlot.answer === eligibilityFor(noticeSlot.itemId)?.declineOption;
-    return (
-      <p className="notice">
-        {noticeLine(noticeSlot.itemId, noticeSlot.answer, noticeSlot.answers)}{" "}
-        <button
-          type="button"
-          disabled={!!picked}
-          onClick={() => enterCorrection(noticeSlot.itemId)}
-          ref={fixNoticeButtonRef}
-        >
-          {declined ? C26 : C16}
-        </button>
-      </p>
-    );
-  }
-
-  // The correction re-ask (design-1b-spec §1): reuses .q/.sub/.opts/.opt exactly like the normal
-  // ask below — just re-asking a seen question instead of the next one.
-  function renderCorrectionAsk() {
-    if (!correcting) return null;
-    const seen = seenQuestionsRef.current.get(correcting.itemId);
-    if (!seen) return null; // shouldn't happen — the button/notice only target a seen item
-    const isAnswering = picked?.itemId === correcting.itemId;
-    // #106: generalised from the old isNoCorrection/isNoAnswer regex match to a direct comparison
-    // against the slot's stored answer (design spec §5.4 point 2) — works for any eligibility
-    // answer, not just a "no"-shaped one, and pre-marks it as `.opt.picked` on entry.
-    const slotAnswer = noticeSlot && noticeSlot.itemId === correcting.itemId ? noticeSlot.answer : null;
-
-    // #123: the language question's correction re-ask — same fieldset, pre-ticked by the effect
-    // above (design spec §7). Checked before the options branch below since it has its own shape.
-    if (seen.multiSelect && seen.eligibility) {
-      const elig = seen.eligibility;
-      return renderMultiSelect(
-        {
-          itemId: correcting.itemId,
-          question: seen.question,
-          options: seen.options,
-          eligibility: seen.eligibility,
-          consequence: seen.consequence,
-        },
-        {
-          isAnswering,
-          isCorrection: true,
-          onConfirm: (answers) => commitMultiCorrection(correcting.itemId, answers),
-          onDecline: () => commitCorrection(correcting.itemId, elig.declineOption),
-        },
-      );
-    }
-
-    return (
-      <>
-        <p className="q" id="fix-q">
-          {seen.question}
-        </p>
-        <p className="sub">{C17}</p>
-        <div className="opts" role="group" aria-labelledby="fix-q">
-          {seen.options.map((opt, i) => {
-            const quiet = seen.eligibility && opt === seen.eligibility.declineOption ? " quiet" : "";
-            const cls = opt === slotAnswer ? `opt${quiet} picked` : `opt${quiet}`;
-            return (
-              <button
-                key={opt}
-                ref={i === 0 ? setFirstControl : undefined}
-                type="button"
-                className={cls}
-                disabled={isAnswering}
-                onClick={() => commitCorrection(correcting.itemId, opt)}
-              >
-                {opt}
-              </button>
-            );
-          })}
-        </div>
-        <p className="notice">
-          <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
-            {C18}
-          </button>
-        </p>
-        {askError && (
-          <p className="err" role="alert">
-            {askError}
-          </p>
-        )}
-      </>
-    );
-  }
-
-  // #123: the language question's checkbox-group UI (design spec §1/§3/§4/§5) — shared by the
-  // normal ask and its correction re-ask via the onConfirm/onDecline callbacks, so this never needs
-  // to know which one it's in beyond the copy/notice differences `isCorrection` controls.
-  function renderMultiSelect(
-    q: {
-      itemId: string;
-      question: string;
-      options: string[];
-      eligibility?: EligibilityAsk;
-      consequence?: string;
-      typeAhead?: true;
-      cvLanguages?: CvLanguage[];
-    },
-    opts: {
-      isAnswering: boolean;
-      isCorrection: boolean;
-      onConfirm: (answers: string[]) => void;
-      onDecline: () => void;
-    },
-  ) {
-    // options: N language names, then the decline string last (contract-pinned order). #165: those N
-    // are COMPLETIONS now, not the legal answers — `orderedTicked` reads the person's own set (which
-    // may hold a word no completion offered), never a filter over the list.
-    const languages = q.options.slice(0, -1);
-    const decline = q.options[q.options.length - 1] ?? "";
-    const anyTicked = langSelected.size > 0;
-    const orderedTicked = [...langSelected];
-    const query = langQuery.trim();
-    // #336: the CV's own languages get a tick-box each (with the CV's level word); chips and
-    // suggestions cover only the rest, so no language shows twice.
-    const cvLangs = q.cvLanguages ?? [];
-    const sameAs = (a: string) => (b: string) => a.toLowerCase() === b.toLowerCase();
-    const fromCv = (name: string) => cvLangs.some((l) => sameAs(l.language)(name));
-    const matches = languages
-      .filter((name) => !orderedTicked.some(sameAs(name)) && !fromCv(name))
-      .filter((name) => query.length === 0 || name.toLowerCase().includes(query.toLowerCase()))
-      .slice(0, 5);
-    const exactMatch = languages.some((name) => name.toLowerCase() === query.toLowerCase());
-    // #165: with nothing listed there is nothing to store, so an empty confirm takes the DECLINE path
-    // ("not now"). #339: a decline stores nothing either, so this visit moves past the question
-    // (`passed`) and a later one asks again. Nothing is stored, nothing removed from the deck.
-    const confirmEmpty = !anyTicked;
-    const confirmLabel = anyTicked ? "That's all of them" : "I'd rather not list any";
-    return (
-      <>
-        <fieldset className="elig-group" aria-describedby="lang-why">
-          <legend className="q">{q.question}</legend>
-          {opts.isCorrection && <p className="sub">{C17}</p>}
-          <p className="conseq" id="lang-why">
-            {q.consequence}
-          </p>
-          {q.typeAhead ? (
-            <div className="lang-typeahead">
-              {cvLangs.length > 0 && (
-                <div className="opts" role="group" aria-labelledby="lang-cv-label">
-                  <p className="sub" id="lang-cv-label">
-                    From your CV — I can work in this language:
-                  </p>
-                  {cvLangs.map((l) => (
-                    <label className="opt check" key={l.language}>
-                      <input
-                        type="checkbox"
-                        name="elig-language-cv"
-                        checked={orderedTicked.some(sameAs(l.language))}
-                        disabled={opts.isAnswering}
-                        onChange={() => toggleLang(l.language)}
-                      />
-                      <span className="lbl">{l.language}</span>
-                      {l.level && <span className="state">{l.level}</span>}
-                    </label>
-                  ))}
-                </div>
-              )}
-              {orderedTicked.some((n) => !fromCv(n)) && (
-                <ul className="chips" aria-label="Languages you've listed">
-                  {orderedTicked.filter((n) => !fromCv(n)).map((name) => (
-                    <li key={name}>
-                      <span className="lbl">{name}</span>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${name}`}
-                        disabled={opts.isAnswering}
-                        onClick={() => toggleLang(name)}
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="field">
-                <input
-                  id="lang-input"
-                  ref={setFirstControl}
-                  type="text"
-                  value={langQuery}
-                  placeholder="Type a language"
-                  aria-describedby="lang-why"
-                  disabled={opts.isAnswering}
-                  onChange={(e) => setLangQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    addLang(langQuery);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="go"
-                  disabled={opts.isAnswering || query.length === 0}
-                  onClick={() => addLang(langQuery)}
-                >
-                  Add
-                </button>
-              </div>
-              {(matches.length > 0 || (query.length > 0 && !exactMatch)) && (
-                <div className="sugg" role="status" aria-live="polite">
-                  {matches.map((name) => (
-                    <button key={name} type="button" disabled={opts.isAnswering} onClick={() => addLang(name)}>
-                      {name}
-                    </button>
-                  ))}
-                  {/* #165: the unknown word is offered, never refused — it is kept as the person's own
-                      fact and simply matches no advert until the list learns it. */}
-                  {query.length > 0 && !exactMatch && (
-                    <p className="note">Not on my list — I'll keep &ldquo;{query}&rdquo; as you wrote it.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="opts">
-              {languages.map((name, i) => {
-                const checked = langSelected.has(name);
-                return (
-                  <label className="opt check" key={name}>
-                    <input
-                      type="checkbox"
-                      name="elig-language"
-                      ref={i === 0 ? setFirstControl : undefined}
-                      checked={checked}
-                      disabled={opts.isAnswering}
-                      onChange={() => toggleLang(name)}
-                    />
-                    <span className="lbl">{name}</span>
-                    <span className="state" aria-hidden="true">
-                      {checked ? "YES" : anyTicked ? "NO" : ""}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
-        <div className="elig-actions">
-          <button
-            type="button"
-            className="go wide"
-            disabled={opts.isAnswering}
-            onClick={() => (confirmEmpty ? opts.onDecline() : opts.onConfirm(orderedTicked))}
-          >
-            {confirmLabel}
-          </button>
-          <button
-            type="button"
-            className="opt quiet"
-            disabled={opts.isAnswering}
-            aria-label={`${decline} — nothing is removed from your deck`}
-            onClick={opts.onDecline}
-          >
-            <span className="lbl">{decline}</span>
-            <span className="state" aria-hidden="true">
-              NOTHING REMOVED
-            </span>
-          </button>
-        </div>
-        {opts.isCorrection ? (
-          <p className="notice">
-            <button type="button" disabled={opts.isAnswering} onClick={cancelCorrection}>
-              {C18}
-            </button>
-          </p>
-        ) : (
-          renderNotice()
-        )}
-        {askError && (
-          <p className="err" role="alert">
-            {askError}
-          </p>
-        )}
-      </>
-    );
-  }
-
   function renderAsk(d: DiscoveryState) {
-    // Precedence (design-1b-spec §1): deck > correcting > the normal next-question below.
-    // The exhausted-deck loopback is the exception: it must return to answering, not this handoff.
-    if (d.stage === "deck" && !loopbackFromDeck) {
+    // Question 1 answered: the hand-off. A brought CV is checked before any job is shown (#338,
+    // ADR-0016 clause 6) — the server says which with `reviewPending`; the deck refuses an unchecked
+    // session anyway. #377: the check is the profile's check mode (ADR-0018).
+    if (d.role !== null) {
       return (
         <div className="handoff">
           <p className="q" tabIndex={-1} ref={handoffRef}>
             {C19}
           </p>
-          <p className="sub">{C20}</p>
-          {/* #338: a brought CV is checked before any job is shown (ADR-0016 clause 6) — the server
-              says which with `reviewPending`; the deck refuses an unchecked session anyway. #377:
-              the check is the profile's check mode (ADR-0018). */}
+          <p className="sub">{reviewPending ? C20_CHECK : C20}</p>
           <button type="button" className="go" onClick={() => router.push(reviewPending ? "/profile/check" : "/deck")}>
             {C_CONTINUE}
           </button>
         </div>
       );
     }
-    if (correcting) return renderCorrectionAsk();
 
-    if (d.role === null) {
-      const query = roleText.trim();
-      return (
-        <>
-          <label htmlFor="q1-role" className="q">
-            {C2}
-          </label>
-          <p className="sub">{C3}</p>
-          {(suggestions.length > 0 || familyLoading) && query.length >= 2 && (
-            <div className="sugg live">
-              <div className="fam">{C6}</div>
-              {suggestions.slice(0, 5).map((title) => (
-                <button key={title} type="button" disabled={q1Busy} onClick={() => submitRole(title)}>
-                  {highlightMatch(title, query)}
-                </button>
-              ))}
-              {familyLoading && <div className="loading">…</div>}
-            </div>
-          )}
-          <div className="field">
-            <textarea
-              id="q1-role"
-              ref={setFirstControl}
-              rows={2}
-              placeholder={C4}
-              value={roleText}
-              disabled={q1Busy}
-              onChange={(e) => onFamilyInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  submitRole(roleText);
-                }
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            className="go wide"
-            disabled={q1Busy || query.length < 2}
-            onClick={() => submitRole(roleText)}
-          >
-            {C5}
-          </button>
-          {askError && (
-            <p className="err" role="alert">
-              {askError}
-            </p>
-          )}
-        </>
-      );
-    }
-
-    const item = d.questions[0];
-    if (!item) {
-      if (!loopbackFromDeck) return null; // defensive fallback — the deck gate above means this shouldn't be reached
-      return (
-        <>
-          <p className="q">Tell me one more thing and I'll score more jobs.</p>
-          <button
-            type="button"
-            className="go wide"
-            ref={setFirstControl}
-            onClick={() => {
-              setPassed(new Set()); // #339: she asked for more — the questions she put off come back
-              loadDiscovery();
-            }}
-          >
-            Answer more questions
-          </button>
-        </>
-      );
-    }
-    const isAnswering = picked?.itemId === item.itemId;
-
-    // #123: the language question — its own checkbox-group UI, branching on `multiSelect` alone
-    // (the pinned contract's condition), never on dimension/itemId.
-    if (item.multiSelect && item.eligibility) {
-      const elig = item.eligibility;
-      return renderMultiSelect(item, {
-        isAnswering,
-        isCorrection: false,
-        onConfirm: (answers) => answerMultiSelect(item, answers),
-        onDecline: () => answerQuestion(item, elig.declineOption),
-      });
-    }
-
+    const query = roleText.trim();
     return (
       <>
-        <p className="q" id="ask-q">
-          {item.question}
-        </p>
-        {/* #106: the clarifier this client composes for an eligibility ask — see eligibilitySub. */}
-        {item.eligibility && <p className="sub">{eligibilitySub(item.eligibility)}</p>}
-        <div className="opts" role="group" aria-labelledby="ask-q" data-elig={item.eligibility?.dimension}>
-          {item.options.map((opt, i) => {
-            const state = !isAnswering ? "" : opt === picked?.answer ? " picked" : " dim";
-            // #106: the decline option reads as a real answer's full weight minus the emphasis —
-            // never dimmed/hidden/last-styled beyond source order (design spec §4/§9).
-            const quiet = item.eligibility && opt === item.eligibility.declineOption ? " quiet" : "";
-            const cls = `opt${quiet}${state}`;
-            return (
-              <button
-                key={opt}
-                ref={i === 0 ? setFirstControl : undefined}
-                type="button"
-                className={cls}
-                disabled={isAnswering}
-                onClick={() => answerQuestion(item, opt)}
-              >
-                {opt}
+        <label htmlFor="q1-role" className="q">
+          {C2}
+        </label>
+        <p className="sub">{C3}</p>
+        {(suggestions.length > 0 || familyLoading) && query.length >= 2 && (
+          <div className="sugg live">
+            <div className="fam">{C6}</div>
+            {suggestions.slice(0, 5).map((title) => (
+              <button key={title} type="button" disabled={q1Busy} onClick={() => submitRole(title)}>
+                {highlightMatch(title, query)}
               </button>
-            );
-          })}
+            ))}
+            {familyLoading && <div className="loading">…</div>}
+          </div>
+        )}
+        <div className="field">
+          <textarea
+            id="q1-role"
+            ref={setFirstControl}
+            rows={2}
+            placeholder={C4}
+            value={roleText}
+            disabled={q1Busy}
+            onChange={(e) => onFamilyInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submitRole(roleText);
+              }
+            }}
+          />
         </div>
-        {renderNotice()}
+        <button
+          type="button"
+          className="go wide"
+          disabled={q1Busy || query.length < 2}
+          onClick={() => submitRole(roleText)}
+        >
+          {C5}
+        </button>
         {askError && (
           <p className="err" role="alert">
             {askError}
@@ -1215,8 +527,7 @@ function DiscoveryScreen() {
               </div>
 
               <div className="ask">
-                {loopbackFromDeck && <p className="notice">{C22}</p>}
-                {view && renderAsk(view)}
+                {renderAsk(discovery)}
               </div>
             </div>
           </div>
@@ -1226,19 +537,6 @@ function DiscoveryScreen() {
   );
 }
 
-// AC6 (#18): reading `?job` needs useSearchParams, which requires a Suspense boundary above it or
-// Next.js bails the whole route to client-only rendering with a build warning. The fallback mirrors
-// DiscoveryScreen's own loading state so there's no visible flash between the two.
 export default function DiscoveryPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="discovery">
-          <div className="loadstate">Loading your questions…</div>
-        </div>
-      }
-    >
-      <DiscoveryScreen />
-    </Suspense>
-  );
+  return <DiscoveryScreen />;
 }
