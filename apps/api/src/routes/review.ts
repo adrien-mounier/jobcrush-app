@@ -68,7 +68,6 @@ const ReviewJob = z.object({
   endDateQuestion: z.string().nullable(),
   checking: z.boolean(),
   family: z.string().nullable(),
-  complete: z.boolean(),
   lines: z.array(ReviewLine),
 });
 const ReviewSection = z.union([

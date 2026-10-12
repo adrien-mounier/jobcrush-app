@@ -67,11 +67,9 @@ export interface ReviewUnitResult {
   fixes: ResolvedFix[];
   suggestions: ResolvedSuggestion[];
   /** #342: the label of the family the job was drafted from; null for a job in no published family
-   *  (which gets no drafts and no "complete" stamp). Absent on a result stored before #342. */
+   *  (which gets no drafts). Absent on a result stored before #342. A result stored before #386
+   *  also carries `complete` (the retired COMPLETE stamp) — read past, never shown. */
   family?: string | null;
-  /** #342: every must-have of the job's family is shown by the job's own lines, by the model's own
-   *  account (`mustHaves[].shownBy`) — the COMPLETE stamp. Absent on a result stored before #342. */
-  complete?: boolean;
   /** #342: absent on a result stored before #342. */
   drafts?: ResolvedDraft[];
   /** #371: About you as the model wrote it from the whole CV, on the sections unit only, with the

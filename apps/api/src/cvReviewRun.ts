@@ -257,22 +257,19 @@ export function resolveDrafts(
   paper: Paper,
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">,
   unit: string,
-): { family: string | null; complete: boolean; claims: CandidateClaim[]; drafts: ResolvedDraft[] } {
+): { family: string | null; claims: CandidateClaim[]; drafts: ResolvedDraft[] } {
   const { families, placements } = familiesOf(paper, floors);
   const jobId = unitOf(unit).job;
   const placed = families.filter((f) => (placements.get(jobId) ?? []).includes(f.familyId));
   const job = answer.jobs.find((j) => j.job === jobId);
   const role = paper.jobs.find((j) => j.job.id === jobId)?.role;
-  const none = { family: null, complete: false, claims: [], drafts: [] };
+  const none = { family: null, claims: [], drafts: [] };
   if (!job || !role) return none;
   if (placed.length === 0) {
     for (const _ of job.drafted) incrementCounter("cvReview.draft_dropped");
     return none;
   }
   const meanings = new Map(placed.flatMap((f) => f.mustHaves.map((m) => [m.id, m.meaning] as const)));
-  // Complete by the model's own account: every must-have of the family shown by an existing line —
-  // never read off the drafts that survived below, so a dropped draft cannot stamp a job complete.
-  const complete = [...meanings.keys()].every((id) => (job.mustHaves.find((m) => m.id === id)?.shownBy.length ?? 0) > 0);
   const slug = unit.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const claims: CandidateClaim[] = [];
   const drafts: ResolvedDraft[] = [];
@@ -302,8 +299,8 @@ export function resolveDrafts(
     drafts.push({ line: id, mustHave, quote, flags: d.flags, vague: vagueOf(d, text) });
   }
   // ponytail: a job placed in several families is drafted from all their must-haves and labelled
-  // by the first; give the stamp and the sheet every label if a multi-family job ever shows up.
-  return { family: placed[0]!.label, complete, claims, drafts };
+  // by the first; give the card every label if a multi-family job ever shows up.
+  return { family: placed[0]!.label, claims, drafts };
 }
 
 /** #343: a draft's vague phrases, as the screen offers them: only a phrase the line actually reads
@@ -614,7 +611,7 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
           jobs: answer.jobs.map((j) => ({ ...j, job: back.get(j.job) ?? j.job })),
           refused: answer.refused.map((r) => ({ ...r, job: back.get(r.job) ?? r.job })),
         };
-        const drafted = job === SECTIONS_UNIT ? { family: null, complete: false, claims: [], drafts: [] } : resolveDrafts(translated, paper, deps.floors, unit);
+        const drafted = job === SECTIONS_UNIT ? { family: null, claims: [], drafts: [] } : resolveDrafts(translated, paper, deps.floors, unit);
         const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c]));
         // #385: a re-upload's run marks only the items it brought — the ones before were answered in
         // a check mode already, and keep their state, words and marks.
@@ -625,7 +622,6 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
           fixes: resolveFixes(answer, paper).filter((f) => fresh(f.line)),
           suggestions: resolveSuggestions(answer, paper).filter((f) => fresh(f.line)),
           family: drafted.family,
-          complete: drafted.complete,
           drafts: drafted.drafts,
         };
         // #385: About you is written once, from the first read; a re-upload's run leaves it as it is.

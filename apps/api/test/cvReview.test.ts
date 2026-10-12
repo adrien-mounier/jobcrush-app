@@ -179,7 +179,7 @@ describe("#338 the paper", () => {
       { id: "nrg-led-checkout", text: "Led the checkout replatform.", state: "ticked", fix: null, suggestion: null, draft: null, movedFrom: null },
       { id: "nrg-managed-budget", text: "Managed a budget of EUR 1.2M across 3 vendor teams.", state: "ticked", fix: null, suggestion: null, draft: null, movedFrom: null },
     ]);
-    expect(jobs[0]).toMatchObject({ family: null, complete: false }); // no run: no family read back, no stamp
+    expect(jobs[0]).toMatchObject({ family: null }); // no run: no family read back
     expect(jobs[1]!.lines.map((l) => l.id)).toEqual(["bsh-coordinated-releases"]);
     expect(linesOf(state, "edu").map((l) => l.id)).toEqual(["edu-msc-mis-warsaw"]);
     expect(linesOf(state, "skill").map((l) => l.id)).toEqual(["skill-tools"]);

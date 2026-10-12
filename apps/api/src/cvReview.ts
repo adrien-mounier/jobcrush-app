@@ -19,7 +19,7 @@
 // then shows those alone (`newItems`).
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import { CONTACT_FIELDS, type ContactField, type ContactStore, type ContactValue } from "./contact.js";
-import { SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord, type ReviewUnitResult } from "./cvReviewStore.js";
+import { SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord } from "./cvReviewStore.js";
 
 const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 import type { ReviewRunner } from "./cvReviewRun.js";
@@ -90,10 +90,8 @@ export interface ReviewJob {
    *  screen greys the job and says it is still being checked. */
   checking: boolean;
   /** #342: the label of the family this job was reviewed as, once its answer landed; null before
-   *  that and for a job in no published family (no drafts, no stamp — and nothing says why). */
+   *  that and for a job in no published family (no drafts — and nothing says why). */
   family: string | null;
-  /** #342: every must-have of the job's family is already shown by its own lines — the stamp. */
-  complete: boolean;
   lines: ReviewLine[];
 }
 export type ReviewSection =
@@ -213,7 +211,6 @@ function jobsOf(experience: ClaimRecord[], blocks: readonly JobBlockView[]): { j
     endDateQuestion: holes.get(block.id) ?? null,
     checking: false,
     family: null,
-    complete: false,
     lines,
   });
   const taken = new Set<string>();
@@ -229,7 +226,7 @@ function jobsOf(experience: ClaimRecord[], blocks: readonly JobBlockView[]): { j
     }
     // "Title - Employer" is how the miner writes the heading.
     const [title = role, employer = ""] = role.split(/\s+[-–—]\s+/, 2);
-    jobs.push({ id: role, blockId: null, title, employer, dates: null, endDateQuestion: null, checking: false, family: null, complete: false, lines: lines.map(toLine) });
+    jobs.push({ id: role, blockId: null, title, employer, dates: null, endDateQuestion: null, checking: false, family: null, lines: lines.map(toLine) });
     roles.set(role, role);
   }
   // A dated job the lines did not name is still on the paper, with its own date question when its
@@ -337,10 +334,6 @@ function quoteSources(paper: Paper, drafts: ReadonlyMap<string, ResolvedDraft>):
   return (quote) => read.find((l) => l.text.includes(flat(quote)))?.name ?? null;
 }
 
-/** #342: the stamp — decided when the answer landed (cvReviewRun.ts resolveDrafts), by the model's
- *  own account of which lines show which must-have. A job in no family is never complete (nor told
- *  why); a result stored before #342 has no stamp. */
-const isComplete = (result: ReviewUnitResult): boolean => !!result.family && result.complete === true;
 
 export async function buildReviewState(deps: ReviewDeps, session: SessionRecord): Promise<ReviewState> {
   const [paper, found] = await Promise.all([readPaper(deps, session.id), deps.reviews.get(session.id)]);
@@ -391,7 +384,6 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
                 ...job,
                 checking: running(run) && asking.has(job.id),
                 family: result?.family ?? null,
-                complete: result ? isComplete(result) : false,
                 lines: job.lines.map(mark),
               };
             }),

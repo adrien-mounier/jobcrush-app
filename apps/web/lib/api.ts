@@ -684,7 +684,7 @@ export interface ContactValue {
 }
 export type ContactRecord = Record<ContactField, ContactValue | null>;
 
-// --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
+// --- #338 the review, shown as check mode (#377) — mirrors apps/api/src/cvReview.ts's ReviewState. ---
 /** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere.
  *  `dismissed` (#378): a draft the person said No thanks to — held so it is never proposed again, shown nowhere.
  *  `removal-suggested` (#380): an item the review proposes to remove, unanswered — printed nowhere. */
@@ -696,9 +696,8 @@ export interface ReviewDraft {
   mustHave: string | null;
   quote: string | null;
   /** #368: where the quote sits on the CV — "<employer>, <title>" for a job, a section's heading
-   *  otherwise; null when no line holds it. Always sent; optional only so fixtures written before
-   *  it (review.spec.ts, deleted by #386) still type. */
-  source?: string | null;
+   *  otherwise; null when no line holds it. */
+  source: string | null;
   flags: ReviewDraftFlag[];
   /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
   vague: ReviewVague[];
@@ -744,8 +743,6 @@ export interface ReviewJob {
   checking: boolean;
   /** #342: the family the job was reviewed as, once its answer landed; null for a job in none. */
   family: string | null;
-  /** #342: its lines already show every must-have of its family — the COMPLETE stamp. */
-  complete: boolean;
   lines: ReviewLine[];
 }
 /** #382: a skills group — its name and its lines, by id, in CV order. */

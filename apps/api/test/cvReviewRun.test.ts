@@ -24,7 +24,7 @@
 //     all three; unticked again, it stops (remove `prints`' ticked check and these go red);
 //   - the edit before the tick stores the person's wording; the tick makes it a confirmed,
 //     drafted-then-accepted fact; the wrong doors refuse;
-//   - a job whose lines show every must-have reads complete and gets no draft;
+//   - a job whose lines show every must-have gets no draft;
 //   - a reload shows the same wording and never re-calls the writer; the two drafts the prompt forbids
 //     (no source; a job in no family) are dropped and counted.
 // #343 — word choices, over the same seam: a draft's vague phrases arrive with the stored review, CV
@@ -708,7 +708,7 @@ describe("#342 drafted lines", () => {
     const state = await reviewed(app, cookie);
     const [nrg, bsh] = jobsOf(state);
 
-    expect(nrg).toMatchObject({ family: "IT Project Manager", complete: false });
+    expect(nrg).toMatchObject({ family: "IT Project Manager" });
     expect(nrg!.lines.slice(0, 2).map((l) => l.draft)).toEqual([null, null]); // the lines as read come first
     const drafted = drafts(nrg!);
     expect(drafted.map((l) => l.id)).toEqual(["draft-nrg-1", "draft-nrg-2", "draft-nrg-3", "draft-nrg-4", "draft-nrg-5", "draft-nrg-6"]);
@@ -722,8 +722,8 @@ describe("#342 drafted lines", () => {
       draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", flags: ["OPTIONAL"], vague: [] },
     });
     expect(drafted[5]).toMatchObject({ draft: { mustHave: null, quote: "Led the checkout replatform.", flags: ["INDUSTRY GUESS"] } });
-    // A job in no published family: no drafts, no family, no stamp — and nothing says why.
-    expect(bsh).toMatchObject({ family: null, complete: false });
+    // A job in no published family: no drafts, no family — and nothing says why.
+    expect(bsh).toMatchObject({ family: null });
     expect(drafts(bsh!)).toEqual([]);
     expect(writer.calls).toHaveLength(2);
   });
@@ -742,7 +742,7 @@ describe("#342 drafted lines", () => {
     const { app, cookie } = await withCv(writer, MINED, {}, { nrg: IT_PROJECT_DELIVERY_PLACEMENT, bsh: productManagement });
     const [, bsh] = jobsOf(await reviewed(app, cookie));
 
-    expect(bsh).toMatchObject({ family: published.floor.label, complete: false });
+    expect(bsh).toMatchObject({ family: published.floor.label });
     expect(drafts(bsh!).filter((l) => l.draft?.mustHave).map((l) => l.draft!.mustHave)).toEqual(
       published.floor.essentialItems.map((item) => item.question.prompt),
     );
@@ -906,7 +906,7 @@ describe("#342 drafted lines", () => {
     expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "nrg-led-checkout")!.text).toBe("Led the checkout replatform.");
   });
 
-  it("a job whose lines show every must-have reads complete and gets no draft", async () => {
+  it("a job whose lines show every must-have gets no draft", async () => {
     const shown = [
       claim({ id: "nrg-1", role: NRG, text: "Owned end to end delivery of the checkout replatform." }),
       claim({ id: "nrg-2", role: NRG, text: "Ran stakeholder coordination across business and IT." }),
@@ -917,13 +917,14 @@ describe("#342 drafted lines", () => {
     const writer = fakeWriter();
     const { app, cookie } = await withCv(writer, shown);
     const [nrg, bsh] = jobsOf(await reviewed(app, cookie));
-    expect(nrg).toMatchObject({ family: "IT Project Manager", complete: true });
+    expect(nrg).toMatchObject({ family: "IT Project Manager" });
+    expect(nrg).not.toHaveProperty("complete"); // #386: the COMPLETE stamp is retired — the wire carries none
     expect(drafts(nrg!)).toEqual([]);
     expect(nrg!.lines).toHaveLength(4);
-    expect(bsh).toMatchObject({ family: null, complete: false });
+    expect(bsh).toMatchObject({ family: null });
   });
 
-  it("a reload shows the same wording and never re-calls the writer; a draft with no source, one citing a must-have the family lacks, or one for a job in no family, is dropped and counted — and a dropped draft never stamps a job complete", async () => {
+  it("a reload shows the same wording and never re-calls the writer; a draft with no source, one citing a must-have the family lacks, or one for a job in no family, is dropped and counted", async () => {
     const writer = fakeWriter({ badDrafts: true });
     const { app, cookie } = await withCv(writer);
     const first = await reviewed(app, cookie);
@@ -936,8 +937,7 @@ describe("#342 drafted lines", () => {
     expect(allLines(again).some((l) => l.text === "A line with no source at all." || l.text === DRAFT_TEXT("delivery-communication"))).toBe(false);
     expect(drafts(jobsOf(again)[1]!)).toEqual([]);
     expect(readCounters()["cvReview.draft_dropped"]).toBe(3);
-    // The must-have whose draft was dropped is still missing by the model's own account: no stamp.
-    expect(jobsOf(again)[0]).toMatchObject({ family: "IT Project Manager", complete: false });
+    expect(jobsOf(again)[0]).toMatchObject({ family: "IT Project Manager" });
   });
 });
 

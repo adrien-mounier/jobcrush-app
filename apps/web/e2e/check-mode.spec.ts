@@ -55,7 +55,6 @@ const REVIEW: ReviewState = {
           endDateQuestion: null,
           checking: false,
           family: null,
-          complete: false,
           lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-2", FIXED, { fix: { original: TYPO, corrected: FIXED, applied: true } })],
         },
         {
@@ -67,7 +66,6 @@ const REVIEW: ReviewState = {
           endDateQuestion: "When did you leave Baltic Software House?",
           checking: false,
           family: null,
-          complete: false,
           lines: [line("bsh-1", "Coordinated releases for 4 agile squads.")],
         },
       ],
@@ -463,17 +461,18 @@ test.describe("#378 add suggestions answered in place", () => {
     draft: {
       mustHave: "Owns delivery end to end",
       quote: null,
+      source: null,
       flags: [],
       vague: [{ phrase: VAGUE, options: [{ text: "the vendor teams", from: "CV", quote: "Led the checkout replatform." }, { text: "the steering committee", from: "TYPICAL", quote: null }] }],
     },
   });
   const OPTIONAL = line("draft-nrg-2", "Also coordinated releases for 4 agile squads.", {
     state: "drafted",
-    draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", flags: ["OPTIONAL"], vague: [] },
+    draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", source: null, flags: ["OPTIONAL"], vague: [] },
   });
   const GUESS = line("draft-nrg-3", "Followed the employer's release calendar.", {
     state: "drafted",
-    draft: { mustHave: null, quote: "Led the checkout replatform.", flags: ["INDUSTRY GUESS"], vague: [] },
+    draft: { mustHave: null, quote: "Led the checkout replatform.", source: null, flags: ["INDUSTRY GUESS"], vague: [] },
   });
   const WITH_DRAFTS: ReviewState = {
     ...REVIEW,
@@ -1151,7 +1150,7 @@ test.describe("#385 a re-upload brings check mode back, for new items only", () 
   const NEW_ITEM = line("bsh-new", "Ran the quarterly release review with the business owners.");
   const NEW_SUGGESTION = line("draft-bsh-rerun-9-1", "Reported release progress to the steering committee.", {
     state: "drafted",
-    draft: { mustHave: "How did you report progress or translate delivery detail for stakeholders?", quote: null, flags: [], vague: [] },
+    draft: { mustHave: "How did you report progress or translate delivery detail for stakeholders?", quote: null, source: null, flags: [], vague: [] },
   });
   const REUPLOADED: ReviewState = {
     ...REVIEW,
