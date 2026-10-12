@@ -233,6 +233,13 @@ function DetailBody({ fact }: { fact: ProfileFact }) {
   );
 }
 
+// #384 — the review fixed a spelling mistake on this line: the same quiet tag check mode shows. Its
+// Undo lives in check mode; an undone fix wears no tag here.
+const FIXED_TAG = "Fixed";
+function FixedTag({ fact }: { fact: ProfileFact }) {
+  return fact.fix?.applied ? <span className="tag">{FIXED_TAG}</span> : null;
+}
+
 // #186 A2 — a sentence fact as a full row (profile / experience / edu domains). A real <button>,
 // never a <p tabindex=0>.
 function FactRow({
@@ -250,7 +257,10 @@ function FactRow({
       onClick={() => onOpenFact(fact)}
     >
       <i className="fdot" aria-hidden="true" />
-      <span className="ftxt">{fact.text}</span>
+      <span className="ftxt">
+        {fact.text}
+        <FixedTag fact={fact} />
+      </span>
     </button>
   );
 }
@@ -279,6 +289,7 @@ function ChipButton({
       onClick={() => onOpenFact(fact)}
     >
       {chipText(fact.text)}
+      <FixedTag fact={fact} />
     </button>
   );
 }

@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
+import { completeReview, ensureSession, getReview, setFixApplied, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -249,6 +249,7 @@ export default function CheckPage() {
             bump: fx.bump === screen.key,
             onRemove: remove,
             onPutBack: putBack,
+            onFix: (id, applied) => void write(() => setFixApplied(id, applied)),
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
         />

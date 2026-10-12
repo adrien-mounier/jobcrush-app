@@ -19,13 +19,13 @@ import { withFactFloor } from "../sessions.js";
 import type { SessionStore, SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
-import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
+import { readProfile } from "../profile.js";
 import { runGate } from "../gate.js";
 import { answeredGrillIds, answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
 import type { EligibilityStore } from "../eligibility.js";
-import { answerEligibilityItem, excludingEligibility } from "../eligibilityDiscovery.js";
+import { answerEligibilityItem } from "../eligibilityDiscovery.js";
 import {
   answerQuestionOne,
   buildDiscoveryRouteState,
@@ -73,6 +73,7 @@ export interface OnboardingDeps {
    *  source of both the total and the date-hole questions asked in its place. */
   jobBlocks: import("../jobBlockStore.js").JobBlockStore;
   contact: import("../contact.js").ContactStore; // #190: GET /profile reads it, additively.
+  reviews: import("../cvReviewStore.js").CvReviewStore; // #384: GET /profile wears the review's fixes.
   familyFloors: TestFixtureFamilyFloorStore;
   productionFamilyFloors: ProductionFamilyFloorStore;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
@@ -357,21 +358,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
 
     // --- #20 the profile screen: session-authenticated, reachable pre-wall (requireSession, not
     // requireUser). Assembly + colour law live in profile.ts (#179 search, #190 contact block).
-    app.get("/profile", async (req) => {
-      const session = requireSession(req);
-      const facts = (await deps.claims.list(session.id)).filter(
-        (c) => c.decision !== "rejected" && c.decision !== "negative",
-      );
-      const confirmed = facts.filter((c) => c.decision === "confirmed");
-      const negatives = await deps.claims.negatives(session.id);
-      // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
-      const profileFactCount = await withFactFloor(
-        deps.sessions,
-        session,
-        factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
-      );
-      return buildProfileState(facts, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas), await resolveLanguagesQuestion(deps.eligibility, session.id));
-    });
+    app.get("/profile", async (req) => readProfile(deps, requireSession(req)));
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------
     // Pre-wall, so it rides the ANONYMOUS session (requireSession, not requireUser): the account ask

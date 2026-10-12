@@ -596,6 +596,8 @@ export interface ProfileFact {
   // #335: true only for a line the person unticked — grey under "Kept for when a job needs it",
   // never the not-yet-confirmed grey. Absent on every other fact.
   kept?: true;
+  // #384: the review's spelling fix on this line, as GET /review wears it. Absent on every other fact.
+  fix?: ReviewFix;
 }
 
 export interface ProfileDomain {

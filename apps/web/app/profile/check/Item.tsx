@@ -24,9 +24,63 @@ const MINUS = (
   </svg>
 );
 
-export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy: boolean; onRemove: (id: string) => void; onEdit?: (id: string) => void }) {
+// #384: the review's spelling fix on an item (ADR-0016 clause 2). It stays applied without asking;
+// a quiet tag opens the original beside the corrected words, with Undo — and "Use the fix" after an
+// undo. Never something to answer: nothing here holds the footer button.
+const C_FIXED = "Fixed";
+const C_FIX_UNDONE = "Fix undone";
+const C_UNDO = "Undo";
+const C_USE_FIX = "Use the fix";
+
+/** The words a fix changed: the span between the longest common prefix and suffix of the two
+ *  texts, widened to whole words — so a dropped letter ("accross" → "across") marks the word, not
+ *  an empty span. Moved from the review page (#386 deletes that copy). */
+function changed(a: string, b: string): { from: string; to: string } {
+  const ws = (c: string | undefined) => c === undefined || /\s/.test(c);
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start += 1;
+  let end = 0;
+  while (end < a.length - start && end < b.length - start && a[a.length - 1 - end] === b[b.length - 1 - end]) end += 1;
+  let aEnd = a.length - end;
+  let bEnd = b.length - end;
+  while (start > 0 && !ws(b[start - 1])) start -= 1;
+  while (!ws(a[aEnd])) aEnd += 1;
+  while (!ws(b[bEnd])) bEnd += 1;
+  return { from: a.slice(start, aEnd), to: b.slice(start, bEnd) };
+}
+
+function FixRow({ fix, busy, onToggle }: { fix: NonNullable<ReviewLine["fix"]>; busy: boolean; onToggle: () => void }) {
+  const d = changed(fix.original, fix.corrected);
+  return (
+    <span className="fixrow">
+      <span className="fixdiff">
+        <s>{d.from || fix.original}</s> → <span className="to">{d.to || fix.corrected}</span>
+      </span>
+      <button type="button" className="linkbtn" disabled={busy} onClick={onToggle}>
+        {fix.applied ? C_UNDO : C_USE_FIX}
+      </button>
+    </span>
+  );
+}
+
+export function Item({
+  line,
+  busy,
+  onRemove,
+  onEdit,
+  onFix,
+}: {
+  line: ReviewLine;
+  busy: boolean;
+  onRemove: (id: string) => void;
+  onEdit?: (id: string) => void;
+  /** #384: undo a fix (false) or use it again (true). Absent → no tag is drawn. */
+  onFix?: (id: string, applied: boolean) => void;
+}) {
   // A tap on the text itself shows the actions (touch screens have no hover).
   const [active, setActive] = useState(false);
+  const [fixOpen, setFixOpen] = useState(false);
+  const fix = onFix ? line.fix : null;
   return (
     <li
       className={`pt${active ? " act" : ""}`}
@@ -34,7 +88,15 @@ export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy:
         if (!(e.target as HTMLElement).closest("button")) setActive((a) => !a);
       }}
     >
-      <span className="txt">{line.text}</span>
+      <span className="txt">
+        {line.text}
+        {fix && (
+          <button type="button" className="tag" aria-expanded={fixOpen} onClick={() => setFixOpen((o) => !o)}>
+            {fix.applied ? C_FIXED : C_FIX_UNDONE}
+          </button>
+        )}
+        {fix && fixOpen && <FixRow fix={fix} busy={busy} onToggle={() => onFix!(line.id, !fix.applied)} />}
+      </span>
       <span className="acts">
         {onEdit && (
           <button type="button" className="ib" aria-label={C_EDIT} title={C_EDIT} disabled={busy} onClick={() => onEdit(line.id)}>
@@ -81,6 +143,8 @@ export interface ItemListProps {
   onPutBack: (id: string) => void;
   onBumpEnd: () => void;
   onEdit?: (id: string) => void;
+  /** #384: undo / use again a spelling fix on an item. */
+  onFix?: (id: string, applied: boolean) => void;
   /** What a line that is neither in nor removed renders as — a card type. None today: #378 adds
    *  the add-suggestion card for a `drafted` line, #380 the removal card. Null draws nothing. */
   card?: (line: ReviewLine) => ReactNode;
@@ -88,13 +152,13 @@ export interface ItemListProps {
 
 /** A section's items in a plain card: the ones in, each with its actions; the removed ones in the
  *  tray at the end. */
-export function ItemList({ lines, busy, bump, onRemove, onPutBack, onBumpEnd, onEdit, card }: ItemListProps) {
+export function ItemList({ lines, busy, bump, onRemove, onPutBack, onBumpEnd, onEdit, onFix, card }: ItemListProps) {
   const removed = lines.filter((l) => l.state === "kept");
   return (
     <>
       <ul className="pts">
         {lines.map((l) =>
-          l.state === "ticked" ? <Item key={l.id} line={l} busy={busy} onRemove={onRemove} onEdit={onEdit} /> : l.state === "kept" ? null : (card?.(l) ?? null),
+          l.state === "ticked" ? <Item key={l.id} line={l} busy={busy} onRemove={onRemove} onEdit={onEdit} onFix={onFix} /> : l.state === "kept" ? null : (card?.(l) ?? null),
         )}
       </ul>
       {removed.length > 0 && <Tray removed={removed} busy={busy} bump={bump} onPutBack={onPutBack} onBumpEnd={onBumpEnd} />}

@@ -393,6 +393,38 @@
   }
 }
 
+/* #384 a spelling fix: a quiet tag on the item, opening the original beside the corrected words */
+.check .pt .tag {
+  font: 11px var(--sans);
+  color: var(--muted-r);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 8px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.check .pt .tag:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+.check .fixrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-top: 4px;
+  font: 13px/1.45 var(--sans);
+  color: var(--muted-r);
+}
+.check .fixrow s {
+  text-decoration-color: rgba(224, 135, 108, 0.7);
+}
+.check .fixrow .to {
+  color: var(--ink);
+}
+
 @media (hover: none) {
   .check .acts {
     opacity: 0;

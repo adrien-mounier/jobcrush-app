@@ -2087,3 +2087,23 @@ test("#303: the profile's top bar carries the paste door, named, on phone and on
     else await expect(wordsLocator, `words should be hidden at ${width}px`).toBeHidden();
   }
 });
+
+// #384: a line the review fixed wears a quiet tag on the profile too — on a sentence row and on a
+// chip — and nothing else does.
+test("#384: a fixed fact wears the tag on the profile, as a row and as a chip; an unfixed fact wears none", async ({ page }) => {
+  await stubSession(page);
+  const fix = { original: "Managed a team of six enginers.", corrected: "Managed a team of six engineers.", applied: true };
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { ...PROFILE.domains[0]!, facts: PROFILE.domains[0]!.facts.map((f, i) => (i === 0 ? { ...f, fix } : f)) },
+      { ...PROFILE.domains[1]!, facts: [{ ...PROFILE.domains[1]!.facts[0]!, fix: { original: "SQl.", corrected: "SQL.", applied: true } }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await expect(page.locator(".frow .tag")).toHaveCount(1);
+  await expect(page.locator(".frow").first().locator(".tag")).toHaveCount(1);
+  await expect(page.locator(".frow").nth(1).locator(".tag")).toHaveCount(0);
+  await expect(page.locator(".fact .tag")).toHaveCount(1);
+});

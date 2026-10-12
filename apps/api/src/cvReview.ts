@@ -260,17 +260,22 @@ export const running = (run: ReviewRunRecord | null): run is ReviewRunRecord => 
 /** The marks a run's checkpoints lay on a line. A fix wears its mark only while the line reads
  *  the corrected text (applied) or the original (undone): a line that reads neither has been
  *  changed since, and the fix no longer describes it. */
+export function fixOf(text: string, fix: ResolvedFix | undefined): ReviewFix | null {
+  const wearsFix = fix && (text === fix.corrected || text === fix.original);
+  return wearsFix ? { original: fix.original, corrected: fix.corrected, applied: text === fix.corrected } : null;
+}
+
 function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: ResolvedSuggestion | undefined, draft: ResolvedDraft | undefined): ReviewLine {
-  const wearsFix = fix && (line.text === fix.corrected || line.text === fix.original);
   return {
     ...line,
-    fix: wearsFix ? { original: fix.original, corrected: fix.corrected, applied: line.text === fix.corrected } : null,
+    fix: fixOf(line.text, fix),
     suggestion: suggestion ? { kind: suggestion.kind, reason: suggestion.reason } : null,
     draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, flags: draft.flags, vague: draft.vague ?? [] } : null,
   };
 }
 
-function lineMarks(run: ReviewRunRecord | null) {
+/** #384: the profile reads the same marks, so a fix shows there after check mode. */
+export function lineMarks(run: ReviewRunRecord | null) {
   const fixes = new Map<string, ResolvedFix>();
   const suggestions = new Map<string, ResolvedSuggestion>();
   const drafts = new Map<string, ResolvedDraft>();

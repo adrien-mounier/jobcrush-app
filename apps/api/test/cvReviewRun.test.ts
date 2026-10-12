@@ -426,6 +426,24 @@ describe("#341 the run", () => {
     expect(jobsOf(await review(app, cookie))[0]!.lines[1]!.fix?.applied).toBe(false);
   });
 
+  it("#384: the profile wears the fix after check mode — applied, then undone — and a line with no fix carries none", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/review/complete");
+    const factsOf = async (tag: string) =>
+      ((await get(app, cookie, "/profile")).json().domains as Array<{ tag: string; facts: Array<{ id: string; text: string; fix?: unknown }> }>).find((d) => d.tag === tag)!.facts;
+    let facts = await factsOf("experience");
+    expect(facts.find((f) => f.id === "nrg-managed-budget")).toMatchObject({ text: FIXED_LINE, fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: true } });
+    expect(facts.find((f) => f.id === "nrg-led-checkout")).not.toHaveProperty("fix");
+    // A fix outside the jobs — the skills section — is worn where the fact sits.
+    expect((await factsOf("skill"))[0]).toMatchObject({ text: "Has skills in Jira and MS Project.", fix: { applied: true } });
+
+    await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: false });
+    facts = await factsOf("experience");
+    expect(facts.find((f) => f.id === "nrg-managed-budget")).toMatchObject({ text: TYPO_LINE, fix: { original: TYPO_LINE, corrected: FIXED_LINE, applied: false } });
+  });
+
   it("a fix or judgement naming a line the model was not shown is dropped and counted; the real ones still land", async () => {
     const writer = fakeWriter({ bogus: true });
     const { app, cookie } = await withCv(writer);
