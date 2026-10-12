@@ -56,9 +56,12 @@ export function reviewPrompt(): string {
 // otherwise good. No `.default()` on any field the prompt says is required (CODING_STANDARDS).
 // ---------------------------------------------------------------------------------------------
 const Fix = z.object({ line: z.string(), original: z.string(), corrected: z.string() });
+// #380: `remove` for an item that belongs nowhere. `untick` is the verdict the prompt gave before
+// #380 — still parsed (a stored answer, #340's recordings), resolved to nothing.
 const Judgement = z.discriminatedUnion("verdict", [
   z.object({ line: z.string(), verdict: z.literal("keep") }),
-  z.object({ line: z.string(), verdict: z.literal("untick"), kind: z.enum(SUGGESTION_KINDS), reason: z.string() }),
+  z.object({ line: z.string(), verdict: z.literal("remove"), kind: z.enum(SUGGESTION_KINDS), reason: z.string() }),
+  z.object({ line: z.string(), verdict: z.literal("untick"), kind: z.string(), reason: z.string() }),
 ]);
 const VagueOption = z.object({ text: z.string(), from: z.enum(VAGUE_SOURCES), quote: z.string().nullish() });
 const DraftedLine = z.object({
@@ -305,7 +308,7 @@ export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): Resolved
   const lines = linesOf(paper);
   const out: ResolvedSuggestion[] = [];
   for (const j of [...answer.jobs.flatMap((j) => j.judgements), ...(answer.sections ?? []).flatMap((s) => s.judgements)]) {
-    if (j.verdict !== "untick") continue;
+    if (j.verdict !== "remove") continue;
     if (!lines.has(j.line)) {
       incrementCounter("cvReview.judgement_dropped");
       continue;
@@ -326,7 +329,7 @@ export interface ReviewRunDeps {
   llm: LlmClient;
   reviews: CvReviewStore;
   sessions: Pick<SessionStore, "getById">;
-  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted">;
+  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState">;
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
@@ -439,9 +442,15 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         };
         // Applied by default (ADR-0016 clause 5) — to a line that still reads what the model was
         // shown; a line changed meanwhile keeps its new text and wears no fix.
-        const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c.text]));
+        const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c]));
         for (const fix of result.fixes) {
-          if (current.get(fix.line) === fix.original) await deps.claims.setText(sessionId, fix.line, fix.corrected);
+          if (current.get(fix.line)?.text === fix.original) await deps.claims.setText(sessionId, fix.line, fix.corrected);
+        }
+        // #380: a removal suggestion is the line's own state — out of every render until answered
+        // (prints keys on ticked), and what the finish gate counts. Only a line still in moves: one
+        // the person already removed while the run went is not asked again.
+        for (const s of result.suggestions) {
+          if (current.get(s.line)?.lineState === "ticked") await deps.claims.setLineState(sessionId, s.line, "removal-suggested");
         }
         // The drafts land on the paper as unticked lines before the checkpoint names them (#342):
         // a crash in between leaves lines the next attempt will not store twice, never marks that

@@ -17,8 +17,10 @@ export type ClaimOrigin = "mined" | "user-authored" | "drafted" | "drafted-accep
  *  re-tickable. Lines read from the CV arrive ticked. `drafted` (#342) is a review draft the person
  *  has not ticked yet: refused by the same print gate (`prints`/confirmed()) with no schema change
  *  (the column is text), and left only by acceptDraft(). Orthogonal to `decision`: confirming,
- *  editing or re-answering a line never re-ticks it — only the person's tick does. */
-export type LineState = "ticked" | "kept" | "drafted";
+ *  editing or re-answering a line never re-ticks it — only the person's tick does. `removal-suggested`
+ *  (#380) is an item the review proposes to remove, unanswered: refused by the same print gate, counted
+ *  by the finish gate (cvReview.ts completeReview); "Keep it" → ticked, "Remove it" → kept. */
+export type LineState = "ticked" | "kept" | "drafted" | "removal-suggested";
 
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
@@ -61,10 +63,11 @@ export interface ClaimStore {
   answerNegative(sessionId: string, claim: CandidateClaim): Promise<void>;
   /** #13: correction — flip a mistapped decision (e.g. a "no") back to pending, reopening the gap. */
   reopen(sessionId: string, id: string): Promise<void>;
-  /** #335: the person's untick (→ kept) or re-tick. Touches nothing else. False when the session has
-   *  no such line — or when the line is a draft nobody has ticked (#342): a draft leaves `drafted`
-   *  only through acceptDraft(), so this door can never tick one. */
-  setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean>;
+  /** #335: the person's untick (→ kept) or re-tick — and (#380) the run's removal suggestion landing
+   *  on a line. Touches nothing else. False when the session has no such line — or when the line is
+   *  a draft nobody has ticked (#342): a draft leaves `drafted` only through acceptDraft(), so this
+   *  door can never tick one. */
+  setLineState(sessionId: string, id: string, state: Exclude<LineState, "drafted">): Promise<boolean>;
   /** #342: the review's drafted lines for a job — pending, origin `drafted`, state `drafted`, so
    *  they show on the paper and print nowhere. Idempotent like seed(): a draft already stored under
    *  its id is left exactly as it is (generated once, stored — ADR-0016 clause 7). */
@@ -216,7 +219,7 @@ export class InMemoryClaimStore implements ClaimStore {
     }
   }
 
-  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: Exclude<LineState, "drafted">): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
     if (!c || c.lineState === "drafted") return false;
     c.lineState = state;
@@ -437,7 +440,7 @@ export class PgClaimStore implements ClaimStore {
     await this.pool.query(`UPDATE claims SET decision = 'pending', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
-  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: Exclude<LineState, "drafted">): Promise<boolean> {
     const { rowCount } = await this.pool.query(
       `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
       [sessionId, id, state],

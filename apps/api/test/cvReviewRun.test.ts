@@ -202,6 +202,10 @@ async function until<T>(read: () => Promise<T> | T, ok: (value: T) => boolean, w
   throw new Error(`never happened: ${what}`);
 }
 const reviewed = (app: App, cookie: string) => until(() => review(app, cookie), (s) => s.progress === null, "the run finished");
+/** The second job's answer is on the run's checkpoint — what the retry tests watch (#380 removed the
+ *  aim line's mark they used to read off the paper). */
+const bshLanded = async (server: Server, sessionId: string) =>
+  ((await server.cvReviews.get(sessionId))?.units.find((u) => u.unit === "bsh")?.result ?? null) !== null;
 
 /** A session that brought a CV: pasted → mined (fake) → dated job records mined and the first one
  *  placed (fake) → the review run started by the pipeline over the fake writer. */
@@ -264,13 +268,14 @@ describe("#341 the run", () => {
       draft: null,
     });
     expect(nrg!.lines[0]!.fix).toBeNull();
-    // The suggestion, on a job placed in no family: shown with its reason, the line still ticked.
+    // #380: a true but weak line (an aim with no result) is never suggested for removal — it stays
+    // in, with no mark. The removal suggestion itself is proved under "#380 removal suggestions".
     expect(bsh!.lines[1]).toEqual({
       id: "bsh-release-calendar",
       text: AIM_LINE,
       state: "ticked",
       fix: null,
-      suggestion: { kind: "aim-without-result", reason: "States an aim and no delivered result." },
+      suggestion: null,
       draft: null,
     });
     // A fix outside the jobs — the skills section — lands where the line sits.
@@ -301,7 +306,7 @@ describe("#341 the run", () => {
     const state = await reviewed(app, cookie);
     expect(writer.asked().sort()).toEqual(["j2", "j2", "sections, j1"]);
     expect(jobsOf(state)[0]!.lines[1]!.fix?.applied).toBe(true);
-    expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+    expect(await bshLanded(server, sessionId)).toBe(true); // the retried job answered
     // #364: why the first attempt failed is kept on the unit, past the retry that answered — with
     // the error's cause, which is all a dropped connection says about itself.
     expect((await server.cvReviews.get(sessionId))!.units).toMatchObject([
@@ -452,7 +457,7 @@ describe("#341 the run", () => {
     expect(first.progress).toEqual({ done: 1, total: 2, minutesLeft: 5 }); // read as still going — and resumed
     const state = await reviewed(app, cookie);
     expect(writer.asked().slice(spent)).toEqual(["j2"]); // the finished job was never re-asked
-    expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+    expect(await bshLanded(server, sessionId)).toBe(true);
     expect((await server.cvReviews.get(sessionId))?.outcome).toBe("done");
   });
 
@@ -475,7 +480,7 @@ describe("#341 the run", () => {
     expect((await review(app, cookie)).progress).toEqual({ done: 1, total: 2, minutesLeft: 5 });
     const state = await reviewed(app, cookie);
     expect(writer.asked().slice(spent)).toEqual(["j2"]); // asked once more, the finished job never
-    expect(jobsOf(state)[1]!.lines[1]!.suggestion?.kind).toBe("aim-without-result");
+    expect(await bshLanded(server, sessionId)).toBe(true);
     expect((await server.cvReviews.get(sessionId))).toMatchObject({ outcome: "done", units: [{ unit: "nrg" }, { unit: "bsh", attempts: 3, failures: 1 }] });
   });
 
@@ -491,7 +496,7 @@ describe("#341 the run", () => {
 
     const state = await reviewed(app, cookie); // the first read finds the run spent and closes it
     expect(writer.calls.length).toBe(spent);
-    expect(jobsOf(state)[1]!.lines[1]!.suggestion).toBeNull(); // as read, and nothing says why
+    expect(await bshLanded(server, sessionId)).toBe(false); // as read, and nothing says why
     expect((await server.cvReviews.get(sessionId))?.outcome).toBe("failed");
   });
 
@@ -917,5 +922,146 @@ describe("#341 the answer, as the product model wrote it", () => {
     expect(parseReviewAnswer("```json\n" + fixture("cv-review-fable-5-1-run1.json") + "\n```").jobs).toHaveLength(3);
     expect(() => parseReviewAnswer("Here is my review: {}")).toThrow();
     expect(() => parseReviewAnswer(JSON.stringify({ jobs: [] }))).toThrow(); // letterhead/sections/refused missing
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #380 — "Remove this?" (ADR-0018 clause 4): the review suggests removal only for an item that
+// belongs nowhere — a duplicate, a fragment, personal data — never for a true but weak line, and
+// never for fit. The fake flags a "Date of birth" line as personal data and keeps everything else,
+// the aim-without-result line included. What it proves over HTTP:
+//   - the suggestion lands as the line's own state (removal-suggested) with its kind and reason;
+//     the weak line is kept with no mark;
+//   - finishing is refused (409 suggestions_open) while one is unanswered; Keep it (ticked) and
+//     Remove it (kept) both go through the line door and persist; a removed one lists as removed;
+//   - an unanswered or removed item never reaches the master CV, a tailored draft or an export;
+//     a kept-in one prints (the positive pair);
+//   - a result stored under the old untick kinds (weak, aim-without-result) still reads: no 500,
+//     no mark.
+// ---------------------------------------------------------------------------------------------
+const DOB_LINE = "Date of birth: 12 March 1985.";
+const DOB = "additional-dob";
+const MINED_WITH_DOB: CandidateClaim[] = [...MINED, claim({ id: DOB, text: DOB_LINE })];
+const lineById = (state: ReviewState, id: string) => allLines(state).find((l) => l.id === id);
+
+describe("#380 removal suggestions", () => {
+  it("the run suggests removal for the date of birth, as the line's own state with its reason, and for nothing true — the aim-without-result line is kept", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer, MINED_WITH_DOB);
+    const state = await reviewed(app, cookie);
+    expect(lineById(state, DOB)).toEqual({
+      id: DOB,
+      text: DOB_LINE,
+      state: "removal-suggested",
+      fix: null,
+      suggestion: { kind: "personal-data", reason: "A date of birth hurts on any CV." },
+      draft: null,
+    });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === DOB)).toMatchObject({ decision: "pending", lineState: "removal-suggested" });
+    // A true but weak line is never suggested for removal: it stays in, with no mark.
+    expect(lineById(state, "bsh-release-calendar")).toMatchObject({ state: "ticked", suggestion: null });
+    expect(allLines(state).filter((l) => l.suggestion !== null).map((l) => l.id)).toEqual([DOB]);
+  });
+
+  it("finishing is refused while the suggestion is unanswered and the jobs stay shut; Remove it lists it as removed and keeps it out of the master CV, the tailored draft and the export — the line beside it prints", async () => {
+    const prompts: string[] = [];
+    const printed: string[] = [];
+    const documentMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer, MINED_WITH_DOB, { tailorLlm: echoingLlm(prompts), documentMaker });
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-removal-gate@example.com");
+
+    // Unanswered: the finish is refused, server-side, and the jobs stay shut behind it.
+    const refused = await post(app, cookie, "/review/complete");
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe("suggestions_open");
+    expect((await review(app, cookie)).completed).toBe(false);
+    expect((await get(app, cookie, "/onboarding/cards")).json()).toMatchObject({ reviewPending: true, cards: [] });
+
+    // Remove it: the ordinary removal — through the line door, persisted, listed as removed.
+    expect((await put(app, cookie, `/cv/lines/${DOB}`, { state: "kept" })).json()).toEqual({ id: DOB, state: "kept" });
+    expect(lineById(await review(app, cookie), DOB)).toMatchObject({ state: "kept", suggestion: { kind: "personal-data" } });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === DOB)).toMatchObject({ lineState: "kept" });
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+
+    const built = (await post(app, cookie, "/onboarding/build")).json();
+    expect(built.rootCv.markdown).toContain("Delivery-accountable project manager.");
+    expect(built.rootCv.markdown).not.toContain(DOB_LINE);
+    await warmRetrieval(app, cookie);
+    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
+    const draft = await tailorDraft(app, cookie);
+    expect(draft.html).toContain("Led the checkout replatform.");
+    expect(draft.html).not.toContain(DOB_LINE);
+    expect(prompts[0]).toContain("Led the checkout replatform.");
+    expect(prompts[0]).not.toContain(DOB_LINE);
+    const exported = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: draft.draftedAt });
+    expect(exported.statusCode).toBe(202);
+    await until(async () => (await get(app, cookie, `/jobs/${exported.json().jobId}`)).json(), (job) => isTerminal(job.status), "the export settled");
+    expect(printed).toHaveLength(1);
+    expect(printed[0]).toContain("Led the checkout replatform.");
+    expect(printed[0]).not.toContain(DOB_LINE);
+    expect(writer.calls).toHaveLength(2); // none of this asked the review writer anything
+  });
+
+  // The eval's fixture (scripts/removal-eval.mjs runs it against the real model on staging): the
+  // shipped prompt + the date-of-birth CV → the date of birth is the one removal, as personal data;
+  // the true achievements, the weak aim line and the nationality line all stay.
+  it("eval fixture: the date of birth is the only line suggested for removal", () => {
+    const prompt = readFileSync(new URL("../prompts/cv-review.md", import.meta.url), "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
+    const input = readFileSync(new URL("./fixtures/cv-review-dob-input.md", import.meta.url), "utf8");
+    const answer = parseReviewAnswer(qaReviewAnswer(`${prompt}\n\n${input}`));
+    const removals = [...answer.jobs, ...(answer.sections ?? [])].flatMap((u) => u.judgements).filter((j) => j.verdict !== "keep");
+    expect(removals).toEqual([{ line: "additional-dob", verdict: "remove", kind: "personal-data", reason: "A date of birth hurts on any CV." }]);
+    expect(answer.jobs.flatMap((j) => j.judgements).map((j) => j.line)).toContain("nrg-checkout"); // the achievements were judged, and kept
+  });
+
+  it("a review stored before #380, with the old untick kinds, still reads: no error, no mark, the line in", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await reviewed(app, cookie);
+    const run = (await server.cvReviews.get(sessionId))!;
+    const nrg = run.units.find((u) => u.unit === "nrg")!.result!;
+    const old = [
+      { line: "nrg-led-checkout", kind: "weak", reason: "Says nothing a reader can use." },
+      { line: "bsh-release-calendar", kind: "aim-without-result", reason: "States an aim and no delivered result." },
+    ];
+    await server.cvReviews.recordResult(sessionId, "nrg", { ...nrg, suggestions: old as unknown as typeof nrg.suggestions });
+
+    const res = await get(app, cookie, "/review");
+    expect(res.statusCode).toBe(200);
+    const state = res.json() as ReviewState;
+    expect(lineById(state, "nrg-led-checkout")).toMatchObject({ state: "ticked", suggestion: null });
+    expect(lineById(state, "bsh-release-calendar")).toMatchObject({ state: "ticked", suggestion: null });
+    // And the #340 recording, written under the old prompt, still parses.
+    const recorded = parseReviewAnswer(readFileSync(new URL("./fixtures/cv-review-fable-5-1-run1.json", import.meta.url), "utf8"));
+    expect(recorded.jobs[0]!.judgements.find((j) => j.verdict !== "keep")).toMatchObject({ line: "b15", verdict: "untick" });
+  });
+
+  it("an unanswered item never prints even once confirmed by another door; Keep it persists as in, the finish goes through and the item prints", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer, MINED_WITH_DOB);
+    await reviewed(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await signIn(app, cookie, "review-removal-keep@example.com");
+    // The state alone keeps it out: confirmed (as a signed-in edit would), it still does not print,
+    // while a confirmed line beside it does.
+    await server.claims.confirm(sessionId, DOB);
+    await server.claims.confirm(sessionId, "sum-pm");
+    const before = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    expect(before).toContain("Delivery-accountable project manager.");
+    expect(before).not.toContain(DOB_LINE);
+
+    expect((await put(app, cookie, `/cv/lines/${DOB}`, { state: "ticked" })).json()).toEqual({ id: DOB, state: "ticked" });
+    expect(lineById(await review(app, cookie), DOB)).toMatchObject({ state: "ticked" });
+    expect((await server.claims.list(sessionId)).find((c) => c.id === DOB)).toMatchObject({ lineState: "ticked" });
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).toContain(DOB_LINE);
   });
 });

@@ -23,8 +23,8 @@ import {
 
 // Response schemas (CODING_STANDARDS: every route declares one per status) — the wire shape of
 // cvReview.ts's ReviewState, so a store record spread into it can never leak an internal field.
-const LineState = z.enum(["ticked", "kept", "drafted"]);
-// #341: the AI's marks on a line — a fix (applied, or undone by the person) and an untick suggestion.
+const LineState = z.enum(["ticked", "kept", "drafted", "removal-suggested"]);
+// #341: the AI's marks on a line — a fix (applied, or undone by the person) and (#380) a removal suggestion.
 const ReviewFix = z.object({ original: z.string(), corrected: z.string(), applied: z.boolean() });
 const ReviewSuggestion = z.object({ kind: z.enum(SUGGESTION_KINDS), reason: z.string() });
 // #342: a drafted line's source and flags. #343: its vague phrases, each with its choices.

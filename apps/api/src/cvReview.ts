@@ -17,7 +17,9 @@
 // `reviewCompletedAt`, and that is what the jobs gate reads.
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import type { ContactStore, ContactValue } from "./contact.js";
-import type { CvReviewStore, DraftFlag, DraftVague, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
+import { SUGGESTION_KINDS, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord, type ReviewUnitResult } from "./cvReviewStore.js";
+
+const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 import type { ReviewRunner } from "./cvReviewRun.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
@@ -276,7 +278,9 @@ function lineMarks(run: ReviewRunRecord | null) {
   const drafts = new Map<string, ResolvedDraft>();
   for (const unit of run?.units ?? []) {
     for (const fix of unit.result?.fixes ?? []) fixes.set(fix.line, fix);
-    for (const s of unit.result?.suggestions ?? []) suggestions.set(s.line, s);
+    // #380: a result stored before the removal kinds carries the old untick kinds (weak,
+    // aim-without-result) — read as no suggestion, never a 500 on the wire's enum.
+    for (const s of unit.result?.suggestions ?? []) if (KINDS.has(s.kind)) suggestions.set(s.line, s);
     for (const d of unit.result?.drafts ?? []) drafts.set(d.line, d);
   }
   return { fixes, suggestions, drafts };
@@ -332,9 +336,14 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
 }
 
 /** The finish gate's refusal codes — check mode (#377) finishes here, and this union is the one
- *  vocabulary it reads. Append, never rename: #378 adds `suggestions_open` (a drafted line not yet
- *  answered), #376 `work_rights_unset` (a target market with no work-rights answer). */
-export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running"; message: string };
+ *  vocabulary it reads. Append, never rename: `suggestions_open` (#380: a removal suggestion not yet
+ *  answered; #378 adds the drafted line), #376 `work_rights_unset` (a target market with no
+ *  work-rights answer). */
+export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running" | "suggestions_open"; message: string };
+
+/** "Every suggestion answered" (ADR-0018 clause 4): no line of the session in one of these states.
+ *  One set, one check — #378 adds `drafted` here, never a second gate. */
+const OPEN_SUGGESTION_STATES: ReadonlySet<LineState> = new Set<LineState>(["removal-suggested"]);
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
  *  IS the look at each line the old confirm deck asked for — in the state it is in (a kept line
@@ -351,8 +360,13 @@ export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_run
 export async function completeReview(deps: ReviewDeps, session: Pick<SessionRecord, "id" | "importProof">): Promise<CompleteReviewResult> {
   if (running(await deps.reviews.get(session.id)))
     return { ok: false, code: "review_running", message: "Your jobs open when the check is finished." };
+  const claims = await deps.claims.list(session.id);
+  // #380 (ADR-0018 clause 4): a suggestion the person has not answered holds the finish — the
+  // screen's button says so first; this is the gate behind it.
+  if (claims.some((c) => OPEN_SUGGESTION_STATES.has(c.lineState)))
+    return { ok: false, code: "suggestions_open", message: "Answer every suggestion to finish your profile." };
   const openConflict = session.importProof?.conflict?.fieldId ?? null;
-  for (const c of await deps.claims.list(session.id)) {
+  for (const c of claims) {
     if (c.decision !== "pending" || c.lineState === "drafted" || (openConflict !== null && c.field_key === openConflict)) continue;
     await deps.claims.confirm(session.id, c.id);
   }

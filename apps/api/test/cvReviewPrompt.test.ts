@@ -18,9 +18,14 @@ describe("cv-review prompt (#340)", () => {
     expect(prompt).toContain("`letterhead` and `sections` are `null` when `sections` is not in JOBS TO REVIEW");
   });
 
-  it("judges quality only — the three kinds — and forbids fit", () => {
+  // #380 (ADR-0018 clause 4): removal only for an item that belongs nowhere; the old quality kinds
+  // are gone, and neither weakness nor fit is ever a reason.
+  it("suggests removal only for what belongs nowhere — the three kinds — never for a weak line, never for fit", () => {
     expect(prompt).toContain("The only kinds are:");
-    for (const kind of ["`weak`", "`duplicate`", "`aim-without-result`"]) expect(prompt).toContain(kind);
+    for (const kind of ["`duplicate`", "`fragment`", "`personal-data`"]) expect(prompt).toContain(kind);
+    for (const gone of ["`weak`", "`aim-without-result`", '"untick"']) expect(prompt, `prompt still offers ${gone}`).not.toContain(gone);
+    expect(prompt).toContain('"verdict": "remove"');
+    expect(prompt).toContain("**A true but weak item is never suggested for removal; fit is never a reason.**");
     expect(prompt).toContain("**Never judge fit.**");
     expect(prompt).toContain("decided later, per job advert — never here");
     // The research run's forbidden reason must not be offered as a kind: "off-topic" appears only
