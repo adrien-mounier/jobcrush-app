@@ -166,7 +166,8 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *
      *  #378 (ADR-0018 clause 7): the finish is refused while any suggestion is unanswered, and the
      *  fake writer drafts lines on every placed job. A journey whose claim is not the suggestions
-     *  says No thanks to each before finishing — the CV stays exactly as read, which is what every
+     *  says No thanks to each (and, #380, Keep it to any removal suggestion) before finishing — the
+     *  CV stays exactly as read, which is what every
      *  caller here has always asserted on. Answered on every attempt, because drafts land as the
      *  run's units do. */
     completeReview: async () =>
@@ -184,6 +185,15 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
                 credentials: 'same-origin',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ dismissed: true }),
+              });
+            }
+            // #380: a removal suggestion is answered Keep it — the item stays, as read.
+            for (const line of lines.filter((l) => l.state === 'removal-suggested')) {
+              await fetch(`/api/cv/lines/${encodeURIComponent(line.id)}`, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ state: 'ticked' }),
               });
             }
           }

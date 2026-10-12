@@ -11,7 +11,7 @@
 // Languages appear the day #373 and #376 give them lines, with no change here.
 import type { ReactNode } from "react";
 import type { ContactField, ReviewJob, ReviewLine, ReviewState } from "../../../lib/api";
-import { ItemList, type ItemListProps } from "./Item";
+import { ItemList, RemoveCard, type ItemListProps } from "./Item";
 import { DismissedRow, SuggestionCard } from "./SuggestionCard";
 
 const C_DETAILS = "Your details";
@@ -38,7 +38,8 @@ const TITLES: Record<string, string> = {
 };
 const LEAD_DETAILS = "Check how I read your details. Fix anything that's wrong.";
 const LEAD_QUIET = "Nothing to answer here. Edit or remove anything that's wrong.";
-const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} suggestions`} in gold below. Edit or remove anything else that's wrong.`;
+// #380: "below", not "in gold below" — a removal suggestion is coral.
+const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} suggestions`} below. Edit or remove anything else that's wrong.`;
 
 export type Screen =
   | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"] }
@@ -66,15 +67,19 @@ export function screensOf(state: ReviewState): Screen[] {
   return out;
 }
 
-/** The cards on a screen the person must answer — the lead sentence says how many: #378's add
- *  suggestions (a `drafted` line); #380 adds its open removal suggestions here. */
+/** A line's states that are a suggestion the person has not answered yet — the server's own set
+ *  (cvReview.ts OPEN_SUGGESTION_STATES): #378's add suggestions (`drafted`) and #380's removal
+ *  suggestions (`removal-suggested`). A `dismissed` draft is answered. */
+const OPEN_SUGGESTION_STATES: ReadonlySet<ReviewLine["state"]> = new Set<ReviewLine["state"]>(["drafted", "removal-suggested"]);
+
+/** The cards on a screen the person must answer, of both kinds — the lead sentence says how many. */
 export function toAnswer(screen: Screen): number {
-  return screen.kind === "details" ? 0 : screen.lines.filter((l) => l.state === "drafted").length;
+  return screen.kind === "details" ? 0 : screen.lines.filter((l) => OPEN_SUGGESTION_STATES.has(l.state)).length;
 }
 
 /** What still holds the footer button on this screen, named as the button says it ("Answer X and
  *  Y to continue"). #376 names each target market with no work-rights answer first; then the
- *  open suggestions (#378, #380 counts its own in `toAnswer`). */
+ *  open suggestions. */
 export function blockersOf(screen: Screen): string[] {
   const n = toAnswer(screen);
   return n === 0 ? [] : [n === 1 ? "the suggestion" : "the suggestions"];
@@ -157,6 +162,8 @@ export function ScreenBody({
         />
       );
     if (line.state === "dismissed" && drafts.justDismissed.has(line.id)) return <DismissedRow key={line.id} busy={list.busy} onUndo={() => drafts.onUndo(line.id)} />;
+    // #380: Remove it is the ordinary removal (→ the tray), Keep it the ordinary put-back (→ in).
+    if (line.state === "removal-suggested") return <RemoveCard key={line.id} line={line} busy={list.busy} onRemove={list.onRemove} onKeep={list.onPutBack} />;
     return null;
   };
   return (

@@ -20,8 +20,14 @@ export type ClaimOrigin = "mined" | "user-authored" | "drafted" | "drafted-accep
  *  clause 4): `dismissed` is the person's "No thanks" to a draft, held so the same suggestion is
  *  never made again from the same evidence (seedDrafted ignores an id already stored), refused by
  *  the print gate and by every door but the undo back to `drafted`. Orthogonal to `decision`:
- *  confirming, editing or re-answering a line never re-ticks it — only the person's tick does. */
-export type LineState = "ticked" | "kept" | "drafted" | "dismissed";
+ *  confirming, editing or re-answering a line never re-ticks it — only the person's tick does.
+ *  `removal-suggested` (#380) is an item the review proposes to remove, unanswered: refused by the
+ *  same print gate, counted by the finish gate (cvReview.ts completeReview); "Keep it" → ticked,
+ *  "Remove it" → kept. */
+export type LineState = "ticked" | "kept" | "drafted" | "dismissed" | "removal-suggested";
+/** The states setLineState moves a line between — never a draft's own (`drafted`, `dismissed`). */
+export type SettableLineState = Exclude<LineState, "drafted" | "dismissed">;
+const SETTABLE: ReadonlySet<LineState> = new Set<LineState>(["ticked", "kept", "removal-suggested"]);
 
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
@@ -70,10 +76,12 @@ export interface ClaimStore {
   answerNegative(sessionId: string, claim: CandidateClaim): Promise<void>;
   /** #13: correction — flip a mistapped decision (e.g. a "no") back to pending, reopening the gap. */
   reopen(sessionId: string, id: string): Promise<void>;
-  /** #335: the person's untick (→ kept) or re-tick. Touches nothing else. False when the session has
-   *  no such line — or when the line is a draft nobody has ticked (#342): a draft leaves `drafted`
-   *  only through acceptDraft(), so this door can never tick one. */
-  setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean>;
+  /** #335: the person's untick (→ kept) or re-tick — and (#380) the run's removal suggestion landing
+   *  on a line, and its answer (Keep it → ticked, Remove it → kept). Touches nothing else. False when
+   *  the session has no such line — or when the line is a draft, unticked or dismissed (#342/#378):
+   *  a draft leaves those states only through acceptDraft() / dismissDraft(), so this door can never
+   *  tick one. */
+  setLineState(sessionId: string, id: string, state: SettableLineState): Promise<boolean>;
   /** #342: the review's drafted lines for a job — pending, origin `drafted`, state `drafted`, so
    *  they show on the paper and print nowhere. Idempotent like seed(): a draft already stored under
    *  its id is left exactly as it is (generated once, stored — ADR-0016 clause 7). */
@@ -232,9 +240,9 @@ export class InMemoryClaimStore implements ClaimStore {
     }
   }
 
-  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: SettableLineState): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (!c || (c.lineState !== "ticked" && c.lineState !== "kept")) return false;
+    if (!c || !SETTABLE.has(c.lineState)) return false;
     c.lineState = state;
     return true;
   }
@@ -466,9 +474,9 @@ export class PgClaimStore implements ClaimStore {
     await this.pool.query(`UPDATE claims SET decision = 'pending', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
-  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: SettableLineState): Promise<boolean> {
     const { rowCount } = await this.pool.query(
-      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state IN ('ticked', 'kept')`,
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state IN ('ticked', 'kept', 'removal-suggested')`,
       [sessionId, id, state],
     );
     return (rowCount ?? 0) > 0;

@@ -17,7 +17,9 @@
 // `reviewCompletedAt`, and that is what the jobs gate reads.
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import { CONTACT_FIELDS, type ContactField, type ContactStore, type ContactValue } from "./contact.js";
-import type { CvReviewStore, DraftFlag, DraftVague, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
+import { SUGGESTION_KINDS, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord, type ReviewUnitResult } from "./cvReviewStore.js";
+
+const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 import type { ReviewRunner } from "./cvReviewRun.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
@@ -271,7 +273,9 @@ function lineMarks(run: ReviewRunRecord | null) {
   const drafts = new Map<string, ResolvedDraft>();
   for (const unit of run?.units ?? []) {
     for (const fix of unit.result?.fixes ?? []) fixes.set(fix.line, fix);
-    for (const s of unit.result?.suggestions ?? []) suggestions.set(s.line, s);
+    // #380: a result stored before the removal kinds carries the old untick kinds (weak,
+    // aim-without-result) — read as no suggestion, never a 500 on the wire's enum.
+    for (const s of unit.result?.suggestions ?? []) if (KINDS.has(s.kind)) suggestions.set(s.line, s);
     for (const d of unit.result?.drafts ?? []) drafts.set(d.line, d);
   }
   return { fixes, suggestions, drafts };
@@ -327,14 +331,15 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
 }
 
 /** The finish gate's refusal codes — check mode (#377) finishes here, and this union is the one
- *  vocabulary it reads. Append, never rename: `suggestions_open` (#378) is a suggestion not yet
+ *  vocabulary it reads. Append, never rename: `suggestions_open` (#378/#380) is a suggestion not yet
  *  answered; #376 adds `work_rights_unset` (a target market with no work-rights answer). */
 export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running" | "suggestions_open"; message: string };
 
-/** The line states that are a suggestion still waiting for its answer (ADR-0018 clause 7: nothing
- *  may be left open when check mode finishes). `drafted` is an add suggestion (#378); #380 adds
- *  `removal-suggested` here — one set, one gate. A `dismissed` draft is answered. */
-const OPEN_SUGGESTION_STATES: ReadonlySet<LineState> = new Set<LineState>(["drafted"]);
+/** The line states that are a suggestion still waiting for its answer (ADR-0018 clauses 4 and 7:
+ *  nothing may be left open when check mode finishes). `drafted` is an add suggestion (#378),
+ *  `removal-suggested` a removal one (#380) — one set, one gate. A `dismissed` draft is answered.
+ *  Mirrored on the screen by screens.tsx OPEN_SUGGESTION_STATES. */
+const OPEN_SUGGESTION_STATES: ReadonlySet<LineState> = new Set<LineState>(["drafted", "removal-suggested"]);
 const isOpenSuggestion = (c: ClaimRecord) => OPEN_SUGGESTION_STATES.has(c.lineState);
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
