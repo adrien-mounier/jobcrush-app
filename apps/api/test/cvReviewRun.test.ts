@@ -959,6 +959,18 @@ describe("#368 a drafted line's source names where its quote came from", () => {
     });
     expect(writer.calls).toHaveLength(2);
   });
+
+  it("#386: keeping About you — written from the jobs' own lines — never moves a source onto it", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer);
+    const sourceOf = async () => drafts(jobsOf(await review(app, cookie))[0]!).find((l) => l.draft!.quote === "Led the checkout replatform.")!.draft!.source;
+    await reviewed(app, cookie);
+    expect(await sourceOf()).toBe("Nordic Retail Group, IT Project Manager");
+    const { about } = await review(app, cookie);
+    expect(about!.text).toContain("Led the checkout replatform."); // the quote is in About you's words too
+    expect((await put(app, cookie, "/review/about", { text: about!.text })).statusCode).toBe(200);
+    expect(await sourceOf()).toBe("Nordic Retail Group, IT Project Manager");
+  });
 });
 
 // ---------------------------------------------------------------------------------------------

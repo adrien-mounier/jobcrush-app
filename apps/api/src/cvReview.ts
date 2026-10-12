@@ -322,7 +322,8 @@ export function lineMarks(run: ReviewRunRecord | null) {
 /** #368: where a draft's quote sits on the paper — the first line, in CV order, whose text holds it
  *  (case and spacing aside), named by its job or its section. A draft is never its own source. The
  *  run records no place for a quote, so this reads the lines as stored; a quote reworded by the model
- *  or spanning two lines finds none, and the card then says only "From your CV". */
+ *  or spanning two lines finds none, and the card then says only "From your CV". #386: nor is About
+ *  you (written from the whole CV, so it repeats the jobs' own words) — it is not where the CV said it. */
 function quoteSources(paper: Paper, drafts: ReadonlyMap<string, ResolvedDraft>): (quote: string) => string | null {
   const flat = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
   const places = paper.sections.flatMap((section) =>
@@ -330,10 +331,11 @@ function quoteSources(paper: Paper, drafts: ReadonlyMap<string, ResolvedDraft>):
       ? section.jobs.map((job) => ({ name: [job.employer, job.title].filter(Boolean).join(", "), lines: job.lines }))
       : [{ name: section.heading, lines: section.lines }],
   );
-  const read = places.flatMap(({ name, lines }) => lines.filter((l) => !drafts.has(l.id)).map((l) => ({ name, text: flat(l.text) })));
+  const read = places.flatMap(({ name, lines }) =>
+    lines.filter((l) => !drafts.has(l.id) && l.id !== ABOUT_YOU_ID).map((l) => ({ name, text: flat(l.text) })),
+  );
   return (quote) => read.find((l) => l.text.includes(flat(quote)))?.name ?? null;
 }
-
 
 export async function buildReviewState(deps: ReviewDeps, session: SessionRecord): Promise<ReviewState> {
   const [paper, found] = await Promise.all([readPaper(deps, session.id), deps.reviews.get(session.id)]);
