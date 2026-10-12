@@ -337,28 +337,39 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
 }
 
 /** The finish gate's refusal codes — check mode (#377) finishes here, and this union is the one
- *  vocabulary it reads. Append, never rename: #378 adds `suggestions_open` (a drafted line not yet
- *  answered), #376 `work_rights_unset` (a target market with no work-rights answer). */
-export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running"; message: string };
+ *  vocabulary it reads. Append, never rename: `suggestions_open` (#378) is a suggestion not yet
+ *  answered; #376 adds `work_rights_unset` (a target market with no work-rights answer). */
+export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running" | "suggestions_open"; message: string };
+
+/** The line states that are a suggestion still waiting for its answer (ADR-0018 clause 7: nothing
+ *  may be left open when check mode finishes). `drafted` is an add suggestion (#378); #380 adds
+ *  `removal-suggested` here — one set, one gate. A `dismissed` draft is answered. */
+const OPEN_SUGGESTION_STATES: ReadonlySet<LineState> = new Set<LineState>(["drafted"]);
+const isOpenSuggestion = (c: ClaimRecord) => OPEN_SUGGESTION_STATES.has(c.lineState);
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
  *  IS the look at each line the old confirm deck asked for — in the state it is in (a kept line
  *  stays kept, so it still does not print). Two exceptions. An open conflict: "Not sure" stored
  *  nothing, so the two readings stay pending and neither prints until the person picks — the
- *  machine never turns a reading the person left open into a printed line. And a drafted line the
- *  person has not ticked (#342): it stays a proposal, on the paper for whenever they come back, and
- *  nobody vouches for it here — only their tick does (ADR-0016 clause 6: undecided drafts do not
- *  block completion; they simply do not print). Then the one fact the jobs gate reads.
+ *  machine never turns a reading the person left open into a printed line. And a draft the person
+ *  said No thanks to (#378): it stays pending and dismissed, held only so it is never proposed
+ *  again; nobody vouches for it. Then the one fact the jobs gate reads.
  *
  *  Refused while the review run is still going (#341, layout decision on #338): a fix landing after
  *  the confirm would change a line the person already signed off without their having seen it. The
- *  screen keeps the confirm locked for the same reason; this is the gate behind the lock. */
+ *  screen keeps the confirm locked for the same reason; this is the gate behind the lock. And
+ *  refused while any suggestion is unanswered (#378, ADR-0018 clause 7, which replaced ADR-0016
+ *  clause 6's "undecided drafts do not block"): an add suggestion is answered by Add it, Edit
+ *  first or No thanks, and the jobs wait until every one is. */
 export async function completeReview(deps: ReviewDeps, session: Pick<SessionRecord, "id" | "importProof">): Promise<CompleteReviewResult> {
   if (running(await deps.reviews.get(session.id)))
     return { ok: false, code: "review_running", message: "Your jobs open when the check is finished." };
+  const claims = await deps.claims.list(session.id);
+  if (claims.some(isOpenSuggestion))
+    return { ok: false, code: "suggestions_open", message: "Answer every suggestion to finish your profile." };
   const openConflict = session.importProof?.conflict?.fieldId ?? null;
-  for (const c of await deps.claims.list(session.id)) {
-    if (c.decision !== "pending" || c.lineState === "drafted" || (openConflict !== null && c.field_key === openConflict)) continue;
+  for (const c of claims) {
+    if (c.decision !== "pending" || c.lineState === "dismissed" || (openConflict !== null && c.field_key === openConflict)) continue;
     await deps.claims.confirm(session.id, c.id);
   }
   await deps.sessions.completeReview(session.id);
@@ -407,6 +418,16 @@ export async function tickDraft(deps: ReviewDeps, sessionId: string, lineId: str
   if (!(await deps.claims.acceptDraft(sessionId, lineId))) return { ok: false, code: "not_found", message: "no unticked draft on that line" };
   const line = (await deps.claims.list(sessionId)).find((c) => c.id === lineId)!;
   return { ok: true, text: line.text };
+}
+
+/** #378: the person's "No thanks" on a draft they have not ticked — it is held as dismissed, never
+ *  proposed again from the same evidence (ADR-0018 clause 4), and prints nowhere — or their Undo of
+ *  it, which puts the draft back unanswered. Only a draft in the state the move leaves answers
+ *  here: a line read from the CV, an added draft, a second No thanks or an undo with nothing to
+ *  undo are all "no such draft". */
+export async function dismissDraft(deps: ReviewDeps, sessionId: string, lineId: string, dismissed: boolean): Promise<{ ok: true; state: LineState } | { ok: false; code: "not_found"; message: string }> {
+  if (!(await deps.claims.dismissDraft(sessionId, lineId, dismissed))) return { ok: false, code: "not_found", message: dismissed ? "no unticked draft on that line" : "no dismissed draft on that line" };
+  return { ok: true, state: dismissed ? "dismissed" : "drafted" };
 }
 
 export type SettleConflictResult = { ok: true } | { ok: false; status: 404 | 400; code: string; message: string };

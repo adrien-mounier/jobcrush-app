@@ -202,6 +202,13 @@ async function until<T>(read: () => Promise<T> | T, ok: (value: T) => boolean, w
   throw new Error(`never happened: ${what}`);
 }
 const reviewed = (app: App, cookie: string) => until(() => review(app, cookie), (s) => s.progress === null, "the run finished");
+/** #378: "No thanks" on a draft (and its Undo with `false`). */
+const dismiss = (app: App, cookie: string, id: string, dismissed = true) => put(app, cookie, `/review/drafts/${id}/dismissed`, { dismissed });
+/** #378: every open suggestion answered — "No thanks" to each — so the review can finish (ADR-0018
+ *  clause 7: the complete is refused while any draft is unanswered). */
+async function answerDrafts(app: App, cookie: string): Promise<void> {
+  for (const l of allLines(await review(app, cookie))) if (l.state === "drafted") await dismiss(app, cookie, l.id);
+}
 
 /** A session that brought a CV: pasted → mined (fake) → dated job records mined and the first one
  *  placed (fake) → the review run started by the pipeline over the fake writer. */
@@ -284,6 +291,7 @@ describe("#341 the run", () => {
     await reviewed(app, cookie);
     const spent = writer.calls.length;
     await review(app, cookie);
+    await answerDrafts(app, cookie);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-once@example.com");
     expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
@@ -385,6 +393,7 @@ describe("#341 the run", () => {
     writer.release("j2");
     state = await reviewed(app, cookie);
     expect(jobsOf(state).map((j) => j.checking)).toEqual([false, false]);
+    await answerDrafts(app, cookie);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-wait@example.com");
     expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
@@ -418,6 +427,7 @@ describe("#341 the run", () => {
     const { app, cookie } = await withCv(writer);
     await reviewed(app, cookie);
     await put(app, cookie, "/review/fixes/nrg-managed-budget", { applied: false });
+    await answerDrafts(app, cookie);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-undone@example.com");
     await post(app, cookie, "/review/complete");
@@ -666,6 +676,7 @@ describe("#343 word choices", () => {
     expect(reloaded[0]!.draft!.vague).toEqual([VAGUE_CHOICES]);
 
     await tick(app, cookie, first!.id);
+    await answerDrafts(app, cookie); // the typed one among them: No thanks, never ticked
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-word-choice@example.com");
     await post(app, cookie, "/review/complete");
@@ -723,7 +734,11 @@ describe("#342 drafted lines", () => {
     );
   });
 
-  it("an unticked draft never reaches the master CV, a tailored draft or an export; ticked, it reaches all three; unticked again, it stops", async () => {
+  // #378 (ADR-0018 clause 7): the complete is refused while a draft is unanswered, so the jobs — and
+  // with them the tailored draft and the export — stay shut; the master CV, which needs no finished
+  // check, already leaves an unanswered draft out. Once every draft is answered the review finishes,
+  // and a dismissed draft is absent from all three while an added one reaches all three.
+  it("the complete is refused while a draft is unanswered; answered, it finishes; a dismissed draft never reaches the master CV, a tailored draft or an export, an added one reaches all three, and removed again it stops", async () => {
     const prompts: string[] = [];
     const printed: string[] = [];
     const sent: string[] = [];
@@ -738,53 +753,102 @@ describe("#342 drafted lines", () => {
     const { app, cookie, server, sessionId } = await withCv(writer, MINED, { tailorLlm: echoingLlm(prompts), documentMaker, mailer });
     await reviewed(app, cookie);
     const text = DRAFT_TEXT("end-to-end-delivery");
+    const dismissedText = DRAFT_TEXT("stakeholder-coordination");
 
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-draft-gate@example.com");
-    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
-    // Completing confirmed the lines as read and left the draft a draft: pending, unticked.
-    expect((await server.claims.list(sessionId)).find((c) => c.id === FIRST_DRAFT)).toMatchObject({ decision: "pending", origin: "drafted", lineState: "drafted" });
-    expect(drafts(jobsOf(await review(app, cookie))[0]!).every((l) => l.state === "drafted")).toBe(true);
+    const refused = await post(app, cookie, "/review/complete");
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe("suggestions_open");
+    expect((await review(app, cookie)).completed).toBe(false);
+    // A refused complete confirms nothing: the lines as read are still pending, so nothing prints yet.
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "nrg-led-checkout")).toMatchObject({ decision: "pending" });
+    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).not.toContain("Led the checkout replatform.");
 
-    // The master CV.
-    const built = (await post(app, cookie, "/onboarding/build")).json();
-    expect(built.rootCv.markdown).toContain("Led the checkout replatform.");
-    expect(built.rootCv.markdown).not.toContain(text);
-    expect(built.rootCv.markdown).not.toContain("Also coordinated releases");
-    // The tailored draft: not the model's input, not the page.
+    // One draft left unanswered is still one too many.
+    for (const l of drafts(jobsOf(await review(app, cookie))[0]!)) if (l.id !== FIRST_DRAFT) await dismiss(app, cookie, l.id);
+    expect((await post(app, cookie, "/review/complete")).json().error.code).toBe("suggestions_open");
+    expect((await tick(app, cookie, FIRST_DRAFT)).json()).toEqual({ id: FIRST_DRAFT, text, state: "ticked" });
+    expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
+    // Completing confirmed the lines as read and left the dismissed drafts as they are: pending, dismissed.
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "draft-nrg-2")).toMatchObject({ decision: "pending", origin: "drafted", lineState: "dismissed" });
+    expect(jobsOf(await review(app, cookie))[0]!.lines.filter((l) => l.draft !== null).map((l) => l.state)).toEqual(["ticked", "dismissed", "dismissed", "dismissed", "dismissed", "dismissed"]);
+
+    // The master CV: the added draft prints, the dismissed ones do not.
+    const added = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
+    expect(added).toContain(text);
+    expect(added).not.toContain(dismissedText);
+    expect(added).not.toContain("Also coordinated releases");
+    // The tailored draft: the model's input and the page.
     await warmRetrieval(app, cookie);
     expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
-    const before = await tailorDraft(app, cookie);
-    expect(before.html).toContain("Led the checkout replatform.");
-    expect(before.html).not.toContain(text);
-    expect(prompts[0]).not.toContain(text);
+    const draft = await tailorDraft(app, cookie);
+    expect(draft.html).toContain(text);
+    expect(draft.html).not.toContain(dismissedText);
+    expect(prompts[0]).toContain(text);
+    expect(prompts[0]).not.toContain(dismissedText);
+    expect(prompts[0]).not.toContain("Also coordinated releases");
     // The export.
-    const exported = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: before.draftedAt });
+    const exported = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: draft.draftedAt });
     expect(exported.statusCode).toBe(202);
     await until(async () => (await get(app, cookie, `/jobs/${exported.json().jobId}`)).json(), (job) => isTerminal(job.status), "the export settled");
     expect(printed).toHaveLength(1);
-    expect(printed[0]).not.toContain(text);
+    expect(printed[0]).toContain(text);
+    expect(printed[0]).not.toContain(dismissedText);
     expect(sent).toEqual(["review-draft-gate@example.com"]);
 
-    // Ticked: a confirmed, user-resolved fact, reused on every CV where it helps.
-    expect((await tick(app, cookie, FIRST_DRAFT)).json()).toEqual({ id: FIRST_DRAFT, text, state: "ticked" });
-    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).toContain(text);
-    await warmRetrieval(app, cookie); // the fact set changed; the deck's search catches up
-    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404); // the old draft is no draft for the new facts
-    const after = await tailorDraft(app, cookie);
-    expect(after.html).toContain(text);
-    expect(prompts[1]).toContain(text);
-    const reexported = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: after.draftedAt });
-    await until(async () => (await get(app, cookie, `/jobs/${reexported.json().jobId}`)).json(), (job) => isTerminal(job.status), "the second export settled");
-    expect(printed[1]).toContain(text);
-
-    // Unticked again: it stops printing, everywhere.
+    // Removed again: it stops printing, everywhere.
     expect((await put(app, cookie, `/cv/lines/${FIRST_DRAFT}`, { state: "kept" })).statusCode).toBe(200);
     expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown).not.toContain(text);
-    await warmRetrieval(app, cookie);
+    await warmRetrieval(app, cookie); // the fact set changed; the deck's search catches up
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404); // the old draft is no draft for the new facts
     expect((await tailorDraft(app, cookie)).html).not.toContain(text);
     expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)).toMatchObject({ state: "kept", draft: { flags: [] } });
     expect(writer.calls).toHaveLength(2); // none of this asked the review writer anything
+  });
+
+  // #378 — "No thanks" (ADR-0018 clause 4): stored on the draft, undone in one tap, and never
+  // proposed again from the same evidence — a re-read, and a run driven again over the same CV
+  // (the same writer answer, the same draft ids), both leave the dismissed draft dismissed.
+  it("No thanks persists across a reload and Undo restores the draft; a dismissed draft is refused by every other door and is not proposed again by a re-read or a re-run over unchanged evidence", async () => {
+    const writer = fakeWriter();
+    const { app, cookie, server, sessionId } = await withCv(writer);
+    await reviewed(app, cookie);
+    const text = DRAFT_TEXT("end-to-end-delivery");
+
+    const gone = await dismiss(app, cookie, FIRST_DRAFT);
+    expect(gone.statusCode).toBe(200);
+    expect(gone.json()).toEqual({ id: FIRST_DRAFT, state: "dismissed" });
+    let line = jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)!;
+    expect(line).toMatchObject({ text, state: "dismissed", draft: { mustHave: MEANINGS[0] } }); // the source stays on it
+    expect((await server.claims.list(sessionId)).find((c) => c.id === FIRST_DRAFT)).toMatchObject({ decision: "pending", origin: "drafted", lineState: "dismissed" });
+    // The other doors refuse a dismissed draft: no tick, no wording, no removal or put back, no second No thanks.
+    expect((await tick(app, cookie, FIRST_DRAFT)).statusCode).toBe(404);
+    expect((await put(app, cookie, `/review/drafts/${FIRST_DRAFT}`, { text: "mine" })).statusCode).toBe(404);
+    expect((await put(app, cookie, `/cv/lines/${FIRST_DRAFT}`, { state: "kept" })).statusCode).toBe(404);
+    expect((await put(app, cookie, `/cv/lines/${FIRST_DRAFT}`, { state: "ticked" })).statusCode).toBe(404);
+    expect((await dismiss(app, cookie, FIRST_DRAFT)).statusCode).toBe(404);
+    // Nor is a line read from the CV, or an added draft, dismissed here.
+    expect((await dismiss(app, cookie, "nrg-led-checkout")).statusCode).toBe(404);
+    await tick(app, cookie, "draft-nrg-2");
+    expect((await dismiss(app, cookie, "draft-nrg-2")).statusCode).toBe(404);
+
+    // A re-run over the same CV seeds the same draft ids again: the dismissed one stays dismissed, in
+    // its stored wording; the writer was asked, the row was not touched.
+    await server.cvReviews.create(sessionId, new Date(NOW).toISOString(), ["nrg", "bsh"]);
+    await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(4);
+    line = jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)!;
+    expect(line).toMatchObject({ text, state: "dismissed" });
+    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "draft-nrg-2")).toMatchObject({ state: "ticked" });
+
+    // Undo: the draft is back, unanswered, and the tick works again.
+    const undone = await dismiss(app, cookie, FIRST_DRAFT, false);
+    expect(undone.json()).toEqual({ id: FIRST_DRAFT, state: "drafted" });
+    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)).toMatchObject({ state: "drafted" });
+    expect((await dismiss(app, cookie, FIRST_DRAFT, false)).statusCode).toBe(404); // nothing to undo
+    expect((await tick(app, cookie, FIRST_DRAFT)).statusCode).toBe(200);
+    expect(writer.calls).toHaveLength(4);
   });
 
   it("the edit before the tick stores the person's wording; the tick makes it a confirmed, drafted-then-accepted fact; the wrong doors refuse", async () => {
@@ -805,6 +869,7 @@ describe("#342 drafted lines", () => {
     line = jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === FIRST_DRAFT)!;
     expect(line).toMatchObject({ text: mine, state: "ticked", draft: { mustHave: MEANINGS[0], quote: null, flags: [] } });
     // It prints, in the person's own words, with no confirm needed.
+    await answerDrafts(app, cookie);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-draft-edit@example.com");
     await post(app, cookie, "/review/complete");
@@ -823,7 +888,7 @@ describe("#342 drafted lines", () => {
     expect((await tick(app, cookie, FIRST_DRAFT)).statusCode).toBe(404);
     expect((await put(app, cookie, "/cv/lines/draft-nrg-2", { state: "ticked" })).statusCode).toBe(404);
     expect((await put(app, cookie, `/review/drafts/draft-nrg-2`, { text: "   " })).statusCode).toBe(400);
-    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "draft-nrg-2")).toMatchObject({ state: "drafted", text: DRAFT_TEXT("stakeholder-coordination") });
+    expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "draft-nrg-2")).toMatchObject({ state: "dismissed", text: DRAFT_TEXT("stakeholder-coordination") }); // No thanks, above; untouched since
     expect(jobsOf(await review(app, cookie))[0]!.lines.find((l) => l.id === "nrg-led-checkout")!.text).toBe("Led the checkout replatform.");
   });
 

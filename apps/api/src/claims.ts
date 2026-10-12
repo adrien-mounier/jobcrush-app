@@ -16,9 +16,12 @@ export type ClaimOrigin = "mined" | "user-authored" | "drafted" | "drafted-accep
  *  untick — held in the profile under "kept for when a job needs it", never printed, never deleted,
  *  re-tickable. Lines read from the CV arrive ticked. `drafted` (#342) is a review draft the person
  *  has not ticked yet: refused by the same print gate (`prints`/confirmed()) with no schema change
- *  (the column is text), and left only by acceptDraft(). Orthogonal to `decision`: confirming,
- *  editing or re-answering a line never re-ticks it — only the person's tick does. */
-export type LineState = "ticked" | "kept" | "drafted";
+ *  (the column is text), and left only by acceptDraft() — or by dismissDraft() (#378, ADR-0018
+ *  clause 4): `dismissed` is the person's "No thanks" to a draft, held so the same suggestion is
+ *  never made again from the same evidence (seedDrafted ignores an id already stored), refused by
+ *  the print gate and by every door but the undo back to `drafted`. Orthogonal to `decision`:
+ *  confirming, editing or re-answering a line never re-ticks it — only the person's tick does. */
+export type LineState = "ticked" | "kept" | "drafted" | "dismissed";
 
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
@@ -78,6 +81,9 @@ export interface ClaimStore {
   /** #342: the person's tick on a draft — it becomes a confirmed, ticked, `drafted-accepted` fact,
    *  reused wherever a fact helps. False when the session has no such line, or it is not a draft. */
   acceptDraft(sessionId: string, id: string): Promise<boolean>;
+  /** #378: "No thanks" on an unticked draft (`drafted` → `dismissed`), or its undo (`dismissed` →
+   *  `drafted`). False when the line is not in the state the move leaves. */
+  dismissDraft(sessionId: string, id: string, dismissed: boolean): Promise<boolean>;
   /** #341: the review's spelling/grammar fix, applied or undone — the text alone moves. Unlike
    *  edit(), nobody vouched for anything: decision, origin and tick are untouched, so a fix on a
    *  pending line leaves it pending and a fix on a kept line leaves it kept. False when the session
@@ -228,7 +234,7 @@ export class InMemoryClaimStore implements ClaimStore {
 
   async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (!c || c.lineState === "drafted") return false;
+    if (!c || (c.lineState !== "ticked" && c.lineState !== "kept")) return false;
     c.lineState = state;
     return true;
   }
@@ -254,6 +260,13 @@ export class InMemoryClaimStore implements ClaimStore {
     c.decision = "confirmed";
     c.origin = "drafted-accepted";
     c.lineState = "ticked";
+    return true;
+  }
+
+  async dismissDraft(sessionId: string, id: string, dismissed: boolean): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (!c || c.lineState !== (dismissed ? "drafted" : "dismissed")) return false;
+    c.lineState = dismissed ? "dismissed" : "drafted";
     return true;
   }
 }
@@ -455,7 +468,7 @@ export class PgClaimStore implements ClaimStore {
 
   async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
     const { rowCount } = await this.pool.query(
-      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state IN ('ticked', 'kept')`,
       [sessionId, id, state],
     );
     return (rowCount ?? 0) > 0;
@@ -486,6 +499,14 @@ export class PgClaimStore implements ClaimStore {
          decision_seq = COALESCE(decision_seq, $3)
        WHERE session_id = $1 AND id = $2 AND line_state = 'drafted'`,
       [sessionId, id, decisionSeq],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async dismissDraft(sessionId: string, id: string, dismissed: boolean): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state = $4`,
+      [sessionId, id, dismissed ? "dismissed" : "drafted", dismissed ? "drafted" : "dismissed"],
     );
     return (rowCount ?? 0) > 0;
   }
