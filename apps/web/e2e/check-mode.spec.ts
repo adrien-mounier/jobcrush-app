@@ -865,7 +865,8 @@ test.describe("#371 About you", () => {
     };
     const { calls } = await stubReview(page, moved);
     await page.goto("/profile/check");
-    for (let i = 0; i < SCREENS.length; i++) await primary(page).click();
+    // Languages is the last of SCREENS since #376 (always a screen).
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
     await expect(heading(page)).toHaveText("Languages");
     const item = items(page).first();
     await expect(item.locator(".txt")).toContainText("Fluent in French and English.");
@@ -937,7 +938,10 @@ test.describe("#384 fixes", () => {
       await expect(primary(page)).toHaveText(`Next: ${SCREENS[i]}  →`);
       await primary(page).click();
     }
+    // The last screen is #376's Languages card (no items); Education, before it, shows fixed items.
+    await back(page).click();
     await expect(items(page).first().locator(".tag.fixed")).toHaveCount(1); // the screen really shows fixed items
+    await primary(page).click();
     await expect(primary(page)).toHaveText("Finish my profile");
     await expect(primary(page)).toBeEnabled();
     await primary(page).click();

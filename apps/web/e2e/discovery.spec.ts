@@ -441,7 +441,9 @@ test("the last question answered: discovery navigates to the /deck reveal, annou
   // effect does, once.
   await expect(page.locator(".discovery .sr-only")).not.toContainText("That's all I need to ask.");
 
-  // Then it navigates to the reveal — the single place focus + the polite announce land.
+  // #376: the hand-off waits for the person; Continue takes them to the reveal — the single place
+  // focus + the polite announce land.
+  await page.locator(".discovery .handoff .go").click();
   await page.waitForURL("/deck");
   const heading = page.getByRole("heading", { name: /matched you/ });
   await expect(heading).toBeVisible();
@@ -453,7 +455,7 @@ test("the last question answered: discovery navigates to the /deck reveal, annou
 // the state, and the handoff lands on the review instead of the deck — since #377, the profile's
 // check mode (ADR-0018), opening at Your details. #376 (ADR-0018 clause 8): nothing is asked between
 // question 1 and check mode — the server answers question 1 with the hand-off itself.
-test("#376: after question 1 nothing is asked — with a CV to review, discovery hands straight off to check mode", async ({ page }) => {
+test("#376: after question 1 nothing is asked — the hand-off holds with the promise, and Continue goes to check mode", async ({ page }) => {
   current = BEFORE_START;
   await stubDiscovery(page);
   // The server's real answer to question 1 now: the hand-off, no question.
@@ -483,6 +485,16 @@ test("#376: after question 1 nothing is asked — with a CV to review, discovery
   await page.goto("/discovery");
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
   await page.getByRole("button", { name: "That's me" }).click();
+  // The hand-off holds (tech-lead decision on #376): no question, and the promise stays readable —
+  // it no longer moves on by itself (the old bridge left after 0.8 s).
+  const handoff = page.locator(".discovery .handoff");
+  await expect(handoff.locator(".go")).toBeVisible();
+  await expect(page.locator(".discovery .opts")).toHaveCount(0);
+  await expect(page.locator(".discovery")).toContainText("142");
+  await page.waitForTimeout(1500);
+  expect(new URL(page.url()).pathname).toBe("/discovery");
+
+  await handoff.locator(".go").click();
   await page.waitForURL("/profile/check");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your details");
   expect(answers).toEqual([]); // nothing was asked, so nothing was answered

@@ -61,6 +61,9 @@ const C17 = "Change your answer.";
 const C18 = "Leave it as is";
 const C19 = "That's all I need to ask.";
 const C20 = "Now I'll line these jobs up against everything you told me.";
+// #376: the hand-off waits for the person — nothing is asked after question 1 (ADR-0018 clause 8),
+// so this screen is where they read the confirmation and the count before moving on.
+const C_CONTINUE = "Continue";
 const C21 = "Changing your answer.";
 // #228 (spec #241 decision 13): answering changes how her jobs SCORE and sort, never how many there
 // are — the deck only sends her here while a question genuinely remains, and this says what that is
@@ -260,9 +263,6 @@ function DiscoveryScreen() {
     firstControlRef.current = el;
   };
   const handoffRef = useRef<HTMLParagraphElement>(null);
-  // #25: latches the deck-handoff navigation so a re-run of the askKey effect (e.g. a router
-  // identity change) can never fire router.push twice for the same handoff.
-  const deckNavigatedRef = useRef(false);
   const fixNoticeButtonRef = useRef<HTMLButtonElement>(null);
   // #24: the previous askKey the focus effect below actually acted on — lets it tell "just left a
   // correction, back to the same next question" (skip the auto-focus, the resolution site already
@@ -369,26 +369,13 @@ function DiscoveryScreen() {
     // site, below) must stick instead of this effect re-grabbing the ask dock.
     const leavingCorrection = !!prevAskKeyRef.current?.startsWith("fix:") && !askKey.startsWith("fix:");
     prevAskKeyRef.current = askKey;
-    if (askKey === "deck") {
-      // #25: the gate hands off to the /deck reveal — the handoff copy stays up as a brief
-      // sub-second bridge (design's pinned approach), then this navigates. No focus/announce here:
-      // /deck's own entry effect focuses its heading and gives the one polite announce, so
-      // announcing on this side too would double it (AC2).
-      // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6) — the server
-      // says which with `reviewPending`; the deck itself refuses an unreviewed session anyway.
-      // #377: the review is the profile's check mode now (ADR-0018).
-      const next = reviewPending ? "/profile/check" : "/deck";
-      const t = setTimeout(() => {
-        if (!deckNavigatedRef.current) {
-          deckNavigatedRef.current = true;
-          router.push(next);
-        }
-      }, 800);
-      return () => clearTimeout(t);
-    } else if (!leavingCorrection) {
-      firstControlRef.current?.focus();
-    }
-  }, [askKey, reviewPending, router]);
+    // #25: the gate hands off to the /deck reveal. #376 (tech-lead decision, 2026-10-13): with
+    // nothing asked after question 1, the hand-off no longer moves on by itself after 0.8 s — it
+    // stays up, with the confirmation line and the count, until the person presses Continue
+    // (renderAsk). No focus/announce here: /deck's own entry effect focuses its heading and gives
+    // the one polite announce, so announcing on this side too would double it (AC2).
+    if (askKey !== "deck" && !leavingCorrection) firstControlRef.current?.focus();
+  }, [askKey]);
 
   useEffect(() => {
     if (!focusFixNotice) return;
@@ -1025,6 +1012,12 @@ function DiscoveryScreen() {
             {C19}
           </p>
           <p className="sub">{C20}</p>
+          {/* #338: a brought CV is checked before any job is shown (ADR-0016 clause 6) — the server
+              says which with `reviewPending`; the deck refuses an unchecked session anyway. #377:
+              the check is the profile's check mode (ADR-0018). */}
+          <button type="button" className="go" onClick={() => router.push(reviewPending ? "/profile/check" : "/deck")}>
+            {C_CONTINUE}
+          </button>
         </div>
       );
     }
