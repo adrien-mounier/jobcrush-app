@@ -162,12 +162,31 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *
      *  #339: there is no floor to seed any more. Discovery asks question 1 and the eligibility
      *  questions only, and nothing but the completed review holds the jobs back - a journey that
-     *  needs a fact gets it from the CV it reads, or from the tailor step's own questions. */
+     *  needs a fact gets it from the CV it reads, or from the tailor step's own questions.
+     *
+     *  #378 (ADR-0018 clause 7): the finish is refused while any suggestion is unanswered, and the
+     *  fake writer drafts lines on every placed job. A journey whose claim is not the suggestions
+     *  says No thanks to each before finishing — the CV stays exactly as read, which is what every
+     *  caller here has always asserted on. Answered on every attempt, because drafts land as the
+     *  run's units do. */
     completeReview: async () =>
       page.evaluate(async () => {
         // #341: the confirm is refused (409) while the review run is still going; on the fake stack
         // that is milliseconds, but a journey confirming right after the read lands can meet it.
         for (let attempt = 0; attempt < 40; attempt += 1) {
+          const state = await fetch('/api/review', { credentials: 'same-origin' });
+          if (state.ok) {
+            const { sections } = await state.json();
+            const lines = sections.flatMap((s) => ('jobs' in s ? s.jobs.flatMap((j) => j.lines) : s.lines));
+            for (const line of lines.filter((l) => l.state === 'drafted')) {
+              await fetch(`/api/review/drafts/${encodeURIComponent(line.id)}/dismissed`, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ dismissed: true }),
+              });
+            }
+          }
           const res = await fetch('/api/review/complete', { method: 'POST', credentials: 'same-origin' });
           if (res.ok) return res.json();
           if (res.status !== 409) throw new Error(`review completion refused: ${res.status}`);
