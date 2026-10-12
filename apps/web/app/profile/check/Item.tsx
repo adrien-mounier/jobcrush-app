@@ -24,7 +24,8 @@ const MINUS = (
   </svg>
 );
 
-export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy: boolean; onRemove: (id: string) => void; onEdit?: (id: string) => void }) {
+/** `tail`: a control a screen adds before ✎ and ⊖ — #382's move to another group. */
+export function Item({ line, busy, onRemove, onEdit, tail }: { line: ReviewLine; busy: boolean; onRemove: (id: string) => void; onEdit?: (id: string) => void; tail?: ReactNode }) {
   // A tap on the text itself shows the actions (touch screens have no hover).
   const [active, setActive] = useState(false);
   return (
@@ -36,6 +37,7 @@ export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy:
     >
       <span className="txt">{line.text}</span>
       <span className="acts">
+        {tail}
         {onEdit && (
           <button type="button" className="ib" aria-label={C_EDIT} title={C_EDIT} disabled={busy} onClick={() => onEdit(line.id)}>
             {PEN}

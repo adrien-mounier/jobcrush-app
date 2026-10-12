@@ -329,6 +329,15 @@
   line-height: 1.45;
   color: var(--hud-mute);
 }
+/* #382 — a skills group's name over its chips. */
+.profile .sgname {
+  margin: 10px 0 4px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+}
 
 /* #186 A7 — the fact detail's job context line (experience facts only). */
 .profile .dctx {

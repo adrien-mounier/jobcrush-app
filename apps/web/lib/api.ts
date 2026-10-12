@@ -596,6 +596,8 @@ export interface ProfileFact {
   // #335: true only for a line the person unticked — grey under "Kept for when a job needs it",
   // never the not-yet-confirmed grey. Absent on every other fact.
   kept?: true;
+  // #382: the named group a skill sits in. Absent on every fact that is not a skill.
+  group?: string;
 }
 
 export interface ProfileDomain {
@@ -734,9 +736,15 @@ export interface ReviewJob {
   complete: boolean;
   lines: ReviewLine[];
 }
+/** #382: a skills group — its name and its lines, by id, in CV order. */
+export interface SkillGroup {
+  name: string;
+  ids: string[];
+}
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
-  | { tag: string; heading: string; lines: ReviewLine[] };
+  /** #382: `groups` comes on the Skills section only. */
+  | { tag: string; heading: string; lines: ReviewLine[]; groups?: SkillGroup[] };
 /** #341: the run while it is going; null once finished (a failed run reads the same — the person
  *  is never told). */
 export interface ReviewProgress {
@@ -786,6 +794,14 @@ export function completeReview(): Promise<{ completed: true }> {
 // #335's tap: untick (→ kept) or re-tick. The print gate is the server's; this only records it.
 export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id: string; state: ReviewLineState }> {
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ state }) });
+}
+
+// #382: rename a skills group (every skill in it), and move one skill to another group.
+export function renameSkillGroup(from: string, name: string): Promise<{ name: string; moved: number }> {
+  return jfetch(`/api/cv/skills/groups/${encodeURIComponent(from)}`, { method: "PUT", body: JSON.stringify({ name }) });
+}
+export function moveSkill(id: string, group: string): Promise<{ id: string; group: string }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/group`, { method: "PUT", body: JSON.stringify({ group }) });
 }
 
 export function settleReviewConflict(fieldId: string, value: string): Promise<{ ok: true }> {

@@ -16,6 +16,7 @@ import type { EligibilityStore } from "./eligibility.js";
 import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
+import { groupOf } from "./skillsSplit.js";
 import type { SearchAreaEntry } from "./sessions.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
@@ -35,6 +36,9 @@ export interface ProfileFact {
   /** #335: the person unticked this line — grey under "Kept for when a job needs it", never the
    *  not-yet-confirmed grey. Absent on every other fact. */
   kept?: true;
+  /** #382: the named group a skill sits in (ADR-0018 clause 6). Absent on every fact that is not
+   *  a skill. */
+  group?: string;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -224,6 +228,7 @@ export function buildProfileState(
       source: c.origin === "mined" ? "read" : "told",
       job: tag === "experience" ? c.role : null,
       kept: c.lineState === "kept" || undefined,
+      group: tag === "skill" ? groupOf(c) : undefined,
     });
     byTag.set(tag, bucket);
   }

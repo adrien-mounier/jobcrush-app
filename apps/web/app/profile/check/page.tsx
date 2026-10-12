@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
+import { completeReview, ensureSession, getReview, moveSkill, renameSkillGroup, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -146,6 +146,8 @@ export default function CheckPage() {
       },
     );
   const putBack = (id: string) => write(() => setLineState(id, "ticked"));
+  const renameGroup = (from: string, to: string) => write(() => renameSkillGroup(from, to));
+  const moveToGroup = (id: string, group: string) => write(() => moveSkill(id, group));
   const go = (dir: 1 | -1) => {
     const to = screens[k + dir];
     if (!to || !screen) return;
@@ -251,6 +253,7 @@ export default function CheckPage() {
             onPutBack: putBack,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
+          groups={{ onRename: renameGroup, onMove: moveToGroup }}
         />
         {last && running && state.progress && (
           <p className="hint" aria-live="polite">

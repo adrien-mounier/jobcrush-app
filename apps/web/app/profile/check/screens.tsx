@@ -10,8 +10,9 @@
 // prototype had no lines for it). A section with no items is skipped — so Personal projects and
 // Languages appear the day #373 and #376 give them lines, with no change here.
 import type { ReactNode } from "react";
-import type { ReviewJob, ReviewLine, ReviewState } from "../../../lib/api";
+import type { ReviewJob, ReviewLine, ReviewState, SkillGroup } from "../../../lib/api";
 import { ItemList, type ItemListProps } from "./Item";
+import { SkillsBody, type GroupActions } from "./Skills";
 
 const C_DETAILS = "Your details";
 /** A section's screen title — the profile's words, not the master CV's headings. A tag not listed
@@ -32,7 +33,9 @@ const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} sug
 export type Screen =
   | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"] }
   | { kind: "job"; key: string; title: string; sub: string; job: ReviewJob; lines: ReviewLine[] }
-  | { kind: "section"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[] };
+  | { kind: "section"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[] }
+  /** #382: the Skills section — its items in named groups. Grouping is never an item to answer. */
+  | { kind: "skills"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[]; groups: SkillGroup[] };
 
 const datesOf = (job: ReviewJob) => (job.dates ? [job.dates.start, job.dates.end].filter(Boolean).join(" – ") : "");
 
@@ -47,7 +50,8 @@ export function screensOf(state: ReviewState): Screen[] {
         out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines: job.lines });
       }
     } else if (section.lines.length > 0) {
-      out.push({ kind: "section", key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines });
+      const base = { key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines };
+      out.push(section.groups ? { ...base, kind: "skills", groups: section.groups } : { ...base, kind: "section" });
     }
   }
   return out;
@@ -74,7 +78,7 @@ export function leadFor(screen: Screen): string {
 
 /** One screen's body. Add a screen kind here: #371 the About you card, #381 the details fields,
  *  #376 the Where you can work card above Additional information, #382 the skills groups. */
-export function ScreenBody({ screen, list }: { screen: Screen; list: Omit<ItemListProps, "lines"> }): ReactNode {
+export function ScreenBody({ screen, list, groups }: { screen: Screen; list: Omit<ItemListProps, "lines">; groups: GroupActions }): ReactNode {
   if (screen.kind === "details") {
     const { header, phone, email } = screen.letterhead;
     const [name, ...rest] = (header ?? "").split("\n");
@@ -86,6 +90,13 @@ export function ScreenBody({ screen, list }: { screen: Screen; list: Omit<ItemLi
           {rest.length > 0 && <div>{rest.join("\n")}</div>}
           {contact && <span>{contact}</span>}
         </div>
+      </div>
+    );
+  }
+  if (screen.kind === "skills") {
+    return (
+      <div className="card">
+        <SkillsBody lines={screen.lines} groups={screen.groups} list={list} actions={groups} />
       </div>
     );
   }

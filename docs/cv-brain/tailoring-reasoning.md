@@ -130,6 +130,14 @@ focused 8-12, not exhaustively conserved. This principle is enforced mechanicall
 lint in `apps/api/src/preview.ts` (`conservationIssues`) and is the direct lesson of the JC-2 rating
 failure that prompted this fork.
 
+Skills are stored **one per item, in named groups** (#382, ADR-0018 clause 6). The miner still reads a
+skills line as one claim per group; the import splits it in code (`apps/api/src/skillsSplit.ts`)
+whatever separator the CV used, keeping the person's wording, and keeps a skill whose own commas
+belong to it whole ("Prompt engineering: structured prompting, Chain-of-Thought"). The group is the
+CV's own label when the line carries one, else the machine's ("Skills"); the person can rename a
+group or move a skill. So the tailor curates from single skills, each offered to it once, and still
+regroups them for the posting (preview-tailor rule 9); the master CV prints every skill once.
+
 Languages are conserved one by one (#337): every language the person holds prints on every tailored
 CV, found by name on any "additional" line whatever its label says, and a missing one is **fatal** —
 the draft is refused and the export gate blocks it, like a denied capability.
