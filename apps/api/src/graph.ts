@@ -37,7 +37,8 @@ const RISK_BY_CLASS: Record<CandidateClaim["classification"], ClaimNode["risk"]>
 // tagging (for S3 clustering) is a later pass.
 // Exported: #20's profile route buckets claims into the same domains the root-CV renderer uses,
 // straight from the claim (not the graph node), so it needs this same classifier.
-const KIND_PREFIXES = new Set(["cert", "lang", "skill", "edu", "project", "additional"]);
+/** The claim-miner prompt's rule-8 kind prefixes — also the ids miner.ts treats as repeatable. */
+export const KIND_PREFIXES: ReadonlySet<string> = new Set(["cert", "lang", "skill", "edu", "project", "additional"]);
 // #371: a line the review moved to the section a reader expects (ADR-0018 clause 6) carries that
 // section on the record (claims.ts `section`), which wins over the id prefix.
 export function kindTag(claim: CandidateClaim & { section?: string | null }): string {

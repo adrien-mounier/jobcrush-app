@@ -372,6 +372,34 @@ describe("#377 a removed item (check mode's ⊖ = the kept state underneath) rea
   });
 });
 
+// --- ADR-0018 clause 9: a stretch stays with its job ad (ADR-0005) ------------------------------
+
+describe("ADR-0018 clause 9 — a stretch never joins the profile", () => {
+  it("a line the tailor stretched for one job prints on that job's draft, and appears nowhere in the profile or check mode", async () => {
+    const STRETCH = "Ran a trading desk's checkout replatform for 40 traders.";
+    const prompts: string[] = [];
+    const echo = echoingLlm(prompts);
+    const stretching: LlmClient = {
+      model: "test-fake",
+      async complete(prompt: string) {
+        const page = JSON.parse(await echo.complete(prompt)) as { experience: Array<{ bullets: Array<{ text: string; claimIds: string[]; outcome: string }> }> };
+        page.experience[0]!.bullets.push({ text: STRETCH, claimIds: [LINE], outcome: "" });
+        return JSON.stringify(page);
+      },
+    };
+    const { app, cookie, server } = await tailoringWithCv("stretch-stays@example.com", { tailorLlm: stretching });
+    const drafted = await draft(app, cookie);
+    expect(drafted.statusCode).toBe(200);
+    expect(drafted.json().html).toContain(STRETCH); // the job ad's own page carries it
+
+    expect((await get(app, cookie, "/profile")).body).not.toContain(STRETCH);
+    expect((await get(app, cookie, "/review")).body).not.toContain(STRETCH);
+    const session = await server.sessions.getByToken(cookie.split("=")[1]!);
+    expect((await server.claims.list(session!.id)).map((c) => c.text)).not.toContain(STRETCH);
+    expect(await profileFact(app, cookie, LINE)).toMatchObject({ colour: "gold" }); // the fact it stretched is untouched
+  });
+});
+
 // --- #379 the person's own words on an item, in place (ADR-0018 clause 2) -------------------------
 
 const EDITED = "Replaced the checkout platform, live 2 months early.";

@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CandidateClaims } from "@jobcrush/contracts";
 import type { RawCv } from "./extract.js";
+import { KIND_PREFIXES } from "./graph.js";
 import type { LlmClient } from "./llm.js";
 
 const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "claim-miner.md");
@@ -49,7 +50,7 @@ export function extractJson(raw: string): unknown {
  *   attempts) failed the whole upload. Fall back to the claim's own id — unique, so it never
  *   merges two facts; it only forgoes deduplication for that one claim.
  */
-const REPEATABLE_CLAIM_ID = /^(edu|cert|lang|skill|project|additional)-/;
+const REPEATABLE_CLAIM_ID = new RegExp(`^(${[...KIND_PREFIXES].join("|")})-`);
 
 export function repairClaims(doc: unknown): unknown {
   if (typeof doc !== "object" || doc === null || !Array.isArray((doc as { claims?: unknown[] }).claims)) {

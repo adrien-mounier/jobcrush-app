@@ -698,8 +698,15 @@ for (const [name, make] of sessionDrivers) {
       await store.completeReview(s.id);
       await store.reopenReview(s.id, 42);
       expect(await store.getById(s.id)).toMatchObject({ reviewCompletedAt: null, reviewSince: 42 });
+      const before = Date.now();
       await store.completeReview(s.id);
-      expect(await store.getById(s.id)).toMatchObject({ reviewCompletedAt: expect.any(String), reviewSince: 42 });
+      const after = await store.getById(s.id);
+      expect(after?.reviewSince).toBe(42);
+      // A fresh stamp, as an ISO instant taken by this completion (the store's clock; second precision aside).
+      const stamped = Date.parse(after!.reviewCompletedAt!);
+      expect(new Date(stamped).toISOString()).toBe(after!.reviewCompletedAt);
+      expect(stamped).toBeGreaterThanOrEqual(before - 1000);
+      expect(stamped).toBeLessThanOrEqual(Date.now() + 1000);
     });
 
     it("setTailorTarget persists the tailor stage and selected ad id together", async () => {

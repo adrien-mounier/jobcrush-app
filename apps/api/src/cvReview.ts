@@ -20,8 +20,6 @@
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
 import { CONTACT_FIELDS, type ContactField, type ContactStore, type ContactValue } from "./contact.js";
 import { SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord } from "./cvReviewStore.js";
-
-const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 import type { ReviewRunner } from "./cvReviewRun.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
@@ -34,6 +32,8 @@ import { unansweredMarkets, workRightsRows, type WorkRightsRow } from "./workRig
 import { declaredLanguages } from "./languageLevel.js";
 import { languagesUnion } from "./eligibilityDiscovery.js";
 import type { MinedDate, MinedEndValue } from "@jobcrush/contracts";
+
+const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 
 /** A fix as the screen shows it: the line's text before and after, and whether the line currently
  *  reads the corrected text. `applied: false` is the person's undo; the sheet then offers "Use fix". */

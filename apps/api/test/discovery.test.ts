@@ -740,7 +740,7 @@ describe("#106 eligibility questions in discovery", () => {
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     // #376: discovery asks nothing after question 1; the questions the profile still answers are these.
     const answerable = [...start.questions, ...eligibilityCandidates(ANY_FAMILY, ["Hong Kong"])];
-    expect(answerable.length).toBeGreaterThan(0);
+    expect(answerable.map((q) => q.itemId)).toEqual(["eligibility-work-rights-hong-kong", "eligibility-languages"]);
     expect(answerable.some((q) => q.eligibility?.dimension === "years-experience")).toBe(false);
     expect(answerable.some((q) => /how many years/i.test(q.question))).toBe(false);
   });

@@ -412,7 +412,7 @@ describe("#376 where you can work, on check mode's last screen", () => {
     const refused = await post(app, cookie, "/review/complete");
     expect(refused.statusCode).toBe(409);
     expect(refused.json().error).toMatchObject({ code: "work_rights_unset" });
-    expect(refused.json().error.message).toContain("Hong Kong and Australia");
+    expect(refused.json().error.message).toBe("Tell me if you can work in Hong Kong and Australia first.");
     expect((await review(app, cookie)).completed).toBe(false);
     // The refusal confirmed nothing: the lines as read are still the person's to check.
     expect((await get(app, cookie, "/onboarding/cards")).json()).toMatchObject({ reviewPending: true, cards: [] });
@@ -422,8 +422,7 @@ describe("#376 where you can work, on check mode's last screen", () => {
     expect(au).toMatchObject({ proposed: "eligible", answer: null });
     expect((await put(app, cookie, `/review/work-rights/${hk!.itemId}`, { answer: "needs-sponsorship" })).statusCode).toBe(200);
     const stillOpen = await post(app, cookie, "/review/complete");
-    expect(stillOpen.json().error.message).toContain("Australia");
-    expect(stillOpen.json().error.message).not.toContain("Hong Kong");
+    expect(stillOpen.json().error).toEqual({ code: "work_rights_unset", message: "Tell me if you can work in Australia first." });
 
     expect((await put(app, cookie, `/review/work-rights/${au!.itemId}`, { answer: "eligible" })).json()).toEqual({ ok: true });
     expect((await review(app, cookie)).workRights.map((r) => [r.market, r.answer])).toEqual([

@@ -1,6 +1,6 @@
 /* check.css — #377 check mode: the guided walk over the profile (ADR-0018 clause 3). Tokens scoped
    on .check (never :root), values from docs/design/profile-check-mode-prototype.html, tab V2.1 —
-   the approved prototype — and review.css's dark chrome. One screen at a time, the footer fixed at
+   the approved prototype — and the dark chrome of the retired review page. One screen at a time, the footer fixed at
    thumb height. "Saved" is shown by motion, never by words: the finished segment fills (sweep), the
    removed count glows (bump), the footer button pulses once when it turns gold (arm). Under
    reduced motion the page never sets those classes (page.tsx), and this file kills the rest. */
@@ -20,6 +20,7 @@
   --danger-soft: #e0876c;
   --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
   background: var(--floor);
@@ -129,8 +130,11 @@
   margin: 10px 0 0;
 }
 
-/* #381 Your details: the person's own facts as fields in a plain card (prototype .card.form, .fields) */
+/* The person's own facts in a plain card (prototype .card.form): #381 Your details' fields, #371
+   About you, #376 the work-rights and languages cards, #386 the end date and the conflict. */
 .check .card.form {
+  display: grid;
+  gap: 10px;
   padding: 14px 8px;
 }
 .check .fields {
@@ -474,9 +478,6 @@
 /* #378 — the add suggestion, answered in place: the prototype's .sg card (dashed gold frame, ⊕),
    its "Only if true" badge, the No thanks row, the "new" tag and the landing gold rule, and the
    word choices moved from the review page (#343), on check mode's own tokens. */
-.check {
-  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
-}
 .check .btn.sm {
   padding: 6px 10px;
   font-size: 13px;
@@ -782,11 +783,6 @@
   }
 }
 /* #371 — About you in a plain card (prototype V2.1 aboutCard), and the tag a moved item wears */
-.check .card.form {
-  display: grid;
-  gap: 10px;
-  padding: 14px 8px;
-}
 .check .card.form .row {
   padding-left: 8px;
 }

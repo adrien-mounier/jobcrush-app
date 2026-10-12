@@ -10,7 +10,7 @@
 // lists what the visitor lacks, while negatives still count in factCount.
 import { buildClaimGraph, kindTag } from "./graph.js";
 import { renderRootCv, SECTIONS } from "./rootcv.js";
-import { prints, type ClaimRecord, type ClaimStore } from "./claims.js";
+import { isUnaddedDraft, prints, type ClaimRecord, type ClaimStore } from "./claims.js";
 import { CONTACT_FIELDS, EMPTY_CONTACT_RECORD, type ContactField, type ContactRecord, type ContactStore } from "./contact.js";
 import { fixOf, lineMarks, type ReviewFix } from "./cvReview.js";
 import type { CvReviewStore, ResolvedFix } from "./cvReviewStore.js";
@@ -255,8 +255,11 @@ export function buildProfileState(
   // #342: a draft the person has not ticked is a proposal on the review, not a fact about them —
   // the profile shows facts. A ticked draft is theirs ("told": they vouched for it), and kept after
   // an untick like any line. #378: a draft they said No thanks to is held only so it is never
-  // proposed again — it is no fact either.
-  for (const c of facts.filter((c) => c.lineState !== "drafted" && c.lineState !== "dismissed")) {
+  // proposed again — it is no fact either. #380: an item the review suggests removing, unanswered,
+  // is still in (ADR-0018 clause 2: only the person's tap removes) — listed like any item, grey
+  // because it prints nowhere until answered, and wearing no suggestion (suggestions show only in
+  // check mode).
+  for (const c of facts.filter((c) => !isUnaddedDraft(c.lineState))) {
     const tag = kindTag(c);
     const bucket = byTag.get(tag) ?? [];
     bucket.push({

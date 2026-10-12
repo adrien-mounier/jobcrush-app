@@ -1267,6 +1267,18 @@ describe("#380 removal suggestions", () => {
     expect(allLines(state).filter((l) => l.suggestion !== null).map((l) => l.id)).toEqual([DOB]);
   });
 
+  // ADR-0018 clause 2: only the person's tap removes. Seen on the normal profile before check mode
+  // is finished, the item is in — listed, not under Removed, grey (it prints nowhere until answered)
+  // — and wears no suggestion (suggestions show only in check mode).
+  it("on the normal profile, an unanswered removal suggestion is still in: listed, not removed, not printing, unmarked", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, MINED_WITH_DOB);
+    await reviewed(app, cookie);
+    const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ tag: string; facts: Array<Record<string, unknown>> }> };
+    const additional = profile.domains.find((d) => d.tag === "additional")!.facts;
+    expect(additional).toEqual([{ id: DOB, text: DOB_LINE, colour: "grey", source: "read", job: null }]);
+  });
+
   it("finishing is refused while the suggestion is unanswered and the jobs stay shut; Remove it lists it as removed and keeps it out of the master CV, the tailored draft and the export — the line beside it prints", async () => {
     const prompts: string[] = [];
     const printed: string[] = [];
@@ -1324,7 +1336,14 @@ describe("#380 removal suggestions", () => {
     const answer = parseReviewAnswer(qaReviewAnswer(`${prompt}\n\n${input}`));
     const removals = [...answer.jobs, ...(answer.sections ?? [])].flatMap((u) => u.judgements).filter((j) => j.verdict !== "keep");
     expect(removals).toEqual([{ line: "additional-dob", verdict: "remove", kind: "personal-data", reason: "A date of birth hurts on any CV." }]);
-    expect(answer.jobs.flatMap((j) => j.judgements).map((j) => j.line)).toContain("nrg-checkout"); // the achievements were judged, and kept
+    // Every job line was judged, and kept.
+    expect(answer.jobs.flatMap((j) => j.judgements).map((j) => [j.line, j.verdict])).toEqual([
+      ["nrg-checkout", "keep"],
+      ["nrg-vendors", "keep"],
+      ["nrg-risks", "keep"],
+      ["bsh-releases", "keep"],
+      ["bsh-calendar", "keep"],
+    ]);
   });
 
   it("a review stored before #380, with the old untick kinds, still reads: no error, no mark, the line in", async () => {
@@ -1471,7 +1490,7 @@ describe("#385 a re-upload", () => {
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await finish(app, cookie); // every draft: No thanks
     const dismissed = allLines(await review(app, cookie)).filter((l) => l.state === "dismissed");
-    expect(dismissed.length).toBeGreaterThan(1);
+    expect(dismissed.map((l) => l.id)).toEqual(["draft-nrg-1", "draft-nrg-2", "draft-nrg-3", "draft-nrg-4", "draft-nrg-5", "draft-nrg-6"]);
 
     mined.push(NEW_LINE);
     await reupload(app, cookie);
