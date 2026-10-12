@@ -15,7 +15,7 @@
 // What this journey adds that no other journey covers: it drives the UNEARNED half from a real
 // browser and asks the server, over her own session cookie, on every door that can put a retrieved
 // posting in front of her, while a live snapshot exists — and proves the refusal is answered on the
-// spot, with no provider call and nothing stored. cv-review-gate-doors-journey.mjs walks the same
+// spot, with no provider call and nothing stored. check-mode-gate-doors-journey.mjs walks the same
 // gate from the review screen's side.
 //
 // Run it:
@@ -214,10 +214,10 @@ await assertTrue(
   `and the tailor surface has nothing to show her either (${tailorWhileUncovered.status} ${tailorWhileUncovered.body})`,
 );
 
-// What she SEES at the reveal while her review is open: the deck sends her to the review, it does not
-// hand her a retrieved deck.
+// What she SEES at the reveal while her review is open: the deck sends her to check mode (#386: the
+// review page it replaced), it does not hand her a retrieved deck.
 await qa.goto('/deck', 'the reveal, while her CV review is still open');
-await page.waitForURL(/\/review/, { timeout: 20000 }).catch(() => {});
+await page.waitForURL(/\/profile\/check/, { timeout: 20000 }).catch(() => {});
 await qa.scrollThrough('read the screen she gets instead of a deck');
 const uncoveredDeck = await getJson('/onboarding/cards');
 await qa.note(
@@ -225,8 +225,8 @@ await qa.note(
   `moreQuestions=${uncoveredDeck?.moreQuestions}, searching=${uncoveredDeck?.searching}`,
 );
 await assertTrue(
-  page.url().includes('/review') && uncoveredDeck?.searching !== true,
-  `she is sent to her CV review, not shown a spinner she can never get past — the refusal is a settled answer (${page.url()})`,
+  page.url().includes('/profile/check') && uncoveredDeck?.searching !== true,
+  `she is sent to check mode, not shown a spinner she can never get past — the refusal is a settled answer (${page.url()})`,
 );
 
 // =============================================================================================

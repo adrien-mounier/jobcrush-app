@@ -151,10 +151,10 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
         }
       }, timeoutMs),
 
-    /** #338 - complete "Your CV, reviewed" over the wire, for a journey whose claim is not the
-     *  review itself. A brought CV is reviewed before any job is shown (ADR-0016 clause 6): the deck,
-     *  the want door and the tailor refuse an unreviewed session, and discovery's last answer hands
-     *  off to /review instead of /deck. A journey that reads a CV and then wants its jobs calls this
+    /** #338 - finish the review (since #386 only check mode, /profile/check, shows it) over the
+     *  wire, for a journey whose claim is not check mode itself. A brought CV is checked before any
+     *  job is shown (ADR-0016 clause 6): the deck, the want door and the tailor refuse an unfinished
+     *  session, and discovery's hand-off goes to check mode instead of /deck. A journey that reads a CV and then wants its jobs calls this
      *  once, after the read has landed. Runs in-page, not via `page.request`: the session cookie is
      *  Secure, and Playwright's request context (correctly) will not attach a Secure cookie over
      *  http://127.0.0.1, while the real browser page gets the loopback "potentially trustworthy

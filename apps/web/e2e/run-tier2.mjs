@@ -69,22 +69,26 @@ export const JOURNEYS = [
   "factbadge-journey.mjs",
   "band-vocabulary-journey.mjs",
   "years-worked-out-journey.mjs",
-  // cv-review-journey.mjs added 2026-10-06 (#338): the ONLY journey that walks "Your CV, reviewed"
-  // as a person does — the last question hands off to the review, lines untick/re-tick on the
-  // paper, the end-date pill is answered on the job's card, the deck refuses until the confirm and
-  // opens after it. Every other CV-carrying journey completes the review over the wire. ~3 min.
-  "cv-review-journey.mjs",
-  // cv-review-gate-doors-journey.mjs added 2026-10-06 by the #338 QA gate: the adversarial half —
-  // every door onto the jobs (deck, cards API, the paste-a-job door and that job's screen, want,
-  // tailor) tried with an UNREVIEWED CV and held, then opened by the confirm. It is the journey
-  // that found the paste door scoring a job against an unreviewed CV. ~3 min, fake-model API.
-  "cv-review-gate-doors-journey.mjs",
-  // #358, both left by their own QA gates. They are the only journeys that read the master CV back
-  // after the review's new lines are handled on screen, so only they catch a drafted line printing
-  // that the visitor never ticked — each for its own feature.
-  //   drafted-lines-gate — #342: a reload mid-run shows no half-drawn box; the line door, a CV
+  // check-mode-journey.mjs (#386; was cv-review-journey.mjs, #338, and absorbed
+  // review-unchecked-counter-journey.mjs, #362): the ONLY journey that walks check mode as a person
+  // does — discovery hands off to it, the review runs held then released (nothing reads as a
+  // finished check while it runs), the fix is undone and used again, the "Remove this?" and add
+  // suggestions are answered, an item is removed and put back across reloads, the end date is
+  // answered on the job's screen, the deck refuses until the finish and opens after it. Every other
+  // CV-carrying journey finishes check mode over the wire. ~3 min.
+  "check-mode-journey.mjs",
+  // check-mode-gate-doors-journey.mjs (#386; was cv-review-gate-doors-journey.mjs, the #338 QA
+  // gate's): the adversarial half — every door onto the jobs (deck, cards API, the paste-a-job door
+  // and that job's screen, want, tailor) tried before check mode is finished and held, then opened
+  // by the finish. It is the journey that found the paste door scoring a job against an unreviewed
+  // CV. ~3 min, fake-model API.
+  "check-mode-gate-doors-journey.mjs",
+  // #358, both left by their own QA gates, moved onto check mode by #386. They are the only
+  // journeys that read the master CV back after the review's suggestions are answered on screen, so
+  // only they catch a suggested line printing that the visitor never added — each for its feature.
+  //   drafted-lines-gate — #342: a reload mid-run shows no half-drawn card; the line door, a CV
   //                        line and an empty wording each refuse a draft; reloads never re-ask the
-  //                        writer; the profile and the master CV carry the ticked draft only.
+  //                        writer; the profile and the master CV carry the added draft only.
   //   word-choices       — #343: the vague phrase is marked, its choices list her CV's words
   //                        before the typical ones, opening them sends nothing, and the master CV
   //                        prints her chosen words, never the model's phrase.

@@ -107,7 +107,7 @@ await qa.note(`the front door handed her on by itself — she is now at ${new UR
 // The pile of facts is the only visible way onto the profile, and #17 spec 6 renders it at 1 fact,
 // never at 0 — a CV read alone does not mint one. #339: discovery's own questions add no fact any
 // more (eligibility only), so what mints them is confirming "Your CV, reviewed" — done over the
-// wire here, as every CV-carrying journey but the review's own does (cv-review-journey.mjs walks it).
+// wire here, as every CV-carrying journey but check mode's own does (check-mode-journey.mjs walks it).
 if (await page.locator('#q1-role').isVisible().catch(() => false)) {
   await qa.fill('#q1-role', 'IT project manager', 'the kind of job she is going for');
   await qa.click('button.go.wide', 'she answers the first question');

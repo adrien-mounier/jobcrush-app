@@ -1189,8 +1189,7 @@ test.describe("#385 a re-upload brings check mode back, for new items only", () 
 // #368 — a drafted line's source names where its quote sits on the CV (the server resolves it on
 // read: `draft.source`, a job's "<employer>, <title>" or a section's heading). The card prints it in
 // the source line beside the quote; a quote the server placed nowhere prints the quote alone.
-// (Ticket #368 named review.spec.ts; that spec is skipped until #386 retires the review page, and
-// this one replaces it.)
+// (Ticket #368 named review.spec.ts; #386 retired it with the review page, and this one replaces it.)
 test.describe("#368 the source names the job its quote came from", () => {
   const CROSS_JOB = "Baltic Software House, Project Coordinator";
   const FROM_BSH = line("draft-nrg-1", "Also coordinated releases for 4 agile squads.", {

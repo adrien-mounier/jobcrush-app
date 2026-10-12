@@ -128,8 +128,8 @@ await assertTrue(
 
 // ---------------------------------------------------------------------------------------------
 // 3. Open a date hole underneath, and see where the product asks instead. (AC3b, AC4)
-//    #338: the question left the discovery ask-list for "Your CV, reviewed", where it sits on the
-//    job's own card (ADR-0016 clause 2) — still before the deck, which the review now gates.
+//    #338: the question left the discovery ask-list for the review — since #386 check mode, where
+//    it sits on the job's own screen (ADR-0016 clause 2) — still before the deck, which it gates.
 // ---------------------------------------------------------------------------------------------
 await api('POST', '/job-blocks/nordic-retail-it-pm/correct', { key: 'end', value: { state: 'unknown' } });
 await qa.note("the end date of the Nordic Retail job is now unknown — the hole ADR-0008 clause 3 says to ask about");
@@ -146,25 +146,31 @@ await assertTrue(
   "AC3b — with a date missing, the product asks for THAT date, on the job's own card",
 );
 
-await qa.goto('/review', 'into "Your CV, reviewed" with a date hole open');
-const pill = page.getByRole('button', { name: 'When did you leave Nordic Retail Group?' });
-await qa.expectVisible(pill, 'the job wears a gold "end date?" pill in its date slot');
-await qa.scrollThrough('the paper as the person actually sees it');
-await qa.click(pill, 'taps the pill');
-const sheet = page.getByRole('dialog');
-await qa.expectText(sheet, 'When did you leave Nordic Retail Group?', 'AC3b on screen — the person is asked for the date');
+await qa.goto('/profile/check', 'into check mode with a date hole open');
+// #386: check mode asks the end date on the job's own screen — Next, screen by screen, to it.
+const h1 = page.locator('main h1');
+const primary = page.locator('.foot .primary');
+await h1.waitFor();
+for (let i = 0; i < 14 && !/Nordic/.test((await h1.textContent()) ?? ''); i += 1) {
+  if (await primary.isDisabled()) break;
+  await primary.click();
+  await page.waitForTimeout(250);
+}
+const ask = page.locator('main .card.endq');
+await qa.expectText(ask.locator('h3'), 'When did you leave Nordic Retail Group?', "AC3b on screen — the person is asked for the date, on the job's own screen");
+await qa.scrollThrough('the job as the person actually sees it');
 
 // AC4 — the reason must be SAID ALOUD to the person, not merely carried on the wire.
-const sheetText = await sheet.innerText();
-await qa.note(`everything the sheet says to the person right now:\n${sheetText}`);
-await assertTrue(/years of experience/i.test(sheetText), 'AC4 — the screen tells the person WHY this date matters');
+const askText = await ask.innerText();
+await qa.note(`everything the question says to the person right now:\n${askText}`);
+await assertTrue(/years of experience/i.test(askText), 'AC4 — the screen tells the person WHY this date matters');
 
 // ---------------------------------------------------------------------------------------------
 // 4. Answer it — the correction must stick on the record underneath. (AC5)
 // ---------------------------------------------------------------------------------------------
-await sheet.getByRole('combobox', { name: 'Month' }).selectOption('December');
-await qa.fill(sheet.getByRole('textbox', { name: 'Year' }), '2024', 'the person types the year they left');
-await qa.click(sheet.getByRole('button', { name: 'Save' }), 'saves the date');
+await ask.locator('select').selectOption('December');
+await qa.fill(ask.locator('input'), '2024', 'the person types the year they left');
+await qa.click(ask.locator('button[type=submit]'), 'saves the date');
 await page.waitForTimeout(1500);
 const corrected = ((await (await api('GET', '/job-blocks')).json()).blocks ?? [])
   .find((b) => b.id === 'nordic-retail-it-pm');
@@ -177,7 +183,7 @@ await assertTrue(
 );
 const stillAsking = (await reviewJobs()).filter((j) => j.endDateQuestion);
 await assertTrue(stillAsking.length === 0, 'AC5 — the question closes; the person is not asked twice');
-await qa.expectText(page.locator('.paper'), 'Dec 2024', 'AC5 on screen — the job now prints its end date');
+await qa.expectText('main .bigsub', 'Dec 2024', 'AC5 on screen — the job now reads its end date');
 
 // ---------------------------------------------------------------------------------------------
 // 5. A second visitor with NO readable work history — the deck must not mark them down. (AC6)

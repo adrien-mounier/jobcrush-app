@@ -161,13 +161,13 @@ await assertTrue(
 );
 
 await qa.goto('/deck', 'she jumps straight to the deck anyway');
-await page.waitForURL(/\/review/, { timeout: 20000 }).catch(() => {});
+await page.waitForURL(/\/profile\/check/, { timeout: 20000 }).catch(() => {});
 await qa.scrollThrough('read the screen she gets instead of a reveal');
 const refusedText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
 await qa.note(`she is at ${page.url()}; the screen says: "${refusedText.slice(0, 200)}"`);
 await assertTrue(
-  page.url().includes('/review') && !/just matched you/i.test(refusedText),
-  `AC2 — the deck sends her to her CV review, and no reveal number is on the screen (${page.url()})`,
+  page.url().includes('/profile/check') && !/just matched you/i.test(refusedText),
+  `AC2 — the deck sends her to check mode (#386: the review page it replaced), and no reveal number is on the screen (${page.url()})`,
 );
 
 // Every lever a client actually has: the URL, a header, and the shape of the request.

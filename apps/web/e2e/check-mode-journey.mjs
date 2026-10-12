@@ -1,39 +1,37 @@
-// #338 — "Your CV, reviewed", walked the way a person walks it, over the REAL stack (fake model only):
+// #386 — check mode, walked the way a person walks it, over the REAL stack (fake model only). It
+// replaces cv-review-journey.mjs (#338/#341/#342, "Your CV, reviewed") and
+// review-unchecked-counter-journey.mjs (#362): every claim those two made, made on check mode.
 //
-//   1. she pastes her CV on the front door and says what she is going for (#376: nothing is asked
-//      after that — work rights and languages moved into check mode);
-//   2. discovery hands off to "Your CV, reviewed", not the jobs (AC1) — check mode since #377, which
-//      #386 re-points this journey at;
-//   3. the paper: her letterhead first, then each job with its lines as read, all ticked (AC2);
-//   4. she unticks a line (kept), reloads, re-ticks it, reloads — each tap is what the server stored (AC3);
-//   5. a job with no end date asks on its own card; "Not sure" stores nothing; an answer corrects
-//      the record (AC4);
-//   6. the deck refuses her until she confirms — /deck sends her back here, the cards API holds — and
-//      opens after "I'm done — show my jobs" (AC6);
-//   7. she comes back to the review after confirming; a change made there persists (AC7).
+//   1. she pastes her CV on the front door and says what she is going for; nothing is asked after
+//      that (#376) — discovery's hand-off sends her to check mode, not the jobs (AC1);
+//   2. #341/#362 — the review runs in the background, HELD on the QA stack (POST /qa/stack
+//      reviewHold) from before the paste: Your details shows her letterhead as read (AC2); her job
+//      screen says it is still being checked and offers nothing to answer; the last screen holds
+//      Finish while the run goes and the server refuses the finish too; nothing on the screen speaks
+//      of a failure; the wire says `unchecked: true`. Released, Finish unlocks and `unchecked` clears;
+//   3. #341/#384 — the fix: the budget line reads corrected, wears the Fixed tag, the tag opens
+//      original → corrected; Undo restores her words to the letter and survives a reload; the fix
+//      can be used again;
+//   4. #380 — the "Remove this?" suggestion on her date-of-birth line holds the job's button: Remove
+//      it lists it as removed, Put back brings it in, the server stores each;
+//   5. #342/#378 — the add suggestions: cards on the placed job only (the Baltic job, in no family,
+//      gets none and nothing says why), each with its source; she adds one, edits another first,
+//      says No thanks to the rest — and a reload shows what she did;
+//   6. an item removed with ⊖ survives a reload in the removed tray; Put back survives one too (AC3);
+//   7. the Baltic job's missing end date is asked on its own screen; moving on stores nothing; an
+//      answer corrects the job record (AC4);
+//   8. the jobs wait for the finish — the cards API holds and /deck sends her back here — and open
+//      after "Finish my profile" and the done screen (AC6);
+//   9. she comes back to check mode after finishing; a change made there persists (AC7).
 //
-// #341 — the review runs in the background, walked in the same pass: the run is HELD on the QA
-// stack (POST /qa/stack reviewHold) from before the paste, so when she lands on the review it is
-// still going — the progress card, the jobs greyed and "still being checked", the confirm locked;
-// released, the card goes and the marks land: the fix (its word green on the paper, original →
-// corrected and Undo / Use fix in the sheet, undo surviving a reload), and the amber suggestion
-// band with its reason, unticked in one tap. Both marks come from the REVIEWCHECK recording
-// (qa-main.ts): a misspelt word and an aim with no result on two of her lines.
-//
-// #342 — the drafted lines, in the same pass: the fake drafts one line per must-have of the IT
-// project manager family that her Nordic job does not show (qaReviewAnswer.ts), plus an OPTIONAL
-// and an INDUSTRY GUESS line. She sees them as dashed boxes at the end of that job, each with its
-// source under it; the Baltic job (no family) gets none. She ticks one with the +, edits another's
-// wording in the sheet and ticks it there, reloads, and the server holds what she did; the unticked
-// ones never print (apps/api/test/cvReviewRun.test.ts proves the print gate through each door).
-//
-// The import conflict (AC5) is not walked here: the fake miner's recording reads no field twice.
-// apps/api/test/cvReview.test.ts proves it over HTTP and review.spec.ts proves the screen. The
-// COMPLETE stamp is not walked either: the recording's lines show none of the must-haves.
+// The import conflict is not walked: the fake miner's recording reads no field twice
+// (apps/api/test/cvReview.test.ts proves it over HTTP; check-mode.spec.ts the screen). The given-up
+// path (a job that ran out of paid attempts) cannot be walked live either: the fake writer has no
+// failure switch — cvReviewRun.test.ts proves it over HTTP, check-mode.spec.ts the screen.
 //
 //   PORT=34101 node apps/api/dist/qa-main.js
 //   cd apps/web && API_URL=http://127.0.0.1:34101 npx next build && npx next start -p 30338
-//   BASE_URL=http://127.0.0.1:30338 node apps/web/e2e/cv-review-journey.mjs
+//   BASE_URL=http://127.0.0.1:30338 node apps/web/e2e/check-mode-journey.mjs
 import { createSession } from './qa-driver.mjs';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:30338';
@@ -58,18 +56,19 @@ const CV_TEXT = [
   'EDUCATION',
   'MSc Management Information Systems, University of Warsaw, 2017',
   '',
-  // #341: the marker that makes the fake miner read two of her lines with a mistake in them.
+  // The marker that makes the fake miner read a misspelt word and a date of birth on two lines.
   'REVIEWCHECK',
 ].join('\n');
 
 // The fake miner's recorded lines (apps/api/test/eval/recordings/clean-pdf.json), as the
-// REVIEWCHECK recording reads them: the budget line misspelt (the review fixes it back to the
-// recorded text), the steering line stating an aim with no result (the review suggests unticking it).
+// REVIEWCHECK recording reads them (qa-main.ts): the budget line misspelt (the review fixes it back
+// to the recorded text), a date of birth on another (the review suggests removing it).
 const JOB_LINE = 'Managed a budget of EUR 1.2M across 3 vendor teams.';
 const JOB_LINE_AS_READ = 'Managed a budget of EUR 1.2M accross 3 vendor teams.';
-const AIM_LINE = 'Set up steering committee reporting intended to keep the CIO informed.';
+const DOB_LINE = 'Date of birth: 12 March 1988.';
+const MINE = 'Coordinated the business and IT groups through every release of the checkout replatform.';
 
-const qa = await createSession(`cv-review-journey-${WIDTH}`, {
+const qa = await createSession(`check-mode-journey-${WIDTH}`, {
   baseURL: BASE,
   viewport: { width: WIDTH, height: WIDTH < 600 ? 844 : 900 },
 });
@@ -87,252 +86,244 @@ const json = (path, init) =>
     [path, init ?? null],
   );
 const reviewJobs = async () => (await json('/review')).body.sections.find((s) => s.tag === 'experience').jobs;
-const lineState = async (id) =>
-  (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.id === id)?.state ?? null;
-const lineText = async (id) =>
-  (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.id === id)?.text ?? null;
-const sheet = page.getByRole('dialog');
-// #341: the review run's hold on the QA stack. Armed before the paste, released once she has seen
-// the progress card, and put back at the end whatever happened (run-tier2.mjs's one-owner rule).
+const jobLines = async () => (await reviewJobs()).flatMap((j) => j.lines);
+const lineState = async (id) => (await jobLines()).find((l) => l.id === id)?.state ?? null;
+const lineText = async (id) => (await jobLines()).find((l) => l.id === id)?.text ?? null;
 const holdReview = (on) =>
   json('/qa/stack', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reviewHold: on }) });
 
-// ---------------------------------------------------------------------------------------------
-// 1. The CV, the job she is going for, and the questions the CV cannot answer.
-// ---------------------------------------------------------------------------------------------
-await qa.goto('/', 'the front door');
-await assert((await holdReview(true)).status === 200, 'the QA stack holds the review run until she has seen it running');
-const jobId = await qa.frontDoorPaste(CV_TEXT, 'the front door — she pastes her CV');
-await qa.waitForJobDone(jobId);
-await qa.frontDoorContinueToIntent();
-await qa.fill('#target-role', ROLE, `the job she is going for: "${ROLE}"`);
-await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
-await qa.click('button:has-text("Save and continue")', 'Save and continue');
-await page.waitForTimeout(1500);
+// Check mode's structure (check-mode.spec.ts selects the same way): the screen's heading, its lead,
+// the footer's one primary button and Back, the items, the suggestion cards, the removed tray.
+const h1 = page.locator('main h1');
+const lead = page.locator('main .lead');
+const primary = page.locator('.foot .primary');
+const items = page.locator('main li.pt');
+const item = (text) => items.filter({ hasText: text }).first();
+const addCards = page.locator('main li.sg:not(.rmv)');
+const removeCard = page.locator('main li.sg.rmv');
+const tray = page.locator('main .tray');
+/** From wherever the walk is, Next until the heading matches (false when held before it). */
+async function walkTo(re) {
+  await h1.waitFor();
+  for (let i = 0; i < 14; i += 1) {
+    if (re.test((await h1.textContent()) ?? '')) return true;
+    if ((await primary.isDisabled()) || !/^Next:/.test((await primary.textContent()) ?? '')) return false;
+    await primary.click();
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+/** A reload starts the walk again at its first screen; this walks back to `re`. */
+async function reloadTo(re, note) {
+  await qa.goto('/profile/check', note);
+  await assert(await walkTo(re), `back on the screen ${re}`);
+}
 
-// A date hole to be asked about on the review: the product's own correction door, on her session.
-const blocks = (await json('/job-blocks')).body?.blocks ?? [];
-const bsh = blocks.find((b) => /baltic/i.test(b.employer.value));
-await assert(!!bsh, `her dated job records were read (${blocks.length}) — the Baltic job among them`);
-// The product's own name for that employer (the fake miner reads it its own way), never re-typed.
-const BALTIC = bsh.employer.value;
-const END_Q = `When did you leave ${BALTIC}?`;
-await json(`/job-blocks/${bsh.id}/correct`, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ key: 'end', value: { state: 'unknown' } }),
-});
+try {
+  // -------------------------------------------------------------------------------------------
+  // 1. The CV, the job she is going for — and nothing asked after it. (AC1)
+  // -------------------------------------------------------------------------------------------
+  await qa.goto('/', 'the front door');
+  await assert((await holdReview(true)).status === 200, 'the QA stack holds the review run until she has seen it running');
+  const jobId = await qa.frontDoorPaste(CV_TEXT, 'the front door — she pastes her CV');
+  await qa.waitForJobDone(jobId);
+  await qa.frontDoorContinueToIntent();
+  await qa.fill('#target-role', ROLE, `the job she is going for: "${ROLE}"`);
+  await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
+  await qa.click('button:has-text("Save and continue")', 'Save and continue');
+  await page.waitForTimeout(1500);
 
-// #376 (ADR-0018 clause 8): nothing is asked after question 1 any more — work rights and languages
-// moved into check mode. Discovery only hands off.
-await qa.goto('/discovery', 'discovery — nothing is left to ask');
-await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
-await assert((await page.locator('.discovery .opts').count()) === 0, 'no question was put on screen');
-await qa.click('.discovery .handoff .go', 'Continue');
+  // A date hole to be asked about: the product's own correction door, on her session.
+  const blocks = (await json('/job-blocks')).body?.blocks ?? [];
+  const bsh = blocks.find((b) => /baltic/i.test(b.employer.value));
+  await assert(!!bsh, `her dated job records were read (${blocks.length}) — the Baltic job among them`);
+  // The product's own name for that employer (the fake miner reads it its own way), never re-typed.
+  const BALTIC = bsh.employer.value;
+  const END_Q = `When did you leave ${BALTIC}?`;
+  await json(`/job-blocks/${bsh.id}/correct`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: 'end', value: { state: 'unknown' } }),
+  });
 
-// ---------------------------------------------------------------------------------------------
-// 2. The last answer lands on "Your CV, reviewed", not the jobs. (AC1)
-// ---------------------------------------------------------------------------------------------
-await page.waitForURL(/\/review/, { timeout: 20_000 });
-await assert(/\/review/.test(page.url()), `AC1 — after the last question she lands on the review (${new URL(page.url()).pathname})`);
-await qa.expectText('h1', 'Your CV, reviewed', 'the screen names itself');
+  await qa.goto('/discovery', 'discovery — nothing is left to ask');
+  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
+  await assert((await page.locator('.discovery .opts').count()) === 0, 'no question was put on screen');
+  await qa.click('.discovery .handoff .go', 'Continue');
+  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
+  await assert(/\/profile\/check/.test(page.url()), `AC1 — after question 1 she lands on check mode, not the jobs (${new URL(page.url()).pathname})`);
 
-// ---------------------------------------------------------------------------------------------
-// 2b. #341 — the review is still running: the progress card, the jobs greyed, the confirm locked.
-// ---------------------------------------------------------------------------------------------
-const progress = page.getByRole('status');
-await qa.expectText(progress, 'Checking your CV…', 'the progress card: the review runs in the background');
-await qa.expectText(progress, 'jobs ready', 'it counts the jobs that are ready');
-await qa.expectText(progress, 'You can start with the parts that are ready.', 'and says she can start');
-const busyJobs = page.locator('.paper .pjob.busy');
-await assert((await busyJobs.count()) > 0, `her jobs are greyed while they are checked (${await busyJobs.count()} of ${await page.locator('.paper .pjob').count()})`);
-await qa.expectText(busyJobs.first(), 'Still checking this job', 'each says it is still being checked');
-await qa.expectText(busyJobs.first(), JOB_LINE_AS_READ, 'with its lines as read, meanwhile — the misspelling included');
-const cta = page.getByRole('button', { name: "I'm done — show my jobs" });
-await assert(await cta.isDisabled(), 'the confirm is locked while the check runs');
-await qa.expectText('.foot p', 'Your jobs open when the check is finished.', 'and says why');
-const refused = await json('/review/complete', { method: 'POST' });
-await assert(refused.status === 409 && refused.body?.error?.code === 'review_running', `the server refuses the confirm too (${refused.status} ${refused.body?.error?.code})`);
-await qa.scrollThrough('she reads her CV on paper while it is checked');
+  // -------------------------------------------------------------------------------------------
+  // 2. Your details as read (AC2); the check still running (#341/#362).
+  // -------------------------------------------------------------------------------------------
+  await qa.expectText(h1, 'Your details', 'the walk opens at her details');
+  await assert((await page.locator('input[name=name]').inputValue()).includes('Jane Doe'), 'her name, as read, at the top');
+  await assert((await page.locator('input[name=email]').inputValue()) === 'jane.doe.338@example.com', 'her email, as read');
+  const before = (await json('/review')).body;
+  await assert(before?.progress !== null && before?.unchecked === true, `the server says the check is going and part of her CV has no answer yet (unchecked: ${before?.unchecked})`);
 
-await assert((await holdReview(false)).status === 200, 'the review run is let through');
-await progress.waitFor({ state: 'detached', timeout: 20_000 });
-await qa.note('the progress card goes when the check is finished');
-await assert((await page.locator('.paper .pjob.busy').count()) === 0, 'no job is greyed any more');
-await assert(await cta.isEnabled(), 'the confirm opens');
-await qa.expectText('.foot p', 'You can come back to this page at any time.', 'the footer says so');
+  await assert(await walkTo(/Nordic/), 'Next, screen by screen, to her Nordic job');
+  await qa.expectText(lead, 'still checking this job', 'her job says it is still being checked — never "nothing to answer"');
+  await assert((await addCards.count()) === 0 && (await removeCard.count()) === 0, 'no suggestion while the job has no answer');
+  await qa.expectVisible(item(JOB_LINE_AS_READ), 'her lines as read, meanwhile — the misspelling included');
+  await qa.scrollThrough('she reads her job while it is checked');
 
-// ---------------------------------------------------------------------------------------------
-// 2c. #341 — the fix: its word green on the paper, original → corrected in the sheet, Undo, Use fix.
-// ---------------------------------------------------------------------------------------------
-await qa.expectText('.legend', 'fixed', 'the legend names the marks');
-const fixedLine = page.getByRole('button', { name: JOB_LINE });
-await qa.expectVisible(fixedLine, 'the budget line reads correctly now: the fix was applied for her');
-await qa.expectText(fixedLine.locator('mark.fx'), 'across', 'the corrected word is marked');
-const budgetId = (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.text === JOB_LINE)?.id;
-await assert(!!budgetId && (await lineText(budgetId)) === JOB_LINE, 'the server holds the corrected text');
-await qa.click(fixedLine, 'taps the mark');
-await qa.expectText(sheet, 'We fixed a small mistake', 'the sheet shows the fix');
-await qa.expectText(sheet.locator('.fixdiff s'), 'accross', 'the original, struck');
-await qa.expectText(sheet.locator('.fixdiff .to'), 'across', 'the correction');
-await qa.click(sheet.getByRole('button', { name: 'Undo' }), 'undoes it');
-await qa.expectText(sheet.locator('.quote'), JOB_LINE_AS_READ, 'the line reads her exact original again');
-await assert((await lineText(budgetId)) === JOB_LINE_AS_READ, 'the server stored the undo, to the letter');
-await qa.click(sheet.getByRole('button', { name: 'Close' }), 'closes the sheet');
-await qa.goto('/review', 'she reloads');
-await qa.expectVisible(page.getByRole('button', { name: JOB_LINE_AS_READ }), 'still her original after the reload');
-await assert((await page.locator('.paper mark.fx').count()) === 0, 'and no fix mark on it');
-await qa.click(page.getByRole('button', { name: JOB_LINE_AS_READ }), 'taps the line');
-await qa.click(sheet.getByRole('button', { name: 'Use fix' }), 'uses the fix after all');
-await qa.expectText(sheet.locator('.quote'), JOB_LINE, 'the line reads the correction again');
-await qa.click(sheet.getByRole('button', { name: 'Close' }), 'closes the sheet');
-await assert((await lineText(budgetId)) === JOB_LINE, 'the server stored that too');
+  await walkTo(/^$/); // as far as the walk goes
+  const last = (await h1.textContent()) ?? '';
+  await qa.note(`the last screen: "${last}"`);
+  const pill = page.locator('.wrrow .pill').filter({ has: page.locator('input[value=eligible]') }).first();
+  if (await pill.count()) await qa.click(pill, 'where she can work: yes, she can work there');
+  await qa.expectText(primary, 'Finish my profile', 'the last screen offers the finish');
+  await assert(await primary.isDisabled(), 'the finish is held while the check runs');
+  await qa.expectText('main .hint', 'Checking your CV…', 'and says why');
+  const refused = await json('/review/complete', { method: 'POST' });
+  await assert(refused.status === 409 && refused.body?.error?.code === 'review_running', `the server refuses the finish too (${refused.status} ${refused.body?.error?.code})`);
+  const mainText = (await page.locator('main').textContent()) ?? '';
+  await assert(!/fail|error|try again|couldn't/i.test(mainText), 'nothing on the screen speaks of a failure');
 
-// ---------------------------------------------------------------------------------------------
-// 2d. #341 — the suggestion: the amber band, the reason in the sheet, one tap unticks.
-// ---------------------------------------------------------------------------------------------
-const band = page.locator('.paper li.sg');
-await qa.expectVisible(band, 'one line wears the amber band: the review suggests unticking it');
-await qa.expectText(band, AIM_LINE, 'the line that states an aim and no result');
-const aimId = (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.text === AIM_LINE)?.id;
-await assert((await lineState(aimId)) === 'ticked', 'it is still ticked: the machine removed nothing');
-await qa.click(band.getByRole('button', { name: AIM_LINE }), 'taps the band');
-await qa.expectText(sheet.locator('.sugg'), 'Suggestion: untick this line.', 'the sheet says what it suggests');
-await qa.expectText(sheet.locator('.sugg'), 'States an aim and no delivered result.', 'and why, in one sentence');
-await qa.click(sheet.getByRole('button', { name: 'Untick — keep it for when a job needs it' }), 'she unticks it');
-await assert((await lineState(aimId)) === 'kept', 'the server stored her untick');
-await assert((await page.locator('.paper li.sg').count()) === 0, 'the band is gone; the line is kept, grey');
-// Unticking is never a one-way door: she puts it back, and the suggestion is there again for her to judge.
-await qa.click(page.locator('.paper li.kept .line'), 'taps the kept line');
-await qa.click(sheet.getByRole('button', { name: 'Tick — put it back on my CV' }), 're-ticks it');
-await assert((await lineState(aimId)) === 'ticked' && (await page.locator('.paper li.sg').count()) === 1, 'the line is back on her CV, the band with it');
-await qa.scrollThrough('she reads her CV on paper, top to bottom');
+  await assert((await holdReview(false)).status === 200, 'the review run is let through');
+  await primary.waitFor({ state: 'visible' });
+  for (let i = 0; i < 40 && (await primary.isDisabled()); i += 1) await page.waitForTimeout(500);
+  await assert(await primary.isEnabled(), 'the finish unlocks when the check is finished');
+  await assert((await page.locator('main .hint').count()) === 0, 'and the "Checking your CV…" line goes');
+  const after = (await json('/review')).body;
+  await assert(after?.progress === null && after?.unchecked === false, `every part of her CV has an answer (unchecked: ${after?.unchecked})`);
 
-// ---------------------------------------------------------------------------------------------
-// 2e. #342 — the drafted lines: dashed boxes at the end of the placed job, each with its source;
-// the + ticks one; Edit then Tick in the sheet; nothing drafted prints until she ticks it.
-// ---------------------------------------------------------------------------------------------
-await qa.expectText('.legend', 'new line', 'the legend names the new lines');
-const nordic = page.locator('.paper .pjob').filter({ hasText: 'Nordic' }).first();
-const boxes = nordic.locator('li.nl');
-await assert((await boxes.count()) > 0, `her Nordic job ends with new-line boxes to tick or leave (${await boxes.count()})`);
-const baltic = page.locator('.paper .pjob').filter({ hasText: BALTIC }).first();
-await assert((await baltic.locator('li.nl').count()) === 0, 'the Baltic job, in a family we do not cover, gets none — and nothing says why');
-await qa.expectText(boxes.first().locator('.src'), 'jobs ask:', 'each box shows its source under it, without a tap');
-await qa.expectText(nordic, 'OPTIONAL', 'a duty that varies by person is flagged OPTIONAL');
-await qa.expectText(nordic, 'INDUSTRY GUESS', 'a guess from the industry is flagged INDUSTRY GUESS');
-await qa.expectText('.chud .count', 'to tick or leave', 'the counter counts them');
-await qa.expectText('.foot p', 'They will not go on your CV.', 'the footer says the unticked ones will not print');
-const draftLines = (await reviewJobs()).flatMap((j) => j.lines).filter((l) => l.draft !== null);
-await assert(draftLines.length === (await boxes.count()) && draftLines.every((l) => l.state === 'drafted'), `the server holds every one of them unticked (${draftLines.length})`);
-const [firstDraft, secondDraft] = draftLines;
+  // -------------------------------------------------------------------------------------------
+  // 3. The fix (#341/#384).
+  // -------------------------------------------------------------------------------------------
+  await reloadTo(/Nordic/, 'she goes back to her Nordic job');
+  const budget = item(JOB_LINE);
+  await qa.expectVisible(budget, 'the budget line reads correctly now: the fix was applied for her');
+  const budgetId = (await jobLines()).find((l) => l.text === JOB_LINE)?.id;
+  await assert(!!budgetId && (await lineText(budgetId)) === JOB_LINE, 'the server holds the corrected text');
+  await qa.click(budget.locator('.tag.fixed'), 'taps its Fixed tag');
+  await qa.expectText(budget.locator('.fixrow s'), 'accross', 'the original, struck');
+  await qa.expectText(budget.locator('.fixrow .to'), 'across', 'the correction');
+  await qa.click(budget.locator('.fixrow button'), 'Undo');
+  await qa.expectVisible(item(JOB_LINE_AS_READ), 'the line reads her exact original again');
+  await assert((await lineText(budgetId)) === JOB_LINE_AS_READ, 'the server stored the undo, to the letter');
+  await reloadTo(/Nordic/, 'she reloads');
+  const undone = item(JOB_LINE_AS_READ);
+  await qa.expectVisible(undone, 'still her original after the reload');
+  await qa.click(undone.locator('.tag.fixed'), 'taps the tag again');
+  await qa.click(undone.locator('.fixrow button'), 'Use the fix');
+  await qa.expectVisible(item(JOB_LINE), 'the line reads the correction again');
+  await assert((await lineText(budgetId)) === JOB_LINE, 'the server stored that too');
 
-await qa.click(boxes.first().getByRole('button', { name: 'Tick — put it on my CV' }), 'she ticks the first one with the +');
-await assert((await lineState(firstDraft.id)) === 'ticked', 'the server stored her tick');
-await qa.expectVisible(nordic.getByRole('button', { name: `${firstDraft.text} new` }), 'it is an ordinary line now, tagged new');
-await assert((await boxes.count()) === draftLines.length - 1, 'one box fewer');
+  // -------------------------------------------------------------------------------------------
+  // 4. "Remove this?" (#380): held until answered; Remove it, then Put back.
+  // -------------------------------------------------------------------------------------------
+  await qa.expectText(removeCard, DOB_LINE, 'her date of birth wears the coral "Remove this?" card');
+  const dobId = (await jobLines()).find((l) => l.text === DOB_LINE)?.id;
+  await assert((await lineState(dobId)) === 'removal-suggested', 'unanswered: the machine removed nothing');
+  await assert(await primary.isDisabled(), `the job's button waits for the answers ("${(await primary.textContent())?.trim()}")`);
+  await qa.click(removeCard.locator('.row button').first(), 'Remove it');
+  await assert((await lineState(dobId)) === 'kept', 'the server stored her removal');
+  await qa.expectText(tray.locator('button').first(), '1 removed', 'it lists under the removed count');
+  await qa.click(tray.locator('button').first(), 'shows what was removed');
+  await qa.click(tray.locator('li button').first(), 'Put back');
+  await assert((await lineState(dobId)) === 'ticked', 'never a one-way door: it is back in, as an ordinary item');
+  await qa.expectVisible(item(DOB_LINE), 'and on the screen');
 
-await qa.click(boxes.first().getByRole('button', { name: secondDraft.text }), 'she taps the next box');
-await qa.expectText(sheet, 'New line, not on your CV yet', 'the sheet says it is not on her CV');
-await qa.expectText(sheet.locator('.why'), 'Why:', 'and why it was offered, in full');
-await qa.click(sheet.getByRole('button', { name: 'Edit' }), 'she edits it');
-const MINE = 'Coordinated the business and IT groups through every release of the checkout replatform.';
-await qa.fill(sheet.getByRole('textbox', { name: 'New line, not on your CV yet' }), MINE, 'in her own words');
-await qa.click(sheet.getByRole('button', { name: 'Save' }), 'saves the wording');
-await assert((await lineText(secondDraft.id)) === MINE && (await lineState(secondDraft.id)) === 'drafted', 'the server holds her wording — still unticked');
-await qa.click(sheet.getByRole('button', { name: 'Tick — put it on my CV' }), 'and ticks it');
-await assert((await lineState(secondDraft.id)) === 'ticked', 'the server stored that tick too');
-await qa.goto('/review', 'she reloads');
-await qa.expectVisible(page.getByRole('button', { name: `${MINE} new` }), 'her wording is on the paper after the reload, tagged new');
-await assert((await page.locator('.paper li.nl').count()) === draftLines.length - 2, 'the ones she left are still boxes, still unticked');
-await qa.scrollThrough('the new lines, as she left them');
+  // -------------------------------------------------------------------------------------------
+  // 5. The add suggestions (#342/#378): on the placed job only, each answered.
+  // -------------------------------------------------------------------------------------------
+  const drafts = (await jobLines()).filter((l) => l.state === 'drafted');
+  const n = drafts.length;
+  await assert(n > 2 && (await addCards.count()) === n, `${n} suggestions to add, inline in her Nordic job`);
+  await qa.expectText(addCards.first().locator('.meta'), 'jobs ask:', 'each says why, without a tap');
+  await assert((await addCards.locator('.hd b').count()) === 2, 'the OPTIONAL and the INDUSTRY GUESS ones say "Only if true"');
+  await qa.expectText(lead, `${n} suggestions`, 'the lead counts them');
+  const [first, second, ...rest] = drafts;
+  await qa.click(addCards.filter({ hasText: first.text }).locator('.row button').nth(0), 'Add it');
+  await assert((await lineState(first.id)) === 'ticked', 'the server stored the add');
+  await qa.expectVisible(item(first.text).locator('.tag'), 'it is an ordinary item now, tagged new');
+  await qa.click(addCards.filter({ hasText: second.text }).locator('.row button').nth(1), 'Edit first');
+  const card2 = addCards.filter({ has: page.locator('textarea') }); // the card being edited
+  await qa.fill(card2.locator('textarea'), MINE, 'in her own words');
+  await qa.click(card2.locator('.row button.primary'), 'Add it');
+  await assert((await lineText(second.id)) === MINE && (await lineState(second.id)) === 'ticked', 'the server holds her wording, added');
+  for (const d of rest) {
+    await qa.click(addCards.filter({ hasText: d.text }).locator('.row button').nth(2), 'No thanks');
+    await assert((await lineState(d.id)) === 'dismissed', 'the server holds the No thanks');
+  }
+  await assert(await primary.isEnabled(), `every suggestion answered: the button lets her through ("${(await primary.textContent())?.trim()}")`);
+  await reloadTo(/Nordic/, 'she reloads');
+  await qa.expectVisible(item(MINE).locator('.tag'), 'her wording is there after the reload, tagged new');
+  await assert((await addCards.count()) === 0 && (await page.locator('main li.gone').count()) === 0, 'the ones she said No thanks to never come back');
+  await assert(await walkTo(new RegExp(BALTIC.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))), 'Next, to the Baltic job');
+  await assert((await addCards.count()) === 0, 'the Baltic job, in a family we do not cover, gets none — and nothing says why');
 
-// ---------------------------------------------------------------------------------------------
-// 3. Letterhead first, then job by job, lines as read and ticked. (AC2)
-// ---------------------------------------------------------------------------------------------
-const details = page.getByRole('button', { name: 'Your details' });
-await qa.expectText(details, 'Jane Doe', 'her name, as read, at the top');
-await qa.expectText(details, 'jane.doe.338@example.com', 'her email, as read');
-const order = await page.locator('.paper .lhmark, .paper .pjob').evaluateAll((els) => els.map((el) => el.className.split(' ')[0]));
-await assert(order[0] === 'lhmark' && order.filter((c) => c === 'pjob').length >= 2, `letterhead first, then the jobs (${order.join(' → ')})`);
-const jobs = page.locator('.paper .pjob');
-await qa.expectText(jobs.nth(0), 'Nordic Retail Group', 'the first job is the latest one, as on the CV');
-await qa.expectText(jobs.nth(0), JOB_LINE, 'with its lines as read');
-await qa.expectText(jobs.nth(1), BALTIC, 'then the earlier job');
-// The lines as read, that is — a drafted line she has not ticked is a proposal, not a line (#342).
-const states = (await reviewJobs()).flatMap((j) => j.lines.filter((l) => l.draft === null).map((l) => l.state));
-await assert(states.length > 0 && states.every((s) => s === 'ticked'), `every line as read arrives ticked (${states.join(', ')})`);
+  // -------------------------------------------------------------------------------------------
+  // 6. ⊖ and Put back, each surviving a reload. (AC3)
+  // -------------------------------------------------------------------------------------------
+  await reloadTo(/Nordic/, 'back to the Nordic job');
+  await qa.click(item(JOB_LINE).locator('.ib.rmv'), 'removes the budget line');
+  await assert((await lineState(budgetId)) === 'kept', 'the server stored the removal');
+  await reloadTo(/Nordic/, 'she reloads');
+  await qa.expectText(tray.locator('button').first(), '1 removed', 'still removed after the reload');
+  await assert((await item(JOB_LINE).count()) === 0, 'and not among her items');
+  await qa.click(tray.locator('button').first(), 'shows what was removed');
+  await qa.click(tray.locator('li button').first(), 'Put back');
+  await reloadTo(/Nordic/, 'she reloads again');
+  await assert((await tray.count()) === 0 && (await lineState(budgetId)) === 'ticked', 'the put-back survived the reload');
 
-// ---------------------------------------------------------------------------------------------
-// 4. Untick → kept, re-tick → ticked, each surviving a reload. (AC3)
-// ---------------------------------------------------------------------------------------------
-const line = page.getByRole('button', { name: JOB_LINE });
-await qa.click(line, 'taps a line');
-await qa.expectText(sheet, 'On your CV', 'the sheet says where the line is');
-await qa.click(sheet.getByRole('button', { name: 'Untick — keep it for when a job needs it' }), 'unticks it');
-await qa.expectVisible(page.locator('.paper li.kept'), 'the line turns grey, marked kept');
-const lineId = (await reviewJobs()).flatMap((j) => j.lines).find((l) => l.text === JOB_LINE)?.id;
-await assert((await lineState(lineId)) === 'kept', 'the server stored the untick');
-await qa.goto('/review', 'she reloads');
-await qa.expectVisible(page.locator('.paper li.kept'), 'still kept after the reload');
-await qa.click(page.locator('.paper li.kept .line'), 'taps the kept line');
-await qa.expectText(sheet, 'Kept, not on your CV', 'the sheet says it is kept');
-await qa.click(sheet.getByRole('button', { name: 'Tick — put it back on my CV' }), 're-ticks it');
-await assert((await page.locator('.paper li.kept').count()) === 0, 'the line is back on the paper');
-await qa.goto('/review', 'she reloads again');
-await assert((await page.locator('.paper li.kept').count()) === 0 && (await lineState(lineId)) === 'ticked', 'the re-tick survived the reload');
+  // -------------------------------------------------------------------------------------------
+  // 7. The missing end date, asked on the job's own screen. (AC4)
+  // -------------------------------------------------------------------------------------------
+  const balticRe = new RegExp(BALTIC.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  await assert(await walkTo(balticRe), 'Next, to the Baltic job');
+  const endq = page.locator('main .card.endq');
+  await qa.expectText(endq.locator('h3'), END_Q, 'the question, on that job');
+  await qa.expectText(endq, 'years of experience', 'and why it matters');
+  await assert(await primary.isEnabled(), 'it never holds the button');
+  await qa.click(primary, 'she moves on without answering');
+  const stillUnknown = (await json('/job-blocks')).body.blocks.find((b) => b.id === bsh.id).end.value.state;
+  await assert(stillUnknown === 'unknown', `moving on stored nothing — the record still reads ${stillUnknown}`);
+  await qa.click('.foot .ghost', 'Back');
+  await endq.locator('select').selectOption('February');
+  await qa.fill(endq.locator('input'), '2021', 'the year she left');
+  await qa.click(endq.locator('button[type=submit]'), 'Save');
+  await page.waitForTimeout(1200);
+  const ended = (await json('/job-blocks')).body.blocks.find((b) => b.id === bsh.id).end;
+  await assert(
+    ended.value.state === 'ended' && ended.value.date.year === 2021 && ended.value.date.month === 2 && ended.origin.kind === 'corrected',
+    `the answer corrected the job record itself (${JSON.stringify(ended.value)})`,
+  );
+  await qa.expectText('main .bigsub', 'Feb 2021', 'the job now reads its end date');
+  await assert((await endq.count()) === 0, 'and the question is gone');
 
-// ---------------------------------------------------------------------------------------------
-// 5. The missing end date, asked on the job's own card. (AC4)
-// ---------------------------------------------------------------------------------------------
-const pill = page.getByRole('button', { name: END_Q });
-await qa.expectVisible(pill, 'the Baltic job wears an "end date?" pill in its date slot');
-await qa.click(pill, 'taps the pill');
-await qa.expectText(sheet, END_Q, 'the question, on that job');
-await qa.click(sheet.getByRole('button', { name: 'Not sure' }), '"Not sure"');
-await assert((await sheet.count()) === 0, 'the sheet closes');
-const stillUnknown = (await json('/job-blocks')).body.blocks.find((b) => b.id === bsh.id).end.value.state;
-await assert(stillUnknown === 'unknown', `"Not sure" stored nothing — the record still reads ${stillUnknown}`);
-await qa.click(pill, 'taps the pill again');
-await sheet.getByRole('combobox', { name: 'Month' }).selectOption('February');
-await qa.fill(sheet.getByRole('textbox', { name: 'Year' }), '2021', 'the year she left');
-await qa.click(sheet.getByRole('button', { name: 'Save' }), 'saves');
-await page.waitForTimeout(1200);
-const ended = (await json('/job-blocks')).body.blocks.find((b) => b.id === bsh.id).end;
-await assert(
-  ended.value.state === 'ended' && ended.value.date.year === 2021 && ended.value.date.month === 2 && ended.origin.kind === 'corrected',
-  `the answer corrected the job record itself (${JSON.stringify(ended.value)})`,
-);
-await qa.expectText(jobs.nth(1), 'Feb 2021', 'the job now prints its end date');
+  // -------------------------------------------------------------------------------------------
+  // 8. The jobs wait for the finish. (AC6)
+  // -------------------------------------------------------------------------------------------
+  const held = (await json('/onboarding/cards')).body;
+  await assert(held?.reviewPending === true && (held.cards ?? []).length === 0, `the cards API holds: ${JSON.stringify({ reviewPending: held?.reviewPending, cards: held?.cards?.length })}`);
+  await qa.goto('/deck', 'she tries the jobs directly');
+  await page.waitForURL(/\/profile\/check/, { timeout: 15_000 });
+  await assert(/\/profile\/check/.test(page.url()), 'the deck sends her back to check mode');
+  await walkTo(/^$/);
+  await qa.expectText(primary, 'Finish my profile', 'the last screen');
+  await qa.click(primary, 'Finish my profile');
+  await qa.expectText(h1, 'Your profile is ready', 'the done screen');
+  await qa.expectText('.tally', 'added', 'it counts what is in, added and removed');
+  await qa.click('.donepanel .primary', 'Show me the job ads');
+  await page.waitForURL(/\/deck/, { timeout: 15_000 });
+  await page.waitForTimeout(2500);
+  const opened = await qa.cardsWhenRetrieved();
+  await assert(opened?.reviewPending === undefined && (opened?.cards ?? []).length > 0, `the cards API opens: ${(opened?.cards ?? []).length} cards`);
+  await qa.scrollThrough('the reveal, as she sees it');
 
-// ---------------------------------------------------------------------------------------------
-// 6. The jobs wait for the confirm. (AC6)
-// ---------------------------------------------------------------------------------------------
-const held = (await json('/onboarding/cards')).body;
-await assert(held?.reviewPending === true && (held.cards ?? []).length === 0, `the cards API holds: ${JSON.stringify({ reviewPending: held?.reviewPending, cards: held?.cards?.length })}`);
-await qa.goto('/deck', 'she tries the jobs directly');
-await page.waitForURL(/\/review/, { timeout: 15_000 });
-await assert(/\/review/.test(page.url()), 'the deck sends her back to the review');
-
-await qa.click(page.getByRole('button', { name: "I'm done — show my jobs" }), '"I\'m done — show my jobs"');
-await page.waitForURL(/\/deck/, { timeout: 15_000 });
-await page.waitForTimeout(2500);
-await assert(/\/deck/.test(page.url()), `she is on the jobs (${new URL(page.url()).pathname})`);
-const opened = await qa.cardsWhenRetrieved();
-await assert(opened?.reviewPending === undefined && (opened?.cards ?? []).length > 0, `the cards API opens: ${(opened?.cards ?? []).length} cards`);
-await qa.scrollThrough('the reveal, as she sees it');
-
-// ---------------------------------------------------------------------------------------------
-// 7. Back to the review after confirming; a change made there persists. (AC7)
-// ---------------------------------------------------------------------------------------------
-await qa.goto('/review', 'she comes back to the review');
-await qa.expectText('h1', 'Your CV, reviewed', 'it opens again');
-await qa.click(page.getByRole('button', { name: JOB_LINE }), 'taps the same line');
-await qa.click(sheet.getByRole('button', { name: 'Untick — keep it for when a job needs it' }), 'unticks it this time for good');
-await assert((await lineState(lineId)) === 'kept', 'the server stored the change made after confirming');
-const stillOpen = await qa.cardsWhenRetrieved();
-await assert((stillOpen?.cards ?? []).length > 0 && stillOpen?.reviewPending === undefined, 'and the jobs stay open');
-
-await holdReview(false); // put the knob back for the next journey, whatever happened above
-const ok = await qa.finish();
-process.exit(ok ? 0 : 1);
+  // -------------------------------------------------------------------------------------------
+  // 9. Back to check mode after finishing; a change made there persists. (AC7)
+  // -------------------------------------------------------------------------------------------
+  await reloadTo(/Nordic/, 'she comes back to check mode');
+  await qa.click(item(JOB_LINE).locator('.ib.rmv'), 'removes the budget line, this time for good');
+  await assert((await lineState(budgetId)) === 'kept', 'the server stored the change made after finishing');
+  const stillOpen = await qa.cardsWhenRetrieved();
+  await assert((stillOpen?.cards ?? []).length > 0 && stillOpen?.reviewPending === undefined, 'and the jobs stay open');
+} finally {
+  await holdReview(false).catch(() => {}); // put the knob back for the next journey, whatever happened above
+  const ok = await qa.finish();
+  process.exitCode = ok ? 0 : 1;
+}

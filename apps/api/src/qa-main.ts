@@ -116,16 +116,17 @@ const MINED_UNDATED_ROLE = (() => {
 })();
 
 // #341: the SAME recorded doc with two lines changed, returned when the pasted CV carries the
-// marker "REVIEWCHECK" — a misspelt word on one job line and an aim-with-no-result on another, so a
-// browser journey can watch the review's fix and its untick suggestion land on the paper. Derived
-// from the recording the same way MINED_UNDATED_ROLE is (one field each), never a second doc. The
-// fake reviewer below finds both by the text alone.
+// marker "REVIEWCHECK" — a misspelt word on one job line and, since #386, a date of birth on another
+// (it was an aim with no result, which #380 stopped suggesting), so a browser journey can watch the
+// review's fix and its "Remove this?" suggestion land in check mode. Derived from the recording the
+// same way MINED_UNDATED_ROLE is (one field each), never a second doc. The fake reviewer below finds
+// both by the text alone.
 const MINED_REVIEWCHECK = (() => {
   const doc = JSON.parse(MINED) as { claims: Array<{ id: string; text: string }> };
   const budget = doc.claims.find((c) => c.id === "nrg-managed-budget")!;
   budget.text = budget.text.replace("across", "accross");
   const steering = doc.claims.find((c) => c.id === "nrg-steering-committee-reporting")!;
-  steering.text = "Set up steering committee reporting intended to keep the CIO informed.";
+  steering.text = "Date of birth: 12 March 1988.";
   return JSON.stringify(doc);
 })();
 

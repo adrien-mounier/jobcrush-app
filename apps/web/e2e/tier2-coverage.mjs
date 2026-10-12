@@ -164,8 +164,8 @@ const REVIEW = [
   "apps/api/src/workRightsCard.ts",
   "apps/api/src/routes/cv.ts",
   "apps/api/src/claims.ts",
-  "apps/web/app/review/**",
-  "apps/web/app/review.css",
+  // #386: the screens the review is walked on — check mode (the "Your CV, reviewed" page is gone).
+  "apps/web/app/profile/check/**",
 ];
 // #303/#304 — the paste door: its own subsystem, with its own store, its own route and its own
 // screen. Carries employerLookup.ts as well as the two INDUSTRY_LABELER entries do, because #304's
@@ -290,12 +290,14 @@ export const COVERAGE = {
   "band-vocabulary-journey.mjs": union(POSTINGS, DECK, TAILOR, AUTH, DISCOVERY),
   // #162: years are derived from dated job records, never asked; a date hole is asked for instead.
   "years-worked-out-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, YEARS, REVIEW),
-  // #338: the review screen walked as a person - intake, discovery's handoff, the paper and its
-  // sheet, the date hole answered there, and the deck gate on either side of the confirm.
-  "cv-review-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, YEARS, REVEAL_GATE),
-  // #338 QA: every door onto the jobs held by an unreviewed CV — the paste door and the job screen too.
-  "cv-review-gate-doors-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, PASTE, JOB_SCREEN, TAILOR, AUTH, REVEAL_GATE),
-  // #342/#343 QA: the review's new lines handled on screen, then read back off the master CV
+  // #386 (was cv-review-journey, #338): check mode walked as a person - intake, discovery's
+  // hand-off, the run held and released, the fix, the suggestions, the date hole answered on the
+  // job's screen, and the deck gate on either side of the finish.
+  "check-mode-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, YEARS, REVEAL_GATE, PROFILE),
+  // #386 (was cv-review-gate-doors, #338 QA): every door onto the jobs held until check mode is
+  // finished — the paste door and the job screen too.
+  "check-mode-gate-doors-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, PASTE, JOB_SCREEN, TAILOR, AUTH, REVEAL_GATE, PROFILE),
+  // #342/#343 QA: the review's new lines answered in check mode, then read back off the master CV
   // (rootcv.ts, in CV_INTAKE; graph.ts and audit.ts, in TAILOR) after a sign-in. drafted-lines
   // also reads the profile.
   "drafted-lines-gate-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, TAILOR, AUTH, PROFILE),

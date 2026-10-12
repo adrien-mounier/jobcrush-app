@@ -113,24 +113,16 @@ try {
   );
   await clearWire();
 
-  for (let i = 0; i < 8 && !/\/review/.test(page.url()); i += 1) {
-    await page.waitForTimeout(1500);
-    if (/\/review/.test(page.url())) break;
-    const multiDone = page.locator('.discovery .elig-actions .go');
-    if (await multiDone.count()) { await qa.click(multiDone.first(), 'finishes the multi-select question'); continue; }
-    if (!(await qa.answerVisibleQuestion({ note: `answers the question on screen (${i + 1})` }))) {
-      const later = page.getByRole('button', { name: 'Ask me later', exact: true });
-      if (await later.count()) await qa.click(later.first(), 'ask me later');
-      else break;
-    }
-  }
-  await page.waitForURL(/\/review/, { timeout: 20_000 });
+  // #376: nothing is asked after question 1 — the hand-off waits for Continue; #386: check mode.
+  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
+  await qa.click('.discovery .handoff .go', 'Continue');
+  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
 
   // ------------------------------------------------------------------------------------------
-  // 2. The review: her IT project manager job still drafted against its own family.
+  // 2. Check mode: her IT project manager job still drafted against its own family.
   // ------------------------------------------------------------------------------------------
-  await page.getByRole('status').waitFor({ state: 'detached', timeout: 20_000 }).catch(() => {});
-  await qa.scrollThrough('she reads her reviewed CV');
+  for (let i = 0; i < 40 && (await wire('GET', '/review')).json?.progress; i += 1) await page.waitForTimeout(500);
+  await qa.goto('/profile/check', 'check mode, once the review has landed');
   const review = (await wire('GET', '/review')).json;
   await clearWire();
   const jobs = review?.sections?.find((s) => s.tag === 'experience')?.jobs ?? [];
@@ -138,12 +130,16 @@ try {
   await assert(nordicJob?.family === 'IT Project Manager', `the IT project manager job keeps its family (${nordicJob?.family})`);
   const drafted = (nordicJob?.lines ?? []).filter((l) => l.state === 'drafted' && l.draft?.mustHave);
   await assert(drafted.length > 0, `${drafted.length} new lines drafted from that family's must-haves`);
-  const nordic = page.locator('.paper .pjob').filter({ hasText: 'Nordic' }).first();
-  const first = nordic.locator('li.nl').first();
-  await qa.click(first.getByRole('button').first(), 'she opens the first new line');
-  await qa.expectText(page.getByRole('dialog'), 'IT Project Manager jobs ask:', 'the sheet says which family asked for it');
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(800);
+  const h1 = page.locator('main h1');
+  const primary = page.locator('.foot .primary');
+  await h1.waitFor();
+  for (let i = 0; i < 14 && !/Nordic/.test((await h1.textContent()) ?? ''); i += 1) {
+    if (await primary.isDisabled()) break;
+    await primary.click();
+    await page.waitForTimeout(250);
+  }
+  const first = page.locator('main li.sg:not(.rmv)').first();
+  await qa.expectText(first.locator('.meta'), 'IT Project Manager jobs ask:', 'the suggestion says which family asked for it');
 
   // ------------------------------------------------------------------------------------------
   // 3. The family correction door knows the new family.
