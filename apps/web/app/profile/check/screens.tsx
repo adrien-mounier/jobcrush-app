@@ -16,7 +16,7 @@ import type { ContactField, ReviewJob, ReviewLine, ReviewState, ReviewWorkRights
 import { ItemList, RemoveCard, type ItemListProps } from "./Item";
 import { SkillsBody, type GroupActions } from "./Skills";
 import { DismissedRow, SuggestionCard } from "./SuggestionCard";
-import { LanguagesCard, WorkCard } from "./cards";
+import { ConflictCard, EndDateCard, LanguagesCard, WorkCard } from "./cards";
 
 const C_DETAILS = "Your details";
 const C_NOT_FOUND = "Not found in your CV";
@@ -53,9 +53,14 @@ const leadWorkAndSuggestions = (n: number) => `Tell me where you can work, and a
 const LEAD_NO_LANGUAGES = "Your CV lists no languages. Tell me the ones you speak.";
 // #380: "below", not "in gold below" — a removal suggestion is coral.
 const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} suggestions`} below. Edit or remove anything else that's wrong.`;
+// #386: a job the review has not answered for yet (#362's rule: nothing reads as a finished check
+// while it runs), and a job whose end date is asked.
+const LEAD_CHECKING = "I'm still checking this job. Edit or remove anything that's wrong.";
+const LEAD_END = "When did this job end? Tell me if you know. Edit or remove anything that's wrong.";
 
 export type Screen =
-  | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"] }
+  /** #386: `conflict` — the import conflict, asked here above the fields. */
+  | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"]; conflict: ReviewState["conflict"] }
   | { kind: "about"; key: "about"; title: string; sub: null; about: NonNullable<ReviewState["about"]> }
   | { kind: "job"; key: string; title: string; sub: string; job: ReviewJob; lines: ReviewLine[] }
   | {
@@ -86,12 +91,15 @@ export function screensOf(state: ReviewState): Screen[] {
   // on them); a screen with nothing new — Your details among them — is skipped.
   const fresh = state.newItems && new Set(state.newItems);
   const its = (lines: ReviewLine[]) => (fresh ? lines.filter((l) => fresh.has(l.id)) : lines);
-  if (!fresh && Object.values(state.letterhead).some(Boolean)) out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead });
+  // #386: an import conflict is asked on Your details — even a re-upload's, or a CV with no details.
+  if ((!fresh && Object.values(state.letterhead).some(Boolean)) || state.conflict)
+    out.push({ kind: "details", key: "details", title: C_DETAILS, sub: null, letterhead: state.letterhead, conflict: state.conflict });
   for (const section of state.sections) {
     if ("jobs" in section) {
       for (const job of section.jobs) {
         const lines = its(job.lines);
-        if (!shown(lines)) continue;
+        // #386: a dated job with no lines is still a screen while its end date is asked.
+        if (!shown(lines) && !(job.endDateQuestion && !fresh)) continue;
         out.push({ kind: "job", key: `job:${job.id}`, title: job.employer, sub: [job.title, datesOf(job)].filter(Boolean).join(" · "), job, lines });
       }
     } else if (section.tag === "profile" && state.about) {
@@ -168,7 +176,10 @@ export function leadFor(screen: Screen): string {
   const n = toAnswer(screen);
   if (screen.kind === "section" && screen.workRights) return n > 0 ? leadWorkAndSuggestions(n) : LEAD_WORK;
   if (screen.kind === "section" && screen.languages) return LEAD_NO_LANGUAGES;
-  return n > 0 ? leadSuggestions(n) : LEAD_QUIET;
+  if (n > 0) return leadSuggestions(n);
+  if (screen.kind === "job" && screen.job.checking) return LEAD_CHECKING;
+  if (screen.kind === "job" && screen.job.endDateQuestion) return LEAD_END;
+  return LEAD_QUIET;
 }
 
 /** One screen's body. Add a screen kind here: #371 the About you card, #381 the details fields,
@@ -183,6 +194,9 @@ export interface DetailsProps {
 export interface CardAnswers {
   onWorkRights: (itemId: string, answer: WorkRightsAnswer) => void;
   onLanguages: (languages: string[]) => void;
+  /** #386: the end date of a job (by its record) and the pick on an import conflict. */
+  onEndDate: (blockId: string, answer: string) => void;
+  onConflict: (fieldId: string, value: string) => void;
 }
 
 export function ScreenBody({
@@ -207,6 +221,8 @@ export function ScreenBody({
     // #381 (ADR-0018 clause 5): the person's own facts — a plain card of fields, no button of its
     // own; the footer button saves.
     return (
+      <>
+      {screen.conflict && <ConflictCard conflict={screen.conflict} busy={list.busy} onPick={answers.onConflict} />}
       <div className="card form">
         <div className="fields">
           {DETAIL_FIELDS.map(({ field, label, type, autoComplete }) => (
@@ -225,6 +241,7 @@ export function ScreenBody({
           ))}
         </div>
       </div>
+      </>
     );
   }
   // #379: ✎ on every item except About you's, whose editing is its own (#371).
@@ -262,6 +279,17 @@ export function ScreenBody({
         <ItemList lines={screen.lines} {...list} onEdit={editable ? list.onEdit : undefined} card={card} />
       </div>
     ) : null;
+  // #386: the end date is asked above the job's items, in a plain card; keyed by the question, so an
+  // answer that closes it leaves nothing half-typed behind.
+  if (screen.kind === "job" && screen.job.endDateQuestion && screen.job.blockId) {
+    const blockId = screen.job.blockId;
+    return (
+      <>
+        <EndDateCard key={screen.job.endDateQuestion} question={screen.job.endDateQuestion} busy={list.busy} onSave={(answer) => answers.onEndDate(blockId, answer)} />
+        {items}
+      </>
+    );
+  }
   // #376: the person's own facts sit in plain cards — Where you can work above the Additional
   // information list; the languages card on a Languages screen the CV left empty.
   if (screen.kind === "section" && screen.workRights)

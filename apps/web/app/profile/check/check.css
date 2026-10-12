@@ -994,3 +994,39 @@
   gap: 6px;
   padding: 0 8px;
 }
+
+/* #386 — the end date on a job's screen and the import conflict on Your details: plain cards like
+   the languages card, above the screen's own content. */
+.check .card.form.endq,
+.check .card.form.conflict {
+  display: grid;
+  gap: 10px;
+  padding: 14px 8px;
+  margin-bottom: 14px;
+}
+.check .endq .ctitle,
+.check .conflict .ctitle {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 15px;
+  font-weight: 620;
+}
+.check .endq .conseq {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .endq select,
+.check .endq input {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font: 16px var(--sans);
+  color: var(--ink);
+  min-width: 0;
+}
+.check .endq input {
+  width: 6.5em;
+}

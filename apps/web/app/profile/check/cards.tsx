@@ -6,7 +6,7 @@
 // footer button names each market still open (screens.tsx blockersOf); the server refuses the
 // finish too. "Which languages do you speak?": the Languages screen's card when the CV lists none.
 import { useEffect, useState } from "react";
-import type { ReviewWorkRights, WorkRightsAnswer } from "../../../lib/api";
+import type { ReviewState, ReviewWorkRights, WorkRightsAnswer } from "../../../lib/api";
 
 const C_WORK = "Where you can work";
 const C_FROM_CV = "From your CV:";
@@ -128,5 +128,72 @@ export function LanguagesCard({
         </button>
       </span>
     </form>
+  );
+}
+
+// #386 — the two asks only the old review page carried, moved here (its EndDateAsk and conflict
+// pills). Neither holds the footer button — the old page never held its confirm on them either —
+// so moving on is "not sure": it stores nothing, and the question is there on the next visit.
+const C_END_WHY = "Without an end date, this job adds nothing to your years of experience.";
+const C_MONTH = "Month";
+const C_YEAR = "Year";
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "When did you leave <employer>?" — month optional, year required; the answer corrects the job
+ *  record (POST /review/jobs/:blockId/end), sent as "February 2021" or "2021". */
+export function EndDateCard({ question, busy, onSave }: { question: string; busy: boolean; onSave: (answer: string) => void }) {
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState("");
+  const valid = /^\d{4}$/.test(year.trim());
+  return (
+    <form
+      className="card form endq"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valid && !busy) onSave(month ? `${month} ${year.trim()}` : year.trim());
+      }}
+    >
+      <h3 className="ctitle">{question}</h3>
+      <p className="conseq">{C_END_WHY}</p>
+      <span className="row">
+        <select value={month} aria-label={C_MONTH} disabled={busy} onChange={(e) => setMonth(e.target.value)}>
+          <option value="">{C_MONTH}</option>
+          {MONTHS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <input inputMode="numeric" placeholder={C_YEAR} aria-label={C_YEAR} value={year} disabled={busy} onChange={(e) => setYear(e.target.value)} />
+        <button type="submit" className="btn sm" disabled={busy || !valid}>
+          {C_SAVE}
+        </button>
+      </span>
+    </form>
+  );
+}
+
+/** An import conflict: the CV read one field two ways. The person picks the right value
+ *  (POST /review/conflicts/:fieldId); of the two lines read, the other is dropped by that pick. */
+export function ConflictCard({
+  conflict,
+  busy,
+  onPick,
+}: {
+  conflict: NonNullable<ReviewState["conflict"]>;
+  busy: boolean;
+  onPick: (fieldId: string, value: string) => void;
+}) {
+  return (
+    <div className="card form conflict">
+      <h3 className="ctitle">{conflict.question}</h3>
+      <span className="row">
+        {conflict.values.map((value) => (
+          <button key={value} type="button" className="btn sm" disabled={busy} onClick={() => onPick(conflict.fieldId, value)}>
+            {value}
+          </button>
+        ))}
+      </span>
+    </div>
   );
 }

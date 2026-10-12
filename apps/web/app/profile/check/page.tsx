@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
 import {
+  answerReviewEndDate,
   completeReview,
   dismissDraft,
   ensureSession,
@@ -33,6 +34,7 @@ import {
   setLineState,
   setLineText,
   setWorkRights,
+  settleReviewConflict,
   tickDraft,
   type ContactField,
   type ReviewLine,
@@ -363,6 +365,8 @@ export default function CheckPage() {
           answers={{
             onWorkRights: (itemId, answer) => void write(() => setWorkRights(itemId, answer)),
             onLanguages: (languages) => void write(() => setLanguages(languages)),
+            onEndDate: (blockId, answer) => void write(() => answerReviewEndDate(blockId, answer)),
+            onConflict: (fieldId, value) => void write(() => settleReviewConflict(fieldId, value)),
           }}
         />
         {last && running && state.progress && (

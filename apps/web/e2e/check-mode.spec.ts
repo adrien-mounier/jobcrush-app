@@ -241,6 +241,28 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     box.state = { ...box.state, languages };
     await route.fulfill({ json: { ok: true } });
   });
+  // #386: the end-date answer corrects the job record — the question closes and the dates print the
+  // end as the paper does ("February 2021" → "Feb 2021"); the pick on an import conflict settles it.
+  await page.route("**/api/review/jobs/*/end", async (route) => {
+    record(route);
+    const blockId = lineIdOf(route, 1);
+    const { answer } = route.request().postDataJSON() as { answer: string };
+    const end = answer.replace(/^([A-Z][a-z]{2})[a-z]* /, "$1 ");
+    box.state = {
+      ...box.state,
+      sections: box.state.sections.map((s) =>
+        "jobs" in s
+          ? { ...s, jobs: s.jobs.map((j) => (j.blockId === blockId ? { ...j, endDateQuestion: null, dates: j.dates && { ...j.dates, end } } : j)) }
+          : s,
+      ),
+    };
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/review/conflicts/*", async (route) => {
+    record(route);
+    box.state = { ...box.state, conflict: null };
+    await route.fulfill({ json: { ok: true } });
+  });
   return { calls, box };
 }
 
@@ -1559,5 +1581,196 @@ test.describe("#376 where you can work and languages", () => {
     await expect(heading(page)).toHaveText("Baltic Software House");
     await expect(segments(page)).toHaveCount(1);
     await expect(wrRows(page)).toHaveCount(0);
+  });
+});
+
+// #386 — the two asks only the old review page carried, moved onto check mode's screens. Neither
+// holds the footer button (the old page never held its confirm on them either): moving on without
+// an answer stores nothing. The end date is asked on its job's screen, in a plain card above the
+// items; an import conflict on Your details, above the fields. Selected by structure: `.endq`,
+// `.conflict`, and their controls.
+test.describe("#386 the end date and the import conflict", () => {
+  const endq = (page: Page) => page.locator(".card.endq");
+  const toJob = async (page: Page, employer: string) => {
+    while ((await heading(page).textContent()) !== employer) await primary(page).click();
+  };
+
+  test("a job with no end date asks on its own screen; an answer is sent as month and year, the question closes and the dates print it", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    await toJob(page, "Nordic Retail Group");
+    await expect(endq(page)).toHaveCount(0); // a job with its end date asks nothing
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Baltic Software House");
+    await expect(endq(page).locator("h3")).toHaveText("When did you leave Baltic Software House?");
+    await expect(endq(page).locator("p")).toContainText("years of experience");
+    const save = endq(page).locator("button[type=submit]");
+    await expect(save).toBeDisabled(); // a year is needed
+    await endq(page).locator("select").selectOption("February");
+    await endq(page).locator("input").fill("2021");
+    await save.click();
+    expect(calls).toEqual([{ method: "POST", url: "/api/review/jobs/bsh/end", body: { answer: "February 2021" } }]);
+    await expect(endq(page)).toHaveCount(0);
+    await expect(page.locator(".bigsub")).toHaveText("Project Coordinator · Jun 2017 – Feb 2021");
+    await expect(items(page)).toHaveCount(1); // the items stay as they were
+  });
+
+  test("a year alone is an answer too; moving on without one sends nothing and never holds the button", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    await toJob(page, "Baltic Software House");
+    await expect(endq(page)).toHaveCount(1);
+    await expect(primary(page)).toBeEnabled();
+    await expect(primary(page)).toHaveText("Next: Skills  →");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills");
+    expect(calls).toEqual([]);
+    await back(page).click();
+    await endq(page).locator("input").fill("2021");
+    await endq(page).locator("button[type=submit]").click();
+    expect(calls).toEqual([{ method: "POST", url: "/api/review/jobs/bsh/end", body: { answer: "2021" } }]);
+  });
+
+  test("a dated job with no lines is still a screen while its end date is asked", async ({ page }) => {
+    const lineless: ReviewState = {
+      ...REVIEW,
+      sections: REVIEW.sections.map((s) =>
+        "jobs" in s
+          ? {
+              ...s,
+              jobs: [
+                ...s.jobs,
+                { ...s.jobs[1]!, id: "acme", blockId: "acme", employer: "Acme", endDateQuestion: "When did you leave Acme?", lines: [] },
+                { ...s.jobs[1]!, id: "quiet", blockId: "quiet", employer: "Quiet Ltd", endDateQuestion: null, lines: [] },
+              ],
+            }
+          : s,
+      ),
+    };
+    await stubReview(page, lineless);
+    await page.goto("/profile/check");
+    await toJob(page, "Acme");
+    await expect(endq(page).locator("h3")).toHaveText("When did you leave Acme?");
+    await expect(items(page)).toHaveCount(0);
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills"); // a lineless job with nothing to ask is no screen
+  });
+
+  const CONFLICT: ReviewState = {
+    ...REVIEW,
+    conflict: { fieldId: "location", question: "Location: your CV says Paris and also Lyon. Which one is right?", values: ["Paris", "Lyon"] },
+  };
+  const conflict = (page: Page) => page.locator(".card.conflict");
+
+  test("an import conflict is asked on Your details; a pick is sent once and the question goes", async ({ page }) => {
+    const { calls } = await stubReview(page, CONFLICT);
+    await page.goto("/profile/check");
+    await expect(heading(page)).toHaveText("Your details");
+    await expect(conflict(page).locator("h3")).toHaveText(CONFLICT.conflict!.question);
+    const picks = conflict(page).locator("button");
+    await expect(picks).toHaveText(["Paris", "Lyon"]);
+    await picks.nth(1).click();
+    expect(calls).toEqual([{ method: "POST", url: "/api/review/conflicts/location", body: { value: "Lyon" } }]);
+    await expect(conflict(page)).toHaveCount(0);
+    await expect(page.locator(".fields input")).toHaveCount(5); // Your details' fields stay
+  });
+
+  test("an unanswered conflict sends nothing and never holds the button; with no conflict there is no card", async ({ page }) => {
+    const { calls } = await stubReview(page, CONFLICT);
+    await page.goto("/profile/check");
+    await expect(conflict(page)).toHaveCount(1);
+    await expect(primary(page)).toBeEnabled();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    expect(calls).toEqual([]);
+
+    await stubReview(page);
+    await page.reload();
+    await expect(heading(page)).toHaveText("Your details");
+    await expect(conflict(page)).toHaveCount(0);
+  });
+
+  test("a conflict is asked even when the CV gave no details to show", async ({ page }) => {
+    await stubReview(page, { ...CONFLICT, letterhead: { name: null, title: null, email: null, phone: null, location: null } });
+    await page.goto("/profile/check");
+    await expect(conflict(page)).toHaveCount(1);
+  });
+});
+
+// #386 — what the old review page proved about the check running in the background (#341) and
+// about a part it never answered (#362), on check mode: while a job has no answer yet its screen
+// says it is still being checked and never "nothing to answer"; the last screen holds Finish while
+// the run goes; the next read lands the suggestion, and the lead counts it. A job the run gave up
+// on reads like any other — nothing on the screen speaks of a failure — and the walk finishes.
+test.describe("#386 while the check runs, and a part it never answered", () => {
+  const lead = (page: Page) => page.locator(".lead");
+  const RUNNING: ReviewState = {
+    ...REVIEW,
+    progress: { done: 1, total: 2, minutesLeft: 3 },
+    unchecked: true,
+    sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, checking: true } : j)) } : s)),
+  };
+  const toNrg = async (page: Page) => {
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+  };
+
+  test("a job still being checked says so; Finish waits for the run; the next read lands the suggestion and the lead counts it", async ({ page }) => {
+    const { box, calls } = await stubReview(page, RUNNING);
+    await page.goto("/profile/check");
+    await toNrg(page);
+    await expect(lead(page)).toHaveText("I'm still checking this job. Edit or remove anything that's wrong.");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Baltic Software House");
+    await expect(lead(page)).not.toContainText("checking"); // its answer landed
+    while ((await primary(page).textContent()) !== "Finish my profile") await primary(page).click();
+    await expect(primary(page)).toBeDisabled();
+    await expect(page.locator(".hint")).toHaveText("Checking your CV… About 3 minutes left.");
+
+    const DRAFT = line("draft-nrg-1", "Ran the vendor steering meetings.", { state: "drafted", draft: { mustHave: "Runs governance", quote: null, source: null, flags: [], vague: [] } });
+    box.state = {
+      ...REVIEW,
+      sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, lines: [...j.lines, DRAFT] } : j)) } : s)),
+    };
+    await expect(primary(page)).toBeEnabled({ timeout: 10_000 });
+    await expect(page.locator(".hint")).toHaveCount(0);
+    while ((await heading(page).textContent()) !== "Nordic Retail Group") await back(page).click();
+    await expect(page.locator("li.sg")).toHaveCount(1);
+    await expect(lead(page)).toHaveText("One suggestion below. Edit or remove anything else that's wrong.");
+    expect(calls).toEqual([]);
+  });
+
+  test("a job the run gave up on reads like any other: nothing speaks of a failure, and the walk finishes", async ({ page }) => {
+    const { calls } = await stubReview(page, { ...REVIEW, unchecked: true });
+    await page.goto("/profile/check");
+    await toNrg(page);
+    await expect(lead(page)).toHaveText("Nothing to answer here. Edit or remove anything that's wrong.");
+    for (let i = 3; i < SCREENS.length; i++) {
+      await expect(page.locator("main")).not.toContainText(/fail|error|try again|could not|couldn't/i);
+      await primary(page).click();
+    }
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Your profile is ready");
+    expect(calls).toEqual([{ method: "POST", url: "/api/review/complete", body: null }]);
+  });
+
+  test("an added suggestion is an ordinary item: ⊖ removes it into the tray, and Put back brings it back with its new tag", async ({ page }) => {
+    const ADDED = line("draft-nrg-1", "Ran the vendor steering meetings.", { draft: { mustHave: "Runs governance", quote: null, source: null, flags: [], vague: [] } });
+    const { calls } = await stubReview(page, {
+      ...REVIEW,
+      sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, lines: [...j.lines, ADDED] } : j)) } : s)),
+    });
+    await page.goto("/profile/check");
+    await toNrg(page);
+    const added = items(page).nth(2);
+    await expect(added.locator(".tag")).toHaveCount(1);
+    await added.hover();
+    await removeButton(added).click();
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/lines/draft-nrg-1", body: { state: "kept" } }]);
+    await expect(items(page)).toHaveCount(2);
+    await tray(page).getByRole("button", { expanded: false }).click();
+    await tray(page).locator("li button").click();
+    await expect(items(page).nth(2).locator(".tag")).toHaveCount(1);
   });
 });
