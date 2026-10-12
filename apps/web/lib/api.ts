@@ -598,6 +598,8 @@ export interface ProfileFact {
   kept?: true;
   // #384: the review's spelling fix on this line, as GET /review wears it. Absent on every other fact.
   fix?: ReviewFix;
+  // #382: the named group a skill sits in. Absent on every fact that is not a skill.
+  group?: string;
 }
 
 export interface ProfileDomain {
@@ -740,9 +742,15 @@ export interface ReviewJob {
   complete: boolean;
   lines: ReviewLine[];
 }
+/** #382: a skills group — its name and its lines, by id, in CV order. */
+export interface SkillGroup {
+  name: string;
+  ids: string[];
+}
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
-  | { tag: string; heading: string; lines: ReviewLine[] };
+  /** #382: `groups` comes on the Skills section only. */
+  | { tag: string; heading: string; lines: ReviewLine[]; groups?: SkillGroup[] };
 /** #341: the run while it is going; null once finished (a failed run reads the same — the person
  *  is never told). */
 export interface ReviewProgress {
@@ -808,6 +816,14 @@ export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id
 // keeps the first original and records the words as theirs; the tick does not move.
 export function setLineText(id: string, text: string): Promise<{ id: string; text: string }> {
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/text`, { method: "PUT", body: JSON.stringify({ text }) });
+}
+
+// #382: rename a skills group (every skill in it), and move one skill to another group.
+export function renameSkillGroup(from: string, name: string): Promise<{ name: string; moved: number }> {
+  return jfetch(`/api/cv/skills/groups/${encodeURIComponent(from)}`, { method: "PUT", body: JSON.stringify({ name }) });
+}
+export function moveSkill(id: string, group: string): Promise<{ id: string; group: string }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/group`, { method: "PUT", body: JSON.stringify({ group }) });
 }
 
 export function settleReviewConflict(fieldId: string, value: string): Promise<{ ok: true }> {

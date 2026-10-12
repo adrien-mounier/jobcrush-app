@@ -24,6 +24,8 @@ import {
   ensureSession,
   getReview,
   saveAbout,
+  moveSkill,
+  renameSkillGroup,
   saveContactFields,
   setDraftText,
   setFixApplied,
@@ -175,6 +177,8 @@ export default function CheckPage() {
       },
     );
   const putBack = (id: string) => write(() => setLineState(id, "ticked"));
+  const renameGroup = (from: string, to: string) => write(() => renameSkillGroup(from, to));
+  const moveToGroup = (id: string, group: string) => write(() => moveSkill(id, group));
   // #378: the three answers to an add suggestion. Edit first saves the person's wording, then adds.
   const forget = (id: string) =>
     setJustDismissed((s) => {
@@ -341,6 +345,7 @@ export default function CheckPage() {
             onFix: (id, applied) => void write(() => setFixApplied(id, applied)),
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
+          groups={{ onRename: renameGroup, onMove: moveToGroup }}
           drafts={drafts}
           details={{
             values: {

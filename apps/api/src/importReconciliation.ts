@@ -18,13 +18,13 @@ import { slug } from "./discovery.js";
 /** The stored corrections, keyed by claim identity — SessionRecord.importResolutions. */
 export type ImportResolutions = Readonly<Record<string, string>>;
 
-export interface ReconciledImport {
+export interface ReconciledImport<C extends CandidateClaim = CandidateClaim> {
   /** Deduped, correction-applied claims to seed for this session. */
-  claims: CandidateClaim[];
+  claims: C[];
   /** The subset the person had already corrected. These are additionally CONFIRMED (claims.add), not
    *  left pending: the person supplied the value, so re-asking them to approve their own correction
    *  is the re-do this whole path exists to prevent. */
-  corrected: CandidateClaim[];
+  corrected: C[];
   /** The proof as the person should see it — corrected text, and no conflict they already resolved. */
   proof: ImportProof;
 }
@@ -36,11 +36,12 @@ export function claimIdentity(claim: CandidateClaim): string {
   return claim.field_key ?? claim.semantic_key;
 }
 
-export function reconcileImport(
+// Generic over the claim so whatever rides on it (#382: a skill's group) reaches the seed intact.
+export function reconcileImport<C extends CandidateClaim>(
   proof: ImportProof,
-  importedClaims: CandidateClaim[],
+  importedClaims: C[],
   resolutions: ImportResolutions,
-): ReconciledImport {
+): ReconciledImport<C> {
   // Map-by-key keeps the LAST claim for any repeated key (new Map(entries) — a later entry
   // overwrites an earlier one). The key is the identity, except (#323) for a field the person has
   // not answered: there, two different values are two facts — a genuine contradiction the deck

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CardsResponse, ReviewLine, ReviewState } from "../lib/api";
+import type { CardsResponse, ReviewLine, ReviewState, SkillGroup } from "../lib/api";
 
 // #377 check mode (ADR-0018 clause 3): the guided walk over the profile that replaced "Your CV,
 // reviewed", route-mocked to the pinned ReviewState shape. What it proves on the screen: the walk
@@ -71,7 +71,7 @@ const REVIEW: ReviewState = {
         },
       ],
     },
-    { tag: "skill", heading: "Skills", lines: [line("s1", "Jira, MS Project.")] },
+    { tag: "skill", heading: "Skills", lines: [line("s1", "Jira, MS Project.")], groups: [{ name: "Skills", ids: ["s1"] }] },
     { tag: "cert", heading: "Certifications", lines: [] },
     { tag: "edu", heading: "Education", lines: [line("e1", "MSc, University of Warsaw.")] },
     { tag: "lang", heading: "Languages", lines: [] },
@@ -193,6 +193,30 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     }
     box.state = { ...box.state, letterhead };
     await route.fulfill({ json: letterhead });
+  });
+  // #382: rename a group (every skill in it) and move one skill — the server's two group doors.
+  const regroup = (fn: (groups: SkillGroup[]) => SkillGroup[]) => {
+    box.state = { ...box.state, sections: box.state.sections.map((s) => ("groups" in s && s.groups ? { ...s, groups: fn(s.groups) } : s)) };
+  };
+  await page.route("**/api/cv/skills/groups/*", async (route) => {
+    record(route);
+    const from = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop()!);
+    const { name } = route.request().postDataJSON() as { name: string };
+    regroup((groups) => groups.map((g) => (g.name === from ? { ...g, name } : g)));
+    await route.fulfill({ json: { name, moved: 1 } });
+  });
+  await page.route("**/api/cv/lines/*/group", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").at(-2)!;
+    const { group } = route.request().postDataJSON() as { group: string };
+    regroup((groups) => {
+      const out = groups.map((g) => ({ ...g, ids: g.ids.filter((x) => x !== id) }));
+      const to = out.find((g) => g.name === group);
+      if (to) to.ids.push(id);
+      else out.push({ name: group, ids: [id] });
+      return out.filter((g) => g.ids.length > 0);
+    });
+    await route.fulfill({ json: { id, group } });
   });
   return { calls, box };
 }
@@ -902,7 +926,7 @@ test.describe("#384 fixes", () => {
 // turns the item into a text box with Save / Cancel; the item stays where it is. Selected by
 // structure: `li.pt.edit`, its textarea, its primary (Save) and ghost (Cancel) buttons.
 test.describe("#379 edit an item's words in place", () => {
-  const editButton = (item: ReturnType<Page["locator"]>) => item.locator(".ib:not(.rmv)");
+  const editButton = (item: ReturnType<Page["locator"]>) => item.locator(".ib:not(.rmv):not(.move)");
   const editor = (page: Page) => page.locator("li.pt.edit");
   const textbox = (page: Page) => editor(page).locator("textarea");
   const TEXT_CALL = (id: string, text: string) => ({ method: "PUT", url: `/api/cv/lines/${id}/text`, body: { text } });
@@ -994,11 +1018,11 @@ test.describe("#379 edit an item's words in place", () => {
     await primary(page).click();
     await expect(heading(page)).toHaveText("About you");
     await expect(items(page).locator(".ib.rmv")).toHaveCount(1);
-    await expect(items(page).locator(".ib:not(.rmv)")).toHaveCount(0);
+    await expect(items(page).locator(".ib:not(.rmv):not(.move)")).toHaveCount(0);
     for (const title of ["Nordic Retail Group", "Baltic Software House", "Skills", "Education"]) {
       await primary(page).click();
       await expect(heading(page)).toHaveText(title);
-      await expect(items(page).first().locator(".ib:not(.rmv)")).toHaveCount(1);
+      await expect(items(page).first().locator(".ib:not(.rmv):not(.move)")).toHaveCount(1);
     }
   });
 
@@ -1104,5 +1128,139 @@ test.describe("#368 the source names the job its quote came from", () => {
     await expect(source(1).locator("q")).toHaveText(PLACED_NOWHERE.draft!.quote!);
     await expect(source(1)).not.toContainText("Baltic Software House");
     await expect(source(1)).not.toContainText("Nordic Retail Group");
+  });
+});
+
+// --- #382 skills one per item, in named groups ---------------------------------------------------
+
+test.describe("#382 the Skills screen: named groups, rename, move", () => {
+  const SKILLS: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      s.tag === "skill"
+        ? {
+            tag: "skill",
+            heading: "Skills",
+            lines: [line("d1", "Agile / Scrum"), line("d2", "Stakeholder Management"), line("t1", "Jira"), line("t2", "Confluence"), line("t3", "Splunk")],
+            groups: [
+              { name: "Delivery and governance", ids: ["d1", "d2"] },
+              { name: "Tools", ids: ["t1", "t2", "t3"] },
+            ],
+          }
+        : s,
+    ),
+  };
+  const groupBoxes = (page: Page) => page.locator(".groups .grp");
+  const groupNames = (page: Page) => page.locator(".groups .grp .gh").allTextContents();
+  const itemsOf = (page: Page, i: number) => groupBoxes(page).nth(i).locator("li.pt .txt").allTextContents();
+  async function toSkills(page: Page) {
+    await page.goto("/profile/check");
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== "Skills"; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills");
+  }
+
+  test("the skills show one per item under their group names, and the screen needs no answer to continue", async ({ page }) => {
+    await stubReview(page, SKILLS);
+    await toSkills(page);
+    expect(await groupNames(page)).toEqual(["Delivery and governance", "Tools"]);
+    expect(await itemsOf(page, 0)).toEqual(["Agile / Scrum", "Stakeholder Management"]);
+    expect(await itemsOf(page, 1)).toEqual(["Jira", "Confluence", "Splunk"]);
+    // Grouping is not an item to answer: the button moves on, as on any quiet screen.
+    await expect(primary(page)).toBeEnabled();
+    await expect(primary(page)).toHaveText("Next: Education  →");
+    await expect(page.locator(".lead")).toHaveText("Nothing to answer here. Edit or remove anything that's wrong.");
+
+    // Each skill is an ordinary item: ⊖ removes it into the tray; a group with nothing left hides.
+    for (const [i, name] of ["Agile / Scrum", "Stakeholder Management"].entries()) {
+      const item = page.locator("li.pt", { hasText: name });
+      await item.hover();
+      await removeButton(item).click();
+      await expect(items(page)).toHaveCount(4 - i);
+    }
+    await expect(page.locator(".groups .grp .gh")).toHaveText(["Tools"]);
+    await expect(tray(page).getByRole("button", { expanded: false })).toHaveText("2 removed · Show");
+  });
+
+  test("a skill the review proposes to remove shows its card inside its group, and the button waits for that answer only", async ({ page }) => {
+    const flagged: ReviewState = {
+      ...SKILLS,
+      sections: SKILLS.sections.map((s) =>
+        "lines" in s && s.tag === "skill"
+          ? { ...s, lines: s.lines.map((l) => (l.id === "t3" ? { ...l, state: "removal-suggested" as const, suggestion: { kind: "duplicate" as const, reason: "Listed twice." } } : l)) }
+          : s,
+      ),
+    };
+    await stubReview(page, flagged);
+    await page.goto("/profile/check");
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== "Skills"; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills");
+    const card = groupBoxes(page).nth(1).locator("li.sg.rmv");
+    await expect(card).toContainText("Splunk");
+    expect(await itemsOf(page, 1)).toEqual(["Jira", "Confluence"]);
+    await expect(primary(page)).toBeDisabled();
+    await card.locator(".row .ghost").click(); // Keep it
+    await expect(card).toHaveCount(0);
+    await expect(groupBoxes(page).nth(1).locator("li.pt .txt")).toHaveText(["Jira", "Confluence", "Splunk"]);
+    await expect(primary(page)).toBeEnabled();
+  });
+
+  test("two columns of groups on a wide screen, one on a phone", async ({ page }) => {
+    await stubReview(page, SKILLS);
+    await page.setViewportSize({ width: 1200, height: 900 });
+    await toSkills(page);
+    const [a, b] = [await groupBoxes(page).nth(0).boundingBox(), await groupBoxes(page).nth(1).boundingBox()];
+    expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1); // side by side
+    await page.setViewportSize({ width: 390, height: 844 });
+    const [c, d] = [await groupBoxes(page).nth(0).boundingBox(), await groupBoxes(page).nth(1).boundingBox()];
+    expect(d!.x).toBe(c!.x); // stacked
+    expect(d!.y).toBeGreaterThan(c!.y + c!.height - 1);
+    const [scrollWidth, clientWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    expect(scrollWidth).toBe(clientWidth);
+  });
+
+  test("tapping a group name renames it: Enter sends it, Escape sends nothing, and the new name is still there after a reload", async ({ page }) => {
+    const { calls } = await stubReview(page, SKILLS);
+    await toSkills(page);
+
+    await groupBoxes(page).nth(1).locator(".gh").click();
+    const input = page.locator(".grp input.gname");
+    await expect(input).toBeFocused();
+    await input.fill("Not this one");
+    await input.press("Escape");
+    await expect(input).toHaveCount(0);
+    expect(calls).toEqual([]);
+    expect(await groupNames(page)).toEqual(["Delivery and governance", "Tools"]);
+
+    await groupBoxes(page).nth(1).locator(".gh").click();
+    await page.locator(".grp input.gname").fill("Tools and platforms");
+    await page.locator(".grp input.gname").press("Enter");
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/skills/groups/Tools", body: { name: "Tools and platforms" } }]);
+    await expect(groupBoxes(page).nth(1).locator(".gh")).toHaveText("Tools and platforms");
+
+    await page.reload();
+    await toSkills(page);
+    expect(await groupNames(page)).toEqual(["Delivery and governance", "Tools and platforms"]);
+    expect(await itemsOf(page, 1)).toEqual(["Jira", "Confluence", "Splunk"]);
+  });
+
+  test("the move icon beside ⊖ opens Move to group; choosing a group sends the move, and the skill sits there after a reload", async ({ page }) => {
+    const { calls } = await stubReview(page, SKILLS);
+    await toSkills(page);
+
+    const jira = page.locator("li.pt", { hasText: "Jira" });
+    await jira.hover();
+    await jira.locator(".ib.move").click();
+    const select = jira.locator("select.mv");
+    await expect(select).toBeFocused();
+    await expect(select.locator("option")).toHaveText(["Delivery and governance", "Tools"]);
+    await select.selectOption({ index: 0 });
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/lines/t1/group", body: { group: "Delivery and governance" } }]);
+    expect(await itemsOf(page, 0)).toEqual(["Agile / Scrum", "Stakeholder Management", "Jira"]);
+    expect(await itemsOf(page, 1)).toEqual(["Confluence", "Splunk"]);
+
+    await page.reload();
+    await toSkills(page);
+    expect(await itemsOf(page, 0)).toEqual(["Agile / Scrum", "Stakeholder Management", "Jira"]);
+    expect(await itemsOf(page, 1)).toEqual(["Confluence", "Splunk"]);
   });
 });

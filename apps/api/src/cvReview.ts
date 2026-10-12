@@ -25,6 +25,7 @@ import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
 import type { JobBlockStore, JobBlockView } from "./jobBlockStore.js";
 import { SECTIONS } from "./rootcv.js";
+import { skillGroups } from "./skillsSplit.js";
 import type { SessionRecord, SessionStore } from "./sessions.js";
 import { answerJobDateHole, dateHoleQuestions, JOB_DATE_ITEM_PREFIX, type JobDateAnswerResult } from "./yearsWorked.js";
 import type { MinedDate, MinedEndValue } from "@jobcrush/contracts";
@@ -89,7 +90,9 @@ export interface ReviewJob {
 }
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
-  | { tag: string; heading: string; lines: ReviewLine[] };
+  /** #382: `groups` on the Skills section only — its lines as named groups, by line id, in the
+   *  order each group first appears. Grouping is never an item to answer. */
+  | { tag: string; heading: string; lines: ReviewLine[]; groups?: Array<{ name: string; ids: string[] }> };
 export interface ReviewLetterheadField {
   value: string;
   origin: ContactValue["origin"];
@@ -256,7 +259,9 @@ export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Pap
     sections: SECTIONS.map(([tag, heading]) =>
       tag === "experience"
         ? { tag, heading, jobs }
-        : { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine) },
+        : tag === "skill"
+          ? { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine), groups: skillGroups(byTag.get(tag) ?? []) }
+          : { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine) },
     ),
     jobs: jobs.map((job) => ({ job, block: blocks.find((b) => b.id === job.blockId) ?? null, role: roles.get(job.id)! })),
   };

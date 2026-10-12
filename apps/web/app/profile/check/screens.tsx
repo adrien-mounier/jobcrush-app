@@ -10,8 +10,9 @@
 // prototype had no lines for it). A section with no items is skipped — so Personal projects and
 // Languages appear the day #373 and #376 give them lines, with no change here.
 import { useState, type ReactNode } from "react";
-import type { ContactField, ReviewJob, ReviewLine, ReviewState } from "../../../lib/api";
+import type { ContactField, ReviewJob, ReviewLine, ReviewState, SkillGroup } from "../../../lib/api";
 import { ItemList, RemoveCard, type ItemListProps } from "./Item";
+import { SkillsBody, type GroupActions } from "./Skills";
 import { DismissedRow, SuggestionCard } from "./SuggestionCard";
 
 const C_DETAILS = "Your details";
@@ -51,7 +52,9 @@ export type Screen =
   | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"] }
   | { kind: "about"; key: "about"; title: string; sub: null; about: NonNullable<ReviewState["about"]> }
   | { kind: "job"; key: string; title: string; sub: string; job: ReviewJob; lines: ReviewLine[] }
-  | { kind: "section"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[] };
+  | { kind: "section"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[] }
+  /** #382: the Skills section — its items in named groups. Grouping is never an item to answer. */
+  | { kind: "skills"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[]; groups: SkillGroup[] };
 
 const datesOf = (job: ReviewJob) => (job.dates ? [job.dates.start, job.dates.end].filter(Boolean).join(" – ") : "");
 /** #378: a draft the person said No thanks to is shown nowhere (after its few seconds of Undo), so
@@ -72,7 +75,8 @@ export function screensOf(state: ReviewState): Screen[] {
       // for a CV with no summary. Until the review wrote one, the summary shows as read, below.
       out.push({ kind: "about", key: "about", title: TITLES.profile!, sub: null, about: state.about });
     } else if (shown(section.lines)) {
-      out.push({ kind: "section", key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines });
+      const base = { key: `section:${section.tag}`, title: TITLES[section.tag] ?? section.heading, sub: null, tag: section.tag, lines: section.lines };
+      out.push(section.groups ? { ...base, kind: "skills", groups: section.groups } : { ...base, kind: "section" });
     }
   }
   return out;
@@ -127,12 +131,14 @@ export function ScreenBody({
   drafts,
   details,
   aboutDraft,
+  groups,
 }: {
   screen: Screen;
   list: Omit<ItemListProps, "lines" | "card">;
   drafts: DraftAnswers;
   details: DetailsProps;
   aboutDraft: AboutDraft;
+  groups: GroupActions;
 }): ReactNode {
   if (screen.kind === "about") return <AboutCard about={screen.about} {...aboutDraft} />;
   if (screen.kind === "details") {
@@ -181,6 +187,13 @@ export function ScreenBody({
     if (line.state === "removal-suggested") return <RemoveCard key={line.id} line={line} busy={list.busy} onRemove={list.onRemove} onKeep={list.onPutBack} />;
     return null;
   };
+  if (screen.kind === "skills") {
+    return (
+      <div className="card">
+        <SkillsBody lines={screen.lines} groups={screen.groups} list={{ ...list, card }} actions={groups} />
+      </div>
+    );
+  }
   return (
     <div className="card">
       <ItemList lines={screen.lines} {...list} onEdit={editable ? list.onEdit : undefined} card={card} />

@@ -762,7 +762,17 @@ function DomainSection({
         <ExperienceBody domain={domain} onOpenFact={onOpenFact} />
       ) : isChips ? (
         <>
-          <ChipGroup domain={domain} onOpenFact={onOpenFact} />
+          {domain.facts.some((f) => f.group) ? (
+            // #382: skills sit under their named groups, each group its own chip runs.
+            [...new Set(domain.facts.map((f) => f.group ?? ""))].map((name) => (
+              <div className="sgrp" key={name}>
+                <h3 className="sgname">{name}</h3>
+                <ChipGroup domain={{ ...domain, facts: domain.facts.filter((f) => (f.group ?? "") === name) }} onOpenFact={onOpenFact} />
+              </div>
+            ))
+          ) : (
+            <ChipGroup domain={domain} onOpenFact={onOpenFact} />
+          )}
           {domain.tag === "lang" && (
             <LanguageDoor languagesQuestion={languagesQuestion} onProfileRefreshed={onProfileRefreshed} onAnnounce={onAnnounce} />
           )}

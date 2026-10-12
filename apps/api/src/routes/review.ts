@@ -68,7 +68,13 @@ const ReviewJob = z.object({
 });
 const ReviewSection = z.union([
   z.object({ tag: z.literal("experience"), heading: z.string(), jobs: z.array(ReviewJob) }),
-  z.object({ tag: z.string(), heading: z.string(), lines: z.array(ReviewLine) }),
+  z.object({
+    tag: z.string(),
+    heading: z.string(),
+    lines: z.array(ReviewLine),
+    // #382: the Skills section's named groups, by line id.
+    groups: z.array(z.object({ name: z.string(), ids: z.array(z.string()) })).optional(),
+  }),
 ]);
 const LetterheadField = z.object({ value: z.string(), origin: z.enum(["read", "person-said"]) });
 const ReviewStateSchema = z.object({

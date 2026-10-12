@@ -823,3 +823,51 @@
   color: var(--muted-r);
   border-color: var(--line);
 }
+
+/* #382 skills: named groups, two columns on a wide screen, one on a phone (the prototype's 300px
+   column would fit only one inside the walk's 680px, so 250px) */
+.check .groups {
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  columns: 2 250px;
+  column-gap: 28px;
+}
+.check .grp {
+  break-inside: avoid;
+  margin: 0 0 16px;
+}
+.check .gh {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-bottom: 2px;
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted-r);
+  cursor: pointer;
+}
+.check .gh:hover,
+.check .gh:focus-visible {
+  color: var(--ink);
+  background: var(--raised);
+}
+.check .gname {
+  font: 600 16px var(--sans);
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin: 0 0 4px 4px;
+  width: calc(100% - 8px);
+}
+.check select.mv {
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 16px;
+  max-width: 170px;
+}

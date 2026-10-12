@@ -11,7 +11,7 @@ import {
   retrievalClaimWindow,
   type SessionStore,
 } from "../src/sessions.js";
-import { InMemoryClaimStore, PgClaimStore, type ClaimStore } from "../src/claims.js";
+import { InMemoryClaimStore, PgClaimStore, type ClaimStore, type SeedClaim } from "../src/claims.js";
 import { InMemoryPostingStore, PgPostingStore, type PostingStore } from "../src/postingStore.js";
 import {
   InMemoryUnmappedLabelStore,
@@ -734,7 +734,7 @@ for (const [name, make] of sessionDrivers) {
   });
 }
 
-const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
+const claim = (over: Partial<SeedClaim>): SeedClaim => ({
   id: "acme-led",
   role: "PM - Acme",
   text: "Led X",
@@ -929,6 +929,25 @@ for (const [name, make] of claimDrivers) {
       expect(await store.edit(sid, "nope", "x")).toBe(false);
       expect(await store.edit("other-session", "a", "x")).toBe(false);
       expect((await store.list(sid))[0]!.text).toBe("Led the data migration.");
+    });
+
+    // #382 — a skill's group: seeded with the claim, read back as null when none, moved one claim
+    // at a time, renamed for every claim of the group at once. A correction upsert never loses it.
+    it("group_name round-trips through seed, survives an upsert, and the two doors move one claim or rename a whole group", async () => {
+      await store.seed(sid, [claim({ id: "skill-jira", groupName: "Tools" }), claim({ id: "skill-sql", groupName: "Tools" }), claim({ id: "skill-agile", groupName: "Delivery" }), claim({ id: "plain" })]);
+      const groups = async () => Object.fromEntries((await store.list(sid)).map((c) => [c.id, c.groupName]));
+      expect(await groups()).toEqual({ "skill-jira": "Tools", "skill-sql": "Tools", "skill-agile": "Delivery", plain: null });
+
+      await store.add(sid, claim({ id: "skill-jira", text: "Jira (Expert)" })); // a correction: the group stays
+      expect((await groups())["skill-jira"]).toBe("Tools");
+
+      expect(await store.setGroup(sid, "skill-sql", "Data")).toBe(true);
+      expect(await store.setGroup(sid, "nope", "Data")).toBe(false);
+      expect(await store.setGroup("other-session", "skill-sql", "Data")).toBe(false);
+      expect(await store.renameGroup(sid, "Tools", "Tools and platforms")).toBe(1);
+      expect(await store.renameGroup(sid, "Nope", "x")).toBe(0);
+      expect(await store.renameGroup("other-session", "Delivery", "x")).toBe(0);
+      expect(await groups()).toEqual({ "skill-jira": "Tools and platforms", "skill-sql": "Data", "skill-agile": "Delivery", plain: null });
     });
 
     // #342 — a drafted line: stored once, on the paper (pending) and off every print path until the

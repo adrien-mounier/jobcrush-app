@@ -20,6 +20,7 @@ import { excludingEligibility, languagesQuestion, workRightsAnswerLabel, workRig
 import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
 import { withFactFloor, type SearchAreaEntry, type SessionRecord, type SessionStore } from "./sessions.js";
+import { groupOf } from "./skillsSplit.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
 export interface ProfileFact {
@@ -42,6 +43,9 @@ export interface ProfileFact {
    *  wears it — only while the text still reads the corrected or the original words. Absent on
    *  every other fact. */
   fix?: ReviewFix;
+  /** #382: the named group a skill sits in (ADR-0018 clause 6). Absent on every fact that is not
+   *  a skill. */
+  group?: string;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -258,6 +262,7 @@ export function buildProfileState(
       job: tag === "experience" ? c.role : null,
       kept: c.lineState === "kept" || undefined,
       fix: fixOf(c.text, fixes.get(c.id)) ?? undefined,
+      group: tag === "skill" ? groupOf(c) : undefined,
     });
     byTag.set(tag, bucket);
   }

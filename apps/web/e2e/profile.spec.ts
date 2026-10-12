@@ -996,6 +996,29 @@ test("#186 AC3: skills/certifications/languages render as chips, sentence facts 
   await expect(page.locator(".fact", { hasText: "MBA, INSEAD." })).toHaveCount(0);
 });
 
+test("#382: skills chips sit under their named groups, in the order the profile sends them; other chip sections stay ungrouped", async ({ page }) => {
+  await stubSession(page);
+  const skill = (id: string, text: string, group: string) => ({ id, text, colour: "gold" as const, source: "read" as const, job: null, group });
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { tag: "skill", heading: "Skills", facts: [skill("s1", "Agile / Scrum", "Delivery and governance"), skill("s2", "Jira", "Tools"), skill("s3", "Stakeholder Management", "Delivery and governance")] },
+      { tag: "cert", heading: "Certifications", facts: [{ id: "c1", text: "PMP.", colour: "gold", source: "told", job: null }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const skills = page.locator(".dom").filter({ has: page.locator(".dname", { hasText: "Skills" }) });
+  await expect(skills.locator(".sgrp .sgname")).toHaveText(["Delivery and governance", "Tools"]);
+  await expect(skills.locator(".sgrp").nth(0).locator(".fact")).toHaveText(["Agile / Scrum", "Stakeholder Management"]);
+  await expect(skills.locator(".sgrp").nth(1).locator(".fact")).toHaveText(["Jira"]);
+  // A section with no groups draws its chips as before.
+  const certs = page.locator(".dom").filter({ has: page.locator(".dname", { hasText: "Certifications" }) });
+  await expect(certs.locator(".fact")).toHaveText(["PMP"]);
+  await expect(certs.locator(".sgrp")).toHaveCount(0);
+});
+
 test("#186 AC4/AC5 (#335 wording): the grey caption shows verbatim in list runs and in detail, told/read shows on every fact, and the dead 'waiting for a job that asks' phrasing is gone", async ({
   page,
 }) => {

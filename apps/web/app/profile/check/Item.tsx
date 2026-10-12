@@ -88,6 +88,7 @@ export function Item({
   onRemove,
   onEdit,
   onFix,
+  tail,
 }: {
   line: ReviewLine;
   busy: boolean;
@@ -97,6 +98,8 @@ export function Item({
   onEdit?: OnEdit;
   /** #384: undo a fix (false) or use it again (true). Absent → no tag is drawn. */
   onFix?: (id: string, applied: boolean) => void;
+  /** A control a screen adds before ✎ and ⊖ — #382's move to another group. */
+  tail?: ReactNode;
 }) {
   // A tap on the text itself shows the actions (touch screens have no hover).
   const [active, setActive] = useState(false);
@@ -179,6 +182,7 @@ export function Item({
         {fix && fixOpen && <FixRow fix={fix} busy={busy} onToggle={() => onFix!(line.id, !fix.applied)} />}
       </span>
       <span className="acts">
+        {tail}
         {onEdit && (
           <button type="button" ref={penRef} className="ib" aria-label={C_EDIT} title={C_EDIT} disabled={busy} onClick={() => setDraft(line.text)}>
             {PEN}
