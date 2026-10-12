@@ -135,7 +135,7 @@ interface ProfileResponse {
 // everyone — role exactly as typed, and NO family/siblings/count from an internal floor assumption.
 const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitles: [], openJobs: null });
 // #190: honest absence — no contact record yet.
-const EMPTY_CONTACT = { phone: null, email: null };
+const EMPTY_CONTACT = { phone: null, email: null, name: null, title: null, location: null };
 // #214: honest absence — no target location set yet, so no market to hold a work-rights answer either.
 const EMPTY_LOCATION = { areas: [], workRights: [] };
 // #185 code-review contract extension: the languages question composed the SAME way
@@ -363,6 +363,51 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     await put(server.app, cookie, "/contact", { field: "phone", value: "+33 6 99 99 99 99" });
     const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
     expect(after.contact.phone).toEqual({ value: "+33 6 99 99 99 99", origin: "person-said" });
+  });
+
+  // #381 ACs: the letterhead lands as five fields at import (read origin, the title being the title);
+  // the batched door (check mode's footer button) persists each edited field as person-said, skipping
+  // an empty one; the profile's own per-field door edits the same fields after check mode.
+  it("#381: name/title/location land at import as read; the batched door and the per-field door both edit them", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await anonSession(server.app);
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: {
+        text:
+          "Priya Raman\npriya.raman@example.com | +44 7700 900123 | Manchester, UK\nSENIOR PROJECT MANAGER\nPROFESSIONAL SUMMARY\nDelivery lead with twelve years across retail.\n\nExperience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(
+            3,
+          ),
+      },
+    });
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+
+    const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(before.contact).toEqual({
+      name: { value: "Priya Raman", origin: "read" },
+      title: { value: "SENIOR PROJECT MANAGER", origin: "read" },
+      email: { value: "priya.raman@example.com", origin: "read" },
+      phone: { value: "+44 7700 900123", origin: "read" },
+      location: { value: "Manchester, UK", origin: "read" },
+    });
+
+    const batched = await put(server.app, cookie, "/contact", {
+      fields: { title: "Head of Delivery", location: "Leeds, UK", phone: "" },
+    });
+    expect(batched.statusCode).toBe(200);
+    const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(after.contact.title).toEqual({ value: "Head of Delivery", origin: "person-said" });
+    expect(after.contact.location).toEqual({ value: "Leeds, UK", origin: "person-said" });
+    expect(after.contact.phone).toEqual({ value: "+44 7700 900123", origin: "read" }); // "" never clears a fact
+    expect(after.contact.name).toEqual({ value: "Priya Raman", origin: "read" });
+
+    await put(server.app, cookie, "/contact", { field: "name", value: "Priya Raman-Shah" });
+    const edited = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(edited.contact.name).toEqual({ value: "Priya Raman-Shah", origin: "person-said" });
+    expect(edited.contact.title).toEqual({ value: "Head of Delivery", origin: "person-said" });
   });
 
   // #190 AC: the login/account email and the CV's contact email are different values with different

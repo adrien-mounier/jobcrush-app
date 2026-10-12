@@ -57,7 +57,7 @@ const PROFILE: ProfileState = {
       facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told", job: null }],
     },
   ],
-  contact: { phone: null, email: null }, // #190's honest-absence default; populated fixtures below
+  contact: { name: null, title: null, location: null, phone: null, email: null }, // #190's honest-absence default; populated fixtures below
   location: { areas: [], workRights: [] }, // #188's rail — types mirrored only, not this ticket's UI
   languagesQuestion: LANGUAGES_QUESTION,
 };
@@ -432,7 +432,7 @@ test("#194: phone: a contact door opens correctly from the rail, above the colla
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
-    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+    contact: { name: null, title: null, location: null, phone: { value: "+852 1234 5678", origin: "read" }, email: null },
   };
   await stubProfile(page, state);
   await page.goto("/profile");
@@ -456,7 +456,7 @@ test("phone: Escape inside the contact door's question closes only the question,
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
-    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+    contact: { name: null, title: null, location: null, phone: { value: "+852 1234 5678", origin: "read" }, email: null },
   };
   await stubProfile(page, state);
   await page.goto("/profile");
@@ -680,7 +680,7 @@ test("#194 desktop: Contact is a third rail panel, aligned with Location and Job
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
-    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+    contact: { name: null, title: null, location: null, phone: { value: "+852 1234 5678", origin: "read" }, email: null },
   };
   await stubProfile(page, state);
   await page.goto("/profile");
@@ -723,6 +723,9 @@ test("phone and email display in the rail's Contact section, each with its origi
   const state: ProfileState = {
     ...PROFILE,
     contact: {
+      name: null,
+      title: null,
+      location: null,
       phone: { value: "+852 1234 5678", origin: "read" },
       email: { value: "person@example.com", origin: "person-said" },
     },
@@ -742,9 +745,51 @@ test("phone and email display in the rail's Contact section, each with its origi
   await expect(contact.getByRole("button", { name: "Not the right email?" })).toBeVisible();
 });
 
+// #381: after check mode the profile edits the same five fields Your details showed — name, title,
+// phone, email, location — each through the one contact door. Selected by structure, in panel order.
+test("#381: the contact panel shows the letterhead's five fields and edits the title through its door", async ({ page }) => {
+  await stubSession(page);
+  let current: ProfileState = {
+    ...PROFILE,
+    contact: {
+      name: { value: "Jane Doe", origin: "read" },
+      title: { value: "IT Project Manager", origin: "read" },
+      phone: null,
+      email: null,
+      location: null,
+    },
+  };
+  const saves: unknown[] = [];
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: current });
+  });
+  await page.route("**/api/contact", async (route) => {
+    const body = route.request().postDataJSON() as { field: keyof ProfileState["contact"]; value: string };
+    saves.push(body);
+    current = { ...current, contact: { ...current.contact, [body.field]: { value: body.value, origin: "person-said" } } };
+    await route.fulfill({ json: current.contact });
+  });
+  await page.goto("/profile");
+
+  const fields = page.locator(".rcontact .cxfield");
+  await expect(fields).toHaveCount(5);
+  await expect(fields.nth(0).locator(".cxvalue")).toHaveText("Jane Doe");
+  await expect(fields.nth(1).locator(".cxvalue")).toHaveText("IT Project Manager");
+  await expect(fields.nth(4).locator(".cxvalue.cxmute")).toHaveCount(1); // no location: honestly absent
+
+  await openDoor(fields.nth(1).locator(".rdoor"));
+  const input = fields.nth(1).locator("input.rin");
+  await expect(input).toHaveValue("IT Project Manager");
+  await input.fill("Head of Delivery");
+  await fields.nth(1).locator(".rbtn").first().click();
+  await expect(fields.nth(1).locator(".cxvalue")).toHaveText("Head of Delivery");
+  expect(saves).toEqual([{ field: "title", value: "Head of Delivery" }]);
+  await expect(fields.nth(0).locator(".cxvalue")).toHaveText("Jane Doe"); // the other fields untouched
+});
+
 test("an absent phone reads as honestly absent, and supplying one flows exactly like a correction", async ({ page }) => {
   await stubSession(page);
-  let current: ProfileState = { ...PROFILE, contact: { phone: null, email: null } };
+  let current: ProfileState = { ...PROFILE, contact: { name: null, title: null, location: null, phone: null, email: null } };
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: current });
   });
@@ -759,7 +804,7 @@ test("an absent phone reads as honestly absent, and supplying one flows exactly 
   await page.goto("/profile");
 
   const contact = page.locator(".rcontact");
-  await expect(contact.getByText("Not on your CV")).toHaveCount(2); // neither phone nor email captured yet
+  await expect(contact.getByText("Not on your CV")).toHaveCount(5); // none of the five fields captured yet (#381)
 
   await openDoor(contact.getByRole("button", { name: "What's the best phone number for your CV?" }));
 
@@ -780,7 +825,7 @@ test("the phone door reopens pre-filled with the current value, and cancelling k
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
-    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+    contact: { name: null, title: null, location: null, phone: { value: "+852 1234 5678", origin: "read" }, email: null },
   };
   await stubProfile(page, state);
   await page.goto("/profile");
@@ -804,7 +849,7 @@ test("a refetch failure after a successful contact save is never reported as a s
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
-    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+    contact: { name: null, title: null, location: null, phone: { value: "+852 1234 5678", origin: "read" }, email: null },
   };
   let profileCalls = 0;
   await page.route("**/api/profile", async (route) => {

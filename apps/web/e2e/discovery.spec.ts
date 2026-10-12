@@ -452,7 +452,12 @@ test("the last question answered with a CV to review: discovery hands off to che
   await stubDiscovery(page);
   await page.route("**/api/review", async (route) => {
     await route.fulfill({
-      json: { completed: false, letterhead: { header: "Jane Doe", phone: null, email: null }, conflict: null, sections: [] },
+      json: {
+        completed: false,
+        letterhead: { name: { value: "Jane Doe", origin: "read" }, title: null, email: null, phone: null, location: null },
+        conflict: null,
+        sections: [],
+      },
     });
   });
 

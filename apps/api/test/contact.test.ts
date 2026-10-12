@@ -26,7 +26,7 @@ for (const [name, make] of drivers) {
 
     it("unknown reads as null — never invented", async () => {
       expect(await store.get(sid, "phone")).toBeNull();
-      expect(await store.getRecord(sid)).toEqual({ phone: null, email: null });
+      expect(await store.getRecord(sid)).toEqual({ phone: null, email: null, name: null, title: null, location: null });
     });
 
     it("stores a read value with its source text as origin", async () => {
@@ -86,10 +86,40 @@ for (const [name, make] of drivers) {
       const record = await store.getRecord(sid);
       expect(record.phone).toMatchObject({ value: "+33 6 00 00 00 00" });
       expect(record.email).toMatchObject({ value: "jane@example.com" });
-      expect(await store.getRecord("other-session")).toEqual({ phone: null, email: null });
+      expect(await store.getRecord("other-session")).toEqual({ phone: null, email: null, name: null, title: null, location: null });
     });
   });
 }
+
+// #381: a CV imported before the letterhead became fields left one raw "header" row. The store
+// splits it into name/title/location once, at start-up, as read values — so that person's drafts
+// keep printing their name, and Your details shows them filled.
+describe("PgContactStore — a pre-#381 letterhead row upgrades to fields", () => {
+  it("splits a legacy header into read fields, never over a value already stored", async () => {
+    const pool = pgPool();
+    await new PgContactStore(pool).init();
+    const legacy = "Priya Raman\npriya.raman@example.com | Manchester, UK\nSENIOR PROJECT MANAGER";
+    await pool.query(
+      `INSERT INTO contact_facts (session_id, field, value, origin, source_text) VALUES ($1,'header',$2,'read',$2), ($3,'header',$2,'read',$2)`,
+      ["old", legacy, "edited"],
+    );
+    await pool.query(
+      `INSERT INTO contact_facts (session_id, field, value, origin, source_text) VALUES ('edited','name','Priya R.','person-said','Priya R.')`,
+    );
+
+    // The restart. pg-mem cannot re-parse a CREATE TABLE IF NOT EXISTS against an existing table
+    // (pgstores.test.ts #282), which real Postgres treats as a no-op — so the restarted store's
+    // CREATEs are answered as that no-op here; every other query, the upgrade's own SQL, runs for real.
+    const restarted = { query: (sql: string, args?: unknown[]) => (sql.includes("CREATE TABLE") ? { rows: [] } : pool.query(sql, args)) };
+    const store = new PgContactStore(restarted as unknown as typeof pool);
+    await store.init();
+    const old = await store.getRecord("old");
+    expect(old.name).toMatchObject({ value: "Priya Raman", origin: "read" });
+    expect(old.title).toMatchObject({ value: "SENIOR PROJECT MANAGER", origin: "read" });
+    expect(old.location).toMatchObject({ value: "Manchester, UK", origin: "read" });
+    expect((await store.getRecord("edited")).name).toMatchObject({ value: "Priya R.", origin: "person-said" });
+  });
+});
 
 describe("PUT /contact — the profile screen's correction door", () => {
   async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
@@ -120,7 +150,43 @@ describe("PUT /contact — the profile screen's correction door", () => {
     expect(res.json()).toEqual({
       phone: null,
       email: { value: "jane@example.com", origin: "person-said", sourceText: "jane@example.com" },
+      name: null,
+      title: null,
+      location: null,
     });
+  });
+
+  // #381: check mode's Your details saves every field in one request. Each value lands as the
+  // person's own answer; an empty value is "nothing to say", never a deletion (the store has none).
+  it("the batched shape stores each named field as person-said and skips empty ones", async () => {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    const res = await server.app.inject({
+      method: "PUT",
+      url: "/contact",
+      headers: { cookie },
+      payload: { fields: { name: "Jane Doe", title: " Delivery Lead ", location: "", phone: "+33 6 99 99 99 99" } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      name: { value: "Jane Doe", origin: "person-said", sourceText: "Jane Doe" },
+      title: { value: "Delivery Lead", origin: "person-said", sourceText: "Delivery Lead" },
+      phone: { value: "+33 6 99 99 99 99", origin: "person-said", sourceText: "+33 6 99 99 99 99" },
+      email: null,
+      location: null,
+    });
+  });
+
+  it("the batched shape rejects an unknown field", async () => {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    const res = await server.app.inject({
+      method: "PUT",
+      url: "/contact",
+      headers: { cookie },
+      payload: { fields: { address: "somewhere" } },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("rejects an unknown field", async () => {

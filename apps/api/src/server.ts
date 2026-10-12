@@ -21,7 +21,7 @@ import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import { InMemoryJobBlockStore, type JobBlockStore } from "./jobBlockStore.js";
 import { jobBlocksRoutes } from "./routes/jobBlocks.js";
 import { InMemoryEligibilityStore, type EligibilityStore } from "./eligibility.js";
-import { InMemoryContactStore, type ContactStore } from "./contact.js";
+import { CONTACT_FIELDS, InMemoryContactStore, type ContactStore } from "./contact.js";
 import { contactRoutes } from "./routes/contact.js";
 import { reviewRoutes } from "./routes/review.js";
 import type { GrillPhraser } from "./grill.js";
@@ -569,15 +569,12 @@ export function buildServer(opts: BuildOptions = {}) {
     persistContact:
       opts.pipeline?.persistContact ??
       (async (sessionId, extraction) => {
-        if (extraction.phone) await contact.put(sessionId, "phone", { ...extraction.phone, origin: "read" });
-        if (extraction.email) await contact.put(sessionId, "email", { ...extraction.email, origin: "read" });
-        // #310: the CV's letterhead, kept for the draft door — the engine prints name/city from it.
-        if (extraction.header)
-          await contact.put(sessionId, "header", {
-            value: extraction.header,
-            origin: "read",
-            sourceText: extraction.header,
-          });
+        // #381: the letterhead's five fields — what Your details shows and the tailor's candidate
+        // header is built from (letterheadText).
+        for (const field of CONTACT_FIELDS) {
+          const read = extraction[field];
+          if (read) await contact.put(sessionId, field, { ...read, origin: "read" });
+        }
       }),
     // #161: shared by both intake paths, same convention as persistContact above — sessionId travels
     // as a plain argument so job-block capture works uniformly on either upload or paste.

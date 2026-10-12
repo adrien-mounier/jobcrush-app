@@ -18,7 +18,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, dismissDraft, ensureSession, getReview, moveSkill, renameSkillGroup, setDraftText, setLineState, setLineText, tickDraft, type ReviewLine, type ReviewState } from "../../../lib/api";
+import {
+  completeReview,
+  dismissDraft,
+  ensureSession,
+  getReview,
+  moveSkill,
+  renameSkillGroup,
+  saveContactFields,
+  setDraftText,
+  setLineState,
+  setLineText,
+  tickDraft,
+  type ContactField,
+  type ReviewLine,
+  type ReviewState,
+} from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -71,6 +86,9 @@ export default function CheckPage() {
   const [pollTick, setPollTick] = useState(0);
   /** #378: drafts dismissed moments ago — their No thanks row shows, with Undo, for UNDO_MS. */
   const [justDismissed, setJustDismissed] = useState<ReadonlySet<string>>(new Set());
+  /** #381: what the person typed into Your details, by field. Page state, so it outlives Back/Next
+   *  and every re-read of the paper; the footer button saves what differs from the saved value. */
+  const [typed, setTyped] = useState<Partial<Record<ContactField, string>>>({});
   const headingRef = useRef<HTMLHeadingElement>(null);
   /** The screen the footer button was last held on — it pulses once when released there. */
   const heldOn = useRef<string | null>(null);
@@ -195,14 +213,34 @@ export default function CheckPage() {
     setStepKey(to.key);
     window.scrollTo(0, 0);
   };
-  const finish = () =>
-    write(
-      () => completeReview(),
-      () => {
-        setDone(true);
-        window.scrollTo(0, 0);
-      },
-    );
+  const saved = (field: ContactField) => state?.letterhead[field]?.value ?? "";
+  /** Your details' changes, trimmed. Empty when nothing changed — or off that screen. */
+  const detailChanges = (): Partial<Record<ContactField, string>> =>
+    screen?.kind !== "details"
+      ? {}
+      : Object.fromEntries(
+          Object.entries(typed)
+            .map(([field, value]) => [field, value.trim()] as const)
+            .filter(([field, value]) => value !== saved(field as ContactField)),
+        );
+  /** The footer button: saves Your details when they changed, then moves on (or finishes). */
+  const advance = () => {
+    const changes = detailChanges();
+    const save = Object.keys(changes).length > 0 ? () => saveContactFields(changes) : null;
+    if (last)
+      return void write(
+        async () => {
+          if (save) await save();
+          await completeReview();
+        },
+        () => {
+          setDone(true);
+          window.scrollTo(0, 0);
+        },
+      );
+    if (save) return void write(save, () => go(1));
+    go(1);
+  };
 
   if (failed && !state) {
     return (
@@ -297,6 +335,16 @@ export default function CheckPage() {
           }}
           groups={{ onRename: renameGroup, onMove: moveToGroup }}
           drafts={drafts}
+          details={{
+            values: {
+              name: typed.name ?? saved("name"),
+              title: typed.title ?? saved("title"),
+              email: typed.email ?? saved("email"),
+              phone: typed.phone ?? saved("phone"),
+              location: typed.location ?? saved("location"),
+            },
+            onChange: (field, value) => setTyped((t) => ({ ...t, [field]: value })),
+          }}
         />
         {last && running && state.progress && (
           <p className="hint" aria-live="polite">
@@ -321,7 +369,7 @@ export default function CheckPage() {
             className={`btn primary${fx.arm ? " arm" : ""}`}
             disabled={busy || !canGo}
             onAnimationEnd={() => setFx((f) => ({ ...f, arm: undefined }))}
-            onClick={() => (last ? void finish() : go(1))}
+            onClick={advance}
           >
             {label}
           </button>
