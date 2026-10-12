@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, setLineState, type ReviewLine, type ReviewState } from "../../../lib/api";
+import { completeReview, ensureSession, getReview, setLanguages, setLineState, setWorkRights, type ReviewLine, type ReviewState } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -250,6 +250,10 @@ export default function CheckPage() {
             onRemove: remove,
             onPutBack: putBack,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
+          }}
+          answers={{
+            onWorkRights: (itemId, answer) => void write(() => setWorkRights(itemId, answer)),
+            onLanguages: (languages) => void write(() => setLanguages(languages)),
           }}
         />
         {last && running && state.progress && (

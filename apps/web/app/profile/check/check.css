@@ -412,3 +412,114 @@
     transition: none !important;
   }
 }
+
+/* #376 — the person's own facts in plain cards (prototype V2.1 workCard): "Where you can work" on the
+   last screen, "Which languages do you speak?" on an empty Languages screen. Scoped to the two cards. */
+.check .card.form.wr,
+.check .card.form.langs {
+  display: grid;
+  gap: 10px;
+  padding: 14px 8px;
+  margin-bottom: 14px;
+}
+.check .wr .ctitle,
+.check .langs .ctitle {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 15px;
+  font-weight: 620;
+}
+.check .wrsrc {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .wrsrc q {
+  font-family: var(--serif);
+  color: var(--ink);
+}
+.check fieldset.wrrow {
+  border: 0;
+  margin: 0;
+  padding: 6px 8px 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.check .wrrow legend {
+  font-weight: 620;
+  font-size: 14px;
+  padding: 0;
+}
+.check .wrrow p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.check .pill {
+  position: relative;
+}
+.check .pill input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+/* a thumb-sized target: the prototype's pill, grown to 44px tall */
+.check .pill span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--muted-r);
+}
+.check .pill input:checked + span {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--raised);
+}
+.check .pill input:focus-visible + span {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.check .langs .fields {
+  display: grid;
+  gap: 8px;
+  padding: 0 8px;
+}
+.check .langs .fields label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted-r);
+}
+.check .langs .fields input {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font: 16px var(--sans);
+  color: var(--ink);
+  min-width: 0;
+}
+.check .langs .row {
+  display: flex;
+  gap: 8px;
+  padding-left: 8px;
+}
+.check .langs .btn.sm {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 9px;
+  min-height: 44px;
+}

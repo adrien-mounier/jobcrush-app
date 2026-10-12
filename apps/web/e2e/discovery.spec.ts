@@ -9,6 +9,11 @@ import type { DiscoveryQuestion, DiscoveryState } from "../lib/api";
 // #339: discovery asks question 1, then work rights once per chosen market and languages once —
 // no floor question, no countdown, no section rail. "Ask me later" stores nothing, so the stub below
 // answers a decline exactly as the server does: with the same questions still open.
+//
+// #376 (ADR-0018 clause 8): the server asks nothing after question 1 any more — work rights and
+// languages are answered in the profile's check mode. The first test after the handoff block below
+// drives that real shape. The eligibility-question tests further down still pin how this screen
+// renders a question the server sends; the server sends none today.
 
 // #106: eligibility questions — copy is verbatim from the #106 design spec's copy table (the
 // contract the backend implements against too), so these fixtures double as a check that the client
@@ -445,22 +450,42 @@ test("the last question answered: discovery navigates to the /deck reveal, annou
 });
 
 // #338 (ADR-0016 clause 6): a brought CV is reviewed before any job is shown. The server says so on
-// the state, and the same handoff moment lands on the review instead of the deck — since #377, the
-// profile's check mode (ADR-0018), opening at Your details.
-test("the last question answered with a CV to review: discovery hands off to check mode", async ({ page }) => {
-  current = { ...AFTER_START, questions: [Q_WR_HK], reviewPending: true };
+// the state, and the handoff lands on the review instead of the deck — since #377, the profile's
+// check mode (ADR-0018), opening at Your details. #376 (ADR-0018 clause 8): nothing is asked between
+// question 1 and check mode — the server answers question 1 with the hand-off itself.
+test("#376: after question 1 nothing is asked — with a CV to review, discovery hands straight off to check mode", async ({ page }) => {
+  current = BEFORE_START;
   await stubDiscovery(page);
+  // The server's real answer to question 1 now: the hand-off, no question.
+  await page.route("**/api/onboarding/discovery/start", async (route) => {
+    current = { ...AFTER_START, stage: "deck", questions: [], reviewPending: true };
+    await route.fulfill({ json: current });
+  });
+  const answers: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/api/onboarding/discovery/answer")) answers.push(r.url());
+  });
   await page.route("**/api/review", async (route) => {
     await route.fulfill({
-      json: { completed: false, letterhead: { header: "Jane Doe", phone: null, email: null }, conflict: null, sections: [] },
+      json: {
+        completed: false,
+        letterhead: { header: "Jane Doe", phone: null, email: null },
+        conflict: null,
+        progress: null,
+        unchecked: false,
+        sections: [],
+        workRights: [],
+        languages: [],
+      },
     });
   });
 
   await page.goto("/discovery");
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
+  await page.getByRole("button", { name: "That's me" }).click();
   await page.waitForURL("/profile/check");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your details");
+  expect(answers).toEqual([]); // nothing was asked, so nothing was answered
 });
 
 // #336: what the person submits — unticks and additions included — is exactly what is posted.

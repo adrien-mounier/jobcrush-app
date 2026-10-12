@@ -757,7 +757,22 @@ export interface ReviewState {
    *  reads as a finished check then. */
   unchecked: boolean;
   sections: ReviewSection[];
+  /** #376: "Where you can work" — one row per target market; empty when none is set. */
+  workRights: ReviewWorkRights[];
+  /** #376: the languages the person said they speak — the Languages card when the CV lists none. */
+  languages: string[];
 }
+/** #376: one market on the "Where you can work" card. `answer` is stored; `proposed` is what the CV
+ *  implies — shown pre-selected, never stored until tapped. */
+export interface ReviewWorkRights {
+  market: string;
+  itemId: string;
+  answer: WorkRightsAnswer | null;
+  proposed: "eligible" | null;
+  note: string | null;
+  source: string | null;
+}
+export type WorkRightsAnswer = "eligible" | "needs-sponsorship";
 
 // #341: undo a fix (applied: false) or use it again (applied: true). The text comes back as the
 // server now holds it.
@@ -777,6 +792,16 @@ export function setDraftText(lineId: string, text: string): Promise<{ id: string
 // #342: the tick — the draft becomes the person's own fact. Unticking afterwards is setLineState.
 export function tickDraft(lineId: string): Promise<{ id: string; text: string; state: "ticked" }> {
   return jfetch(`/api/review/drafts/${encodeURIComponent(lineId)}/tick`, { method: "POST" });
+}
+
+// #376: a tap on a "Where you can work" row, in the store's own words.
+export function setWorkRights(itemId: string, answer: WorkRightsAnswer): Promise<{ ok: true }> {
+  return jfetch(`/api/review/work-rights/${encodeURIComponent(itemId)}`, { method: "PUT", body: JSON.stringify({ answer }) });
+}
+
+// #376: the Languages card — the whole list the person speaks.
+export function setLanguages(languages: string[]): Promise<{ ok: true }> {
+  return jfetch("/api/review/languages", { method: "PUT", body: JSON.stringify({ languages }) });
 }
 
 export function completeReview(): Promise<{ completed: true }> {

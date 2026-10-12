@@ -80,6 +80,8 @@ const REVIEW: ReviewState = {
     { tag: "edu", heading: "Education", lines: [line("e1", "MSc, University of Warsaw.")] },
     { tag: "lang", heading: "Languages", lines: [] },
   ],
+  workRights: [],
+  languages: [],
 };
 
 const jobsOf = (state: ReviewState) => (state.sections[1] as Extract<ReviewState["sections"][number], { tag: "experience" }>).jobs;

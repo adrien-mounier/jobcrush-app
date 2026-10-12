@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CardsResponse, ReviewLine, ReviewState } from "../lib/api";
+import type { CardsResponse, ReviewLine, ReviewState, ReviewWorkRights } from "../lib/api";
 
 // #377 check mode (ADR-0018 clause 3): the guided walk over the profile that replaced "Your CV,
 // reviewed", route-mocked to the pinned ReviewState shape. What it proves on the screen: the walk
@@ -64,9 +64,12 @@ const REVIEW: ReviewState = {
     { tag: "edu", heading: "Education", lines: [line("e1", "MSc, University of Warsaw.")] },
     { tag: "lang", heading: "Languages", lines: [] },
   ],
+  workRights: [],
+  languages: [],
 };
-/** The screens REVIEW makes, in order: the two empty sections are skipped. */
-const SCREENS = ["Your details", "About you", "Nordic Retail Group", "Baltic Software House", "Skills", "Education"];
+/** The screens REVIEW makes, in order: empty Certifications is skipped; Languages never is (#376 —
+ *  a CV with none gets the card asking which languages the person speaks). */
+const SCREENS = ["Your details", "About you", "Nordic Retail Group", "Baltic Software House", "Skills", "Education", "Languages"];
 
 interface Recorded {
   method: string;
@@ -95,6 +98,20 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     record(route);
     box.state = { ...box.state, completed: true };
     await route.fulfill({ json: { completed: true } });
+  });
+  // #376: a work-rights tap stores that row's answer; the languages card stores the whole list.
+  await page.route("**/api/review/work-rights/*", async (route) => {
+    record(route);
+    const itemId = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop()!);
+    const { answer } = route.request().postDataJSON() as { answer: ReviewWorkRights["answer"] };
+    box.state = { ...box.state, workRights: box.state.workRights.map((r) => (r.itemId === itemId ? { ...r, answer } : r)) };
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/review/languages", async (route) => {
+    record(route);
+    const { languages } = route.request().postDataJSON() as { languages: string[] };
+    box.state = { ...box.state, languages };
+    await route.fulfill({ json: { ok: true } });
   });
   await page.route("**/api/cv/lines/*", async (route) => {
     record(route);
@@ -133,7 +150,7 @@ test("the walk opens at Your details and moves one screen per section in order, 
 
   await expect(heading(page)).toHaveText(SCREENS[0]!);
   await expect(segments(page)).toHaveCount(SCREENS.length);
-  expect(await segmentClasses(page)).toEqual(["cur", "", "", "", "", ""]);
+  expect(await segmentClasses(page)).toEqual(["cur", "", "", "", "", "", ""]);
   await expect(back(page)).toHaveCount(0); // nothing to go back to on the first screen
   await expect(primary(page)).toHaveText(`Next: ${SCREENS[1]}  →`);
 
@@ -146,11 +163,12 @@ test("the walk opens at Your details and moves one screen per section in order, 
   // A job's screen says which job, under its employer.
   await back(page).click();
   await back(page).click();
+  await back(page).click();
   await expect(heading(page)).toHaveText("Baltic Software House");
   await expect(page.locator(".bigsub")).toHaveText("Project Coordinator · Jun 2017");
   await back(page).click();
   await expect(page.locator(".bigsub")).toHaveText("IT Project Manager · Mar 2021 – now");
-  expect(await segmentClasses(page)).toEqual(["done", "done", "cur", "", "", ""]);
+  expect(await segmentClasses(page)).toEqual(["done", "done", "cur", "", "", "", ""]);
   // The last screen offers the finish, and nothing else.
   for (let i = 2; i < SCREENS.length - 1; i++) await primary(page).click();
   await expect(heading(page)).toHaveText(SCREENS.at(-1)!);
@@ -307,4 +325,105 @@ test("with the check failed to load, the screen says so and offers a retry", asy
   await expect(page.locator(".check .loadstate[role=alert]")).toBeVisible();
   await page.locator(".check .loadstate button").click();
   await expect(heading(page)).toHaveText("Your details");
+});
+
+// #376 (ADR-0018 clauses 5, 7, 8): the start asks nothing after the upload, so work rights and
+// languages are answered here. "Where you can work" is a plain card on the last screen, one row per
+// target market, the CV's proposal pre-selected but not stored until tapped; the footer button names
+// each market still open. Languages are their own screen; a CV with none gets a card asking.
+test.describe("#376 where you can work and languages", () => {
+  const row = (market: string, over: Partial<ReviewWorkRights> = {}): ReviewWorkRights => ({
+    market,
+    itemId: `eligibility-work-rights-${market.toLowerCase().replace(/\s+/g, "-")}`,
+    answer: null,
+    proposed: null,
+    note: null,
+    source: null,
+    ...over,
+  });
+  const NATIONALITY = "Nationality: Australian, based in Hong Kong.";
+  const WITH_MARKETS: ReviewState = {
+    ...REVIEW,
+    workRights: [
+      row("Hong Kong"),
+      row("Australia", { proposed: "eligible", note: "You're Australian, so I put yes.", source: NATIONALITY }),
+    ],
+  };
+  const wrRows = (page: Page) => page.locator(".wrrow");
+  const pill = (page: Page, i: number, answer: string) => wrRows(page).nth(i).locator(`input[type=radio][value="${answer}"]`);
+
+  test("the last screen asks where you can work: one row per market, the CV's proposal pre-selected, and the button names each open market until it is tapped", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_MARKETS);
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    await expect(primary(page)).toHaveText("Next: Additional information  →"); // Languages is no longer last
+    await primary(page).click();
+
+    await expect(heading(page)).toHaveText("Additional information");
+    await expect(segments(page)).toHaveCount(SCREENS.length + 1);
+    await expect(wrRows(page)).toHaveCount(2);
+    await expect(wrRows(page).locator("legend")).toHaveText(["Hong Kong", "Australia"]);
+    await expect(page.locator(".wrsrc q")).toHaveText(NATIONALITY);
+    await expect(wrRows(page).nth(1)).toContainText("You're Australian, so I put yes.");
+    // The proposal shows as the picked pill; Hong Kong has none.
+    await expect(pill(page, 1, "eligible")).toBeChecked();
+    await expect(wrRows(page).nth(0).locator("input:checked")).toHaveCount(0);
+    // Nothing is answered yet — a proposal is not an answer — so both markets hold the button.
+    await expect(primary(page)).toBeDisabled();
+    await expect(primary(page)).toHaveText("Answer Hong Kong and Australia to continue");
+    expect(calls).toEqual([]);
+
+    await pill(page, 0, "needs-sponsorship").click({ force: true });
+    await expect(primary(page)).toHaveText("Answer Australia to continue");
+    await expect(pill(page, 0, "needs-sponsorship")).toBeChecked();
+    // Tapping the pre-selected proposal is what answers it.
+    await wrRows(page).nth(1).locator(".pill").first().click();
+    await expect(primary(page)).toBeEnabled();
+    await expect(primary(page)).toHaveText("Finish my profile");
+    expect(calls).toEqual([
+      { method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-hong-kong", body: { answer: "needs-sponsorship" } },
+      { method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-australia", body: { answer: "eligible" } },
+    ]);
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Your profile is ready");
+    expect(calls.at(-1)).toEqual({ method: "POST", url: "/api/review/complete", body: null });
+  });
+
+  test("with no target market there is no work-rights card and no Additional information screen", async ({ page }) => {
+    await stubReview(page);
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Languages");
+    await expect(primary(page)).toHaveText("Finish my profile");
+    await expect(wrRows(page)).toHaveCount(0);
+  });
+
+  test("Languages: with none on the CV the screen asks which languages, saves what is typed, and reads it back", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Languages");
+    await expect(items(page)).toHaveCount(0);
+    const card = page.locator(".langs");
+    await expect(card.locator("h3")).toHaveText("Which languages do you speak?");
+    await card.locator("input").fill("English,  Polish ,");
+    await card.locator("button").click();
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/languages", body: { languages: ["English", "Polish"] } }]);
+    // Read back from the server's state, not from what was typed.
+    await expect(card.locator("input")).toHaveValue("English, Polish");
+    // Not a gate: the screen's button never waits on languages.
+    await expect(primary(page)).toBeEnabled();
+  });
+
+  test("Languages: the CV's languages are the screen's items, and no card asks", async ({ page }) => {
+    await stubReview(page, {
+      ...REVIEW,
+      sections: REVIEW.sections.map((s) => (s.tag === "lang" && "lines" in s ? { ...s, lines: [line("l1", "Polish (Native)"), line("l2", "English (Fluent)")] } : s)),
+    });
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Languages");
+    await expect(items(page)).toHaveText(["Polish (Native)", "English (Fluent)"]);
+    await expect(page.locator(".langs")).toHaveCount(0);
+  });
 });
