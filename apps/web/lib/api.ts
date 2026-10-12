@@ -681,8 +681,9 @@ export interface ContactRecord {
 }
 
 // --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
-/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere. */
-export type ReviewLineState = "ticked" | "kept" | "drafted";
+/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere.
+ *  `removal-suggested` (#380): an item the review proposes to remove, unanswered — printed nowhere. */
+export type ReviewLineState = "ticked" | "kept" | "drafted" | "removal-suggested";
 export type ReviewDraftFlag = "OPTIONAL" | "INDUSTRY GUESS";
 /** #342: a drafted line's source — the must-have it covers, in the family's words, and/or the CV's
  *  own words it came from — and its flags. Worn whatever the line's state. */
@@ -705,10 +706,10 @@ export interface ReviewFix {
   corrected: string;
   applied: boolean;
 }
-/** #341: the review's untick suggestion — quality only, never fit — with its one-sentence reason.
- *  The line stays ticked until the person acts. */
+/** #380: the review's removal suggestion — only for an item that belongs nowhere, never for a weak
+ *  one or for fit — with its one-sentence reason. The line is `removal-suggested` until answered. */
 export interface ReviewSuggestion {
-  kind: "weak" | "duplicate" | "aim-without-result";
+  kind: "duplicate" | "fragment" | "personal-data";
   reason: string;
 }
 export interface ReviewLine {

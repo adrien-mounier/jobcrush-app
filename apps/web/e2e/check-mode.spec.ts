@@ -308,3 +308,90 @@ test("with the check failed to load, the screen says so and offers a retry", asy
   await page.locator(".check .loadstate button").click();
   await expect(heading(page)).toHaveText("Your details");
 });
+
+// #380 "Remove this?" (ADR-0018 clause 4): an item the review proposes to remove — one that belongs
+// nowhere, here a date of birth — shows where it sits as a coral card, never the dashed gold frame.
+// It holds the screen's button until answered: Remove it sends the removal and lists the item under
+// the removed count, where Put back works; Keep it sends it back in as an ordinary item.
+test.describe("#380 a removal suggestion", () => {
+  const DOB = "Date of birth: 12 March 1985.";
+  const WHY = "A date of birth hurts on any CV.";
+  const suggested = (id: string, text: string) => line(id, text, { state: "removal-suggested", suggestion: { kind: "personal-data", reason: WHY } });
+  const withRemoval = (lines: ReviewLine[]): ReviewState => ({
+    ...REVIEW,
+    sections: [...REVIEW.sections, { tag: "additional", heading: "Additional Information", lines }],
+  });
+  const card = (page: Page) => page.locator("li.sg.rmv");
+  /** The Additional information screen: the last one, after REVIEW's own screens. */
+  async function toAdditional(page: Page) {
+    await page.goto("/profile/check");
+    for (let i = 0; i < SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Additional information");
+  }
+
+  test("the card sits where the item does, coral and never dashed, with its reason; it holds the button until answered; Remove it lists the item as removed and Put back restores it", async ({ page }) => {
+    const { calls } = await stubReview(page, withRemoval([line("a1", "Nationality: Polish, based in Warsaw."), suggested("a2", DOB)]));
+    await toAdditional(page);
+
+    // In place, after the item before it; the item itself is not an ordinary line.
+    await expect(items(page)).toHaveCount(1);
+    await expect(card(page)).toHaveCount(1);
+    expect(await page.locator("ul.pts > li").evaluateAll((els) => els.map((el) => el.className))).toEqual(["pt", "sg rmv"]);
+    await expect(card(page).locator(".hd")).toHaveText("Suggestion · Remove this?");
+    await expect(card(page).locator(".stxt")).toHaveText(`To remove: ${DOB}`);
+    await expect(card(page).locator(".meta")).toHaveText(`Why: ${WHY}`);
+    await expect(card(page).locator(".mark.minus svg")).toHaveCount(1);
+    // Coral: a solid left bar, no dashed frame, a wavy underline under the text.
+    const look = await card(page).evaluate((el) => {
+      const s = getComputedStyle(el);
+      const t = getComputedStyle(el.querySelector(".stxt")!);
+      return { left: s.borderLeftStyle, leftColour: s.borderLeftColor, top: s.borderTopStyle, underline: t.textDecorationLine, wavy: t.textDecorationStyle };
+    });
+    expect(look).toEqual({ left: "solid", leftColour: "rgb(224, 135, 108)", top: "none", underline: "underline", wavy: "wavy" });
+    // It holds the button, by name.
+    await expect(primary(page)).toBeDisabled();
+    await expect(primary(page)).toHaveText("Answer the suggestion to continue");
+
+    await card(page).locator(".row button:not(.ghost)").click(); // Remove it
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/lines/a2", body: { state: "kept" } }]);
+    await expect(card(page)).toHaveCount(0);
+    await expect(items(page)).toHaveCount(1);
+    await expect(primary(page)).toBeEnabled();
+    await expect(primary(page)).toHaveText("Finish my profile");
+    const count = tray(page).getByRole("button", { expanded: false });
+    await expect(count).toHaveText("1 removed · Show");
+    await count.click();
+    await expect(tray(page).locator("s")).toHaveText(DOB);
+    await tray(page).locator("li button").click(); // Put back
+    expect(calls[1]).toEqual({ method: "PUT", url: "/api/cv/lines/a2", body: { state: "ticked" } });
+    await expect(items(page)).toHaveCount(2);
+    await expect(items(page).nth(1)).toContainText(DOB);
+    await expect(tray(page)).toHaveCount(0);
+  });
+
+  test("Keep it sends the item back in as an ordinary item, and the button lets the person through", async ({ page }) => {
+    const { calls } = await stubReview(page, withRemoval([suggested("a2", DOB)]));
+    await toAdditional(page);
+    await expect(items(page)).toHaveCount(0);
+    await expect(primary(page)).toBeDisabled();
+
+    await card(page).locator(".row .ghost").click(); // Keep it
+    expect(calls).toEqual([{ method: "PUT", url: "/api/cv/lines/a2", body: { state: "ticked" } }]);
+    await expect(card(page)).toHaveCount(0);
+    await expect(items(page)).toHaveCount(1);
+    await expect(items(page).first()).toContainText(DOB);
+    await expect(tray(page)).toHaveCount(0);
+    await expect(primary(page)).toBeEnabled();
+  });
+
+  test("two open suggestions are named in the plural, and the lead counts them", async ({ page }) => {
+    await stubReview(page, withRemoval([suggested("a2", DOB), suggested("a3", "Marital status: married.")]));
+    await toAdditional(page);
+    await expect(card(page)).toHaveCount(2);
+    await expect(primary(page)).toHaveText("Answer the suggestions to continue");
+    await expect(page.locator(".lead")).toHaveText(/^2 suggestions/);
+    // A screen with nothing to answer says so.
+    await back(page).click();
+    await expect(page.locator(".lead")).toHaveText(/^Nothing to answer here/);
+  });
+});

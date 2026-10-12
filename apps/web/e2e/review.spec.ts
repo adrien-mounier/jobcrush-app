@@ -103,7 +103,9 @@ function marked(over: Partial<ReviewState> = {}): ReviewState {
           },
           {
             ...jobsOf(REVIEW)[1]!,
-            lines: [line("bsh-1", "Coordinated releases for 4 agile squads."), line("bsh-2", AIM, { suggestion: { kind: "aim-without-result", reason: REASON } })],
+            // #380 retired the untick kinds; this skipped spec's old band test takes a current kind
+            // so it still typechecks — #386 moves or deletes it (check-mode.spec.ts covers removal).
+            lines: [line("bsh-1", "Coordinated releases for 4 agile squads."), line("bsh-2", AIM, { suggestion: { kind: "duplicate", reason: REASON } })],
           },
         ],
       },

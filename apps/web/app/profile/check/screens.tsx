@@ -27,7 +27,8 @@ const TITLES: Record<string, string> = {
 };
 const LEAD_DETAILS = "Check how I read your details. Fix anything that's wrong.";
 const LEAD_QUIET = "Nothing to answer here. Edit or remove anything that's wrong.";
-const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} suggestions`} in gold below. Edit or remove anything else that's wrong.`;
+// #380: "below", not "in gold below" — a removal suggestion is coral.
+const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} suggestions`} below. Edit or remove anything else that's wrong.`;
 
 export type Screen =
   | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"] }
@@ -53,17 +54,22 @@ export function screensOf(state: ReviewState): Screen[] {
   return out;
 }
 
-/** The cards on a screen the person must answer. None today. #378 counts a job's unanswered
- *  drafted lines, #380 its open removal suggestions — the lead sentence says how many. */
-export function toAnswer(_screen: Screen): number {
-  return 0;
+/** A line's states that are a suggestion the person has not answered yet — the server's own set
+ *  (cvReview.ts OPEN_SUGGESTION_STATES). #380: an item the review proposes to remove. #378 adds
+ *  `drafted` here, nowhere else. */
+const OPEN_SUGGESTION_STATES: ReadonlySet<ReviewLine["state"]> = new Set<ReviewLine["state"]>(["removal-suggested"]);
+
+/** The cards on a screen the person must answer — the lead sentence says how many. */
+export function toAnswer(screen: Screen): number {
+  return screen.kind === "details" ? 0 : screen.lines.filter((l) => OPEN_SUGGESTION_STATES.has(l.state)).length;
 }
 
 /** What still holds the footer button on this screen, named as the button says it ("Answer X and
- *  Y to continue"). Empty today. #376 names each target market with no work-rights answer; #378
- *  and #380 add "the suggestion" / "the suggestions" after them. */
-export function blockersOf(_screen: Screen): string[] {
-  return [];
+ *  Y to continue"). #376 names each target market with no work-rights answer, before the
+ *  suggestions. */
+export function blockersOf(screen: Screen): string[] {
+  const open = toAnswer(screen);
+  return open === 0 ? [] : [open === 1 ? "the suggestion" : "the suggestions"];
 }
 
 export function leadFor(screen: Screen): string {

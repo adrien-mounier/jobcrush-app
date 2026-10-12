@@ -10,6 +10,11 @@ import type { ReviewLine } from "../../../lib/api";
 const C_EDIT = "Edit";
 const C_REMOVE = "Remove";
 const C_PUT_BACK = "Put back";
+const C_REMOVE_HD = "Suggestion · Remove this?";
+const C_TO_REMOVE = "To remove: ";
+const C_WHY = "Why: ";
+const C_REMOVE_IT = "Remove it";
+const C_KEEP_IT = "Keep it";
 const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hide" : "Show"}`;
 
 const PEN = (
@@ -49,6 +54,47 @@ export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy:
   );
 }
 
+const MINUS_BIG = (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <circle cx="10" cy="10" r="8.25" />
+    <path d="M6 10h8" />
+  </svg>
+);
+
+/** #380 (ADR-0018 clause 4): the review proposes removing an item that belongs nowhere. It sits
+ *  where the item does — a coral bar, ⊖, the text underlined wavy — never the dashed gold frame,
+ *  which is for adding. Remove it = the ordinary removal (→ the tray); Keep it = back in. */
+export function RemoveCard({ line, busy, onRemove, onKeep }: { line: ReviewLine; busy: boolean; onRemove: (id: string) => void; onKeep: (id: string) => void }) {
+  return (
+    <li className="sg rmv">
+      <span className="hd">{C_REMOVE_HD}</span>
+      <span className="sline">
+        <span className="mark minus">{MINUS_BIG}</span>
+        <span className="stxt">
+          <span className="sr-only">{C_TO_REMOVE}</span>
+          {line.text}
+        </span>
+      </span>
+      {line.suggestion && (
+        <span className="meta">
+          <span>
+            {C_WHY}
+            {line.suggestion.reason}
+          </span>
+        </span>
+      )}
+      <span className="row">
+        <button type="button" className="btn sm" disabled={busy} onClick={() => onRemove(line.id)}>
+          {C_REMOVE_IT}
+        </button>
+        <button type="button" className="btn sm ghost" disabled={busy} onClick={() => onKeep(line.id)}>
+          {C_KEEP_IT}
+        </button>
+      </span>
+    </li>
+  );
+}
+
 export function Tray({ removed, busy, bump, onPutBack, onBumpEnd }: { removed: ReviewLine[]; busy: boolean; bump: boolean; onPutBack: (id: string) => void; onBumpEnd: () => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -81,8 +127,9 @@ export interface ItemListProps {
   onPutBack: (id: string) => void;
   onBumpEnd: () => void;
   onEdit?: (id: string) => void;
-  /** What a line that is neither in nor removed renders as — a card type. None today: #378 adds
-   *  the add-suggestion card for a `drafted` line, #380 the removal card. Null draws nothing. */
+  /** What any other line that is neither in nor removed renders as — a card type: #378 adds the
+   *  add-suggestion card for a `drafted` line. (#380's removal card is routed in ItemList: its two
+   *  answers are this list's own removal and put-back.) Null draws nothing. */
   card?: (line: ReviewLine) => ReactNode;
 }
 
@@ -94,7 +141,13 @@ export function ItemList({ lines, busy, bump, onRemove, onPutBack, onBumpEnd, on
     <>
       <ul className="pts">
         {lines.map((l) =>
-          l.state === "ticked" ? <Item key={l.id} line={l} busy={busy} onRemove={onRemove} onEdit={onEdit} /> : l.state === "kept" ? null : (card?.(l) ?? null),
+          l.state === "ticked" ? (
+            <Item key={l.id} line={l} busy={busy} onRemove={onRemove} onEdit={onEdit} />
+          ) : l.state === "kept" ? null : l.state === "removal-suggested" ? (
+            <RemoveCard key={l.id} line={l} busy={busy} onRemove={onRemove} onKeep={onPutBack} />
+          ) : (
+            (card?.(l) ?? null)
+          ),
         )}
       </ul>
       {removed.length > 0 && <Tray removed={removed} busy={busy} bump={bump} onPutBack={onPutBack} onBumpEnd={onBumpEnd} />}
