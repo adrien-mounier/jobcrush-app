@@ -162,9 +162,25 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *
      *  #339: there is no floor to seed any more. Discovery asks question 1 and the eligibility
      *  questions only, and nothing but the completed review holds the jobs back - a journey that
-     *  needs a fact gets it from the CV it reads, or from the tailor step's own questions. */
+     *  needs a fact gets it from the CV it reads, or from the tailor step's own questions.
+     *
+     *  #376: discovery asks nothing after question 1, and check mode's finish is refused
+     *  (work_rights_unset) while a target market has no work-rights answer. So this answers every
+     *  open row "yes" through the card's own door first, the tap a person makes on the last screen.
+     *  A row already answered is left as it is. */
     completeReview: async () =>
       page.evaluate(async () => {
+        const state = await (await fetch('/api/review', { credentials: 'same-origin' })).json();
+        for (const row of state.workRights ?? []) {
+          if (row.answer !== null) continue;
+          const res = await fetch(`/api/review/work-rights/${encodeURIComponent(row.itemId)}`, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ answer: 'eligible' }),
+          });
+          if (!res.ok) throw new Error(`work rights for ${row.market} refused: ${res.status}`);
+        }
         // #341: the confirm is refused (409) while the review run is still going; on the fake stack
         // that is milliseconds, but a journey confirming right after the read lands can meet it.
         for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -202,6 +218,10 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *  not a bare "No". #339: after question 1 discovery asks only eligibility (work rights per
      *  market, then languages), so this is a tap on an option button - the free-text floor box is
      *  gone. Use it when the point is "keep answering until X appears".
+     *
+     *  #376: discovery asks nothing after question 1 any more, so on discovery this finds nothing
+     *  and returns false straight away - the callers' loops end there. Work rights are answered on
+     *  check mode's last screen; completeReview() above answers them over the wire.
      *
      *  Returns true if it answered something, false if no answerable control was on screen. */
     answerVisibleQuestion: async ({ note } = {}) => {

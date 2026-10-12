@@ -128,8 +128,8 @@ await assert(
   state.ok === true && (state.eligibilityOpen ?? []).length === 0,
   `#107 KEY REGRESSION: no eligibility question is re-asked by the API (still open: ${JSON.stringify(state.eligibilityOpen)})`,
 );
-// #339: both questions were ANSWERED above (not put off), which is why nothing comes back — a put-off
-// question would be asked again on this reload (eligibility-questions-journey.mjs proves that half).
+// #339: both questions were ANSWERED above (not put off), which is why nothing comes back. #376:
+// discovery asks neither any more, answered or not — check mode does.
 await qa.note(
   'Note on evidence: GET /onboarding/discovery only returns questions still in play, so an ANSWERED ' +
   'eligibility item is absent from it by design. The proof that the #107 scope change did not break ' +

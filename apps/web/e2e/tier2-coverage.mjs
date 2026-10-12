@@ -159,6 +159,9 @@ const REVIEW = [
   "apps/api/src/qaReviewAnswer.ts",
   "apps/api/prompts/cv-review.md",
   "apps/api/src/routes/review.ts",
+  // #376: check mode's "Where you can work" — its rows are on the review's read and its gate is the
+  // finish every CV journey passes (qa-driver.mjs completeReview answers it).
+  "apps/api/src/workRightsCard.ts",
   "apps/api/src/routes/cv.ts",
   "apps/api/src/claims.ts",
   "apps/web/app/review/**",
@@ -272,16 +275,9 @@ export const COVERAGE = {
     TAILOR,
     FRONT_DOOR,
   ),
-  // #106/#339: the eligibility block — the only questions after Q1 — answered/declined/corrected,
-  // and a put-off question asked again on a later visit.
-  "eligibility-questions-journey.mjs": union(
-    DISCOVERY,
-    ELIGIBILITY,
-    FAMILY_REGISTRY,
-    LABELER,
-    DECK,
-    FRONT_DOOR,
-  ),
+  // #376: nothing asked after the upload; check mode's last screen asks where she can work, holds
+  // the finish on it (screen and server), and the tap opens the deck.
+  "check-mode-work-rights-journey.mjs": union(CV_INTAKE, DISCOVERY, ELIGIBILITY, REVIEW, PROFILE, DECK),
   // #23: discovery -> reveal -> sign-in -> deck -> swipe -> tailor -> the ending and the exits.
   "tailor-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS),
   // #184/#172: the server-side search-area coverage gate at the front door, across a reload.

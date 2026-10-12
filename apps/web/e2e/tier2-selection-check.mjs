@@ -129,9 +129,11 @@ const RED_IN_262 = [
 // vocabulary feed, and the registry is exactly what decides whether a word is covered — a review of
 // this map caught the omission. Selecting it is the fail-open direction (safety rule 1), it costs
 // ~2 minutes, and AC5's actual substance is untouched: every journey that went red in #262 and is
-// still in the gate is still selected. #339 retired discovery-earns-reveal-gate.mjs, so it is NINE
-// now. If the owner wants the AC's own count back, drop FAMILY_REGISTRY from unmapped-label-feed.
-check("#262's own diff selects the 9 family-reachable journeys and skips the rest", () => {
+// still in the gate is still selected. #339 retired discovery-earns-reveal-gate.mjs, so it was
+// NINE; #376 retired eligibility-questions-journey.mjs (its discovery questions are gone), so it is
+// EIGHT now. If the owner wants the AC's own count back, drop FAMILY_REGISTRY from
+// unmapped-label-feed.
+check("#262's own diff selects the 8 family-reachable journeys and skips the rest", () => {
   const r = run(DIFF_262);
   assert.equal(r.unmatched.length, 0, `unmapped: ${r.unmatched.join(", ")}`);
   assert.deepEqual(
@@ -140,7 +142,6 @@ check("#262's own diff selects the 9 family-reachable journeys and skips the res
       "change-of-direction-derived-journey.mjs",
       "deck-family-fit-journey.mjs",
       "discovery-plan-split-journey.mjs",
-      "eligibility-questions-journey.mjs",
       "family-placement-journey.mjs",
       "family-role-name-journey.mjs",
       "family-years-scope-journey.mjs",
@@ -148,7 +149,7 @@ check("#262's own diff selects the 9 family-reachable journeys and skips the res
       "unmapped-label-feed-journey.mjs",
     ],
   );
-  assert.equal(r.skipped.length, JOURNEYS.length - 9);
+  assert.equal(r.skipped.length, JOURNEYS.length - 8);
 });
 
 // The map must be RIGHT, not merely present. #262's diff edits exactly the journey files it can
@@ -161,7 +162,7 @@ check("#262's source paths alone select the family journeys, with no help from s
     "apps/api/research/it-project-delivery-v2.json",
   ]);
   assert.equal(r.unmatched.length, 0);
-  assert.equal(r.selected.length, 9);
+  assert.equal(r.selected.length, 8);
   for (const j of RED_IN_262) assert.ok(r.selected.includes(j), `${j} must be reachable by the map alone`);
 });
 

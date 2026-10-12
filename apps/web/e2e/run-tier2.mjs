@@ -36,14 +36,13 @@ const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 // for the date question's "why this matters" line passed while the line never reached the screen,
 // because nothing else drives that render. Measured cost: ~90s, no sign-in, so it spends none of
 // auth's 5-per-15-min limiter budget.
-// eligibility-questions-journey.mjs added 2026-08-13 (#205), and it earns its slot on the same rule:
-// it is the ONLY journey that walks the eligibility block as a person does — answer, correct the
-// answer, retract it to "ask me later", reach the deck, and (#339) be asked the put-off questions
-// again on a later visit — against real stores. It had been red
-// for weeks precisely because it was in no tier: Tier 1 globs *.spec.ts and never sees a .mjs
-// journey, so the single end-to-end proof of the gate questions rotted unwatched. Measured cost:
-// ~3.5min, no sign-in, so it spends none of auth's 5-per-15-min limiter budget (it does mint two
-// anonymous sessions, well inside qa-main.ts's 1000/hr).
+// eligibility-questions-journey.mjs (#205) walked the eligibility block on discovery — answer,
+// correct, retract to "ask me later", be asked again on a later visit. #376 (ADR-0018 clause 8)
+// removed those questions from discovery, so it was retired; its slot went to
+// check-mode-work-rights-journey.mjs, the ONLY journey that walks where work rights are asked now:
+// paste a CV, nothing asked, check mode's last screen holding the finish on "Where you can work"
+// (on the screen and on the server), the tap, the finish, the deck. Measured cost: ~1.5 min, no
+// sign-in.
 // The four journeys added 2026-08-13 (#209) were the last ones sitting in NO tier — each declared a
 // stack this repo could not run, so each rotted unwatched, and two had header comments that were
 // simply false by the time anyone read them. What each one needed, and now has, is in qa-main.ts:
@@ -61,7 +60,7 @@ const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 // ticket's owner accepted when they asked for all four to be fixed rather than retired.
 export const JOURNEYS = [
   "contact-fact-journey.mjs",
-  "eligibility-questions-journey.mjs",
+  "check-mode-work-rights-journey.mjs",
   "tailor-journey.mjs",
   "search-area-coverage-journey.mjs",
   // #214: the only end-to-end proof that a typed city stays a city-level target (chips, cap,
@@ -110,8 +109,8 @@ export const JOURNEYS = [
   "front-door-role-handoff-journey.mjs",
   // non-answer-skip-journey.mjs (#324) was retired by #339: every claim it made was about the
   // free-text floor question and its "Not sure — skip", both gone. "Ask me later stores nothing" is
-  // now proven on screen by eligibility-questions-journey.mjs and server-side by
-  // apps/api/test/discoveryStopsAsking.test.ts.
+  // proven server-side by apps/api/test/discoveryStopsAsking.test.ts (#376 retired the discovery
+  // questions, and with them eligibility-questions-journey.mjs, its on-screen proof).
   "master-cv-dates-note-journey.mjs",
   // #222: the only journey that can catch the family-scoped years reading going dead on the
   // shipped journey — the exact regression its own QA gate found once already (a production

@@ -1,8 +1,9 @@
 // #338 — "Your CV, reviewed", walked the way a person walks it, over the REAL stack (fake model only):
 //
-//   1. she pastes her CV on the front door, says what she is going for, and answers the questions
-//      the CV cannot answer (#339: work rights and languages — discovery asks nothing else);
-//   2. the LAST answer hands off to "Your CV, reviewed", not the jobs (AC1);
+//   1. she pastes her CV on the front door and says what she is going for (#376: nothing is asked
+//      after that — work rights and languages moved into check mode);
+//   2. discovery hands off to "Your CV, reviewed", not the jobs (AC1) — check mode since #377, which
+//      #386 re-points this journey at;
 //   3. the paper: her letterhead first, then each job with its lines as read, all ticked (AC2);
 //   4. she unticks a line (kept), reloads, re-ticks it, reloads — each tap is what the server stored (AC3);
 //   5. a job with no end date asks on its own card; "Not sure" stores nothing; an answer corrects
@@ -122,19 +123,11 @@ await json(`/job-blocks/${bsh.id}/correct`, {
   body: JSON.stringify({ key: 'end', value: { state: 'unknown' } }),
 });
 
-// #339: what is left to ask is eligibility — work rights for her market, then languages.
-await qa.goto('/discovery', 'the questions the CV cannot answer');
-for (let i = 0; i < 8 && !/\/review/.test(page.url()); i += 1) {
-  await page.waitForTimeout(1500);
-  if (/\/review/.test(page.url())) break;
-  const multiDone = page.locator('.discovery .elig-actions .go');
-  if (await multiDone.count()) { await qa.click(multiDone.first(), 'finishes the multi-select question'); continue; }
-  if (!(await qa.answerVisibleQuestion({ note: `answers the question on screen (${i + 1})` }))) {
-    const later = page.getByRole('button', { name: 'Ask me later', exact: true });
-    if (await later.count()) await qa.click(later.first(), 'ask me later');
-    else break;
-  }
-}
+// #376 (ADR-0018 clause 8): nothing is asked after question 1 any more — work rights and languages
+// moved into check mode. Discovery only hands off.
+await qa.goto('/discovery', 'discovery — nothing is left to ask');
+await page.waitForURL(/\/profile\/check|\/review/, { timeout: 20_000 });
+await assert((await page.locator('.discovery .opts').count()) === 0, 'no question was put on screen');
 
 // ---------------------------------------------------------------------------------------------
 // 2. The last answer lands on "Your CV, reviewed", not the jobs. (AC1)
