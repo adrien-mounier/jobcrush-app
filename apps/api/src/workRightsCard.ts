@@ -10,10 +10,10 @@
 // What the CV implies is proposed, never stored (ADR-0013 clause 3): a line that names the person's
 // citizenship of a market's country proposes "yes" there, with the line quoted. Nothing else is
 // guessed — living somewhere is not a right to work there — so every other row starts open.
-import type { EligibilityStore } from "./eligibility.js";
+import type { EligibilityFact, EligibilityStore } from "./eligibility.js";
 import { answerEligibilityItem, workRightsAnswerLabel, workRightsQuestionFor, type EligibilityAnswerResult } from "./eligibilityDiscovery.js";
-import { resolvedMarketsFor } from "./postingRetrieval.js";
-import type { SearchAreaEntry } from "./sessions.js";
+import { resolvedMarketsFor, reviewOpensJobs } from "./postingRetrieval.js";
+import type { SearchAreaEntry, SessionRecord } from "./sessions.js";
 
 export type WorkRightsAnswer = "eligible" | "needs-sponsorship";
 export const WORK_RIGHTS_ANSWERS: readonly [WorkRightsAnswer, WorkRightsAnswer] = ["eligible", "needs-sponsorship"];
@@ -80,14 +80,39 @@ export async function workRightsRows(
   return rows;
 }
 
-/** The markets whose row has no answer yet — what holds the jobs (ADR-0018 clause 7). A proposal is
- *  not an answer: only the person's tap stores one. No market, nothing to hold. */
+/** The markets with no work-rights answer among the facts already read — what holds the jobs
+ *  (ADR-0018 clause 7). A proposal is not an answer: only the person's tap stores one. No market,
+ *  nothing to hold. */
+export function marketsWithoutWorkRights(
+  facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
+  searchAreas: readonly SearchAreaEntry[],
+): string[] {
+  const answered = new Set(
+    facts.filter((f) => f.dimension === "work-rights" && WORK_RIGHTS_ANSWERS.some((a) => a === f.value)).map((f) => f.familyId),
+  );
+  return resolvedMarketsFor(searchAreas).filter((m) => !answered.has(workRightsQuestionFor(m).eligibility!.familyId));
+}
+
 export async function unansweredMarkets(
-  eligibility: Pick<EligibilityStore, "get">,
+  eligibility: Pick<EligibilityStore, "list">,
   sessionId: string,
   searchAreas: readonly SearchAreaEntry[],
 ): Promise<string[]> {
-  return (await workRightsRows(eligibility, sessionId, searchAreas, [])).filter((r) => r.answer === null).map((r) => r.market);
+  return marketsWithoutWorkRights(await eligibility.list(sessionId), searchAreas);
+}
+
+/** ADR-0018 clause 7 — the jobs open when check mode is finished (reviewOpensJobs) AND every target
+ *  market has a work-rights answer, read every time, not only at Finish: a market added afterwards
+ *  (the profile's location door) or an answer taken back (its work-rights door) holds them again.
+ *  The doors that open jobs ask this — the deck, discovery's hand-off, the paste door and the job's
+ *  own screen; sessionPostings, behind the deck, keeps the completion half. A session that brought
+ *  no CV is never held. */
+export function jobsOpen(
+  session: Pick<SessionRecord, "importProof" | "reviewCompletedAt" | "intent">,
+  facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
+): boolean {
+  if (!reviewOpensJobs(session)) return false;
+  return session.importProof === null || marketsWithoutWorkRights(facts, session.intent.searchAreas).length === 0;
 }
 
 /** The person's tap on a row. Only this session's own markets answer here (404 otherwise), and the

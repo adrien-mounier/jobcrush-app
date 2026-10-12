@@ -41,7 +41,7 @@ import {
   type ReviewState,
 } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
-import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
+import { blockersOf, leadFor, proposalsToSave, ScreenBody, screensOf, type Screen } from "./screens";
 
 const C_BACK = "‹ Back";
 const C_FINISH = "Finish my profile";
@@ -241,7 +241,15 @@ export default function CheckPage() {
       setAboutDraft(null);
     }
     const changes = detailChanges();
-    const save = Object.keys(changes).length > 0 ? () => saveContactFields(changes) : null;
+    // #376: the pre-filled work-rights rows this press confirms are stored now, never before.
+    const proposals = proposalsToSave(screen);
+    const save =
+      Object.keys(changes).length > 0 || proposals.length > 0
+        ? async () => {
+            if (Object.keys(changes).length > 0) await saveContactFields(changes);
+            for (const r of proposals) await setWorkRights(r.itemId, r.proposed!);
+          }
+        : null;
     if (last)
       return void write(
         async () => {

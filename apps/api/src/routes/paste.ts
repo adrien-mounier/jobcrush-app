@@ -32,7 +32,7 @@ import {
 } from "../deck.js";
 import { readingLanguages } from "../language.js";
 import { eligiblePostings, type Posting } from "../preview.js";
-import { reviewOpensJobs } from "../postingRetrieval.js";
+import { jobsOpen } from "../workRightsCard.js";
 import {
   addPastedApplicationUrl,
   isWebLink,
@@ -276,8 +276,9 @@ export function pasteRoutes(deps: PasteDeps) {
         if (!job) return void (await fail("error"));
         // #338 (ADR-0016 clause 6): a CV that waits to be reviewed is scored against nothing — the
         // advert is stored and read, the card is not built, and the screen he lands on sends him to
-        // the review (its own 409 below). The same door, held the same way as the deck's.
-        if (!reviewOpensJobs(session)) {
+        // the review (its own 409 below). The same door, held the same way as the deck's — ADR-0018
+        // clause 7's work rights included (jobsOpen).
+        if (!jobsOpen(session, await deps.eligibility.list(session.id))) {
           state.result = { adId: outcome.adId, reused: outcome.reused, pastedAt: outcome.pastedAt };
           return void (await push({ status: "completed" }));
         }
@@ -347,7 +348,8 @@ export function pasteRoutes(deps: PasteDeps) {
       const session = requireSession(req);
       // #338 (ADR-0016 clause 6): no job is shown until a brought CV is reviewed — this screen included.
       // 409 with its own code, so the screen can open the review instead of calling the job gone.
-      if (!reviewOpensJobs(session)) return reply.status(409).send({ error: REVIEW_PENDING });
+      // ADR-0018 clause 7: and none while a target market has no work-rights answer.
+      if (!jobsOpen(session, await deps.eligibility.list(session.id))) return reply.status(409).send({ error: REVIEW_PENDING });
       const job = await broughtJobFor(session, req.params.adId);
       if (!job) return reply.status(404).send(UNKNOWN_CARD);
       const built = await cardFor(session, job);

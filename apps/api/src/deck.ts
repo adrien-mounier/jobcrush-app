@@ -67,9 +67,9 @@ import {
 import {
   retrievalFingerprint,
   retrievalRequestForSession,
-  reviewOpensJobs,
   type RetrievalRequest,
 } from "./postingRetrieval.js";
+import { jobsOpen } from "./workRightsCard.js";
 import { retrievalIsInProgress } from "./deckRetrieval.js";
 import { fallbackOffer } from "./deckFallback.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
@@ -1007,8 +1007,9 @@ export async function buildDeckResponse(
   // #338 (ADR-0016 clause 6): a CV that has not been reviewed earns no deck — not even a retrieval.
   // The posting pool below would refuse the cards anyway (sessionPostings, the gate every reader
   // passes through); answering here as well is what lets the screen send the person to the review
-  // instead of a dead end, and keeps the provider unasked for a deck nobody may see yet.
-  if (!reviewOpensJobs(session)) {
+  // instead of a dead end, and keeps the provider unasked for a deck nobody may see yet. ADR-0018
+  // clause 7: a target market with no work-rights answer holds it the same way (jobsOpen).
+  if (!jobsOpen(session, facts)) {
     return {
       stage: session.stage,
       cards: [],

@@ -1456,7 +1456,7 @@ test.describe("#376 where you can work and languages", () => {
   const wrRows = (page: Page) => page.locator(".wrrow");
   const pill = (page: Page, i: number, answer: string) => wrRows(page).nth(i).locator(`input[type=radio][value="${answer}"]`);
 
-  test("the last screen asks where you can work: one row per market, the CV's proposal pre-selected, and the button names each open market until it is tapped", async ({ page }) => {
+  test("the last screen asks where you can work: one row per market, the CV's proposal pre-selected and counted as answered, and the button names each market with no answer", async ({ page }) => {
     const { calls } = await stubReview(page, WITH_MARKETS);
     await page.goto("/profile/check");
     for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
@@ -1472,25 +1472,50 @@ test.describe("#376 where you can work and languages", () => {
     // The proposal shows as the picked pill; Hong Kong has none.
     await expect(pill(page, 1, "eligible")).toBeChecked();
     await expect(wrRows(page).nth(0).locator("input:checked")).toHaveCount(0);
-    // Nothing is answered yet — a proposal is not an answer — so both markets hold the button.
+    // ADR-0018 clauses 3 and 5: the pre-filled market counts as answered on the screen; only Hong
+    // Kong, with nothing proposed, holds the button. Nothing is stored before the press.
     await expect(primary(page)).toBeDisabled();
-    await expect(primary(page)).toHaveText("Answer Hong Kong and Australia to continue");
+    await expect(primary(page)).toHaveText("Answer Hong Kong to continue");
     expect(calls).toEqual([]);
 
     await pill(page, 0, "needs-sponsorship").click({ force: true });
-    await expect(primary(page)).toHaveText("Answer Australia to continue");
     await expect(pill(page, 0, "needs-sponsorship")).toBeChecked();
-    // Tapping the pre-selected proposal is what answers it.
-    await wrRows(page).nth(1).locator(".pill").first().click();
     await expect(primary(page)).toBeEnabled();
     await expect(primary(page)).toHaveText("Finish my profile");
-    expect(calls).toEqual([
-      { method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-hong-kong", body: { answer: "needs-sponsorship" } },
-      { method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-australia", body: { answer: "eligible" } },
-    ]);
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-hong-kong", body: { answer: "needs-sponsorship" } }]);
+    // The button confirms the screen: it saves the proposal it confirms, then finishes.
     await primary(page).click();
     await expect(heading(page)).toHaveText("Your profile is ready");
-    expect(calls.at(-1)).toEqual({ method: "POST", url: "/api/review/complete", body: null });
+    expect(calls.slice(1)).toEqual([
+      { method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-australia", body: { answer: "eligible" } },
+      { method: "POST", url: "/api/review/complete", body: null },
+    ]);
+  });
+
+  test("a proposal the person changes is saved as they picked it, and the button saves nothing twice", async ({ page }) => {
+    const { calls } = await stubReview(page, { ...WITH_MARKETS, workRights: [WITH_MARKETS.workRights[1]!] });
+    await page.goto("/profile/check");
+    for (let i = 1; i <= SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Additional information");
+    await expect(primary(page)).toHaveText("Finish my profile");
+    await pill(page, 0, "needs-sponsorship").click({ force: true });
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Your profile is ready");
+    expect(calls).toEqual([
+      { method: "PUT", url: "/api/review/work-rights/eligibility-work-rights-australia", body: { answer: "needs-sponsorship" } },
+      { method: "POST", url: "/api/review/complete", body: null },
+    ]);
+  });
+
+  // ADR-0018 clause 7: a market added after Finish brings check mode back with no item to walk
+  // again (`newItems: []`) — only the card.
+  test("check mode brought back by a market with no answer shows the card alone", async ({ page }) => {
+    await stubReview(page, { ...WITH_MARKETS, completed: true, newItems: [], workRights: [row("Hong Kong")] });
+    await page.goto("/profile/check");
+    await expect(segments(page)).toHaveCount(1);
+    await expect(heading(page)).toHaveText("Additional information");
+    await expect(wrRows(page)).toHaveCount(1);
+    await expect(primary(page)).toHaveText("Answer Hong Kong to continue");
   });
 
   test("with no target market there is no work-rights card and no Additional information screen", async ({ page }) => {

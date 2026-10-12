@@ -2,9 +2,10 @@
 
 // #376 — the person's own facts on check mode (ADR-0018 clauses 5 and 8), in plain cards, never in a
 // suggestion frame. "Where you can work": one row per target market, two pills, the CV's proposal
-// shown picked but stored only when tapped — so tapping the picked pill is what answers it. The
-// footer button names each market still open (screens.tsx blockersOf); the server refuses the
-// finish too. "Which languages do you speak?": the Languages screen's card when the CV lists none.
+// shown picked and counted as answered on the screen; nothing is stored until a tap, or the footer
+// button that confirms the screen (screens.tsx proposalsToSave). The button names each market with
+// neither (blockersOf); the server refuses the finish too. "Which languages do you speak?": the
+// Languages screen's card when the CV lists none.
 import { useEffect, useState } from "react";
 import type { ReviewState, ReviewWorkRights, WorkRightsAnswer } from "../../../lib/api";
 

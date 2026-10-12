@@ -138,8 +138,9 @@ export interface ReviewState {
    *  (languages-by-market.json), so it grows with the data. Anything else typed is kept as written. */
   languageOptions: string[];
   /** #385 (ADR-0018 clause 3): check mode brought back by a re-upload shows only these items — the
-   *  ones the re-upload brought, and the suggestions made on them. Null for the first check mode,
-   *  which shows every item. */
+   *  ones the re-upload brought, and the suggestions made on them. Empty when a target market with
+   *  no work-rights answer brought a finished check mode back (ADR-0018 clause 7): only that card
+   *  shows. Null for the first check mode, which shows every item. */
   newItems: string[] | null;
 }
 
@@ -248,6 +249,8 @@ export interface Paper {
   /** Every job on the paper, with its family placement — the run's units and its JOB PLACEMENTS —
    *  and the role heading its lines are filed under, which a drafted line for it is stored with. */
   jobs: Array<{ job: ReviewJob; block: JobBlockView | null; role: string }>;
+  /** The claims behind the lines, as read (on the paper, CV order) — so a caller needs no second read. */
+  claims: ClaimRecord[];
 }
 
 export interface PaperDeps {
@@ -282,6 +285,7 @@ export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Pap
           : { tag, heading, lines: (byTag.get(tag) ?? []).map(toLine) },
     ),
     jobs: jobs.map((job) => ({ job, block: blocks.find((b) => b.id === job.blockId) ?? null, role: roles.get(job.id)! })),
+    claims: visible,
   };
 }
 
@@ -354,12 +358,18 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   // By job: a re-upload's unit (#385) answers for the same job as the first run's, and the latest wins.
   const results = new Map(run?.units.flatMap((u) => (u.result ? [[unitOf(u.unit).job, u.result] as const] : [])) ?? []);
   const asking = new Set(run?.units.flatMap((u) => (u.result ? [] : [unitOf(u.unit).job])) ?? []);
-  const since = session.reviewSince;
-  const newItems =
-    since === null ? null : (await deps.claims.list(session.id)).filter((c) => onPaper(c) && (c.seq ?? 0) > since).map((c) => c.id);
   const conflict = session.importProof?.conflict ?? null;
   const lineTexts = paper.sections.flatMap((s) => ("jobs" in s ? s.jobs.flatMap((j) => j.lines) : s.lines)).map((l) => l.text);
   const workRights = await workRightsRows(deps.eligibility, session.id, session.intent.searchAreas, lineTexts);
+  // A finished check mode that a market with no work-rights answer brought back (jobsOpen holds the
+  // jobs) shows no item again — only that card. A re-upload's (#385) shows the items it brought.
+  const since = session.reviewSince;
+  const newItems =
+    session.reviewCompletedAt !== null && workRights.some((r) => r.answer === null)
+      ? []
+      : since === null
+        ? null
+        : paper.claims.filter((c) => (c.seq ?? 0) > since).map((c) => c.id);
   // Off the units, not `results`: a re-upload's unit (#385) replaces its job's result and writes none.
   const generated = run?.units.find((u) => u.result?.about)?.result?.about ?? null;
   const summary = paper.sections.find((s) => s.tag === "profile");

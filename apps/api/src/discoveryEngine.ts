@@ -26,7 +26,8 @@ import {
 } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import { readingLanguages } from "./language.js";
-import { retrievalFingerprint, retrievalRequestForSession, reviewOpensJobs } from "./postingRetrieval.js";
+import { retrievalFingerprint, retrievalRequestForSession } from "./postingRetrieval.js";
+import { jobsOpen } from "./workRightsCard.js";
 import { retrievedPostingCount } from "./preview.js";
 import { pinnedOrDerived, planPinned, planUpgradable, samePlan } from "./sessions.js";
 import type { DiscoveryPlan, SessionRecord, SessionStore } from "./sessions.js";
@@ -254,12 +255,10 @@ export async function answerQuestionOne(
  *  #106's stored eligibility facts. Fifth (blocks) is #162's dated job records, whose unknown ends
  *  are asked instead of a years total (ADR-0008 clause 3). Callers that need fewer destructure fewer.
  *  #376: the CV's languages no longer ride here — nothing asks the languages question any more. */
-export type DiscoveryReads = DeckDiscoveryReads;
-
 export async function discoveryReads(
   deps: { claims: Pick<ClaimStore, "confirmed" | "negatives" | "list">; eligibility: Pick<EligibilityStore, "list">; jobBlocks: Pick<JobBlockStore, "list"> },
   sessionId: string,
-): Promise<DiscoveryReads> {
+): Promise<DeckDiscoveryReads> {
   const [confirmed, negatives, all, facts, blocks] = await Promise.all([
     deps.claims.confirmed(sessionId),
     deps.claims.negatives(sessionId),
@@ -280,15 +279,16 @@ export async function discoveryReads(
  *  still write through it. */
 export function buildDiscoveryRouteState(
   role: string | null,
-  reads: DiscoveryReads,
+  reads: DeckDiscoveryReads,
   session: Pick<SessionRecord, "intent" | "promiseOpenJobs" | "importProof" | "reviewCompletedAt">,
   family: DiscoveryFamily | null,
 ): DiscoveryState {
-  const [confirmed, negatives] = reads;
+  const [confirmed, negatives, , facts] = reads;
   const state = discoveryState(role, confirmed, negatives, family, session.promiseOpenJobs);
   state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
-  // #338: where the last answer hands off — "Your CV, reviewed" while a brought CV is unreviewed,
-  // the jobs otherwise. The server owns the gate (postingRetrieval.ts); this only tells the screen.
-  state.reviewPending = !reviewOpensJobs(session);
+  // #338: where the last answer hands off — check mode while a brought CV is unchecked or a target
+  // market has no work-rights answer, the jobs otherwise. The server owns the gate (jobsOpen); this
+  // only tells the screen.
+  state.reviewPending = !jobsOpen(session, facts);
   return state;
 }

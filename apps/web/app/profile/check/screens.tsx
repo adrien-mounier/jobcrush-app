@@ -151,11 +151,19 @@ export function toAnswer(screen: Screen): number {
   return screen.kind === "details" || screen.kind === "about" ? 0 : screen.lines.filter((l) => OPEN_SUGGESTION_STATES.has(l.state)).length;
 }
 
+/** The work-rights rows the footer button saves as it confirms the screen (ADR-0018 clauses 3 and
+ *  5): each one pre-filled from the CV that the person has not answered — the screen counts the
+ *  proposal as their answer, and the press is what stores it. */
+export const proposalsToSave = (screen: Screen | undefined): ReviewWorkRights[] =>
+  screen?.kind === "section" && screen.workRights ? screen.workRights.filter((r) => r.answer === null && r.proposed !== null) : [];
+
 /** What still holds the footer button on this screen, named as the button says it ("Answer X and
- *  Y to continue"). #376: each target market with no work-rights answer first, by name — a
- *  proposal from the CV is not an answer; then the open suggestions. */
+ *  Y to continue"). #376: each target market with neither an answer nor a proposal from the CV
+ *  first, by name — a pre-filled market counts as answered here and is saved by the button; then
+ *  the open suggestions. */
 export function blockersOf(screen: Screen): string[] {
-  const markets = screen.kind === "section" && screen.workRights ? screen.workRights.filter((r) => r.answer === null).map((r) => r.market) : [];
+  const markets =
+    screen.kind === "section" && screen.workRights ? screen.workRights.filter((r) => (r.answer ?? r.proposed) === null).map((r) => r.market) : [];
   const n = toAnswer(screen);
   return [...markets, ...(n === 0 ? [] : [n === 1 ? "the suggestion" : "the suggestions"])];
 }

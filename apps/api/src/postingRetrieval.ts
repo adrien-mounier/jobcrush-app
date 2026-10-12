@@ -65,7 +65,9 @@ export function searchFamilyOf(
  *  the end of "Your CV, reviewed" and confirmed it. A session with no CV has nothing to review and
  *  is not held. preview.ts's sessionPostings asks it, so every posting reader — the deck, the want
  *  door, the tailor target — gets it without being able to forget it. #339 removed the floor gate
- *  that sat beside it: discovery no longer asks the floor, so nothing could cover it. */
+ *  that sat beside it: discovery no longer asks the floor, so nothing could cover it. ADR-0018
+ *  clause 7 adds work rights per target market: the doors that open jobs ask workRightsCard.ts's
+ *  jobsOpen, which is this AND every market answered (it needs the eligibility facts this has not). */
 export function reviewOpensJobs(session: Pick<SessionRecord, "importProof" | "reviewCompletedAt">): boolean {
   return session.importProof === null || session.reviewCompletedAt !== null;
 }

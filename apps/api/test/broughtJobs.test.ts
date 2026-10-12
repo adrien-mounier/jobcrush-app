@@ -21,6 +21,7 @@ import type { JobRecord } from "../src/jobs.js";
 import type { PasteProgress } from "../src/routes/paste.js";
 import type { Posting } from "../src/preview.js";
 import { answerLanguageLevel, LANGUAGE_NOT_AT_ALL } from "../src/languageLevel.js";
+import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 
 const ROLE = "IT project manager in Hong Kong";
 
@@ -308,6 +309,62 @@ describe("#338 a job he brought waits for the review too", () => {
     const open = await app.inject({ method: "GET", url: `/onboarding/jobs/${encodeURIComponent(adId)}`, headers: { cookie } });
     expect(open.statusCode).toBe(200);
     expect(open.json().card.adId).toBe(adId);
+  });
+
+  // ADR-0018 clause 7 / Verification: the jobs wait for work rights in every target market — not
+  // only at Finish. A market added after Finish (the profile's location door), or an answer taken
+  // back with "Not sure" (the profile's work-rights door), holds the deck, the job's own screen and
+  // the paste door again until that market is answered; check mode then shows only that card.
+  it("a target market with no work-rights answer holds every door again after Finish, until it is answered", async () => {
+    const built = broughtServer({ placed: true, retrievePostings: fixtureRetriever([FOUND]) });
+    const { app } = built;
+    const cookie = await readyForDeck(app);
+    const get = (url: string) => app.inject({ method: "GET", url, headers: { cookie } });
+    const put = (url: string, payload: unknown) => app.inject({ method: "PUT", url, headers: { cookie }, payload });
+    const sessionId = (await get("/sessions/me")).json().id as string;
+    await built.sessions.setImportProof(sessionId, { outcome: "success", usefulFactCount: 1, representativeFacts: [], conflict: null });
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+    const adId = await paste(app, cookie, PASTED);
+    const jobScreen = () => get(`/onboarding/jobs/${encodeURIComponent(adId)}`);
+    expect((await jobScreen()).statusCode).toBe(200);
+    expect((await deck(app, cookie)).cards.length).toBeGreaterThan(0);
+
+    const held = async () => {
+      expect((await get("/onboarding/cards")).json()).toMatchObject({ reviewPending: true, cards: [] });
+      expect((await get("/onboarding/discovery")).json()).toMatchObject({ reviewPending: true });
+      const screen = await jobScreen();
+      expect(screen.statusCode).toBe(409);
+      expect(screen.json().error.code).toBe("review_pending");
+      // The paste door stores and reads a job, and scores nothing against it while held.
+      const started = await post(app, cookie, "/onboarding/paste", { text: advert("Programme Manager") });
+      expect(started.statusCode).toBe(202);
+      let result: PasteProgress["result"] | undefined;
+      for (let attempt = 0; attempt < 500 && !result; attempt += 1) {
+        const job = (await get(`/jobs/${started.json().jobId}`)).json() as JobRecord;
+        if (job.status === "completed" || job.status === "failed") result = (job.progress as { paste?: PasteProgress }).paste?.result;
+        else await new Promise((resolve) => setImmediate(resolve));
+      }
+      expect(result).toBeDefined();
+      expect(result).not.toHaveProperty("card");
+      // Check mode comes back for that market alone: no item to walk again, the work-rights row open.
+      const review = (await get("/review")).json();
+      expect(review.newItems).toEqual([]);
+      expect(review.workRights).toMatchObject([{ market: "Hong Kong", answer: null }]);
+    };
+
+    expect((await put("/sessions/me/intent", { searchAreas: ["Hong Kong"] })).statusCode).toBe(200);
+    await held();
+    expect((await put("/review/work-rights/eligibility-work-rights-hong-kong", { answer: "eligible" })).statusCode).toBe(200);
+    expect((await jobScreen()).statusCode).toBe(200);
+    expect((await get("/review")).json().newItems).toBeNull();
+
+    // Taken back on the profile's own door (its decline stores nothing): held again.
+    const declined = await post(app, cookie, "/onboarding/discovery/answer", { itemId: "eligibility-work-rights-hong-kong", answer: DECLINE_OPTION });
+    expect(declined.statusCode).toBe(200);
+    await held();
+    expect((await put("/review/work-rights/eligibility-work-rights-hong-kong", { answer: "needs-sponsorship" })).statusCode).toBe(200);
+    expect((await jobScreen()).statusCode).toBe(200);
+    expect((await deck(app, cookie)).cards.length).toBeGreaterThan(0);
   });
 });
 
