@@ -114,8 +114,10 @@ F. ABOUT YOU. Only when `sections` is listed. Write `about`: one short text abou
 
 G. MOVES. Only when `sections` is listed. A line in the summary that belongs in another section a
    reader expects (a language in the summary belongs in Languages; a certification in
-   Certifications; a degree in Education; a tool list in Skills) is named in `moves` with the
-   section it moves to, by that section's name: skills | certifications | education | languages.
+   Certifications; a degree in Education; a tool list in Skills; a personal project in Personal
+   Projects; a nationality or a work permit in Additional Information) is named in `moves` with the
+   section it moves to, by that section's name: skills | certifications | education | languages |
+   personal projects | additional information.
    Only summary lines move, and only to one of those sections. A move changes no word of the line;
    the caller moves it and tags it. A line that reads as a sentence about the candidate stays in the
    summary.
@@ -134,7 +136,7 @@ including the candidate's own mistakes.
 {
   "letterhead": { "checks": ["<one sentence per thing to check, or none>"] },
   "about": { "text": "<the About you text>" },
-  "moves": [{ "line": "<id of a summary line>", "to": "<skills | certifications | education | languages>" }],
+  "moves": [{ "line": "<id of a summary line>", "to": "<skills | certifications | education | languages | personal projects | additional information>" }],
   "sections": [
     {
       "section": "<summary | skills | education | languages | additional | projects>",

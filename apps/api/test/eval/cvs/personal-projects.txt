@@ -1,0 +1,34 @@
+Maria Albuquerque
+Lisbon, Portugal | maria.albuquerque@example.com | +351 910 000 000
+
+PROFESSIONAL SUMMARY
+Delivery lead with 6 years in retail software, from store systems to online checkout.
+Known for calm vendor negotiations and clear status reporting to directors.
+
+PROFESSIONAL EXPERIENCE
+
+Iberia Retail Systems - Delivery Lead
+March 2021 - Present
+- Led the replacement of the point-of-sale platform across 140 stores, delivered on budget.
+- Ran weekly steering with the operations director and two vendors.
+
+Porto Software Studio - Project Coordinator
+June 2018 - February 2021
+- Coordinated releases for three agile squads on a two-week cadence.
+
+PERSONAL PROJECTS
+- Built a solar-powered garden sensor network with a small web dashboard that charts soil moisture for 12 beds.
+- Maintain a family recipe wiki with 300 entries and a search index built from plain text files.
+
+SKILLS
+Jira, MS Project, Confluence, SQL
+
+EDUCATION
+University of Lisbon, BSc Computer Science, 2017
+
+LANGUAGES
+Portuguese (native), English (fluent), Spanish (conversational)
+
+ADDITIONAL INFORMATION
+Nationality: Portuguese, based in Lisbon, Portugal
+Driving licence: category B

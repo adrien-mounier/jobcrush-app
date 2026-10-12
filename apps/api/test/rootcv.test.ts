@@ -37,6 +37,37 @@ describe("JC-27 renderRootCv", () => {
     );
   });
 
+  // #373: a CV whose summary is followed by personal projects and a nationality line. Before, all
+  // of those printed under the summary; the master CV now files each under its own heading, in the
+  // order cv-authoring-rules.md fixes (Personal Projects right after the jobs, Additional last).
+  it("#373: personal projects print after the jobs and the nationality line last; the summary keeps only its own sentences", () => {
+    const summary = [
+      claim({ id: "profile-years", role: "profile", text: "Delivery lead with 6 years in retail software." }),
+      claim({ id: "profile-strength", role: "profile", text: "Known for calm vendor negotiations." }),
+    ];
+    const projects = [
+      claim({ id: "project-garden-sensors", role: "profile", text: "Built a solar-powered garden sensor network with a small web dashboard." }),
+      claim({ id: "project-recipe-wiki", role: "profile", text: "Maintain a family recipe wiki with 300 entries." }),
+    ];
+    const nationality = claim({ id: "additional-nationality", role: "profile", text: "Nationality: Portuguese, based in Lisbon, Portugal." });
+    const { markdown, trace } = renderRootCv(buildClaimGraph([...summary, ...projects, nationality, ...confirmed]));
+
+    const headings = markdown.split("\n").filter((l) => l.startsWith("## "));
+    expect(headings).toEqual([
+      "## Professional Summary",
+      "## Professional Experience",
+      "## Personal Projects",
+      "## Certifications",
+      "## Additional Information",
+    ]);
+    const under = (section: string) => trace.entries.filter((e) => e.section === section).map((e) => e.nodeIds[0]);
+    expect(under("Professional Summary")).toEqual(["profile-years", "profile-strength", "profile-stakeholder"]);
+    expect(under("Personal Projects")).toEqual(["project-garden-sensors", "project-recipe-wiki"]);
+    expect(under("Additional Information")).toEqual(["additional-nationality"]);
+    // Nothing lost on the way: every claim prints exactly once.
+    expect(trace.entries).toHaveLength(summary.length + projects.length + 1 + confirmed.length);
+  });
+
   it("never renders a non-renderable (gap) node", () => {
     const graph = buildClaimGraph(confirmed);
     const gap: ClaimNode = {
