@@ -42,9 +42,10 @@ import { InMemoryEligibilityStore } from "../src/eligibility.js";
 import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
-import type { ReviewLine, ReviewState } from "../src/cvReview.js";
-import { aboutIssues, keepAliveOverHttp, parseReviewAnswer } from "../src/cvReviewRun.js";
-import { parseReviewPrompt, qaReviewAnswer } from "../src/qaReviewAnswer.js";
+import type { Paper, ReviewLine, ReviewState } from "../src/cvReview.js";
+import { aboutIssues, keepAliveOverHttp, parseReviewAnswer, planTools, resolveAbout, reviewPrompt, type ReviewAnswer } from "../src/cvReviewRun.js";
+import type { ClaimRecord } from "../src/claims.js";
+import { parseReviewPrompt, QA_SKILL_GROUP, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 type Server = ReturnType<typeof buildServer>;
@@ -266,7 +267,8 @@ describe("#341 the run", () => {
     expect(first).toContain("- j2: Project Coordinator — Baltic Software House → none");
     expect(first).toContain("# Jane Doe");
     expect(first).toContain("### IT Project Manager — Nordic Retail Group (j1)\n**Mar 2021 – now**\n\n- [nrg-led-checkout] Led the checkout replatform.\n- [nrg-managed-budget] " + TYPO_LINE);
-    expect(first).toContain("## Skills\n\n- [skill-tools] Has skills in Jira and MS Projcet.");
+    // #382: Skills by group — a skill the CV gave no group sits under the heading SKILL GROUPS names.
+    expect(first).toContain("## Skills\n\n### (no group)\n\n- [skill-tools] Has skills in Jira and MS Projcet.");
     expect(first.startsWith("You review a candidate's CV, job by job")).toBe(true); // the shipped prompt, header comment stripped
 
     const state = await reviewed(app, cookie);
@@ -1077,6 +1079,67 @@ describe("#371 the About you lint — the brain's banned shapes, counted", () =>
   });
 });
 
+// #371 AC "It has no identity opener or capability claim": the lint stops bad text, not only counts
+// it. A sentence with either shape is dropped before About you is stored (counted); with nothing
+// left, no About you is stored and the screen shows the CV's own summary to edit.
+describe("#371 About you keeps only the sentences the brain allows", () => {
+  const paper = { letterhead: {}, sections: [], jobs: [], claims: [] } as unknown as Paper;
+  const about = (text: string) => resolveAbout({ letterhead: null, sections: null, about: { text }, jobs: [], refused: [] }, paper);
+
+  it("drops the identity opener and each capability claim, keeps the rest in order, and counts each drop", () => {
+    expect(about("Senior Project Manager with 7+ years of experience. Led the checkout replatform for Nordic Retail Group, managing EUR 1.2M. Proven ability to deliver. Coordinated releases for 4 agile squads.")).toEqual({
+      text: "Led the checkout replatform for Nordic Retail Group, managing EUR 1.2M. Coordinated releases for 4 agile squads.",
+      original: null,
+    });
+    expect(readCounters()["cvReview.about_sentence_dropped"]).toBe(2);
+  });
+
+  it("stores no About you when every sentence is dropped; a clean text passes untouched", () => {
+    expect(about("Results-driven delivery lead. Expertise in Jira and Confluence.")).toBeUndefined();
+    expect(readCounters()["cvReview.about_sentence_dropped"]).toBe(2);
+    const clean = "Led the checkout replatform for Nordic Retail Group, managing EUR 1.2M across 3 vendor teams.";
+    expect(about(clean)).toEqual({ text: clean, original: null });
+  });
+});
+
+// #383 AC "An achievement that uses a tool stays under its job, unchanged" (ADR-0018: nothing is
+// removed silently): a line leaves its job for Skills only when, after an optional "Label:", every
+// item #382's split cuts it into is a tool the model listed for it. Anything else stays where it is
+// (counted) and only the tools it names are copied, as for an achievement.
+describe("#383 a tool list leaves its job only when it is one", () => {
+  const rec = (id: string, text: string): ClaimRecord => ({ ...claim({ id, role: NRG, text }), decision: "confirmed", origin: "mined", lineState: "ticked", originalText: null, groupName: null });
+  const job = (toolLists: ReviewAnswer["jobs"][number]["toolLists"]): ReviewAnswer["jobs"][number] => ({
+    job: "nrg", family: null, fixes: [], judgements: [], mustHaves: [], drafted: [], endDateMissing: false, conflicts: [], toolLists, toolsUsed: [],
+  });
+  const LIST = rec("nrg-tools", "Tools: JIRA, Confluence, MS Project");
+  const ACHIEVEMENT = rec("nrg-aws", "Led the move to AWS, cutting hosting costs by 20%.");
+
+  it("a real tool list moves, one item per tool", () => {
+    const plan = planTools(job([{ line: LIST.id, tools: ["JIRA", "Confluence", "MS Project"] }]), [LIST, ACHIEVEMENT], []);
+    expect(plan.leave).toEqual([LIST.id]);
+    expect(plan.add.map((a) => [a.claim.text, a.claim.groupName, a.copied])).toEqual([
+      ["JIRA", "Tools", false],
+      ["Confluence", "Tools", false],
+      ["MS Project", "Tools", false],
+    ]);
+  });
+
+  it("an achievement the model wrongly lists as a tool list stays under its job; its tool is copied", () => {
+    const plan = planTools(job([{ line: ACHIEVEMENT.id, tools: ["AWS"] }]), [LIST, ACHIEVEMENT], []);
+    expect(plan.leave).toEqual([]);
+    expect(plan.add.map((a) => [a.claim.text, a.copied])).toEqual([["AWS", true]]);
+    expect(readCounters()["cvReview.tool_list_refused"]).toBe(1);
+  });
+
+  it("a list holding an item the model did not list, or an entry naming no tools (the answer before this check), stays", () => {
+    const partly = planTools(job([{ line: LIST.id, tools: ["JIRA", "Confluence"] }]), [LIST], []);
+    expect(partly.leave).toEqual([]);
+    const bare = planTools(job([LIST.id]), [LIST], []);
+    expect(bare).toEqual({ leave: [], add: [] });
+    expect(readCounters()["cvReview.tool_list_refused"]).toBe(2);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------
 // #363 — the keep-alive over HTTP: a request held open through Fly's proxy is the one thing that
 // reads as load to its auto-stop (a request every few seconds does not — see lessons.md).
@@ -1144,6 +1207,18 @@ describe("#341 the answer, as the product model wrote it", () => {
     const thin = parseReviewAnswer(fixture("cv-review-fable-5-1-thin-run1.json"));
     expect(thin.jobs[0]!.drafted.length).toBe(8);
     expect(thin.jobs[0]!.drafted[0]!.vague[0]!.options[0]).toMatchObject({ from: "CV" });
+  });
+
+  // #386 retired the COMPLETE stamp; the prompt no longer pays for it. The stored answers above
+  // carry it and still parse — the field is dropped on read like any stray key.
+  it("the prompt asks for no COMPLETE stamp, the fake writes none, and a stored answer carrying one still reads", () => {
+    expect(fixture("cv-review-fable-5-1-run1.json")).toContain('"complete"');
+    expect(parseReviewAnswer(fixture("cv-review-fable-5-1-run1.json")).jobs[0]).not.toHaveProperty("complete");
+    expect(reviewPrompt()).not.toMatch(/\bcomplete\b/);
+    const prompt = `${reviewPrompt()}\n\n=== JOB FAMILIES ===\n\n=== JOB PLACEMENTS ===\n- j1: PM → none\n\n=== JOBS TO REVIEW ===\nj1\n\n=== THE CANDIDATE'S CV ===\n### PM (j1)\n- [a] Led it.\n`;
+    const job = (JSON.parse(qaReviewAnswer(prompt)) as { jobs: object[] }).jobs[0];
+    expect(job).toMatchObject({ job: "j1" });
+    expect(job).not.toHaveProperty("complete");
   });
 
   it("tolerates a code fence and refuses anything that is not the one JSON object", () => {
@@ -1525,11 +1600,14 @@ describe("#383 tools move to Skills", () => {
     expect(jobsOf(state).find((j) => j.id === "bsh")!.lines.find((l) => l.id === "bsh-miro")).toMatchObject({ text: MIRO_LINE, movedFrom: null });
 
     // Miro is listed once — the CV's own item, untagged; the tool list's group name comes with it.
+    // The CV's ungrouped list took the sections call's group name (#382); the copied tool, landed
+    // by the job's own call after that call read Skills, sits in the fallback for the person to move.
     expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
     const skills = state.sections.find((s) => s.tag === "skill")!;
     expect("groups" in skills && skills.groups).toEqual([
-      { name: "Skills", ids: ["skill-list-miro", "skill-list-figma", "skill-nrg-splunk-splunk"] },
+      { name: QA_SKILL_GROUP, ids: ["skill-list-miro", "skill-list-figma"] },
       { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence", "skill-nrg-tools-ms-project"] },
+      { name: "Skills", ids: ["skill-nrg-splunk-splunk"] },
     ]);
     // No item's words were changed by a move: each moved or copied item reads exactly as its line wrote it.
     for (const s of EXPECTED_SKILLS.filter((s) => s.movedFrom)) expect((s.copied ? SPLUNK_LINE : TOOL_LIST).includes(s.text)).toBe(true);
@@ -1574,6 +1652,52 @@ describe("#383 tools move to Skills", () => {
     const state = await reviewed(app, cookie);
     expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
     expect(readCounters()["cvReview.tool_dropped"]).toBe(4); // two per job: a ghost list line, a tool not in the line
+  });
+});
+
+// #382 (ADR-0018 clause 6: "grouped by the machine under the CV's group names or its own"): the
+// sections call names the skills the CV gave no group — zero extra calls. The CV's own labels
+// always win; the fallback "Skills" stays when the model names nothing; the person still renames.
+describe("#382 the machine names the skills the CV left ungrouped", () => {
+  const MINED_GROUPS = [
+    ...MINED.filter((c) => c.id !== "skill-tools"),
+    claim({ id: "skill-ai", text: "Applied AI: Prompt engineering; Agents" }),
+    claim({ id: "skill-tools", text: "Jira, Confluence" }),
+  ];
+  const groupsOf = (state: ReviewState) => {
+    const skills = state.sections.find((s) => s.tag === "skill");
+    return skills && "groups" in skills ? skills.groups : undefined;
+  };
+
+  it("the CV's labelled group keeps its name; the unlabelled skills get the model's; nothing else moves and no call is added", async () => {
+    const writer = fakeWriter();
+    const { app, cookie } = await withCv(writer, MINED_GROUPS);
+    const state = await reviewed(app, cookie);
+    expect(writer.calls).toHaveLength(2);
+    expect(groupsOf(state)).toEqual([
+      { name: "Applied AI", ids: ["skill-ai-prompt-engineering", "skill-ai-agents"] },
+      { name: QA_SKILL_GROUP, ids: ["skill-tools-jira", "skill-tools-confluence"] },
+    ]);
+    // Still the person's to rename.
+    expect((await put(app, cookie, `/cv/skills/groups/${encodeURIComponent(QA_SKILL_GROUP)}`, { name: "Tools" })).statusCode).toBe(200);
+    expect(groupsOf(await review(app, cookie))!.map((g) => g.name)).toEqual(["Applied AI", "Tools"]);
+  });
+
+  it("a name for a labelled skill or a line outside Skills is dropped and counted; no names at all leaves the fallback", async () => {
+    const bogus = fakeWriter({ bogus: true });
+    const named = await withCv(bogus, MINED_GROUPS);
+    expect(groupsOf(await reviewed(named.app, named.cookie))!.map((g) => g.name)).toEqual(["Applied AI", QA_SKILL_GROUP]);
+    expect(readCounters()["cvReview.skill_group_dropped"]).toBe(2);
+
+    const silent = fakeWriter();
+    const answer = silent.llm.complete.bind(silent.llm);
+    silent.llm.complete = async (prompt) => {
+      const parsed = JSON.parse(await answer(prompt)) as Record<string, unknown>;
+      delete parsed.skillGroups; // an answer stored before the field existed reads the same
+      return JSON.stringify(parsed);
+    };
+    const { app, cookie } = await withCv(silent, MINED_GROUPS);
+    expect(groupsOf(await reviewed(app, cookie))!.map((g) => g.name)).toEqual(["Applied AI", "Skills"]);
   });
 });
 

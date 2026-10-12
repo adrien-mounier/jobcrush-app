@@ -134,8 +134,9 @@ Skills are stored **one per item, in named groups** (#382, ADR-0018 clause 6). T
 skills line as one claim per group; the import splits it in code (`apps/api/src/skillsSplit.ts`)
 whatever separator the CV used, keeping the person's wording, and keeps a skill whose own commas
 belong to it whole ("Prompt engineering: structured prompting, Chain-of-Thought"). The group is the
-CV's own label when the line carries one, else the machine's ("Skills"); the person can rename a
-group or move a skill. So the tailor curates from single skills, each offered to it once, and still
+CV's own label when the line carries one, else the machine's: the review's sections call names the
+ungrouped skills (`cv-review.md` I, no extra call), never touching a group the CV named, and
+"Skills" stays when it names none. The person can rename a group or move a skill. So the tailor curates from single skills, each offered to it once, and still
 regroups them for the posting (preview-tailor rule 9); the master CV prints every skill once.
 
 Tools found under a job reach Skills too (#383, ADR-0018 clause 6), without asking and always
@@ -146,7 +147,9 @@ writes it, is **copied** to Skills, tagged "Taken from <employer>". Nothing the 
 shortened. Skills never gets a second copy of a skill it already lists — case, spaces, dots and
 dashes aside ("Jira" = "JIRA"): the item already there wins and stays untagged, and between two new
 ones the first in CV order wins. The review's own job call names the tool lists and the tools
-(`cv-review.md` H), so detection costs no extra call.
+(`cv-review.md` H), so detection costs no extra call. The model's word alone moves nothing: a line
+it calls a tool list leaves its job only when every item the split cuts it into is a tool it named
+for that line; anything else stays under its job and only its tools are copied.
 
 Languages are conserved one by one (#337): every language the person holds prints on every tailored
 CV, found by name on any "additional" line whatever its label says, and a missing one is **fatal** —

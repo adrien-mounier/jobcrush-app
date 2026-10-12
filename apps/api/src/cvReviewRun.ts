@@ -30,13 +30,13 @@ import { setTimeout as setTimeoutAsync } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { CandidateClaim } from "@jobcrush/contracts";
-import type { ClaimRecord, ClaimStore } from "./claims.js";
+import { isUnaddedDraft, type ClaimRecord, type ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewJob, type ReviewLine } from "./cvReview.js";
 import { slug } from "./discovery.js";
 import { kindTag } from "./graph.js";
-import { FALLBACK_GROUP, splitSkillClaims, type SkillClaim } from "./skillsSplit.js";
+import { FALLBACK_GROUP, groupOf, splitSkillClaims, splitSkillText, type SkillClaim } from "./skillsSplit.js";
 import { SECTIONS } from "./rootcv.js";
 import { DRAFT_FLAGS, rerunUnit, SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
@@ -75,18 +75,21 @@ const DraftedLine = z.object({
   flags: z.array(z.enum(DRAFT_FLAGS)),
   vague: z.array(z.object({ phrase: z.string(), options: z.array(VagueOption) })),
 });
+// #386 retired the COMPLETE stamp: the prompt no longer asks for it, and a stored answer carrying
+// `complete` reads like any other (a stray key is dropped).
 const JobReview = z.object({
   job: z.string(),
   family: z.string().nullable(),
-  complete: z.boolean(),
   fixes: z.array(Fix),
   judgements: z.array(Judgement),
   mustHaves: z.array(z.object({ id: z.string(), shownBy: z.array(z.string()) })),
   drafted: z.array(DraftedLine),
   endDateMissing: z.boolean(),
   conflicts: z.array(z.object({ what: z.string(), values: z.array(z.string()) })),
-  // #383: nullish like `moves` — the answers recorded before #383 have neither.
-  toolLists: z.array(z.string()).nullish(),
+  // #383: nullish like `moves` — the answers recorded before #383 have neither. A tool list names
+  // its tools (the guard in planTools checks them); a bare id is the answer before that, read and
+  // never moved.
+  toolLists: z.array(z.union([z.string(), z.object({ line: z.string(), tools: z.array(z.string()) })])).nullish(),
   toolsUsed: z.array(z.object({ line: z.string(), tools: z.array(z.string()) })).nullish(),
 });
 const SectionReview = z.object({ section: z.string(), fixes: z.array(Fix), judgements: z.array(Judgement) });
@@ -98,6 +101,9 @@ export const ReviewAnswer = z.object({
   // retry — the screen then shows the summary lines as read.
   about: z.object({ text: z.string() }).nullish(),
   moves: z.array(z.object({ line: z.string(), to: z.string() })).nullish(),
+  // #382: on the sections call only — names for the skills the CV gave no group. Nullish: the
+  // answers recorded before have none, and the fallback group stands.
+  skillGroups: z.array(z.object({ name: z.string(), lines: z.array(z.string()) })).nullish(),
   jobs: z.array(JobReview),
   refused: z.array(z.object({ job: z.string(), what: z.string(), rule: z.string() })),
 });
@@ -152,6 +158,9 @@ function familiesOf(paper: Paper, floors: Pick<ProductionFamilyFloorStore, "get"
  *  call and the answer is translated back to the paper's own ids before it is stored. */
 const promptJobIds = (paper: Paper) => new Map(paper.jobs.map(({ job }, i) => [job.id, `j${i + 1}`]));
 
+/** #382: the heading the input gives the skills the CV left ungrouped — the ones SKILL GROUPS names. */
+export const NO_GROUP = "(no group)";
+
 export function buildReviewInput(
   paper: Paper,
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">,
@@ -161,7 +170,7 @@ export function buildReviewInput(
   const ids = promptJobIds(paper);
   // A draft nobody added (unanswered or dismissed) is a suggestion, not the CV: shown to a later run
   // (#385, a unit retried after another's drafts landed) it would read as a must-have already shown.
-  const cvLines = (lines: ReviewLine[]) => lines.filter((l) => l.state !== "drafted" && l.state !== "dismissed");
+  const cvLines = (lines: ReviewLine[]) => lines.filter((l) => !isUnaddedDraft(l.state));
   const line = (l: ReviewLine) => `- [${l.id}] ${l.text}`;
   const cv: string[] = [];
   const { name, title, location, phone, email } = paper.letterhead;
@@ -180,6 +189,16 @@ export function buildReviewInput(
       continue;
     }
     if (cvLines(section.lines).length === 0) continue;
+    if (section.groups) {
+      // #382: Skills by group, so the model sees which skills the CV left ungrouped (SKILL GROUPS).
+      const own = new Map(cvLines(section.lines).map((l) => [l.id, l]));
+      cv.push("", `## ${section.heading}`);
+      for (const g of section.groups) {
+        const ls = g.ids.flatMap((id) => own.get(id) ?? []);
+        if (ls.length) cv.push("", `### ${g.name === FALLBACK_GROUP ? NO_GROUP : g.name}`, "", ...ls.map(line));
+      }
+      continue;
+    }
     cv.push("", `## ${section.heading}`, "", ...cvLines(section.lines).map(line));
   }
   return [
@@ -270,7 +289,7 @@ export function resolveDrafts(
     return none;
   }
   const meanings = new Map(placed.flatMap((f) => f.mustHaves.map((m) => [m.id, m.meaning] as const)));
-  const slug = unit.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const unitSlug = slug(unit);
   const claims: CandidateClaim[] = [];
   const drafts: ResolvedDraft[] = [];
   for (const [i, d] of job.drafted.entries()) {
@@ -281,7 +300,7 @@ export function resolveDrafts(
       incrementCounter("cvReview.draft_dropped");
       continue;
     }
-    const id = `draft-${slug}-${i + 1}`;
+    const id = `draft-${unitSlug}-${i + 1}`;
     claims.push({
       id,
       semantic_key: id,
@@ -324,8 +343,9 @@ function vagueOf(d: ReviewAnswer["jobs"][number]["drafted"][number], text: strin
 export const FROM_SUMMARY = "your summary";
 
 /** The brain's banned summary shapes (cv-authoring-rules.md "Professional Summary", the tailor's
- *  rule 10), counted — never fixed — on About you as the model wrote it: the eval over the fake
- *  writer and over a real run alike. One entry per shape found, in the order the text has them.
+ *  rule 10), counted on About you as the model wrote it — the eval over the fake writer and over a
+ *  real run alike — and, per sentence, what resolveAbout drops. One entry per shape found, in the
+ *  order the text has them.
  *  ponytail: a phrase list and one regex; a reworded capability claim slips through — widen the
  *  list from what real runs actually write. */
 const CAPABILITY_CLAIMS = ["proven ability to", "expertise in", "strong in", "comfortable bridging", "results-driven"];
@@ -350,12 +370,22 @@ const summaryOf = (paper: Paper): string | null => {
   return lines.length ? lines.map((l) => l.text).join("\n") : null;
 };
 
-/** About you as the model wrote it, beside the CV's own summary. Undefined when the answer has none. */
+/** About you as stored, beside the CV's own summary: the model's text without any sentence that
+ *  carries an identity opener or a capability claim (#371 AC — dropped and counted; first person is
+ *  only counted). Undefined when the answer has none, or no sentence is left — the screen then shows
+ *  the CV's own summary to edit. A sentence ends at . ! or ? before a space and a capital, so a
+ *  decimal ("EUR 1.2M") never splits one. */
 export function resolveAbout(answer: ReviewAnswer, paper: Paper): { text: string; original: string | null } | undefined {
-  const text = answer.about?.text.trim();
-  if (!text) return undefined;
-  for (const _ of aboutIssues(text)) incrementCounter("cvReview.about_issue");
-  return { text, original: summaryOf(paper) };
+  const written = answer.about?.text.trim();
+  if (!written) return undefined;
+  for (const _ of aboutIssues(written)) incrementCounter("cvReview.about_issue");
+  const kept = written.split(/(?<=[.!?])\s+(?=[A-Z])/).filter((sentence) => {
+    const banned = aboutIssues(sentence).some((issue) => issue !== "first person");
+    if (banned) incrementCounter("cvReview.about_sentence_dropped");
+    return !banned;
+  });
+  const text = kept.join(" ").trim();
+  return text ? { text, original: summaryOf(paper) } : undefined;
 }
 
 /** Each move resolved to a summary line and a section the profile has, by the section's own name
@@ -410,6 +440,10 @@ const skillFrom = (line: ClaimRecord, id: string, semanticKey: string, text: str
 
 /** The job's answer → what moves and what is copied. `lines` are the job's lines still in; a line
  *  the answer names outside them, or a tool its line never says, is dropped and counted.
+ *  The model's word alone moves nothing (ADR-0018: nothing is removed silently): a line it names as
+ *  a tool list leaves its job only when every item #382's split cuts it into (after an optional
+ *  "Label:") is a tool it listed for that line. Any other line stays under its job, unchanged and
+ *  counted, and the tools it names are copied like an achievement's.
  *  Duplicates: Skills never gets a second copy of a skill it already lists (in or removed) — the
  *  item already there wins and stays untagged; between two new ones, the first in CV order wins. */
 export function planTools(answer: ReviewAnswer["jobs"][number], lines: ClaimRecord[], skills: ClaimRecord[]): ToolPlan {
@@ -422,17 +456,25 @@ export function planTools(answer: ReviewAnswer["jobs"][number], lines: ClaimReco
     listed.add(sameSkill(claim.text));
     plan.add.push({ claim, copied });
   };
-  for (const id of answer.toolLists ?? []) {
+  const used = [...(answer.toolsUsed ?? [])];
+  for (const entry of answer.toolLists ?? []) {
+    const { line: id, tools } = typeof entry === "string" ? { line: entry, tools: [] } : entry;
     const line = own.get(id);
     if (!line || plan.leave.includes(id)) {
       drop();
+      continue;
+    }
+    const listed = new Set(tools.map(sameSkill));
+    if (!splitSkillText(line.text).items.every((item) => listed.has(sameSkill(item)))) {
+      incrementCounter("cvReview.tool_list_refused");
+      used.push({ line: id, tools });
       continue;
     }
     plan.leave.push(id);
     // #382's split, as at import: one item per tool, the list's own label as the group.
     for (const item of splitSkillClaims([skillFrom(line, `skill-${line.id}`, `skill-${line.semantic_key}`, line.text)])) take(item as SkillClaim, false);
   }
-  for (const { line: id, tools } of answer.toolsUsed ?? []) {
+  for (const { line: id, tools } of used) {
     const line = own.get(id);
     for (const tool of tools) {
       const name = tool.trim();
@@ -451,6 +493,28 @@ export function planTools(answer: ReviewAnswer["jobs"][number], lines: ClaimReco
 
 /** The job as the tag names it: its employer as the CV writes it, else its title. */
 const jobName = (job: ReviewJob): string => job.employer || job.title;
+
+/** #382 (ADR-0018 clause 6): the model's names for the skills the CV left ungrouped (the fallback
+ *  group), resolved against the paper. The CV's own group names always win: a name for a skill in a
+ *  named group, a line that is no skill, a second name for one skill, or an empty or over-long name
+ *  (the rename door's 60) is dropped and counted. */
+export function resolveSkillGroups(answer: ReviewAnswer, paper: Paper): Array<{ line: string; group: string }> {
+  const skills = paper.sections.find((s) => s.tag === "skill");
+  const ungrouped = new Set(skills && "groups" in skills ? (skills.groups ?? []).filter((g) => g.name === FALLBACK_GROUP).flatMap((g) => g.ids) : []);
+  const out: Array<{ line: string; group: string }> = [];
+  for (const { name, lines } of answer.skillGroups ?? []) {
+    const group = name.trim();
+    for (const line of lines) {
+      if (!ungrouped.has(line) || !group || group.length > 60) {
+        incrementCounter("cvReview.skill_group_dropped");
+        continue;
+      }
+      ungrouped.delete(line);
+      out.push({ line, group });
+    }
+  }
+  return out;
+}
 
 export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): ResolvedSuggestion[] {
   const lines = linesOf(paper);
@@ -477,7 +541,7 @@ export interface ReviewRunDeps {
   llm: LlmClient;
   reviews: CvReviewStore;
   sessions: Pick<SessionStore, "getById">;
-  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState" | "move" | "seed" | "reject">;
+  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState" | "move" | "seed" | "reject" | "setGroup">;
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
@@ -569,7 +633,7 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
       const claims = await deps.claims.list(sessionId);
       const read = new Set(job.lines.map((l) => l.id));
       const lines = claims.filter((c) => read.has(c.id) && c.lineState === "ticked");
-      const skills = claims.filter((c) => kindTag(c) === "skill" && (c.decision === "pending" || c.decision === "confirmed") && c.lineState !== "drafted" && c.lineState !== "dismissed");
+      const skills = claims.filter((c) => kindTag(c) === "skill" && (c.decision === "pending" || c.decision === "confirmed") && !isUnaddedDraft(c.lineState));
       const plan = planTools(answer, lines, skills);
       // The items land before the list leaves: a crash in between leaves the list in its job and
       // its items in Skills, and the retry lands the same ids again (seed ignores a stored one).
@@ -645,12 +709,22 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         // #371: a summary fact moves to the section a reader expects, without asking, and says so
         // (ADR-0018 clause 6). Its words are untouched; a retry re-applies the same move.
         for (const m of withSections ? resolveMoves(answer, paper).filter((m) => fresh(m.line)) : []) await deps.claims.move(sessionId, m.line, m.section, FROM_SUMMARY);
+        // #382: the skills the CV left ungrouped take the model's group names — only while still in
+        // the fallback group (a name the person gave meanwhile wins), and only the new ones on a re-run.
+        for (const g of withSections ? resolveSkillGroups(answer, paper) : []) {
+          const skill = current.get(g.line);
+          if (skill && fresh(g.line) && groupOf(skill) === FALLBACK_GROUP) await deps.claims.setGroup(sessionId, g.line, g.group);
+        }
         // #383: a job's tool list moves to Skills and an achievement's tools are copied there — on a
         // re-upload's run (#385), from the new lines only: a line already checked stays where it is.
         const reviewed = paper.jobs.find((j) => j.job.id === job)?.job;
         const tools = translated.jobs[0];
         if (reviewed && tools)
-          await moveTools(sessionId, reviewed, { ...tools, toolLists: tools.toolLists?.filter((id) => fresh(id)), toolsUsed: tools.toolsUsed?.filter((t) => fresh(t.line)) });
+          await moveTools(sessionId, reviewed, {
+            ...tools,
+            toolLists: tools.toolLists?.filter((e) => fresh(typeof e === "string" ? e : e.line)),
+            toolsUsed: tools.toolsUsed?.filter((t) => fresh(t.line)),
+          });
         await deps.reviews.recordResult(sessionId, unit, result);
         return;
       } catch (err) {
@@ -735,8 +809,9 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
           .catch((err) => console.error(`[ops] cv review re-run failed: ${err instanceof Error ? err.message : String(err)}`))
           .finally(() => active.delete(sessionId));
       } catch (err) {
-        // Like start: nothing the review does may fail the upload that called it.
-        incrementCounter("cvReview.unit_attempt_failed");
+        // Like start: nothing the review does may fail the upload that called it. Its own counter —
+        // no unit attempt was made.
+        incrementCounter("cvReview.rerun_failed");
         console.error(`[ops] cv review re-run failed: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         if (!driving) active.delete(sessionId);

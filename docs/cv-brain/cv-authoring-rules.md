@@ -204,7 +204,10 @@ when the CV has none. The person keeps or edits it; the saved text is one `profi
 (`about-you`) that the tailor reads among the others. **Whether a tailored CV prints a summary, and
 what it says, is still decided per application by the tailor's rule 10 above.** The banned shapes
 (identity opener, capability claims, first person) are counted on every generated text
-(`aboutIssues`, counter `cvReview.about_issue`) — an eval, not a filter. A summary fact that belongs
+(`aboutIssues`, counter `cvReview.about_issue`), and a sentence with an identity opener or a
+capability claim is **dropped** before About you is stored (counter
+`cvReview.about_sentence_dropped`); with nothing left, no About you is stored and the person edits
+the CV's own summary. First person is counted only. A summary fact that belongs
 elsewhere (a language, a degree, a certification, a tool list) moves to that section with a visible
 "Moved from your summary" tag (cv-review.md G), its words unchanged (ADR-0013 clause 1).
 

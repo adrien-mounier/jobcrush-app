@@ -387,12 +387,22 @@ const counts = {
   // the CV's words, is dropped: the prompt forbids both, and the paper never shows an unsourced line.
   "cvReview.draft_dropped": 0,
   // #371 — About you as the model wrote it carries a shape the Professional Summary rules ban
-  // (identity opener, capability claim, first person): counted, never fixed — the eval on real runs.
+  // (identity opener, capability claim, first person): counted as written — the eval on real runs.
   "cvReview.about_issue": 0,
+  // #371 — a sentence of About you with an identity opener or a capability claim, dropped before
+  // About you is stored (the rest is kept; with nothing left, none is stored).
+  "cvReview.about_sentence_dropped": 0,
   // #371 — a summary move naming a line outside the summary, or a section the profile lacks.
   "cvReview.move_dropped": 0,
   // #383 — a tool list naming a line outside its job, or a tool its line never says.
   "cvReview.tool_dropped": 0,
+  // #383 — a line the model named as a tool list whose items are not all tools it listed: it stays
+  // under its job (the model's word alone moves nothing).
+  "cvReview.tool_list_refused": 0,
+  // #382 — a skills-group name for a line that is not a skill the CV left ungrouped.
+  "cvReview.skill_group_dropped": 0,
+  // #385 — a re-upload's run that failed to open (the upload goes on; its new items show as read).
+  "cvReview.rerun_failed": 0,
 };
 
 export type CounterName = keyof typeof counts;

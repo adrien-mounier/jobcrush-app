@@ -13,7 +13,8 @@
 //     moved from; "and" before the last item and the full stop after it are not wording;
 //   - a line that yields one item is left exactly as it was.
 // Ceiling (ponytail): a lone "Label: a, b, c" claim reads as a group — the miner emits one claim
-// per group, so a lone colon list is one. An LLM pass naming groups is a later ticket.
+// per group, so a lone colon list is one. The review's sections call later names the skills left in
+// FALLBACK_GROUP (cvReviewRun.ts resolveSkillGroups).
 import type { CandidateClaim } from "@jobcrush/contracts";
 import { slug } from "./discovery.js";
 

@@ -15,14 +15,23 @@
 // spaces — "end to end delivery"), each carrying a vague phrase in [brackets] with a CV option and a
 // typical one (#343). A job with a must-have missing also gets one OPTIONAL line drawn from another
 // job's line (R4: a fact under a different job, with its quote) and one INDUSTRY GUESS line. A job
-// whose lines show every must-have gets nothing drafted and reads `complete` when it has no mark
-// either. A job placed in `none` gets no drafts, as the prompt says.
+// whose lines show every must-have gets nothing drafted. A job placed in `none` gets no drafts, as
+// the prompt says.
 //
 // #383 — tools, the same way: a job line that opens with "Tools:" (or "Tech stack:",
-// "Technologies:") is a tool list; a line saying "using <Name>" uses that tool.
+// "Technologies:") is a tool list, its tools named as #382's split cuts them; a line saying
+// "using <Name>" uses that tool.
+//
+// #382 — the skills the input lists under "### (no group)" in Skills are named QA_SKILL_GROUP.
+import { splitSkillText } from "./skillsSplit.js";
 
 /** cv-review.md's own opening line — what the stage-aware fake matches on. */
 export const REVIEW_PROMPT_OPENING = "You review a candidate's CV, job by job";
+/** The group name the fake gives the skills the CV left ungrouped. */
+export const QA_SKILL_GROUP = "Software";
+/** cvReviewRun.ts NO_GROUP — the input's heading for those skills (kept literal: this file is the
+ *  model's side of the prompt, and must not read the caller's code to answer it). */
+const NO_GROUP_HEADING = "### (no group)";
 
 interface Line {
   id: string;
@@ -40,6 +49,8 @@ export function parseReviewPrompt(prompt: string): {
   families: Map<string, Family>;
   /** prompt job id → the family ids it was placed in (none → empty). */
   placements: Map<string, string[]>;
+  /** #382: the skills listed under the input's "(no group)" heading. */
+  ungrouped: Line[];
 } {
   const toReview = (/=== JOBS TO REVIEW ===\n(.+)/.exec(prompt) ?? [, ""])[1]!.split(",").map((s) => s.trim()).filter(Boolean);
   // The instructions name each block marker too; the blocks themselves come last.
@@ -64,8 +75,10 @@ export function parseReviewPrompt(prompt: string): {
   const cv = prompt.slice(prompt.lastIndexOf("=== THE CANDIDATE'S CV ==="));
   const jobs = new Map<string, Line[]>();
   const sections = new Map<string, Line[]>();
+  const ungrouped: Line[] = [];
   let job: string | null = null;
   let section = "letterhead";
+  let noGroup = false;
   for (const raw of cv.split("\n")) {
     const heading = /^### .* \((j\d+)\)$/.exec(raw);
     if (heading) {
@@ -73,10 +86,15 @@ export function parseReviewPrompt(prompt: string): {
       jobs.set(job, []);
       continue;
     }
+    if (raw.startsWith("### ")) {
+      noGroup = raw === NO_GROUP_HEADING;
+      continue;
+    }
     const sec = /^## (.+)$/.exec(raw);
     if (sec) {
       section = sec[1]!.toLowerCase();
       job = null;
+      noGroup = false;
       continue;
     }
     const line = /^- \[([^\]]+)\] (.*)$/.exec(raw);
@@ -84,8 +102,9 @@ export function parseReviewPrompt(prompt: string): {
     const entry = { id: line[1]!, text: line[2]! };
     if (job) jobs.get(job)!.push(entry);
     else sections.set(section, [...(sections.get(section) ?? []), entry]);
+    if (!job && noGroup) ungrouped.push(entry);
   }
-  return { toReview, jobs, sections, families, placements };
+  return { toReview, jobs, sections, families, placements, ungrouped };
 }
 
 const fixesOf = (lines: Line[]) =>
@@ -100,7 +119,7 @@ const fixesOf = (lines: Line[]) =>
 // line ("intended to") is kept: a true but weak item is never suggested for removal.
 // #383: a job's tool lists, and the tools its other lines use.
 const TOOL_LIST = /^(?:tools|tech stack|technologies)\s*:/i;
-const toolListsOf = (lines: Line[]) => lines.filter((l) => TOOL_LIST.test(l.text)).map((l) => l.id);
+const toolListsOf = (lines: Line[]) => lines.filter((l) => TOOL_LIST.test(l.text)).map((l) => ({ line: l.id, tools: splitSkillText(l.text).items }));
 const toolsUsedOf = (lines: Line[]) =>
   lines.flatMap((l) => {
     const used = TOOL_LIST.test(l.text) ? null : /\busing ([A-Z][\w.+#-]*)/.exec(l.text);
@@ -157,7 +176,7 @@ function draftedOf(lines: Line[], family: Family, others: Line[]) {
  *  job, and any draft is forbidden on a job placed in none) and cites a must-have the family does not
  *  have on the last must-have line — the drafts the prompt forbids — so a test can watch the guards. */
 export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDrafts?: boolean } = {}): string {
-  const { toReview, jobs, sections, families, placements } = parseReviewPrompt(prompt);
+  const { toReview, jobs, sections, families, placements, ungrouped } = parseReviewPrompt(prompt);
   const withSections = toReview.includes("sections");
   // #371: About you from the whole CV — each job's first line, achievements first, whether or not
   // the CV has a summary; a summary line about languages moves to Languages. `bogus` also moves a
@@ -170,10 +189,19 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
     if (job) moves.push({ line: job.id, to: "skills" });
     if (summary[0]) moves.push({ line: summary[0].id, to: "hobbies" });
   }
+  // #382: the ungrouped skills get one name. `bogus` also names a skill the CV grouped and a job
+  // line — the two names the guard drops.
+  const skillGroups = ungrouped.length ? [{ name: QA_SKILL_GROUP, lines: ungrouped.map((l) => l.id) }] : [];
+  if (opts.bogus) {
+    const grouped = (sections.get("skills") ?? []).find((l) => !ungrouped.some((u) => u.id === l.id));
+    const jobLine = [...jobs.values()].flat()[0];
+    skillGroups.push({ name: "Ghost", lines: [grouped?.id, jobLine?.id].filter((id): id is string => !!id) });
+  }
   return JSON.stringify({
     letterhead: withSections ? { checks: [] } : null,
     about: withSections ? { text: firstLines.join(" ") || "Delivered the work this CV describes." } : null,
     moves: withSections ? moves : null,
+    skillGroups: withSections ? skillGroups : null,
     sections: withSections
       ? [...sections].map(([section, lines]) => ({ section, fixes: fixesOf(lines), judgements: judgementsOf(lines) }))
       : null,
@@ -188,7 +216,7 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
         if (opts.bogus && lines[0]) {
           fixes.push({ line: lines[0].id, original: "nope", corrected: "never" });
           judgements.push({ line: "ghost", verdict: "remove", kind: "duplicate", reason: "A line that is not there." });
-          toolLists.push("ghost");
+          toolLists.push({ line: "ghost", tools: ["Ghost"] });
           toolsUsed.push({ line: lines[0].id, tools: ["Kubernetes"] });
         }
         const familyId = (placements.get(id) ?? [])[0] ?? null;
@@ -200,8 +228,7 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
           const last = [...drafted].reverse().find((d) => d.mustHave !== null);
           if (last) last.mustHave = "not-a-must-have";
         }
-        const complete = !!family && drafted.length === 0 && fixes.length === 0 && judgements.every((j) => j.verdict === "keep");
-        return { job: id, family: familyId, complete, fixes, judgements, mustHaves, drafted, endDateMissing: false, conflicts: [], toolLists, toolsUsed };
+        return { job: id, family: familyId, fixes, judgements, mustHaves, drafted, endDateMissing: false, conflicts: [], toolLists, toolsUsed };
       }),
     refused: [],
   });

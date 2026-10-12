@@ -55,6 +55,16 @@ describe("cv-review prompt (#340)", () => {
     expect(prompt).toContain('"toolsUsed"');
     expect(prompt).toContain("exactly as the line writes it");
     expect(prompt).toContain("tool stays under its job, unchanged");
+    // #375 review: a tool list names its tools, so the caller can check every item is one.
+    expect(prompt).toContain('"tools": ["<each tool it lists, verbatim>"]');
+  });
+
+  // #382 (ADR-0018 clause 6): the sections call names the skills the CV left ungrouped; the CV's
+  // own group names are never touched.
+  it("names the skills the CV left ungrouped, and only those", () => {
+    expect(prompt).toContain("### (no group)");
+    expect(prompt).toContain('"skillGroups"');
+    expect(prompt).toContain("is never renamed or moved");
   });
 
   it("drafts from each job's own family and names the output shape", () => {
