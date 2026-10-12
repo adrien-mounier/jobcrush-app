@@ -247,7 +247,21 @@ const cjson = async (path, method = 'GET', data) =>
 await ctl.fetch(`${BASE}/api/sessions/anonymous`, { method: 'POST' });
 await cjson('/sessions/me/intent', 'PUT', { targetRole: UNPLACEABLE_ROLE, searchArea: AREA });
 await cjson('/cv/paste', 'POST', { text: CV_TEXT });
-await cjson('/review/complete', 'POST'); // #338
+// #338: her check mode finished over the wire, the way qa-driver.mjs completeReview() does it for a
+// browser session: the finish is refused while the run goes (#341), while a target market has no
+// work-rights answer (#376) and while a suggestion is open (#378/#380) — so it answers each the
+// neutral way (yes / No thanks / Keep it) and retries until the server takes it.
+for (let attempt = 0; attempt < 40; attempt += 1) {
+  const r = await cjson('/review');
+  for (const row of r?.workRights ?? []) {
+    if (row.answer === null) await cjson(`/review/work-rights/${encodeURIComponent(row.itemId)}`, 'PUT', { answer: 'eligible' });
+  }
+  const lines = (r?.sections ?? []).flatMap((s) => ('jobs' in s ? s.jobs.flatMap((j) => j.lines) : s.lines));
+  for (const l of lines.filter((x) => x.state === 'drafted')) await cjson(`/review/drafts/${encodeURIComponent(l.id)}/dismissed`, 'PUT', { dismissed: true });
+  for (const l of lines.filter((x) => x.state === 'removal-suggested')) await cjson(`/cv/lines/${encodeURIComponent(l.id)}`, 'PUT', { state: 'ticked' });
+  if ((await ctl.fetch(`${BASE}/api/review/complete`, { method: 'POST' })).ok()) break;
+  await page.waitForTimeout(500);
+}
 let ctlBlocks = [];
 for (let i = 0; i < 60; i++) {
   const b = await cjson('/job-blocks');

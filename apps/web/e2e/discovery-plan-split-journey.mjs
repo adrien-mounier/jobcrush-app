@@ -133,12 +133,13 @@ await qa.goto('/discovery', 'into discovery — the sign-up questions');
 await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a real visitor would');
 
-// #339: the screen asks her eligibility only — no floor question, whatever family she was placed in.
+// #339: no floor question, whatever family she was placed in; #376: and no eligibility question
+// either — work rights and languages moved into check mode, so after question 1 nothing is asked.
 const served = (await json('/onboarding/discovery'))?.questions ?? [];
 await qa.note(`the questions her screen puts to her, in order: ${served.map((q) => q.itemId).join(', ') || '(none)'}`);
 await assertTrue(
-  served.length > 0 && served.every((q) => q.eligibility),
-  `#339 — after question 1 she is asked eligibility only, never the family floor (${served.map((q) => q.itemId).join(', ')})`,
+  served.length === 0 && (await page.locator('.discovery .handoff').count()) === 1,
+  `#339/#376 — after question 1 she is asked nothing, never the family floor: the hand-off (${served.map((q) => q.itemId).join(', ')})`,
 );
 
 await qa.goto('/deck', 'the reveal');
@@ -344,11 +345,11 @@ await assertTrue(
   otherServed.status === 200,
   `AC4: an unmapped target role is SERVED, never refused (${otherServed.status} ${otherServed.json?.error?.code ?? ''})`,
 );
-// #339: she is asked what every visitor is asked after question 1 - eligibility, and nothing else.
+// #339/#376: she is asked what every visitor is asked after question 1 — nothing; the hand-off.
 const otherQuestions = otherServed.json?.questions ?? [];
 await assertTrue(
-  otherQuestions.length > 0 && otherQuestions.every((q) => q.eligibility),
-  `AC4/#339: she gets a working interview - the eligibility questions, no floor question (${otherQuestions.map((q) => q.itemId).join(', ')})`,
+  otherQuestions.length === 0 && otherServed.json?.stage === 'deck',
+  `AC4/#339/#376: she gets a working interview - question 1, then the hand-off, no floor question (${otherQuestions.map((q) => q.itemId).join(', ')})`,
 );
 const otherRecord = (await asOther('GET', '/sessions/me')).json?.discovery;
 await qa.note(`her stored discovery record: ${JSON.stringify(otherRecord)}`);
