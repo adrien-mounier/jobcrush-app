@@ -10,6 +10,9 @@ import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
 import { DRAFT_FLAGS, SUGGESTION_KINDS, VAGUE_SOURCES } from "../cvReviewStore.js";
+import { answerWorkRights, WORK_RIGHTS_ANSWERS } from "../workRightsCard.js";
+import { answerEligibilityItem, LANGUAGE_ITEM_ID } from "../eligibilityDiscovery.js";
+import { resolvedMarketsFor } from "../postingRetrieval.js";
 import {
   answerReviewEndDate,
   buildReviewState,
@@ -72,6 +75,20 @@ const ReviewStateSchema = z.object({
   // #362: some part of the CV has no review answer (still going, given up, or no run) — no finished-check claim.
   unchecked: z.boolean(),
   sections: z.array(ReviewSection),
+  // #376: "Where you can work" — one row per target market; the answer is the stored one, the
+  // proposal is what the CV implies (shown, never stored).
+  workRights: z.array(
+    z.object({
+      market: z.string(),
+      itemId: z.string(),
+      answer: z.enum(WORK_RIGHTS_ANSWERS).nullable(),
+      proposed: z.literal("eligible").nullable(),
+      note: z.string().nullable(),
+      source: z.string().nullable(),
+    }),
+  ),
+  // #376: the languages the person said they speak — the Languages screen's card when the CV has none.
+  languages: z.array(z.string()),
 });
 const Refusal = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 const Ok = z.object({ ok: z.literal(true) });
@@ -167,6 +184,43 @@ export function reviewRoutes(deps: ReviewDeps) {
         const session = requireSession(req);
         const result = await settleReviewConflict(deps, session, req.params.fieldId, req.body.value);
         if (!result.ok) return reply.status(result.status).send({ error: { code: result.code, message: result.message } });
+        return { ok: true as const };
+      },
+    );
+
+    // #376: a tap on a "Where you can work" row — this session's own markets only (404 otherwise),
+    // in the store's own two words. The write is the eligibility answer route's own.
+    app.put(
+      "/review/work-rights/:itemId",
+      {
+        schema: {
+          params: z.object({ itemId: z.string().min(1) }),
+          body: z.object({ answer: z.enum(WORK_RIGHTS_ANSWERS) }),
+          response: { 200: Ok, 400: Refusal, 404: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const result = await answerWorkRights(deps.eligibility, session.id, session.intent.searchAreas, req.params.itemId, req.body.answer);
+        if (!result.ok)
+          return reply.status(result.status === 404 ? 404 : 400).send({ error: { code: result.code, message: result.message } });
+        return { ok: true as const };
+      },
+    );
+
+    // #376: the Languages screen's card — the languages the person speaks, as a whole list. The write
+    // is the languages question's own (a dropped language goes back to unknown, never to a "no").
+    app.put(
+      "/review/languages",
+      { schema: { body: z.object({ languages: z.array(z.string()) }), response: { 200: Ok, 400: Refusal, 404: Refusal } } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const markets = resolvedMarketsFor(session.intent.searchAreas);
+        const result = await answerEligibilityItem({ eligibility: deps.eligibility }, session.id, markets, LANGUAGE_ITEM_ID, {
+          answers: req.body.languages,
+        });
+        if (!result.ok)
+          return reply.status(result.status === 404 ? 404 : 400).send({ error: { code: result.code, message: result.message } });
         return { ok: true as const };
       },
     );

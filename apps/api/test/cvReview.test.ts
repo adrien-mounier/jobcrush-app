@@ -363,3 +363,127 @@ describe("#338 the jobs gate — review completed", () => {
     expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBeGreaterThan(0);
   });
 });
+
+// --- #376 work rights and languages, in check mode -------------------------------------------
+// ADR-0018 clauses 5, 7, 8: the start asks nothing after the upload, so "Where you can work" is a
+// plain card on check mode's Additional information screen — one row per target market, pre-filled
+// from what the CV implies and answered by the person — and the jobs wait until every market has
+// an answer. Languages are their own screen; a CV with none gets a card asking which they speak.
+// Driven over HTTP: GET /review is the card's one read, the review doors are its writes, and
+// POST /review/complete is the gate.
+describe("#376 where you can work, on check mode's last screen", () => {
+  const NATIONALITY = "Nationality: Australian, based in Hong Kong.";
+  async function withMarkets(areas: string[], opts: Parameters<typeof withCv>[0] = {}) {
+    const cv = await withCv(opts);
+    await cv.server.claims.add(cv.sessionId, claim({ id: "nationality", text: NATIONALITY }));
+    if (areas.length > 0) await put(cv.app, cv.cookie, "/sessions/me/intent", { searchAreas: areas });
+    return cv;
+  }
+
+  it("one row per target market, in chip order: the CV's nationality proposes yes for its own country, the rest stay open, and nothing is stored", async () => {
+    const { app, cookie, sessionId, eligibility } = await withMarkets(["Hong Kong", "Sydney", "Melbourne"]);
+    const state = await review(app, cookie);
+    expect(state.workRights).toEqual([
+      { market: "Hong Kong", itemId: "eligibility-work-rights-hong-kong", answer: null, proposed: null, note: null, source: null },
+      {
+        market: "Australia",
+        itemId: "eligibility-work-rights-australia",
+        answer: null,
+        proposed: "eligible",
+        note: "You're Australian, so I put yes.",
+        source: NATIONALITY,
+      },
+    ]);
+    // A proposal is shown, never stored (ADR-0013 clause 3): no work-rights fact exists yet.
+    expect((await eligibility.list(sessionId)).filter((f) => f.dimension === "work-rights")).toEqual([]);
+  });
+
+  it("the jobs wait: finishing is refused naming each open market, the card's door answers one market at a time, then finishing goes through", async () => {
+    const { app, cookie, sessionId, eligibility } = await withMarkets(["Hong Kong", "Sydney"]);
+    await pastDiscovery(app, cookie, "work-rights-gate@example.com");
+
+    const refused = await post(app, cookie, "/review/complete");
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error).toMatchObject({ code: "work_rights_unset" });
+    expect(refused.json().error.message).toContain("Hong Kong and Australia");
+    expect((await review(app, cookie)).completed).toBe(false);
+    // The refusal confirmed nothing: the lines as read are still the person's to check.
+    expect((await get(app, cookie, "/onboarding/cards")).json()).toMatchObject({ reviewPending: true, cards: [] });
+
+    // The proposal for Australia is not an answer: until it is tapped, Australia still holds the jobs.
+    const [hk, au] = (await review(app, cookie)).workRights;
+    expect(au).toMatchObject({ proposed: "eligible", answer: null });
+    expect((await put(app, cookie, `/review/work-rights/${hk!.itemId}`, { answer: "needs-sponsorship" })).statusCode).toBe(200);
+    const stillOpen = await post(app, cookie, "/review/complete");
+    expect(stillOpen.json().error.message).toContain("Australia");
+    expect(stillOpen.json().error.message).not.toContain("Hong Kong");
+
+    expect((await put(app, cookie, `/review/work-rights/${au!.itemId}`, { answer: "eligible" })).json()).toEqual({ ok: true });
+    expect((await review(app, cookie)).workRights.map((r) => [r.market, r.answer])).toEqual([
+      ["Hong Kong", "needs-sponsorship"],
+      ["Australia", "eligible"],
+    ]);
+    // Stored in the store's own words, under the key every other reader uses.
+    expect(await eligibility.get(sessionId, "work-rights", "australia")).toMatchObject({ value: "eligible" });
+    expect(await eligibility.get(sessionId, "work-rights", "hong-kong")).toMatchObject({ value: "needs-sponsorship" });
+
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+    expect((await getCardsWhenRetrieved(app, cookie)).json().cards.length).toBeGreaterThan(0);
+  });
+
+  it("the door answers only this session's markets, and only in the store's two words", async () => {
+    const { app, cookie } = await withMarkets(["Hong Kong"]);
+    expect((await put(app, cookie, "/review/work-rights/eligibility-work-rights-australia", { answer: "eligible" })).statusCode).toBe(404);
+    expect((await put(app, cookie, "/review/work-rights/eligibility-languages", { answer: "eligible" })).statusCode).toBe(404);
+    expect((await put(app, cookie, "/review/work-rights/eligibility-work-rights-hong-kong", { answer: "Yes" })).statusCode).toBe(400);
+    expect((await review(app, cookie)).workRights[0]!.answer).toBeNull();
+  });
+
+  // A CV pasted with no target area yet is a real path (the paste door): nothing can be asked, so
+  // nothing may hold the jobs on it.
+  it("with no target market there is no row, and finishing is allowed", async () => {
+    const { app, cookie } = await withMarkets([]);
+    await pastDiscovery(app, cookie, "work-rights-none@example.com");
+    expect((await review(app, cookie)).workRights).toEqual([]);
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+  });
+
+  // ADR-0018 / #376 AC4: an answer given before — on discovery, before it stopped asking — is kept
+  // and counts. Nothing deletes an eligibility fact; this session never sees the card unanswered.
+  it("an answer given before check mode existed is kept: the row reads it and the gate lets the session through", async () => {
+    const { app, cookie, sessionId, eligibility } = await withMarkets(["Hong Kong"]);
+    await pastDiscovery(app, cookie, "work-rights-earlier@example.com");
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "eligibility-work-rights-hong-kong", answer: "Yes — no sponsorship needed" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "eligibility-languages", answers: ["English"] });
+    expect((await review(app, cookie)).workRights).toMatchObject([{ market: "Hong Kong", answer: "eligible" }]);
+    expect((await post(app, cookie, "/review/complete")).json()).toEqual({ completed: true });
+    expect(await eligibility.get(sessionId, "language", "English")).toMatchObject({ value: "declared" });
+  });
+});
+
+describe("#376 languages, their own screen", () => {
+  it("the CV's languages are the section's lines; with none, the card's door stores what the person names and the walk reads it back", async () => {
+    const { app, cookie, sessionId, eligibility } = await withCv();
+    const before = await review(app, cookie);
+    expect(linesOf(before, "lang")).toEqual([]); // the fixture CV lists no languages
+    expect(before.languages).toEqual([]);
+
+    const saved = await put(app, cookie, "/review/languages", { languages: ["English", "Polish"] });
+    expect(saved.json()).toEqual({ ok: true });
+    expect((await review(app, cookie)).languages).toEqual(["English", "Polish"]);
+    expect(await eligibility.get(sessionId, "language", "Polish")).toMatchObject({ value: "declared" });
+
+    // Correcting the list keeps the same door: a dropped language goes back to unknown, never "no".
+    await put(app, cookie, "/review/languages", { languages: ["English"] });
+    expect((await review(app, cookie)).languages).toEqual(["English"]);
+    expect(await eligibility.get(sessionId, "language", "Polish")).toBeNull();
+    expect((await put(app, cookie, "/review/languages", { languages: ["   "] })).statusCode).toBe(400); // not a word: refused, nothing stored
+    expect((await review(app, cookie)).languages).toEqual(["English"]);
+  });
+
+  it("a CV that lists languages shows them as the section's lines", async () => {
+    const { app, cookie, server, sessionId } = await withCv();
+    await server.claims.add(sessionId, claim({ id: "lang-polish", text: "Polish (Native)" }));
+    expect(linesOf(await review(app, cookie), "lang").map((l) => l.text)).toEqual(["Polish (Native)"]);
+  });
+});

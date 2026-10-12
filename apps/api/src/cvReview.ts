@@ -25,6 +25,8 @@ import type { JobBlockStore, JobBlockView } from "./jobBlockStore.js";
 import { SECTIONS } from "./rootcv.js";
 import type { SessionRecord, SessionStore } from "./sessions.js";
 import { answerJobDateHole, dateHoleQuestions, JOB_DATE_ITEM_PREFIX, type JobDateAnswerResult } from "./yearsWorked.js";
+import { unansweredMarkets, workRightsRows, type WorkRightsRow } from "./workRightsCard.js";
+import { declaredLanguages } from "./languageLevel.js";
 import type { MinedDate, MinedEndValue } from "@jobcrush/contracts";
 
 /** A fix as the screen shows it: the line's text before and after, and whether the line currently
@@ -111,6 +113,12 @@ export interface ReviewState {
   unchecked: boolean;
   /** The paper, in the master CV's own print order (rootcv.ts's SECTIONS). */
   sections: ReviewSection[];
+  /** #376: "Where you can work" — one row per target market, the card on the last screen. Empty
+   *  when the session names no covered market: nothing can be asked, and nothing holds the jobs. */
+  workRights: WorkRightsRow[];
+  /** #376: the languages the person said they speak (the eligibility store's declarations) — what
+   *  the Languages screen's card shows when the CV lists none. */
+  languages: string[];
 }
 
 export interface ReviewDeps {
@@ -300,6 +308,8 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   const results = new Map(run?.units.flatMap((u) => (u.result ? [[u.unit, u.result] as const] : [])) ?? []);
   const landed = new Set(results.keys());
   const conflict = session.importProof?.conflict ?? null;
+  const lineTexts = paper.sections.flatMap((s) => ("jobs" in s ? s.jobs.flatMap((j) => j.lines) : s.lines)).map((l) => l.text);
+  const workRights = await workRightsRows(deps.eligibility, session.id, session.intent.searchAreas, lineTexts);
   const minutesLeft = (startedAt: string) =>
     Math.max(1, Math.ceil(EXPECTED_RUN_MINUTES - ((deps.now?.() ?? Date.now()) - Date.parse(startedAt)) / 60_000));
   return {
@@ -328,13 +338,15 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
           }
         : { ...section, lines: section.lines.map(mark) },
     ),
+    workRights,
+    languages: declaredLanguages(await deps.eligibility.list(session.id)),
   };
 }
 
 /** The finish gate's refusal codes — check mode (#377) finishes here, and this union is the one
  *  vocabulary it reads. Append, never rename: #378 adds `suggestions_open` (a drafted line not yet
  *  answered), #376 `work_rights_unset` (a target market with no work-rights answer). */
-export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running"; message: string };
+export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running" | "work_rights_unset"; message: string };
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
  *  IS the look at each line the old confirm deck asked for — in the state it is in (a kept line
@@ -347,10 +359,19 @@ export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_run
  *
  *  Refused while the review run is still going (#341, layout decision on #338): a fix landing after
  *  the confirm would change a line the person already signed off without their having seen it. The
- *  screen keeps the confirm locked for the same reason; this is the gate behind the lock. */
-export async function completeReview(deps: ReviewDeps, session: Pick<SessionRecord, "id" | "importProof">): Promise<CompleteReviewResult> {
+ *  screen keeps the confirm locked for the same reason; this is the gate behind the lock.
+ *
+ *  #376 (ADR-0018 clause 7): refused too while a target market has no work-rights answer — the job
+ *  search reads it. A proposal from the CV is not an answer; with no target market, nothing holds. */
+export async function completeReview(
+  deps: ReviewDeps,
+  session: Pick<SessionRecord, "id" | "importProof" | "intent">,
+): Promise<CompleteReviewResult> {
   if (running(await deps.reviews.get(session.id)))
     return { ok: false, code: "review_running", message: "Your jobs open when the check is finished." };
+  const unset = await unansweredMarkets(deps.eligibility, session.id, session.intent.searchAreas);
+  if (unset.length > 0)
+    return { ok: false, code: "work_rights_unset", message: `Tell me if you can work in ${unset.join(" and ")} first.` };
   const openConflict = session.importProof?.conflict?.fieldId ?? null;
   for (const c of await deps.claims.list(session.id)) {
     if (c.decision !== "pending" || c.lineState === "drafted" || (openConflict !== null && c.field_key === openConflict)) continue;
