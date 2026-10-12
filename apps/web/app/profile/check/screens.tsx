@@ -114,9 +114,11 @@ export function ScreenBody({ screen, list, details }: { screen: Screen; list: Om
       </div>
     );
   }
+  // #379: ✎ on every item except About you's, whose editing is its own (#371).
+  const editable = screen.kind === "job" || screen.tag !== "profile";
   return (
     <div className="card">
-      <ItemList lines={screen.lines} {...list} />
+      <ItemList lines={screen.lines} {...list} onEdit={editable ? list.onEdit : undefined} />
     </div>
   );
 }

@@ -190,6 +190,38 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     expect(allIds).not.toContain("skill-jira");
   });
 
+  // #373: a personal project is neither a job nor a summary sentence; the nationality line is neither
+  // either. Each gets the section the master CV prints it under, between the jobs and Skills for
+  // projects, last for additional information — and a project carries no job attribution.
+  it("#373: personal projects and additional information are their own domains, in the master CV's order", async () => {
+    const mined = [
+      ...MINED,
+      claim({ id: "project-garden-sensors", role: "profile", text: "Built a solar-powered garden sensor network." }),
+      claim({ id: "additional-nationality", role: "profile", text: "Nationality: Portuguese" }),
+      claim({ id: "profile-strength", role: "profile", text: "Known for calm vendor negotiations." }),
+    ];
+    const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims: mined, roles: 1, needsGrill: 0 }) } });
+    const cookie = await anonSession(server.app);
+    await signIn(server.app, cookie, "e2e@example.com");
+    await mineAndGetJob(server, cookie);
+
+    const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(domains.map((d) => [d.tag, d.heading])).toEqual([
+      ["profile", "About you"],
+      ["experience", "Professional Experience"],
+      ["project", "Personal Projects"],
+      ["skill", "Skills"],
+      ["cert", "Certifications"],
+      ["additional", "Additional Information"],
+    ]);
+    const ids = (tag: string) => domains.find((d) => d.tag === tag)!.facts.map((f) => f.id);
+    expect(ids("profile")).toEqual(["profile-strength"]);
+    expect(ids("project")).toEqual(["project-garden-sensors"]);
+    expect(ids("additional")).toEqual(["additional-nationality"]);
+    expect(ids("experience")).toEqual(["acme-led-migration"]);
+    expect(domains.find((d) => d.tag === "project")!.facts[0]).toMatchObject({ job: null });
+  });
+
   it("source follows claim origin, not the claim id prefix", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const cookie = await anonSession(server.app);

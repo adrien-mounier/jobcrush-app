@@ -24,6 +24,7 @@ import {
   getReview,
   saveContactFields,
   setLineState,
+  setLineText,
   type ContactField,
   type ReviewLine,
   type ReviewState,
@@ -132,7 +133,7 @@ export default function CheckPage() {
 
   /** A write, then a fresh read of the paper. A failed write is reported; a failed re-read is not
    *  a save failure (the profile's own rule) — the next tick or tap re-reads. */
-  const write = async (action: () => Promise<unknown>, then?: () => void) => {
+  const write = async (action: () => Promise<unknown>, then?: () => void): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
@@ -140,7 +141,7 @@ export default function CheckPage() {
     } catch {
       setError(C_SAVE_FAILED);
       setBusy(false);
-      return;
+      return false;
     }
     try {
       setState(await getReview());
@@ -149,7 +150,10 @@ export default function CheckPage() {
     }
     then?.();
     setBusy(false);
+    return true;
   };
+  // #379: the words saved; on a failure the editor stays open with what was typed.
+  const edit = (id: string, text: string) => write(() => setLineText(id, text));
   const remove = (id: string) =>
     write(
       () => setLineState(id, "kept"),
@@ -281,6 +285,7 @@ export default function CheckPage() {
             bump: fx.bump === screen.key,
             onRemove: remove,
             onPutBack: putBack,
+            onEdit: edit,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
           details={{

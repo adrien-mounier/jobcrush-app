@@ -3,7 +3,7 @@
 // same check the oracle would make on the API server.
 import { describe, expect, it } from "vitest";
 import { ClaimGraph, type CandidateClaim } from "@jobcrush/contracts";
-import { buildClaimGraph } from "../src/graph.js";
+import { buildClaimGraph, kindTag } from "../src/graph.js";
 import { renderRootCv } from "../src/rootcv.js";
 import { runGate } from "../src/gate.js";
 
@@ -58,6 +58,19 @@ describe("JC-32 buildClaimGraph", () => {
     const g = buildClaimGraph(confirmed, { confirmedDate: "2026-07-18" });
     expect(g.nodes.every((n) => n.tags.length >= 1 && n.tags[0].length > 0)).toBe(true);
     expect(g.nodes.find((n) => n.id === "cert-pmp-2021")!.tags).toEqual(["cert"]);
+  });
+
+  // #373: the owner's personal projects and his nationality line arrived at the review filed under
+  // the summary — the miner had named them (`personal-project-*`, `current-location`) but kindTag
+  // knew no section for them, so every other `role: "profile"` claim fell into `profile`.
+  it("#373: a project- or additional- id is its own kind; any other profile-role id stays the summary", () => {
+    const tagOf = (id: string) => kindTag(claim({ id, role: "profile" }));
+    expect(tagOf("project-knowledge-base")).toBe("project");
+    expect(tagOf("additional-nationality-portuguese")).toBe("additional");
+    expect(tagOf("profile-years-of-experience")).toBe("profile");
+    expect(tagOf("years-of-experience")).toBe("profile");
+    // A job's bullet that mentions a project is still the job's.
+    expect(kindTag(claim({ id: "acme-project-alpha", role: "Acme — PM" }))).toBe("experience");
   });
 });
 

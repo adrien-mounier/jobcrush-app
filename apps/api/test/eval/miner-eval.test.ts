@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CandidateClaims, individualCardCount } from "@jobcrush/contracts";
 import { extractRawCv } from "../../src/extract.js";
+import { buildClaimGraph } from "../../src/graph.js";
+import { renderRootCv } from "../../src/rootcv.js";
 import { mineClaims } from "../../src/miner.js";
 import { llmFromEnv } from "../../src/llm.js";
 import casesFile from "./cases.json";
@@ -121,7 +123,7 @@ describe("JC-13 miner eval (recorded outputs)", () => {
   it("claim ids use the claim-miner prompt's kind prefixes (rule 8), and every prefix is exercised", async () => {
     const prompt = await readFile(join(testDir, "..", "prompts", "claim-miner.md"), "utf8");
     const prefixes = [...prompt.matchAll(/`([a-z]+)-…`/g)].map((m) => m[1]!);
-    expect(prefixes.sort()).toEqual(["cert", "edu", "lang", "skill"]);
+    expect(prefixes.sort()).toEqual(["additional", "cert", "edu", "lang", "project", "skill"]);
     // An id that LEADS with a rule-8 kind in any other form (`profile-language-polish`,
     // `education-bsc`, `skills-jira`) is invisible to a check keyed on the prefix. Only the lead
     // word (after an optional `profile-`) counts: `profile-soft-skills` is a self-description, not
@@ -132,6 +134,9 @@ describe("JC-13 miner eval (recorded outputs)", () => {
       edu: ["edu", "education"],
       lang: ["lang", "language", "languages"],
       skill: ["skill", "skills"],
+      // #373: the owner's CV came back as `personal-project-*` and `current-location`.
+      project: ["project", "projects", "personal"],
+      additional: ["additional", "nationality"],
     };
     const bad: string[] = [];
     const seen = new Set<string>();
@@ -149,6 +154,29 @@ describe("JC-13 miner eval (recorded outputs)", () => {
     expect(bad, "re-record with RECORD_MINER=1").toEqual([]);
     expect([...seen].sort(), "a prescribed prefix no recording exercises").toEqual([...prefixes].sort());
   });
+
+  // #373: the ticket's fixture — a summary followed by personal projects and a nationality line.
+  // The miner's own ids decide the section (kindTag → rootcv SECTIONS); this pins that the recorded
+  // ids put each line where cv-authoring-rules.md prints it, and that the summary keeps only its
+  // own two sentences. Expected counts come from the fixture text, not from the recording.
+  it.runIf(existsSync(recordingPath("personal-projects-txt")))(
+    "#373: the fixture's projects print under Personal Projects, its nationality under Additional Information, and the summary keeps only its own sentences",
+    async () => {
+      const doc = CandidateClaims.parse(JSON.parse(await readFile(recordingPath("personal-projects-txt"), "utf8")));
+      const { trace } = renderRootCv(buildClaimGraph(doc.claims));
+      const under = (section: string) => trace.entries.filter((e) => e.section === section).map((e) => e.bullet);
+      expect(under("Personal Projects")).toHaveLength(2);
+      expect(under("Personal Projects").join(" ")).toMatch(/garden sensor/);
+      expect(under("Personal Projects").join(" ")).toMatch(/recipe wiki/);
+      expect(under("Additional Information").join(" ")).toMatch(/Nationality: Portuguese/);
+      const summary = under("Professional Summary");
+      expect(summary).toHaveLength(2);
+      expect(summary.join(" ")).not.toMatch(/garden|recipe|Nationality|Lisbon/);
+      // The two jobs lost nothing to the move: three bullets, as printed.
+      expect(under("Professional Experience")).toHaveLength(3);
+      expect(trace.entries).toHaveLength(doc.claims.length);
+    },
+  );
 
   it("aggregate tier accuracy ≥ 90% (JC-13 merge bar)", () => {
     const total = scores.reduce((n, s) => n + s.total, 0);

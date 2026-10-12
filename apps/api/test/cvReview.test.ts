@@ -161,8 +161,9 @@ describe("#338 the paper", () => {
       location: { value: "Paris, France", origin: "read" },
     });
 
-    // The master CV's own print order: summary, experience, skills, certifications, education, languages.
-    expect(state.sections.map((s) => s.tag)).toEqual(["profile", "experience", "skill", "cert", "edu", "lang"]);
+    // The master CV's own print order: summary, experience, personal projects, skills, certifications,
+    // education, languages, additional information (#373 added the two the summary used to swallow).
+    expect(state.sections.map((s) => s.tag)).toEqual(["profile", "experience", "project", "skill", "cert", "edu", "lang", "additional"]);
     const jobs = jobsOf(state);
     expect(jobs.map((j) => [j.employer, j.title])).toEqual([
       ["Nordic Retail Group", "IT Project Manager"],
