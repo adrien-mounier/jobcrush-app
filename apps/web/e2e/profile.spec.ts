@@ -1067,16 +1067,16 @@ test("#186 AC4/AC5 (#335 wording): the grey caption shows verbatim in list runs 
   // An on-CV fact's detail: no grey caption, and the told line still shows.
   await page.locator(".fact.gold").click();
   await expect(dialog).not.toContainText("Not on your CV yet");
-  await expect(dialog).not.toContainText("Kept for when a job needs it");
+  await expect(dialog).not.toContainText("Removed");
   await expect(dialog).toContainText("You told me this.");
 
   await expect(page.getByText(/waiting for a job that asks/i)).toHaveCount(0);
 });
 
-// #335 — a line the person unticked is grey under "Kept for when a job needs it", in its own run
+// #335 — an item the person removed is grey under "Removed" (#386: the glossary word, was "Kept…"), in its own run
 // after the not-yet-confirmed grey and never mixed with it: in About you, a job block, a chip section
 // and a row section, in the detail, and to a screen reader.
-test("#335: a kept line shows grey under 'Kept for when a job needs it', apart from the not-yet-confirmed grey", async ({
+test("#335 (#386 wording): a removed item shows grey under 'Removed', apart from the not-yet-confirmed grey", async ({
   page,
 }) => {
   await stubSession(page);
@@ -1127,41 +1127,41 @@ test("#335: a kept line shows grey under 'Kept for when a job needs it', apart f
     "Delivered a SAP rollout across three sites.",
     "Not on your CV yet",
     "Ran weekly status meetings.",
-    "Kept for when a job needs it",
+    "Removed",
     "Responsible for various tasks.",
   ]);
   await expect(page.locator(".frow", { hasText: "Responsible for various tasks." })).toHaveClass(/\bgrey\b/);
   await expect(page.locator(".dom").filter({ has: page.getByRole("heading", { name: "Skills" }) }).locator(".fact, .krun")).toHaveText([
     "Not on your CV yet",
     "SQL",
-    "Kept for when a job needs it",
+    "Removed",
     "Excel",
   ]);
   await expect(page.locator(".fact", { hasText: "Excel" })).toHaveClass(/\bgrey\b/);
   await expect(page.locator(".dom").filter({ has: page.getByRole("heading", { name: "About you" }) }).locator(".frow, .krun")).toHaveText([
     "Based in Hong Kong.",
-    "Kept for when a job needs it",
+    "Removed",
     "Holds a PSM I certification.",
   ]);
   await expect(page.locator(".dom").filter({ has: page.getByRole("heading", { name: "Education" }) }).locator(".frow, .krun")).toHaveText([
     "MBA, INSEAD.",
-    "Kept for when a job needs it",
+    "Removed",
     "Diploma in office skills.",
   ]);
 
   // A screen reader hears the difference too, not only the caption above it.
-  await expect(page.getByRole("button", { name: "Responsible for various tasks. — Kept for when a job needs it" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Responsible for various tasks. — Removed" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ran weekly status meetings. — Saved to your profile" })).toBeVisible();
 
   const dialog = page.locator("dialog.detail");
   await page.locator(".frow", { hasText: "Responsible for various tasks." }).click();
-  await expect(dialog).toContainText("Kept for when a job needs it. Read from your CV.");
+  await expect(dialog).toContainText("Removed. Read from your CV.");
   await expect(dialog).not.toContainText("Not on your CV yet");
   await page.getByRole("button", { name: "Close" }).click();
 
   await page.locator(".frow", { hasText: "Ran weekly status meetings." }).click();
   await expect(dialog).toContainText("Not on your CV yet. Read from your CV.");
-  await expect(dialog).not.toContainText("Kept for when a job needs it");
+  await expect(dialog).not.toContainText("Removed");
 });
 
 test("#186 AC6: languages are edited in exactly one place, and the door pre-ticks from the eligibility answer — never the CV-mined chip text", async ({
@@ -2250,4 +2250,38 @@ test("#379 a fact's words are edited from its detail: Save sends them and the pr
   expect(sent).toEqual([{ url: "/api/cv/lines/e3/text", text: "Led SAP cutover planning for 3 plants." }]);
   await expect(dialog).not.toBeVisible();
   await expect(page.locator(".frow", { hasText: "Led SAP cutover planning for 3 plants." })).toHaveCount(1);
+});
+
+// #386: the Constellation's fact sheet offers the same Edit as the Sorted list's detail (#379 added it
+// only there) — the same door, and the star reads the new words after the profile is re-read.
+test("#386 a fact's words are edited from the Constellation's sheet too, through the same door", async ({ page }) => {
+  await stubSession(page);
+  const box = { state: PROFILE };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: box.state });
+  });
+  const sent: unknown[] = [];
+  await page.route("**/api/cv/lines/*/text", async (route) => {
+    const text = (route.request().postDataJSON() as { text: string }).text.trim();
+    sent.push({ url: new URL(route.request().url()).pathname, text });
+    box.state = {
+      ...box.state,
+      domains: box.state.domains.map((d) => ({ ...d, facts: d.facts.map((f) => (f.id === "e3" ? { ...f, text } : f)) })),
+    };
+    await route.fulfill({ json: { id: "e3", text } });
+  });
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+  const star = (text: string) => page.locator(`.skylist button[aria-label^="${text} — "]`);
+  await star("Led SAP cutover planning.").click();
+  const sheet = page.locator(".sheet.in");
+  await expect(sheet).toContainText("Led SAP cutover planning.");
+  await sheet.locator(".detailedit").click();
+  const editor = sheet.locator("textarea");
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue("Led SAP cutover planning.");
+  await editor.fill("Led SAP cutover planning for 3 plants.");
+  await sheet.locator(".rbtns .rbtn").first().click();
+  expect(sent).toEqual([{ url: "/api/cv/lines/e3/text", text: "Led SAP cutover planning for 3 plants." }]);
+  await expect(star("Led SAP cutover planning for 3 plants.")).toHaveCount(1);
 });

@@ -36,7 +36,7 @@ export interface ProfileFact {
    *  it) — explicit and additive so the frontend never keys off the `lang-answer-` id prefix.
    *  Absent/undefined on every other fact, including CV-claim language chips. */
   answerOnly?: true;
-  /** #335: the person unticked this line — grey under "Kept for when a job needs it", never the
+  /** #335: the person unticked this line — grey under "Removed", never the
    *  not-yet-confirmed grey. Absent on every other fact. */
   kept?: true;
   /** #384: the review's spelling fix on this line (ADR-0016 clause 2), worn exactly as GET /review

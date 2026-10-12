@@ -7,7 +7,7 @@
 //
 //   1. a CV is read; before the deck is decided its lines are grey "Not on your CV yet";
 //   2. two lines are unticked — one in a job, one in "About you"; on reload each sits grey under
-//      "Kept for when a job needs it", apart from the not-yet-confirmed grey;
+//      "Removed", apart from the not-yet-confirmed grey;
 //   3. the person confirms every line in the deck and builds the master CV — confirming a kept line
 //      does not force it on: neither kept line prints;
 //   4. re-ticking one restores it: gold on the profile, back on the rebuilt master CV;
@@ -52,7 +52,7 @@ const CV = [
 const JOB_LINE = 'Managed a budget of EUR 1.2M across 3 vendor teams.';
 const JOB_SIBLING = 'Led the replatforming of the e-commerce checkout';
 const ABOUT_LINE = 'Holds PSM I certification, obtained 2020.';
-const KEPT = 'Kept for when a job needs it';
+const KEPT = 'Removed'; // #386: the glossary word (it read "Kept for when a job needs it")
 const PENDING = 'Not on your CV yet';
 
 const qa = await createSession('ticked-kept-lines-journey', { baseURL: BASE, viewport: { width: 1280, height: 900 } });
@@ -162,8 +162,8 @@ await qa.goto('/profile', 'reloads the profile after unticking two lines');
 await qa.scrollThrough('reads the whole profile');
 const jobRun = await runOrder(jobBlock());
 await qa.note(`Nordic Retail block, top to bottom: ${JSON.stringify(jobRun)}`);
-await qa.expectText(jobBlock(), KEPT, 'the job block now carries a "Kept for when a job needs it" caption');
-await check((await captionAbove(jobBlock(), JOB_LINE)) === KEPT, 'the unticked job line sits under "Kept for when a job needs it", inside its own job');
+await qa.expectText(jobBlock(), KEPT, 'the job block now carries a "Removed" caption');
+await check((await captionAbove(jobBlock(), JOB_LINE)) === KEPT, 'the unticked job line sits under "Removed", inside its own job');
 await check((await captionAbove(jobBlock(), JOB_SIBLING)) === PENDING, 'its undecided sibling stays under "Not on your CV yet" — the two greys apart');
 await check(
   ((await jobBlock().locator('.frow', { hasText: JOB_LINE }).getAttribute('class')) ?? '').includes('grey'),
@@ -172,7 +172,7 @@ await check(
 
 const aboutRun = await runOrder(aboutYou());
 await qa.note(`About you, top to bottom: ${JSON.stringify(aboutRun)}`);
-await qa.expectText(aboutYou(), KEPT, 'About you: the unticked line is shown under "Kept for when a job needs it"');
+await qa.expectText(aboutYou(), KEPT, 'About you: the unticked line is shown under "Removed"');
 await check((await captionAbove(aboutYou(), ABOUT_LINE)) === KEPT, 'About you: the unticked line sits under the kept caption, apart from undecided lines');
 
 await qa.click(jobBlock().locator('.frow', { hasText: JOB_LINE }), 'opens the kept line');

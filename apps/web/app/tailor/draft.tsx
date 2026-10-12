@@ -155,7 +155,7 @@ function DisclosureBlock({ d }: { d: JobDisclosure }) {
             <strong>
               {d.heldBack.length} {d.heldBack.length === 1 ? "fact is" : "facts are"} not printed
             </strong>{" "}
-            — the ones that matter least for this job. Kept for when a job needs them. Show them
+            — the ones that matter least for this job. They stay in your profile for other jobs. Show them
           </summary>
           <ul>
             {/* Index keys throughout this static, render-once panel: two held-back facts (or two

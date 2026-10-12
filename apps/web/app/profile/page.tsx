@@ -74,11 +74,11 @@ const P30 = "Check your work history";
 
 // #186 the list, style B — the grey-run captions (design-186-188.md §A5). #335 splits grey in two
 // (owner's call, 2026-10-04): a line not yet confirmed reads "Not on your CV yet"; a line the person
-// unticked reads "Kept for when a job needs it" — so "kept" only ever means their own untick. The
-// list-run caption never carries a trailing period; the detail caption does (feeding straight into
-// the bold told/read line beside it).
+// unticked reads "Removed" (#386: the glossary's "removed item", as check mode says it — it was
+// "Kept for when a job needs it"). The list-run caption never carries a trailing period; the detail
+// caption does (feeding straight into the bold told/read line beside it).
 const CAP_PENDING_RUN = "Not on your CV yet";
-const CAP_KEPT_RUN = "Kept for when a job needs it";
+const CAP_KEPT_RUN = "Removed";
 function greyDetailCaption(fact: ProfileFact): string {
   return `${fact.kept ? CAP_KEPT_RUN : CAP_PENDING_RUN}. `;
 }
@@ -2263,6 +2263,10 @@ function ReadyScreen({
                     reducedMotion={reducedMotion}
                     selected={selected}
                     onOpenFact={onOpenFact}
+                    onFactSaved={(fresh) => {
+                      if (fresh) onProfileRefreshed(fresh);
+                      onCloseDialog();
+                    }}
                   />
                 )}
               </div>
@@ -2443,11 +2447,14 @@ function Constellation({
   reducedMotion,
   selected,
   onOpenFact,
+  onFactSaved,
 }: {
   domains: ProfileDomain[];
   reducedMotion: boolean;
   selected: { fact: ProfileFact } | null;
   onOpenFact: (f: ProfileFact) => void;
+  /** #386: the sheet's Edit saved — the re-read profile (null when the re-read failed). */
+  onFactSaved: (fresh: ProfileState | null) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2811,7 +2818,15 @@ function Constellation({
         })}
       </ul>
       <div className={`sheet ${selected ? "in sheetin" : "hint"}`}>
-        {selected ? <DetailBody fact={selected.fact} /> : <p>{P20}</p>}
+        {/* #386: the same Edit as the Sorted list's detail (#379). */}
+        {selected ? (
+          <>
+            <DetailBody fact={selected.fact} />
+            <FactEdit key={selected.fact.id} fact={selected.fact} onSaved={onFactSaved} />
+          </>
+        ) : (
+          <p>{P20}</p>
+        )}
       </div>
     </div>
   );

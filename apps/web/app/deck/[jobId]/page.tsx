@@ -255,7 +255,7 @@ export default function DeckScreen() {
           <div className="deck-progress">
             <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Worth a closer look</h2>
             <span style={{ fontSize: "0.85rem", color: "var(--jc-ink-muted)" }}>
-              {individual.length - undecided} of {individual.length} reviewed
+              {individual.length - undecided} of {individual.length} decided
             </span>
           </div>
           {individual.map((c) => (
@@ -310,7 +310,7 @@ export default function DeckScreen() {
                     </div>
                   ) : (
                     <p style={{ margin: 0, color: "var(--jc-ink-muted)" }}>
-                      {c.decision === "confirmed" ? "✓ Kept" : "Removed"} ·{" "}
+                      {c.decision === "confirmed" ? "✓ Confirmed" : "Removed"} ·{" "}
                       <button
                         onClick={() => setDecision(c.id, "pending")}
                         style={{ background: "none", border: "none", color: "var(--jc-accent)", cursor: "pointer", padding: 0, font: "inherit" }}
@@ -341,7 +341,7 @@ export default function DeckScreen() {
                     data-on={!removed.has(c.id)}
                     aria-pressed={!removed.has(c.id)}
                     onClick={() => toggleBatch(c.id)}
-                    title={removed.has(c.id) ? "Dropped — tap to keep" : "Kept — tap to drop"}
+                    title={removed.has(c.id) ? "Dropped — tap to put it back" : "In — tap to drop"}
                   >
                     {removed.has(c.id) ? "✕ " : ""}
                     {c.text}
