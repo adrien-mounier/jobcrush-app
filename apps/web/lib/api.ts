@@ -690,6 +690,10 @@ export type ReviewDraftFlag = "OPTIONAL" | "INDUSTRY GUESS";
 export interface ReviewDraft {
   mustHave: string | null;
   quote: string | null;
+  /** #368: where the quote sits on the CV — "<employer>, <title>" for a job, a section's heading
+   *  otherwise; null when no line holds it. Always sent; optional only so fixtures written before
+   *  it (review.spec.ts, deleted by #386) still type. */
+  source?: string | null;
   flags: ReviewDraftFlag[];
   /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
   vague: ReviewVague[];

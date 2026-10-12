@@ -38,6 +38,7 @@ const ReviewVague = z.object({
 const ReviewDraft = z.object({
   mustHave: z.string().nullable(),
   quote: z.string().nullable(),
+  source: z.string().nullable(),
   flags: z.array(z.enum(DRAFT_FLAGS)),
   vague: z.array(ReviewVague),
 });
