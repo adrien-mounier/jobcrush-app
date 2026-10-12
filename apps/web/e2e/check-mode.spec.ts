@@ -1695,6 +1695,35 @@ test.describe("#386 the end date and the import conflict", () => {
   });
 });
 
+// #386 AC: no on-screen text says "ticked", "kept" or "reviewed" (the glossary's word is "removed").
+// Every screen of the walk, with an item removed and its tray open, then the done screen.
+test("#386 no screen of the walk says ticked, kept or reviewed — a removed item is \"removed\"", async ({ page }) => {
+  await stubReview(page);
+  await page.route("**/api/onboarding/cards", async (route) => {
+    const body: CardsResponse = { stage: "deck", cards: [], authed: true, pendingCount: 0 };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/profile/check");
+  await expect(heading(page)).toHaveText(SCREENS[0]!);
+  const banned = /\b(ticked|unticked|tick|kept|reviewed)\b/i;
+  const seen: string[] = [];
+  for (let i = 0; i < SCREENS.length; i++) {
+    if (i === 2) {
+      await items(page).first().hover();
+      await removeButton(items(page).first()).click();
+      await tray(page).getByRole("button", { expanded: false }).click();
+      await expect(tray(page)).toContainText("1 removed");
+    }
+    seen.push((await page.locator("main").innerText()).replace(/\s+/g, " "));
+    await primary(page).click();
+  }
+  await expect(heading(page)).toHaveText("Your profile is ready");
+  seen.push(await page.locator("main").innerText());
+  expect(seen).toHaveLength(SCREENS.length + 1);
+  expect(seen.filter((text) => banned.test(text))).toEqual([]);
+  expect(seen.some((text) => /\bremoved\b/.test(text))).toBe(true);
+});
+
 // #386 — what the old review page proved about the check running in the background (#341) and
 // about a part it never answered (#362), on check mode: while a job has no answer yet its screen
 // says it is still being checked and never "nothing to answer"; the last screen holds Finish while
