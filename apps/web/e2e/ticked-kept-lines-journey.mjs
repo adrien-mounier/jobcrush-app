@@ -6,8 +6,10 @@
 // screen that already exists:
 //
 //   1. a CV is read; before the deck is decided its lines are grey "Not on your CV yet";
-//   2. two lines are unticked — one in a job, one in "About you"; on reload each sits grey under
-//      "Removed", apart from the not-yet-confirmed grey;
+//   2. two lines are unticked — one in a job, one in a flat-row section (Education); on reload each
+//      sits grey under "Removed", apart from the not-yet-confirmed grey. (#373/#371: the recorded CV
+//      has no summary, and its certification lines now sit under Certifications, so "About you" holds
+//      no CV line to untick; Education is the same flat-row section, FlatRows.)
 //   3. the person confirms every line in the deck and builds the master CV — confirming a kept line
 //      does not force it on: neither kept line prints;
 //   4. re-ticking one restores it: gold on the profile, back on the rebuilt master CV;
@@ -51,7 +53,8 @@ const CV = [
 // The fake miner's recorded lines (apps/api/test/eval/recordings/clean-pdf.json).
 const JOB_LINE = 'Managed a budget of EUR 1.2M across 3 vendor teams.';
 const JOB_SIBLING = 'Led the replatforming of the e-commerce checkout';
-const ABOUT_LINE = 'Holds PSM I certification, obtained 2020.';
+const FLAT_LINE = 'Holds an MSc in Management Information Systems from the University of Warsaw, 2017.';
+const FLAT_PRINTED = 'Management Information Systems'; // how the master CV would print it
 const KEPT = 'Removed'; // #386: the glossary word (it read "Kept for when a job needs it")
 const PENDING = 'Not on your CV yet';
 
@@ -79,7 +82,7 @@ const setLine = (id, state) =>
     [id, state],
   );
 const jobBlock = () => page.locator('.jblk').filter({ has: page.locator('.jhead', { hasText: 'Nordic Retail Group' }) });
-const aboutYou = () => page.locator('.dom').filter({ has: page.locator('.dname', { hasText: 'About you' }) });
+const flatSection = () => page.locator('.dom').filter({ has: page.locator('.dname', { hasText: 'Education' }) });
 const runOrder = (loc) => loc.locator('.frow, .fact, .krun').allInnerTexts();
 /** The caption a row sits under: the nearest `.krun` before it inside the same container. */
 const captionAbove = (container, text) =>
@@ -135,10 +138,14 @@ const deck = await page.evaluate(async (id) => {
   const r = await fetch('/api/onboarding/deck', {
     method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: id }),
   });
-  return (await r.json()).claims.map((c) => c.lineState);
+  return (await r.json()).claims.map((c) => ({ origin: c.origin, state: c.lineState }));
 }, jobId);
 await qa.note(`line states as read: ${JSON.stringify(deck)}`);
-await check(deck.length > 0 && deck.every((s) => s === 'ticked'), 'every line read from the CV arrives ticked');
+// #342: the review's drafts sit beside the CV's lines — suggestions, not lines read from the CV.
+const read = deck.filter((c) => c.origin === 'mined');
+const drafts = deck.filter((c) => c.origin === 'drafted');
+await check(read.length > 0 && read.every((c) => c.state === 'ticked'), `every line read from the CV arrives ticked (${read.length})`);
+await check(drafts.every((c) => c.state === 'drafted') && read.length + drafts.length === deck.length, 'the only other lines are the review\'s unanswered drafts, ticked by nobody');
 
 // ---------------------------------------------------------------------------------------------
 // 2. Before deciding anything: the profile's grey is "Not on your CV yet". Untick two lines.
@@ -151,10 +158,10 @@ await qa.expectText(jobBlock().locator('.krun').first(), PENDING, 'undecided lin
 await qa.note(`hero before the deck: ${JSON.stringify(await page.locator('.pwait').innerText())}`);
 
 const jobLineId = await factId(JOB_LINE);
-const aboutLineId = await factId(ABOUT_LINE);
-await qa.note(`line ids: job=${jobLineId} about=${aboutLineId}`);
+const flatLineId = await factId(FLAT_LINE);
+await qa.note(`line ids: job=${jobLineId} education=${flatLineId}`);
 const u1 = await setLine(jobLineId, 'kept');
-const u2 = await setLine(aboutLineId, 'kept');
+const u2 = await setLine(flatLineId, 'kept');
 await qa.note(`untick responses: ${JSON.stringify([u1, u2])}`);
 await check(u1.status === 200 && u2.status === 200, 'both unticks are accepted (200)');
 
@@ -170,10 +177,14 @@ await check(
   'the kept line is grey',
 );
 
-const aboutRun = await runOrder(aboutYou());
-await qa.note(`About you, top to bottom: ${JSON.stringify(aboutRun)}`);
-await qa.expectText(aboutYou(), KEPT, 'About you: the unticked line is shown under "Removed"');
-await check((await captionAbove(aboutYou(), ABOUT_LINE)) === KEPT, 'About you: the unticked line sits under the kept caption, apart from undecided lines');
+const flatRun = await runOrder(flatSection());
+await qa.note(`Education, top to bottom: ${JSON.stringify(flatRun)}`);
+await qa.expectText(flatSection(), KEPT, 'Education: the unticked line is shown under "Removed"');
+await check((await captionAbove(flatSection(), FLAT_LINE)) === KEPT, 'Education: the unticked line sits under the kept caption, apart from undecided lines');
+await check(
+  ((await flatSection().locator('.frow', { hasText: FLAT_LINE }).getAttribute('class')) ?? '').includes('grey'),
+  'Education: the kept line is grey',
+);
 
 await qa.click(jobBlock().locator('.frow', { hasText: JOB_LINE }), 'opens the kept line');
 await qa.expectText('dialog.detail', `${KEPT}. Read from your CV.`, 'the detail says it is kept, and read from her CV');
@@ -207,7 +218,7 @@ await check(keptCaptionsOk.length === 0, `nothing undecided is listed under a "K
 const master1 = await buildMasterCv(jobId, 'back to the deck to confirm every fact and build');
 await qa.expectText('main', 'replatforming', 'the master CV prints her ticked lines');
 await check(!master1.includes('EUR 1.2M'), 'the kept job line is NOT on the master CV, though she confirmed it in the deck');
-await check(!master1.includes('PSM I'), 'the kept About-you line is NOT on the master CV');
+await check(!master1.includes(FLAT_PRINTED), 'the kept Education line is NOT on the master CV');
 
 await qa.goto('/profile', 'back to the profile after building');
 await check((await captionAbove(jobBlock(), JOB_LINE)) === KEPT, 'confirmed in the deck, the kept line is still kept — confirming never re-ticks');
@@ -215,7 +226,7 @@ await qa.expectText('.pwait', 'make your CV right now', 'the summary now counts 
 await qa.expectText('.pwait', 'The rest are not on your CV yet', 'and the rest are "not on your CV yet"');
 
 // ---------------------------------------------------------------------------------------------
-// 4. Re-tick the job line: gold again, back on the master CV. The About-you line stays kept.
+// 4. Re-tick the job line: gold again, back on the master CV. The Education line stays kept.
 // ---------------------------------------------------------------------------------------------
 const r1 = await setLine(jobLineId, 'ticked');
 await check(r1.status === 200, `re-tick accepted (${r1.status})`);
@@ -229,7 +240,8 @@ await qa.expectVisible(jobBlock().locator('.frow.gold', { hasText: JOB_LINE }), 
 
 const master2 = await buildMasterCv(jobId, 'rebuilds the master CV');
 await check(master2.includes('EUR 1.2M'), 'the re-ticked line is back on the master CV');
-await check(!master2.includes('PSM I'), 'the still-kept line is still off it');
+await check(!master2.includes(FLAT_PRINTED), 'the still-kept line is still off it');
+await check(master2.includes('PSM I'), 'a line nobody unticked prints beside it (Certifications)');
 await qa.expectText('main', 'EUR 1.2M', 'the re-ticked line, printed');
 
 // ---------------------------------------------------------------------------------------------
