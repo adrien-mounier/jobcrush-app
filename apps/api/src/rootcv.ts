@@ -6,18 +6,22 @@
 // (audit — S2 decision 1/6).
 import type { ClaimGraph, ClaimNode } from "@jobcrush/contracts";
 
-// kind tag (set by buildClaimGraph) → CV section heading, in render order. A renderable node whose
-// tag isn't listed falls into "Additional Information" so nothing confirmed is ever dropped.
+// kind tag (set by buildClaimGraph) → CV section heading, in render order: the order
+// docs/cv-brain/cv-authoring-rules.md fixes (Personal Projects right after the jobs, Additional
+// Information last; #373). A renderable node whose tag isn't listed falls into "Additional
+// Information" so nothing confirmed is ever dropped.
 // Exported: #20's profile route groups its (wider) claim set into the same section order/headings.
+const OTHER = "Additional Information";
 export const SECTIONS: ReadonlyArray<readonly [tag: string, heading: string]> = [
   ["profile", "Professional Summary"],
   ["experience", "Professional Experience"],
+  ["project", "Personal Projects"],
   ["skill", "Skills"],
   ["cert", "Certifications"],
   ["edu", "Education"],
   ["lang", "Languages"],
+  ["additional", OTHER],
 ];
-const OTHER = "Additional Information";
 
 export interface TraceEntry {
   bullet: string;
@@ -66,7 +70,7 @@ export function renderRootCv(graph: ClaimGraph, cvFile = "root-cv.md"): RootCv {
     buckets.set(h, arr);
   }
 
-  const order = [...SECTIONS.map(([, h]) => h), OTHER];
+  const order = SECTIONS.map(([, h]) => h); // ends with OTHER, where an unlisted tag lands
   const entries: TraceEntry[] = [];
   for (const heading of order) {
     for (const n of buckets.get(heading) ?? []) {

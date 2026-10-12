@@ -26,6 +26,9 @@ export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
   origin: ClaimOrigin;
   lineState: LineState;
+  /** #379 (ADR-0018 clause 2): the words the item had before the person's first edit, kept once so
+   *  the change can be traced; null until then. edit() alone writes it, and only when it is null. */
+  originalText: string | null;
   /** #28: a monotonic per-session ordinal — the order this claim's answer was FIRST RECORDED, so a
    *  derived view (tailor.ts's buildTailorLedger) can replay confirmed() and negatives() — two
    *  separately-ordered lists — as ONE true answer order instead of stamping every line from today's
@@ -53,8 +56,11 @@ export interface ClaimStore {
   confirmed(sessionId: string): Promise<ClaimRecord[]>;
   confirm(sessionId: string, id: string): Promise<void>;
   reject(sessionId: string, id: string): Promise<void>;
-  /** Deck edit: user retyped the text → user-authored, auto-confirmed (they vouched for it). */
-  edit(sessionId: string, id: string, text: string): Promise<void>;
+  /** The person's own words on a line (deck edit, check mode's ✎, the profile): user-authored,
+   *  auto-confirmed (they vouched for it), the first original kept in `originalText` (#379). The tick
+   *  is untouched — a removed item stays removed. False when the session has no such line, or it is
+   *  a draft nobody has ticked (setDraftText is a draft's door). */
+  edit(sessionId: string, id: string, text: string): Promise<boolean>;
   /** Grill answer: a new confirmed, user-authored claim. */
   add(sessionId: string, claim: CandidateClaim): Promise<void>;
   /** #13: the decision === "negative" subset (persisted "no" answers), in insertion/seq order. */
@@ -96,6 +102,7 @@ const withFields = (c: CandidateClaim) => ({
   field_key: c.field_key ?? null,
   field_value: c.field_value ?? null,
   field_label: c.field_label ?? null,
+  originalText: null,
 });
 
 export class InMemoryClaimStore implements ClaimStore {
@@ -166,14 +173,15 @@ export class InMemoryClaimStore implements ClaimStore {
     }
   }
 
-  async edit(sessionId: string, id: string, text: string): Promise<void> {
+  async edit(sessionId: string, id: string, text: string): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (c) {
-      c.text = text;
-      c.origin = "user-authored";
-      c.decisionSeq = this.decisionSeq(sessionId, c);
-      c.decision = "confirmed";
-    }
+    if (!c || c.lineState === "drafted") return false;
+    c.originalText ??= c.text;
+    c.text = text;
+    c.origin = "user-authored";
+    c.decisionSeq = this.decisionSeq(sessionId, c);
+    c.decision = "confirmed";
+    return true;
   }
 
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
@@ -188,6 +196,7 @@ export class InMemoryClaimStore implements ClaimStore {
       decision: "confirmed",
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
+      originalText: existing?.originalText ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -206,6 +215,7 @@ export class InMemoryClaimStore implements ClaimStore {
       decision: "negative",
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
+      originalText: existing?.originalText ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -289,6 +299,10 @@ const CLAIMS_ALTERS = [
   // before. No insert or upsert below names the column: a new line takes the default, and a re-seed
   // or re-answer never re-ticks a line the person unticked.
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS line_state text NOT NULL DEFAULT 'ticked'",
+  // #379: the words before the person's first edit; null until then. No insert names it (CLAIM_COLS
+  // is untouched, so every positional placeholder keeps its index): a new line has no original, and
+  // edit() alone fills it, once.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS original_text text",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -317,6 +331,7 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     decision: r.decision as ClaimDecision,
     origin: r.origin as ClaimOrigin,
     lineState: r.line_state as LineState,
+    originalText: (r.original_text as string | null) ?? null,
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
     seq: Number(r.seq),
@@ -384,14 +399,15 @@ export class PgClaimStore implements ClaimStore {
     await this.pool.query(`UPDATE claims SET decision = 'rejected', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
-  async edit(sessionId: string, id: string, text: string): Promise<void> {
+  async edit(sessionId: string, id: string, text: string): Promise<boolean> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
-    await this.pool.query(
-      `UPDATE claims SET text = $3, origin = 'user-authored', decision = 'confirmed',
-         decision_seq = COALESCE(decision_seq, $4)
-       WHERE session_id = $1 AND id = $2`,
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET original_text = COALESCE(original_text, text), text = $3,
+         origin = 'user-authored', decision = 'confirmed', decision_seq = COALESCE(decision_seq, $4)
+       WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
       [sessionId, id, text, decisionSeq],
     );
+    return (rowCount ?? 0) > 0;
   }
 
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {

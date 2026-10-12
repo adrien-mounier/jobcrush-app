@@ -413,9 +413,41 @@
   }
 }
 
+/* #379 — an item's words edited in place (prototype V2.1 `li.pt.edit`) */
+.check .pt.edit {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding-left: 8px;
+  background: rgba(31, 38, 47, 0.75);
+}
+.check .pt.edit::before {
+  display: none;
+}
+.check textarea.ed {
+  width: 100%;
+  min-height: 76px;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 16px/1.5 var(--serif);
+}
+.check .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.check .btn.sm {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+
 /* #380 — "Remove this?": an item that belongs nowhere, where it sits. A coral bar on its left, never
    the dashed gold frame (that look is for adding). Prototype V2.1 removeCard / .sg.rmv; every rule
-   scoped under .sg.rmv so #378's gold .sg rules can sit beside it. */
+   scoped under .sg.rmv so #378's gold .sg rules can sit beside it. Buttons and .row: #379's above. */
 .check .sg.rmv {
   --ind: 40px;
   list-style: none;
@@ -471,15 +503,6 @@
 }
 .check .sg.rmv .row {
   padding-left: var(--ind);
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.check .sg.rmv .btn.sm {
-  padding: 6px 10px;
-  font-size: 13px;
-  border-radius: 9px;
 }
 .check .sg.rmv .btn:disabled {
   opacity: 0.5;
