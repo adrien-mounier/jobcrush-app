@@ -23,7 +23,13 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
 
 const REVIEW: ReviewState = {
   completed: false,
-  letterhead: { header: "Jane Doe\nParis, France", phone: { value: "+33 6 00 00 00 00", origin: "read" }, email: { value: "jane.doe@example.com", origin: "read" } },
+  letterhead: {
+    name: { value: "Jane Doe", origin: "read" },
+    title: { value: "IT Project Manager", origin: "read" },
+    email: { value: "jane.doe@example.com", origin: "read" },
+    phone: { value: "+33 6 00 00 00 00", origin: "read" },
+    location: { value: "Paris, France", origin: "read" },
+  },
   conflict: null,
   progress: null,
   unchecked: false,
@@ -149,6 +155,17 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     const text = (route.request().postDataJSON() as { text: string }).text.trim();
     move(id, { text });
     await route.fulfill({ json: { id, text } });
+  });
+  // #381: Your details' batched save — each non-empty field becomes the person's own answer.
+  await page.route("**/api/contact", async (route) => {
+    record(route);
+    const { fields } = route.request().postDataJSON() as { fields: Record<string, string> };
+    const letterhead = { ...box.state.letterhead };
+    for (const [field, value] of Object.entries(fields)) {
+      if (value) letterhead[field as keyof typeof letterhead] = { value, origin: "person-said" };
+    }
+    box.state = { ...box.state, letterhead };
+    await route.fulfill({ json: letterhead });
   });
   return { calls, box };
 }
@@ -524,6 +541,82 @@ test("with the check failed to load, the screen says so and offers a retry", asy
   await expect(page.locator(".check .loadstate[role=alert]")).toBeVisible();
   await page.locator(".check .loadstate button").click();
   await expect(heading(page)).toHaveText("Your details");
+});
+
+// #381 (ADR-0018 clause 5): Your details are the person's own facts, shown as five editable fields
+// in a plain card; the footer button saves what changed, and typing survives moving around.
+test.describe("#381 Your details as editable fields", () => {
+  const FIELDS = ["name", "title", "email", "phone", "location"] as const;
+  const field = (page: Page, name: (typeof FIELDS)[number]) => page.locator(`.card.form .fields input[name=${name}]`);
+  const contactCalls = (calls: Recorded[]) => calls.filter((c) => c.url === "/api/contact");
+
+  test("the five fields arrive filled from the letterhead, in a plain card with no button of its own", async ({ page }) => {
+    await stubReview(page);
+    await page.goto("/profile/check");
+    await expect(heading(page)).toHaveText(SCREENS[0]!);
+    const values = await Promise.all(FIELDS.map((f) => field(page, f).inputValue()));
+    expect(values).toEqual(FIELDS.map((f) => REVIEW.letterhead[f]!.value));
+    // Every field is labelled (the label wraps its input), and the card holds no button: the footer saves.
+    for (const f of FIELDS) await expect(page.locator(`.card.form .fields label:has(input[name=${f}])`)).toHaveCount(1);
+    await expect(page.locator(".card.form button")).toHaveCount(0);
+    await expect(page.locator(".card.form")).toHaveCount(1);
+  });
+
+  test("a CV with no location shows the empty field with its placeholder, and the screen still confirms without a save", async ({ page }) => {
+    const { calls } = await stubReview(page, { ...REVIEW, letterhead: { ...REVIEW.letterhead, location: null } });
+    await page.goto("/profile/check");
+    await expect(field(page, "location")).toHaveValue("");
+    // Same placeholder as any empty field would carry; the filled name carries it too, unseen.
+    const placeholder = await field(page, "location").getAttribute("placeholder");
+    expect(placeholder?.length).toBeGreaterThan(0);
+    await expect(field(page, "name")).toHaveAttribute("placeholder", placeholder!);
+    await expect(primary(page)).toBeEnabled();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText(SCREENS[1]!);
+    expect(contactCalls(calls)).toEqual([]); // nothing was changed, so nothing is written
+  });
+
+  test("editing a field and pressing Next saves it — only what changed — and a reload shows it", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    await field(page, "title").fill("Head of Delivery");
+    await field(page, "location").fill("Lyon, France");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText(SCREENS[1]!);
+    expect(contactCalls(calls)).toEqual([
+      { method: "PUT", url: "/api/contact", body: { fields: { title: "Head of Delivery", location: "Lyon, France" } } },
+    ]);
+
+    await page.reload();
+    await expect(heading(page)).toHaveText(SCREENS[0]!);
+    await expect(field(page, "title")).toHaveValue("Head of Delivery");
+    await expect(field(page, "location")).toHaveValue("Lyon, France");
+    await expect(field(page, "name")).toHaveValue("Jane Doe");
+  });
+
+  test("typed text survives the walk's re-reads and Back, until the footer button saves it", async ({ page }) => {
+    // The run is going, so the walk re-reads the paper every few seconds — typing must outlive it.
+    const { calls, box } = await stubReview(page, { ...REVIEW, progress: { done: 1, total: 2, minutesLeft: 4 } });
+    await page.goto("/profile/check");
+    await expect(field(page, "name")).toHaveValue("Jane Doe");
+    await field(page, "name").fill("Jane Doe-Martin");
+    await page.waitForResponse((r) => new URL(r.url()).pathname === "/api/review");
+    await expect(field(page, "name")).toHaveValue("Jane Doe-Martin");
+    expect(box.state.letterhead.name?.value).toBe("Jane Doe"); // not saved yet
+
+    await primary(page).click();
+    await expect(heading(page)).toHaveText(SCREENS[1]!);
+    await back(page).click();
+    await expect(heading(page)).toHaveText(SCREENS[0]!);
+    await expect(field(page, "name")).toHaveValue("Jane Doe-Martin");
+    await field(page, "phone").fill("+33 6 11 11 11 11");
+    await primary(page).click(); // the footer button saves again: only the new change
+    await expect(heading(page)).toHaveText(SCREENS[1]!);
+    expect(contactCalls(calls).map((c) => c.body)).toEqual([
+      { fields: { name: "Jane Doe-Martin" } },
+      { fields: { phone: "+33 6 11 11 11 11" } },
+    ]);
+  });
 });
 
 // #379 (ADR-0018 clause 2): an item's words edited in place. ✎ (the item's non-removing action)

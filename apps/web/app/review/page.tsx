@@ -152,6 +152,12 @@ function segments(text: string, vague: ReviewVague[]): Array<string | Spot> {
 const spotsOf = (line: ReviewLine): Spot[] =>
   line.state === "drafted" ? segments(line.text, line.draft?.vague ?? []).filter((s): s is Spot => typeof s !== "string") : [];
 
+/** #381: the letterhead is five fields now; this page (unreachable since #377, deleted by #386)
+ *  shows name, title and location as the one block it always showed. */
+function headerOf({ name, title, location }: ReviewState["letterhead"]): string | null {
+  return [name, title, location].map((v) => v?.value).filter(Boolean).join("\n") || null;
+}
+
 function withLine(state: ReviewState, line: ReviewLine): ReviewState {
   const swap = (l: ReviewLine) => (l.id === line.id ? line : l);
   return {
@@ -351,7 +357,7 @@ export default function ReviewPage() {
   // #362: nothing says why (never show the kitchen).
   const showCheck = toCheck > 0 || !state.unchecked;
   const hasContent =
-    state.letterhead.header !== null ||
+    headerOf(state.letterhead) !== null ||
     state.sections.some((s) => ("jobs" in s ? s.jobs.length > 0 : s.lines.length > 0));
 
   // The line on the paper: a kept line grey, a fixed line with its corrected words marked green, a
@@ -482,7 +488,7 @@ export default function ReviewPage() {
           aria-label={R5}
           onClick={(e) => open({ kind: "contact" }, e.currentTarget)}
         >
-          {state.letterhead.header && <p className="lh">{state.letterhead.header}</p>}
+          {headerOf(state.letterhead) && <p className="lh">{headerOf(state.letterhead)}</p>}
           <p className="contact">
             {[state.letterhead.phone?.value, state.letterhead.email?.value].filter(Boolean).join(" · ")}
           </p>
@@ -637,7 +643,7 @@ export default function ReviewPage() {
                   {R5}
                 </h2>
                 <p className="sub">{R6}</p>
-                {state.letterhead.header && <p className="asread">{state.letterhead.header}</p>}
+                {headerOf(state.letterhead) && <p className="asread">{headerOf(state.letterhead)}</p>}
                 <ContactRow
                   field="phone"
                   label="Phone"

@@ -39,7 +39,13 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
 
 const REVIEW: ReviewState = {
   completed: false,
-  letterhead: { header: "Jane Doe\nParis, France", phone: CONTACT_PHONE, email: CONTACT_EMAIL },
+  letterhead: {
+    name: { value: "Jane Doe", origin: "read" },
+    title: null,
+    location: { value: "Paris, France", origin: "read" },
+    phone: CONTACT_PHONE,
+    email: CONTACT_EMAIL,
+  },
   conflict: { fieldId: "city", question: "City: your CV says Paris and also Lyon. Which one is right?", values: ["Paris", "Lyon"] },
   progress: null,
   unchecked: false,
