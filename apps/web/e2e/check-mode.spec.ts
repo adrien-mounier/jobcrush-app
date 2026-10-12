@@ -22,6 +22,10 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
   ...over,
 });
 
+// #384: the review fixed a typo on one of the job's lines; the item reads the corrected words.
+const TYPO = "Managed a budget of EUR 1.2M accross 3 vendor teams.";
+const FIXED = "Managed a budget of EUR 1.2M across 3 vendor teams.";
+
 const REVIEW: ReviewState = {
   completed: false,
   letterhead: {
@@ -51,7 +55,7 @@ const REVIEW: ReviewState = {
           checking: false,
           family: null,
           complete: false,
-          lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-2", "Managed a budget of EUR 1.2M across 3 vendor teams.")],
+          lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-2", FIXED, { fix: { original: TYPO, corrected: FIXED, applied: true } })],
         },
         {
           id: "bsh",
@@ -99,9 +103,9 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
   await page.route("**/api/review", async (route) => {
     await route.fulfill({ json: box.state });
   });
-  /** Moves one line the way the server would. */
-  const move = (id: string, over: Partial<ReviewLine>) => {
-    const swap = (l: ReviewLine) => (l.id === id ? { ...l, ...over } : l);
+  /** Moves one line the way the server would: new fields, or a function of the line as it is. */
+  const move = (id: string, over: Partial<ReviewLine> | ((l: ReviewLine) => ReviewLine)) => {
+    const swap = (l: ReviewLine) => (l.id !== id ? l : typeof over === "function" ? over(l) : { ...l, ...over });
     box.state = {
       ...box.state,
       sections: box.state.sections.map((s) =>
@@ -158,6 +162,18 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     const { text } = route.request().postDataJSON() as { text: string };
     box.state = { ...box.state, about: { text, original: box.state.about?.original ?? null } };
     await route.fulfill({ json: { text } });
+  });
+  // #384: undo / use the fix — the line reads the original or the corrected words, as the server does it.
+  await page.route("**/api/review/fixes/*", async (route) => {
+    record(route);
+    const id = new URL(route.request().url()).pathname.split("/").pop()!;
+    const { applied } = route.request().postDataJSON() as { applied: boolean };
+    let text = "";
+    move(id, (l) => {
+      text = applied ? l.fix!.corrected : l.fix!.original;
+      return { ...l, text, fix: { ...l.fix!, applied } };
+    });
+    await route.fulfill({ json: { id, text, applied } });
   });
   // #379: the words door — the server trims and stores them; a re-read shows them.
   await page.route("**/api/cv/lines/*/text", async (route) => {
@@ -488,7 +504,7 @@ test.describe("#378 add suggestions answered in place", () => {
     await expect(items(page)).toHaveCount(4);
     await expect(items(page).nth(2)).toContainText(MUST.text);
     await expect(items(page).nth(3)).toContainText("Worked to the bank's release calendar.");
-    await expect(items(page).locator(".tag")).toHaveCount(2);
+    await expect(items(page).locator(".tag:not(.fixed)")).toHaveCount(2); // the "new" tags (#384's fix tag is its own)
     await expect(page.locator("ul.pts")).not.toContainText(OPTIONAL.text);
     await expect(primary(page)).toBeEnabled();
 
@@ -816,6 +832,69 @@ test.describe("#371 About you", () => {
     expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/sum-langs", body: { state: "kept" } });
     await expect(items(page)).toHaveCount(0);
     await expect(tray(page)).toHaveCount(1);
+  });
+});
+
+// #384: the review's spelling fixes in check mode (ADR-0016 clause 2, kept by ADR-0018). A fix stays
+// applied without asking; the item wears a quiet tag that opens the original beside the corrected
+// words with Undo, and "Use the fix" after an undo. A fix is never something to answer.
+test.describe("#384 fixes", () => {
+  const fixTag = (item: ReturnType<Page["locator"]>) => item.locator(".tag.fixed");
+  const fixRow = (item: ReturnType<Page["locator"]>) => item.locator(".fixrow");
+
+  test("a fixed item wears the tag; the tag opens original → corrected; Undo restores the original and persists across a reload; the fix can be used again", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    const fixed = items(page).nth(1);
+    await expect(fixed.locator(".txt")).toContainText(FIXED);
+    await expect(fixTag(fixed)).toHaveCount(1);
+    await expect(fixTag(items(page).first())).toHaveCount(0); // no fix, no tag
+    await expect(fixRow(fixed)).toHaveCount(0);
+
+    await fixTag(fixed).click();
+    await expect(fixTag(fixed)).toHaveAttribute("aria-expanded", "true");
+    await expect(fixRow(fixed).locator("s")).toHaveText("accross");
+    await expect(fixRow(fixed).locator(".to")).toHaveText("across");
+    await fixRow(fixed).getByRole("button").click(); // Undo
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/fixes/nrg-2", body: { applied: false } }]);
+    await expect(fixed.locator(".txt")).toContainText(TYPO);
+    await expect(items(page)).toHaveCount(2); // undoing a fix is not a removal
+    await expect(tray(page)).toHaveCount(0);
+
+    await page.reload();
+    await primary(page).click();
+    await primary(page).click();
+    const undone = items(page).nth(1);
+    await expect(undone.locator(".txt")).toContainText(TYPO);
+    await expect(fixTag(undone)).toHaveCount(1);
+    await fixTag(undone).click();
+    await fixRow(undone).getByRole("button").click(); // Use the fix
+    expect(calls[1]).toEqual({ method: "PUT", url: "/api/review/fixes/nrg-2", body: { applied: true } });
+    await expect(undone.locator(".txt")).toContainText(FIXED);
+  });
+
+  test("fixes never hold the footer button: a screen where every item is fixed moves on, and Finish completes with no fix answered", async ({ page }) => {
+    const fix = (l: ReviewLine): ReviewLine => ({ ...l, fix: { original: l.text.replace("a", "aa"), corrected: l.text, applied: true } });
+    const everyLineFixed: ReviewState = {
+      ...REVIEW,
+      sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => ({ ...j, lines: j.lines.map(fix) })) } : { ...s, lines: s.lines.map(fix) })),
+    };
+    const { calls } = await stubReview(page, everyLineFixed);
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) {
+      await expect(primary(page)).toBeEnabled();
+      await expect(primary(page)).toHaveText(`Next: ${SCREENS[i]}  →`);
+      await primary(page).click();
+    }
+    await expect(items(page).first().locator(".tag.fixed")).toHaveCount(1); // the screen really shows fixed items
+    await expect(primary(page)).toHaveText("Finish my profile");
+    await expect(primary(page)).toBeEnabled();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Your profile is ready");
+    expect(calls).toEqual([{ method: "POST", url: "/api/review/complete", body: null }]);
   });
 });
 

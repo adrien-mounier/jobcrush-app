@@ -79,7 +79,10 @@ import { fileURLToPath } from "node:url";
 // #339 lowered it from 648: discovery stopped asking people to describe their own work. The floor-item
 // and reader-only answer branches and the GET's reader question are gone outright, and what is left of
 // the answer route is eligibility — whose write path already lived in eligibilityDiscovery.ts.
-const MAX_LINES = 536;
+// #384 lowered it from 536: GET /profile's reads moved to profile.ts (readProfile), beside the
+// assembly they feed — the spine had zero headroom when the ticket needed one more dependency (the
+// review store, so the profile wears the review's fixes), and the route kept a one-line entry.
+const MAX_LINES = 523;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

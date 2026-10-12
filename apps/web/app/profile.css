@@ -294,6 +294,23 @@
   font-weight: 520;
   text-shadow: 0 0 18px rgba(232, 163, 61, 0.22);
 }
+/* #384 — the review fixed a spelling mistake on this line: check mode's quiet tag, same shape. */
+.profile .tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: #8a95a2;
+  text-shadow: none;
+  border: 1px solid #2b333d;
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 8px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.profile .fact.gold .tag {
+  color: #1a1206;
+  border-color: rgba(26, 18, 6, 0.35);
+}
 
 /* #186 A3 — Professional Experience's job blocks. */
 .profile .jblk {

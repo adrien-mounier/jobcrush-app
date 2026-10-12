@@ -26,6 +26,7 @@ import {
   saveAbout,
   saveContactFields,
   setDraftText,
+  setFixApplied,
   setLineState,
   setLineText,
   tickDraft,
@@ -337,6 +338,7 @@ export default function CheckPage() {
             onRemove: remove,
             onPutBack: putBack,
             onEdit: edit,
+            onFix: (id, applied) => void write(() => setFixApplied(id, applied)),
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
           drafts={drafts}
