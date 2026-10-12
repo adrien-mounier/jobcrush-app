@@ -50,6 +50,12 @@ export interface ClaimRecord extends CandidateClaim {
   seq?: number;
   /** #37: decision order for replaying confirmed/negative history; hand-built records may only have seq. */
   decisionSeq?: number;
+  /** #371 (ADR-0018 clause 6): the section a moved line now sits in — a kind tag (graph.ts kindTag
+   *  reads it before the id prefix). Null/absent on a line that never moved. */
+  section?: string | null;
+  /** #371/#383: where a moved line came from, as the tag names it ("your summary", a job's short
+   *  name). Null/absent on a line that never moved. */
+  movedFrom?: string | null;
 }
 
 export interface ClaimStore {
@@ -97,6 +103,10 @@ export interface ClaimStore {
    *  pending line leaves it pending and a fix on a kept line leaves it kept. False when the session
    *  has no such line. */
   setText(sessionId: string, id: string, text: string): Promise<boolean>;
+  /** #371 (ADR-0018 clause 6): the review re-homes a line to the section a reader expects, and
+   *  records where it came from. Text, decision, origin and tick are untouched; a re-seed or a
+   *  correction never un-moves it. False when the session has no such line. */
+  move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean>;
 }
 
 /** #335: the one rule for what prints — the in-memory confirmed() and the profile's gold.
@@ -208,6 +218,8 @@ export class InMemoryClaimStore implements ClaimStore {
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
       originalText: existing?.originalText ?? null,
+      section: existing?.section ?? null,
+      movedFrom: existing?.movedFrom ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -227,6 +239,8 @@ export class InMemoryClaimStore implements ClaimStore {
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
       originalText: existing?.originalText ?? null,
+      section: existing?.section ?? null,
+      movedFrom: existing?.movedFrom ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -251,6 +265,14 @@ export class InMemoryClaimStore implements ClaimStore {
     const c = this.forSession(sessionId).get(id);
     if (c) c.text = text;
     return c !== undefined;
+  }
+
+  async move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (!c) return false;
+    c.section = section;
+    c.movedFrom = movedFrom;
+    return true;
   }
 
   async seedDrafted(sessionId: string, claims: CandidateClaim[]): Promise<void> {
@@ -321,6 +343,11 @@ const CLAIMS_ALTERS = [
   // is untouched, so every positional placeholder keeps its index): a new line has no original, and
   // edit() alone fills it, once.
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS original_text text",
+  // #371: a moved line's section override and where it came from (ADR-0018 clause 6). Set only by
+  // move(); no insert or upsert names either, so a new line takes NULL and a re-seed or a
+  // correction never un-moves a line. #383 shares both for a job line moved or copied to Skills.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS section text",
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS moved_from text",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -350,6 +377,8 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     origin: r.origin as ClaimOrigin,
     lineState: r.line_state as LineState,
     originalText: (r.original_text as string | null) ?? null,
+    section: (r.section as string | null) ?? null,
+    movedFrom: (r.moved_from as string | null) ?? null,
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
     seq: Number(r.seq),
@@ -486,6 +515,14 @@ export class PgClaimStore implements ClaimStore {
     const { rowCount } = await this.pool.query(
       `UPDATE claims SET text = $3 WHERE session_id = $1 AND id = $2`,
       [sessionId, id, text],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET section = $3, moved_from = $4 WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, section, movedFrom],
     );
     return (rowCount ?? 0) > 0;
   }

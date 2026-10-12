@@ -18,6 +18,7 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
   fix: null,
   suggestion: null,
   draft: null,
+  movedFrom: null,
   ...over,
 });
 
@@ -33,6 +34,7 @@ const REVIEW: ReviewState = {
   conflict: null,
   progress: null,
   unchecked: false,
+  about: null,
   sections: [
     { tag: "profile", heading: "Professional Summary", lines: [line("p1", "Delivery-accountable project manager.")] },
     {
@@ -149,6 +151,13 @@ async function stubReview(page: Page, initial: ReviewState = REVIEW) {
     const state = dismissed ? "dismissed" : "drafted";
     move(id, { state });
     await route.fulfill({ json: { id, state } });
+  });
+  // #371: About you's footer save — the saved words read back on the next GET /review.
+  await page.route("**/api/review/about", async (route) => {
+    record(route);
+    const { text } = route.request().postDataJSON() as { text: string };
+    box.state = { ...box.state, about: { text, original: box.state.about?.original ?? null } };
+    await route.fulfill({ json: { text } });
   });
   // #379: the words door — the server trims and stores them; a re-read shows them.
   await page.route("**/api/cv/lines/*/text", async (route) => {
@@ -705,6 +714,108 @@ test.describe("#380 a removal suggestion", () => {
     // A screen with nothing to answer says so.
     await back(page).click();
     await expect(page.locator(".lead")).toHaveText(/^Nothing to answer here/);
+  });
+});
+
+// #371 About you (ADR-0018 clause 5): the text the review wrote from the whole CV, in a plain card
+// with "Edit it" and "See what your CV said"; the footer button keeps it or saves the person's words;
+// a summary fact moved to another section wears where it came from, and can be removed like any item.
+test.describe("#371 About you", () => {
+  const ABOUT = {
+    text: "Led the checkout replatform. Coordinated releases for 4 agile squads.",
+    original: "Delivery-accountable project manager.\nFluent in French and English.",
+  };
+  const WITH_ABOUT: ReviewState = { ...REVIEW, about: ABOUT };
+  const card = (page: Page) => page.locator(".card.form");
+  const original = (page: Page) => card(page).locator("button.linkbtn[aria-expanded]");
+
+  test("the screen shows the text in a plain card; See what your CV said shows the original read-only; the footer keeps the text unchanged", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_ABOUT);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+    // A plain card: no suggestion frame, no item list, no tick box.
+    await expect(page.locator(".sg, li.pt, input[type=checkbox]")).toHaveCount(0);
+    await expect(card(page).locator(".orig")).toHaveCount(0);
+    await expect(original(page)).toHaveAttribute("aria-expanded", "false");
+    await original(page).click();
+    await expect(original(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(card(page).locator(".orig p")).toHaveText(ABOUT.original);
+    await expect(card(page).locator(".orig textarea, .orig input")).toHaveCount(0);
+    await original(page).click();
+    await expect(card(page).locator(".orig")).toHaveCount(0);
+
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/about", body: { text: ABOUT.text } }]);
+  });
+
+  test("Edit it opens the text; the footer saves the person's words, which read back after a reload; Undo my changes puts the text back", async ({ page }) => {
+    const { calls } = await stubReview(page, WITH_ABOUT);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await card(page).locator("button.btn").click(); // Edit it
+    const box = card(page).locator("textarea");
+    await expect(box).toHaveValue(ABOUT.text);
+    await expect(box).toBeFocused();
+    await box.fill("Something else.");
+    await card(page).locator("button.btn.ghost").click(); // Undo my changes
+    await expect(card(page).locator("textarea")).toHaveCount(0);
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+
+    await card(page).locator("button.btn").click();
+    const mine = "Led the checkout replatform at Nordic Retail Group, managing EUR 1.2M across three vendor teams.";
+    await card(page).locator("textarea").fill(`  ${mine}  `);
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/about", body: { text: mine } }]);
+
+    await page.reload();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(mine);
+    await original(page).click();
+    await expect(card(page).locator(".orig p")).toHaveText(ABOUT.original);
+  });
+
+  test("a CV with no summary still gets the screen, with nothing to show as the original", async ({ page }) => {
+    const noSummary: ReviewState = {
+      ...REVIEW,
+      about: { text: ABOUT.text, original: null },
+      sections: REVIEW.sections.map((s) => (s.tag === "profile" ? { ...s, lines: [] } : s)),
+    };
+    await stubReview(page, noSummary);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+    await expect(original(page)).toHaveCount(0);
+    await expect(card(page).locator("button.btn")).toHaveCount(1); // Edit it is still there
+  });
+
+  test("a fact moved from the summary sits in its new section with its tag, and is removed like any item", async ({ page }) => {
+    const moved: ReviewState = {
+      ...WITH_ABOUT,
+      sections: REVIEW.sections.map((s) => (s.tag === "lang" ? { ...s, lines: [line("sum-langs", "Fluent in French and English.", { movedFrom: "your summary" })] } : s)),
+    };
+    const { calls } = await stubReview(page, moved);
+    await page.goto("/profile/check");
+    for (let i = 0; i < SCREENS.length; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Languages");
+    const item = items(page).first();
+    await expect(item.locator(".txt")).toContainText("Fluent in French and English.");
+    await expect(item.locator(".tag.moved")).toHaveText("Moved from your summary");
+    // A line that never moved wears no tag.
+    await back(page).click();
+    await expect(items(page).first()).toBeVisible();
+    await expect(items(page).locator(".tag")).toHaveCount(0);
+    await primary(page).click();
+    await item.hover();
+    await removeButton(item).click();
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/sum-langs", body: { state: "kept" } });
+    await expect(items(page)).toHaveCount(0);
+    await expect(tray(page)).toHaveCount(1);
   });
 });
 

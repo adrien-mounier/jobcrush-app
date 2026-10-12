@@ -21,6 +21,8 @@ const C_WHY = "Why: ";
 const C_REMOVE_IT = "Remove it";
 const C_KEEP_IT = "Keep it";
 const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hide" : "Show"}`;
+/** #371/#383: a line the review moved wears where it came from ("Moved from your summary"). */
+const movedCopy = (from: string) => `Moved from ${from}`;
 
 const PEN = (
   <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -124,6 +126,7 @@ export function Item({
       <span className="txt">
         {line.text}
         {line.draft && <span className="tag">{C_NEW}</span>}
+        {line.movedFrom && <span className="tag moved">{movedCopy(line.movedFrom)}</span>}
       </span>
       <span className="acts">
         {onEdit && (

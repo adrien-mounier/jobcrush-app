@@ -148,8 +148,21 @@ function draftedOf(lines: Line[], family: Family, others: Line[]) {
 export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDrafts?: boolean } = {}): string {
   const { toReview, jobs, sections, families, placements } = parseReviewPrompt(prompt);
   const withSections = toReview.includes("sections");
+  // #371: About you from the whole CV — each job's first line, achievements first, whether or not
+  // the CV has a summary; a summary line about languages moves to Languages. `bogus` also moves a
+  // job line and names a section the profile does not have — the two moves the guard drops.
+  const summary = sections.get("professional summary") ?? [];
+  const firstLines = [...jobs.values()].flatMap((ls) => ls.slice(0, 1).map((l) => l.text));
+  const moves = summary.filter((l) => /\bfluent in\b/i.test(l.text)).map((l) => ({ line: l.id, to: "languages" }));
+  if (opts.bogus) {
+    const job = [...jobs.values()].flat()[0];
+    if (job) moves.push({ line: job.id, to: "skills" });
+    if (summary[0]) moves.push({ line: summary[0].id, to: "hobbies" });
+  }
   return JSON.stringify({
     letterhead: withSections ? { checks: [] } : null,
+    about: withSections ? { text: firstLines.join(" ") || "Delivered the work this CV describes." } : null,
+    moves: withSections ? moves : null,
     sections: withSections
       ? [...sections].map(([section, lines]) => ({ section, fixes: fixesOf(lines), judgements: judgementsOf(lines) }))
       : null,

@@ -34,6 +34,7 @@ import type { ClaimStore } from "./claims.js";
 import type { ContactStore } from "./contact.js";
 import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewLine } from "./cvReview.js";
+import { SECTIONS } from "./rootcv.js";
 import { DRAFT_FLAGS, SUGGESTION_KINDS, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
@@ -86,6 +87,11 @@ const SectionReview = z.object({ section: z.string(), fixes: z.array(Fix), judge
 export const ReviewAnswer = z.object({
   letterhead: z.object({ checks: z.array(z.string()) }).nullable(),
   sections: z.array(SectionReview).nullable(),
+  // #371: on the sections call only. Nullish, not required: the answers recorded before v2 of the
+  // prompt (#340's scored runs) have neither, and a missing About you is no reason to pay for a
+  // retry — the screen then shows the summary lines as read.
+  about: z.object({ text: z.string() }).nullish(),
+  moves: z.array(z.object({ line: z.string(), to: z.string() })).nullish(),
   jobs: z.array(JobReview),
   refused: z.array(z.object({ job: z.string(), what: z.string(), rule: z.string() })),
 });
@@ -303,6 +309,64 @@ function vagueOf(d: ReviewAnswer["jobs"][number]["drafted"][number], text: strin
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// #371 — About you and the summary's moves (ADR-0018 clauses 5 and 6).
+// ---------------------------------------------------------------------------------------------
+/** What a moved summary line wears ("Moved from your summary"). */
+export const FROM_SUMMARY = "your summary";
+
+/** The brain's banned summary shapes (cv-authoring-rules.md "Professional Summary", the tailor's
+ *  rule 10), counted — never fixed — on About you as the model wrote it: the eval over the fake
+ *  writer and over a real run alike. One entry per shape found, in the order the text has them.
+ *  ponytail: a phrase list and one regex; a reworded capability claim slips through — widen the
+ *  list from what real runs actually write. */
+const CAPABILITY_CLAIMS = ["proven ability to", "expertise in", "strong in", "comfortable bridging", "results-driven"];
+export function aboutIssues(text: string): string[] {
+  const issues: string[] = [];
+  // The identity opener: a first sentence that counts the years ("… with 7+ years of experience").
+  if (/^[^.!?]*\b\d+\+?\s*(?:years?|yrs)\b/i.test(text)) issues.push("identity opener");
+  const lower = text.toLowerCase();
+  issues.push(
+    ...CAPABILITY_CLAIMS.filter((c) => lower.includes(c))
+      .sort((a, b) => lower.indexOf(a) - lower.indexOf(b))
+      .map((c) => `capability claim: ${c}`),
+  );
+  if (/\bI\b|\b(?:my|me)\b/i.test(text)) issues.push("first person");
+  return issues;
+}
+
+/** The summary as the CV said it — "See what your CV said" — or null when the CV had none. */
+const summaryOf = (paper: Paper): string | null => {
+  const section = paper.sections.find((s) => s.tag === "profile");
+  const lines = section && "lines" in section ? section.lines : [];
+  return lines.length ? lines.map((l) => l.text).join("\n") : null;
+};
+
+/** About you as the model wrote it, beside the CV's own summary. Undefined when the answer has none. */
+export function resolveAbout(answer: ReviewAnswer, paper: Paper): { text: string; original: string | null } | undefined {
+  const text = answer.about?.text.trim();
+  if (!text) return undefined;
+  for (const _ of aboutIssues(text)) incrementCounter("cvReview.about_issue");
+  return { text, original: summaryOf(paper) };
+}
+
+/** Each move resolved to a summary line and a section the profile has, by the section's own name
+ *  (rootcv.ts SECTIONS — a section #373 adds is movable with no change here). A move naming a line
+ *  outside the summary, or a section the profile does not have, is dropped and counted. */
+export function resolveMoves(answer: ReviewAnswer, paper: Paper): Array<{ line: string; section: string }> {
+  const summary = paper.sections.find((s) => s.tag === "profile");
+  const ids = new Set(summary && "lines" in summary ? summary.lines.map((l) => l.id) : []);
+  const tags = new Map(SECTIONS.filter(([tag]) => tag !== "profile" && tag !== "experience").map(([tag, heading]) => [heading.toLowerCase(), tag]));
+  return (answer.moves ?? []).flatMap((m) => {
+    const section = tags.get(m.to.trim().toLowerCase());
+    if (!ids.has(m.line) || !section) {
+      incrementCounter("cvReview.move_dropped");
+      return [];
+    }
+    return [{ line: m.line, section }];
+  });
+}
+
 export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): ResolvedSuggestion[] {
   const lines = linesOf(paper);
   const out: ResolvedSuggestion[] = [];
@@ -328,7 +392,7 @@ export interface ReviewRunDeps {
   llm: LlmClient;
   reviews: CvReviewStore;
   sessions: Pick<SessionStore, "getById">;
-  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState">;
+  claims: Pick<ClaimStore, "list" | "setText" | "seedDrafted" | "setLineState" | "move">;
   jobBlocks: Pick<JobBlockStore, "list">;
   contact: Pick<ContactStore, "get" | "getRecord">;
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">;
@@ -439,6 +503,8 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
           complete: drafted.complete,
           drafts: drafted.drafts,
         };
+        const about = withSections ? resolveAbout(answer, paper) : undefined;
+        if (about) result.about = about;
         // Applied by default (ADR-0016 clause 5) — to a line that still reads what the model was
         // shown; a line changed meanwhile keeps its new text and wears no fix.
         const current = new Map((await deps.claims.list(sessionId)).map((c) => [c.id, c]));
@@ -455,6 +521,9 @@ export function makeReviewRunner(deps: ReviewRunDeps): ReviewRunner {
         // a crash in between leaves lines the next attempt will not store twice, never marks that
         // point at lines that do not exist.
         await deps.claims.seedDrafted(sessionId, drafted.claims);
+        // #371: a summary fact moves to the section a reader expects, without asking, and says so
+        // (ADR-0018 clause 6). Its words are untouched; a retry re-applies the same move.
+        for (const m of withSections ? resolveMoves(answer, paper) : []) await deps.claims.move(sessionId, m.line, m.section, FROM_SUMMARY);
         await deps.reviews.recordResult(sessionId, unit, result);
         return;
       } catch (err) {
