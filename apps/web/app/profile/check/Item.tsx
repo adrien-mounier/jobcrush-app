@@ -4,6 +4,8 @@
 // actions that show on hover, focus or a tap — ✎ (when `onEdit` is wired), which edits its words in
 // place (#379), and ⊖, which removes it. What was removed stays one tap away in the tray at the end of its section, with Put
 // back. No tick box anywhere; nothing on screen says "kept", "ticked" or "reviewed".
+// #378: an added suggestion is an ordinary item wearing the "new" tag, and lands with a gold rule
+// that fades (the `landed` cue, once, never under reduced motion).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ReviewLine } from "../../../lib/api";
 
@@ -12,6 +14,7 @@ const C_SAVE = "Save";
 const C_CANCEL = "Cancel";
 const C_REMOVE = "Remove";
 const C_PUT_BACK = "Put back";
+const C_NEW = "new";
 const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hide" : "Show"}`;
 
 const PEN = (
@@ -31,7 +34,21 @@ const MINUS = (
  *  true when the words were saved, so the editor closes only then. */
 export type OnEdit = (id: string, text: string) => Promise<boolean>;
 
-export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy: boolean; onRemove: (id: string) => void; onEdit?: OnEdit }) {
+export function Item({
+  line,
+  busy,
+  landed,
+  onLandedEnd,
+  onRemove,
+  onEdit,
+}: {
+  line: ReviewLine;
+  busy: boolean;
+  landed?: boolean;
+  onLandedEnd?: () => void;
+  onRemove: (id: string) => void;
+  onEdit?: OnEdit;
+}) {
   // A tap on the text itself shows the actions (touch screens have no hover).
   const [active, setActive] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -93,12 +110,16 @@ export function Item({ line, busy, onRemove, onEdit }: { line: ReviewLine; busy:
   }
   return (
     <li
-      className={`pt${active ? " act" : ""}`}
+      className={`pt${active ? " act" : ""}${landed ? " landed" : ""}`}
+      onAnimationEnd={onLandedEnd}
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest("button")) setActive((a) => !a);
       }}
     >
-      <span className="txt">{line.text}</span>
+      <span className="txt">
+        {line.text}
+        {line.draft && <span className="tag">{C_NEW}</span>}
+      </span>
       <span className="acts">
         {onEdit && (
           <button type="button" ref={penRef} className="ib" aria-label={C_EDIT} title={C_EDIT} disabled={busy} onClick={() => setDraft(line.text)}>
@@ -141,25 +162,33 @@ export interface ItemListProps {
   busy: boolean;
   /** The removed count glows once (the cue for a removal that just landed). */
   bump: boolean;
+  /** #378: the item that just landed from a suggestion — its gold rule fades once. */
+  landed?: string | null;
+  onLandedEnd?: () => void;
   onRemove: (id: string) => void;
   onPutBack: (id: string) => void;
   onBumpEnd: () => void;
   /** #379: ✎ on every item when set. ScreenBody leaves it off where a screen edits its own way. */
   onEdit?: OnEdit;
-  /** What a line that is neither in nor removed renders as — a card type. None today: #378 adds
-   *  the add-suggestion card for a `drafted` line, #380 the removal card. Null draws nothing. */
+  /** What a line that is neither in nor removed renders as — a card type: #378's add card for a
+   *  `drafted` line (and its "No thanks" row for a just-`dismissed` one); #380 routes a line in
+   *  `removal-suggested` state here too. Null draws nothing. */
   card?: (line: ReviewLine) => ReactNode;
 }
 
 /** A section's items in a plain card: the ones in, each with its actions; the removed ones in the
  *  tray at the end. */
-export function ItemList({ lines, busy, bump, onRemove, onPutBack, onBumpEnd, onEdit, card }: ItemListProps) {
+export function ItemList({ lines, busy, bump, landed, onLandedEnd, onRemove, onPutBack, onBumpEnd, onEdit, card }: ItemListProps) {
   const removed = lines.filter((l) => l.state === "kept");
   return (
     <>
       <ul className="pts">
         {lines.map((l) =>
-          l.state === "ticked" ? <Item key={l.id} line={l} busy={busy} onRemove={onRemove} onEdit={onEdit} /> : l.state === "kept" ? null : (card?.(l) ?? null),
+          l.state === "ticked" ? (
+            <Item key={l.id} line={l} busy={busy} landed={landed === l.id} onLandedEnd={onLandedEnd} onRemove={onRemove} onEdit={onEdit} />
+          ) : l.state === "kept" ? null : (
+            (card?.(l) ?? null)
+          ),
         )}
       </ul>
       {removed.length > 0 && <Tray removed={removed} busy={busy} bump={bump} onPutBack={onPutBack} onBumpEnd={onBumpEnd} />}
