@@ -724,8 +724,10 @@ test.describe("#380 a removal suggestion", () => {
     await expect(card(page)).toHaveCount(2);
     await expect(primary(page)).toHaveText("Answer the suggestions to continue");
     await expect(page.locator(".lead")).toHaveText(/^2 suggestions/);
-    // A screen with nothing to answer says so.
+    // A screen with nothing to answer says so (Education: #376 put Languages between it and here).
     await back(page).click();
+    await back(page).click();
+    await expect(heading(page)).toHaveText("Education");
     await expect(page.locator(".lead")).toHaveText(/^Nothing to answer here/);
   });
 });
