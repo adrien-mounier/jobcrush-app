@@ -878,3 +878,41 @@ test.describe("#373 personal projects and additional information", () => {
     await expect(primary(page)).toHaveText("Finish my profile");
   });
 });
+
+// #368 — a drafted line's source names where its quote sits on the CV (the server resolves it on
+// read: `draft.source`, a job's "<employer>, <title>" or a section's heading). The card prints it in
+// the source line beside the quote; a quote the server placed nowhere prints the quote alone.
+// (Ticket #368 named review.spec.ts; that spec is skipped until #386 retires the review page, and
+// this one replaces it.)
+test.describe("#368 the source names the job its quote came from", () => {
+  const CROSS_JOB = "Baltic Software House, Project Coordinator";
+  const FROM_BSH = line("draft-nrg-1", "Also coordinated releases for 4 agile squads.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Coordinated releases for 4 agile squads.", source: CROSS_JOB, flags: ["OPTIONAL"], vague: [] },
+  });
+  const PLACED_NOWHERE = line("draft-nrg-2", "Followed the employer's release calendar.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Kept a release calendar.", source: null, flags: ["INDUSTRY GUESS"], vague: [] },
+  });
+  const WITH_SOURCES: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, family: "IT Project Manager", lines: [...j.lines, FROM_BSH, PLACED_NOWHERE] } : j)) } : s,
+    ),
+  };
+
+  test("a quote from another job names that job beside the quote; a quote placed nowhere shows the quote alone", async ({ page }) => {
+    await stubReview(page, WITH_SOURCES);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("Nordic Retail Group");
+    const source = (n: number) => page.locator("li.sg").nth(n).locator(".meta > span", { has: page.locator("q") });
+
+    await expect(source(0)).toContainText(CROSS_JOB);
+    await expect(source(0).locator("q")).toHaveText(FROM_BSH.draft!.quote!);
+    await expect(source(1).locator("q")).toHaveText(PLACED_NOWHERE.draft!.quote!);
+    await expect(source(1)).not.toContainText("Baltic Software House");
+    await expect(source(1)).not.toContainText("Nordic Retail Group");
+  });
+});

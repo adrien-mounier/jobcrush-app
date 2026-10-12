@@ -128,6 +128,8 @@ interface WriterOpts {
   bogus?: boolean;
   /** #342: also draft the two lines the prompt forbids (qaReviewAnswer.ts). */
   badDrafts?: boolean;
+  /** #368: also draft one OPTIONAL line per quote on every job placed in a family. */
+  quotes?: string[];
 }
 function fakeWriter(opts: WriterOpts = {}) {
   const calls: string[] = [];
@@ -145,7 +147,12 @@ function fakeWriter(opts: WriterOpts = {}) {
       if (gate) await gate.wait;
       // The shape undici gives a connection dropped mid-stream: a bare message, the reason in `cause`.
       if (opts.failAlways || n <= (opts.failAttempts ?? 0) || (n === 1 && opts.failFirst?.includes(key))) throw new Error("writer down", { cause: new Error("other side closed") });
-      return qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
+      const answer = qaReviewAnswer(prompt, { bogus: opts.bogus, badDrafts: opts.badDrafts });
+      if (!opts.quotes) return answer;
+      const parsed = JSON.parse(answer) as { jobs: Array<{ family: string | null; drafted: unknown[] }> };
+      for (const job of parsed.jobs.filter((j) => j.family))
+        for (const quote of opts.quotes) job.drafted.push({ text: `Drafted from: ${quote}`, mustHave: null, quote, flags: ["OPTIONAL"], vague: [] });
+      return JSON.stringify(parsed);
     },
   };
   return {
@@ -688,7 +695,7 @@ describe("#342 drafted lines", () => {
     expect(drafted.every((l) => l.state === "drafted" && l.fix === null && l.suggestion === null)).toBe(true);
     // One line per missing must-have, citing the must-have in the family's own words.
     expect(drafted.slice(0, 4).map((l) => l.text)).toEqual(MUST_HAVES.map(DRAFT_TEXT));
-    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, flags: [], vague: [VAGUE_CHOICES] })));
+    expect(drafted.slice(0, 4).map((l) => l.draft)).toEqual(MEANINGS.map((mustHave) => ({ mustHave, quote: null, source: null, flags: [], vague: [VAGUE_CHOICES] })));
     // The extras: a fact from another job only as OPTIONAL with its quote; an industry guess flagged.
     expect(drafted[4]).toMatchObject({
       text: "Also coordinated releases for 4 agile squads.",
@@ -911,6 +918,26 @@ describe("#342 drafted lines", () => {
     expect(readCounters()["cvReview.draft_dropped"]).toBe(3);
     // The must-have whose draft was dropped is still missing by the model's own account: no stamp.
     expect(jobsOf(again)[0]).toMatchObject({ family: "IT Project Manager", complete: false });
+  });
+});
+
+// #368: a drafted line's source names where its quote sits on the CV — the job (employer, title as
+// the CV gives them), or the section for a quote from outside any job. Resolved on read from the
+// lines already stored: no new model field, no new call. A quote found on no line names nothing.
+describe("#368 a drafted line's source names where its quote came from", () => {
+  it("names another job, its own job, or a section; a quote on no line names nothing; no extra writer call", async () => {
+    const writer = fakeWriter({ quotes: ["has skills in jira", "Delivery-accountable project manager.", "Words the CV never says."] });
+    const { app, cookie } = await withCv(writer);
+    const sources = Object.fromEntries(drafts(jobsOf(await reviewed(app, cookie))[0]!).map((l) => [l.draft!.quote ?? l.id, l.draft!.source]));
+    expect(sources).toEqual({
+      ...Object.fromEntries(["draft-nrg-1", "draft-nrg-2", "draft-nrg-3", "draft-nrg-4"].map((id) => [id, null])), // a must-have, no quote
+      "Coordinated releases for 4 agile squads.": "Baltic Software House, Project Coordinator", // another job
+      "Led the checkout replatform.": "Nordic Retail Group, IT Project Manager", // its own job, named too
+      "has skills in jira": "Skills", // case and spacing do not matter
+      "Delivery-accountable project manager.": "Professional Summary",
+      "Words the CV never says.": null,
+    });
+    expect(writer.calls).toHaveLength(2);
   });
 });
 

@@ -47,6 +47,9 @@ export interface ReviewDraft {
   mustHave: string | null;
   /** The verbatim CV words it came from. */
   quote: string | null;
+  /** #368: where those words sit on the CV — "<employer>, <title>" for a job (its own job too), the
+   *  section's heading for a quote from outside any job. Null with no quote, or when no line holds it. */
+  source: string | null;
   flags: DraftFlag[];
   /** #343: the vague phrases in the line, each with its choices — CV-sourced first, then typical. */
   vague: DraftVague[];
@@ -257,13 +260,13 @@ export const running = (run: ReviewRunRecord | null): run is ReviewRunRecord => 
 /** The marks a run's checkpoints lay on a line. A fix wears its mark only while the line reads
  *  the corrected text (applied) or the original (undone): a line that reads neither has been
  *  changed since, and the fix no longer describes it. */
-function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: ResolvedSuggestion | undefined, draft: ResolvedDraft | undefined): ReviewLine {
+function markLine(line: ReviewLine, fix: ResolvedFix | undefined, suggestion: ResolvedSuggestion | undefined, draft: ResolvedDraft | undefined, source: string | null): ReviewLine {
   const wearsFix = fix && (line.text === fix.corrected || line.text === fix.original);
   return {
     ...line,
     fix: wearsFix ? { original: fix.original, corrected: fix.corrected, applied: line.text === fix.corrected } : null,
     suggestion: suggestion ? { kind: suggestion.kind, reason: suggestion.reason } : null,
-    draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, flags: draft.flags, vague: draft.vague ?? [] } : null,
+    draft: draft ? { mustHave: draft.mustHave, quote: draft.quote, source, flags: draft.flags, vague: draft.vague ?? [] } : null,
   };
 }
 
@@ -281,6 +284,21 @@ function lineMarks(run: ReviewRunRecord | null) {
   return { fixes, suggestions, drafts };
 }
 
+/** #368: where a draft's quote sits on the paper — the first line, in CV order, whose text holds it
+ *  (case and spacing aside), named by its job or its section. A draft is never its own source. The
+ *  run records no place for a quote, so this reads the lines as stored; a quote reworded by the model
+ *  or spanning two lines finds none, and the card then says only "From your CV". */
+function quoteSources(paper: Paper, drafts: ReadonlyMap<string, ResolvedDraft>): (quote: string) => string | null {
+  const flat = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const places = paper.sections.flatMap((section) =>
+    "jobs" in section
+      ? section.jobs.map((job) => ({ name: [job.employer, job.title].filter(Boolean).join(", "), lines: job.lines }))
+      : [{ name: section.heading, lines: section.lines }],
+  );
+  const read = places.flatMap(({ name, lines }) => lines.filter((l) => !drafts.has(l.id)).map((l) => ({ name, text: flat(l.text) })));
+  return (quote) => read.find((l) => l.text.includes(flat(quote)))?.name ?? null;
+}
+
 /** #342: the stamp — decided when the answer landed (cvReviewRun.ts resolveDrafts), by the model's
  *  own account of which lines show which must-have. A job in no family is never complete (nor told
  *  why); a result stored before #342 has no stamp. */
@@ -295,7 +313,11 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
   // first read that finds it, spending only on the units with no answer yet.
   if (running(run)) deps.runner?.ensure(session.id);
   const { fixes, suggestions, drafts } = lineMarks(run);
-  const mark = (line: ReviewLine) => markLine(line, fixes.get(line.id), suggestions.get(line.id), drafts.get(line.id));
+  const sourceOf = quoteSources(paper, drafts);
+  const mark = (line: ReviewLine) => {
+    const draft = drafts.get(line.id);
+    return markLine(line, fixes.get(line.id), suggestions.get(line.id), draft, draft?.quote ? sourceOf(draft.quote) : null);
+  };
   const results = new Map(run?.units.flatMap((u) => (u.result ? [[u.unit, u.result] as const] : [])) ?? []);
   const landed = new Set(results.keys());
   const conflict = session.importProof?.conflict ?? null;
