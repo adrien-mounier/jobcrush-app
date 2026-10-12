@@ -75,10 +75,11 @@ await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', ROLE, `the job she is going for: "${ROLE}"`);
 await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
 await qa.click('button:has-text("Save and continue")', 'Save and continue');
-for (let i = 0; i < 40 && !/\/profile\/check/.test(page.url()); i += 1) {
-  questionsSeen = Math.max(questionsSeen, await page.locator('.discovery .opts').count());
-  await page.waitForTimeout(250);
-}
+// Discovery takes the job she typed as question 1 and asks nothing else: the hand-off waits for her.
+const handoff = page.locator('.discovery .handoff .go');
+await handoff.waitFor({ state: 'visible', timeout: 30_000 });
+questionsSeen = await page.locator('.discovery .opts').count();
+await qa.click(handoff, 'Continue — on to her profile');
 await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
 await assert(questionsSeen === 0 && answersSent.length === 0, `nothing was asked between the upload and her profile (questions seen ${questionsSeen}, answers sent ${answersSent.length})`);
 await qa.expectText(heading, 'Your details', 'check mode opens on her details');
