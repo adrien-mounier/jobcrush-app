@@ -17,8 +17,7 @@ import type { ClaimRecord, ClaimStore } from "./claims.js";
 import { discoveryState, factCount, type DiscoveryFamily, type DiscoveryState } from "./discovery.js";
 import { withReadTimeout, type DeckDiscoveryReads } from "./deck.js";
 import type { makeRetrievalCoordinator } from "./deckRetrieval.js";
-import { cvLanguages, type CvLanguage } from "./cvLanguages.js";
-import { applyEligibilityQuestions, excludingEligibility, LANGUAGE_ITEM_ID } from "./eligibilityDiscovery.js";
+import { excludingEligibility } from "./eligibilityDiscovery.js";
 import type { EligibilityStore } from "./eligibility.js";
 import {
   eligiblePublication,
@@ -27,7 +26,7 @@ import {
 } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import { readingLanguages } from "./language.js";
-import { retrievalFingerprint, retrievalRequestForSession, resolvedMarketsFor, reviewOpensJobs } from "./postingRetrieval.js";
+import { retrievalFingerprint, retrievalRequestForSession, reviewOpensJobs } from "./postingRetrieval.js";
 import { retrievedPostingCount } from "./preview.js";
 import { pinnedOrDerived, planPinned, planUpgradable, samePlan } from "./sessions.js";
 import type { DiscoveryPlan, SessionRecord, SessionStore } from "./sessions.js";
@@ -244,7 +243,8 @@ export async function answerQuestionOne(
   const firstAsk = session.targetTitles.length === 0;
   await deps.sessions.setTargetTitles(session.id, [role]);
   const intent = await deps.sessions.setIntent(session.id, { targetRole: role });
-  await deps.sessions.setStage(session.id, "discovery");
+  // #376: question 1 is the last thing discovery asks (ADR-0018 clause 8), so taking it is the hand-off.
+  await deps.sessions.setStage(session.id, "deck");
   const [confirmed, negatives] = await Promise.all([deps.claims.confirmed(session.id), deps.claims.negatives(session.id)]);
   return searchAtQuestionOne({ ...session, intent, targetTitles: [role] }, confirmed, negatives, deps, coordinator, firstAsk);
 }
@@ -253,10 +253,8 @@ export async function answerQuestionOne(
  *  (rejected) is #35's — no new store method, just the existing list() filtered. Fourth (facts) is
  *  #106's stored eligibility facts. Fifth (blocks) is #162's dated job records, whose unknown ends
  *  are asked instead of a years total (ADR-0008 clause 3). Callers that need fewer destructure fewer.
- *
- *  #336: `cvLanguages` rides on the same tuple — the CV's languages, read off the very list() the
- *  rejected filter already pays for — so the deck keeps taking it as plain DeckDiscoveryReads. */
-export type DiscoveryReads = DeckDiscoveryReads & { cvLanguages: CvLanguage[] };
+ *  #376: the CV's languages no longer ride here — nothing asks the languages question any more. */
+export type DiscoveryReads = DeckDiscoveryReads;
 
 export async function discoveryReads(
   deps: { claims: Pick<ClaimStore, "confirmed" | "negatives" | "list">; eligibility: Pick<EligibilityStore, "list">; jobBlocks: Pick<JobBlockStore, "list"> },
@@ -269,27 +267,25 @@ export async function discoveryReads(
     deps.eligibility.list(sessionId),
     deps.jobBlocks.list(sessionId),
   ]);
-  const reads: DeckDiscoveryReads = [confirmed, negatives, all.filter((c) => c.decision === "rejected"), facts, blocks];
-  return Object.assign(reads, { cvLanguages: cvLanguages(all) });
+  return [confirmed, negatives, all.filter((c) => c.decision === "rejected"), facts, blocks];
 }
 
 /** #246 — the promise's number is read off the session, where question 1's search recorded it
  *  (`searchAtQuestionOne` above). Every later discovery response — an answer, a resume — restates
  *  the same number for free; only question 1 ever pays a provider to find it.
  *
- *  #336: the languages question carries the CV's languages, so the screen can pre-tick the ones the
- *  CV says the person works in. A proposal only — nothing is stored until the person submits. */
+ *  #376 (ADR-0018 clause 8): the start asks nothing after question 1. Work rights and languages are
+ *  answered in the profile's check mode (cvReview.ts), so the stage is the hand-off as soon as
+ *  question 1 is taken. The answer route stays: answers given before, and the profile's own doors,
+ *  still write through it. */
 export function buildDiscoveryRouteState(
   role: string | null,
   reads: DiscoveryReads,
   session: Pick<SessionRecord, "intent" | "promiseOpenJobs" | "importProof" | "reviewCompletedAt">,
   family: DiscoveryFamily | null,
 ): DiscoveryState {
-  const [confirmed, negatives, , facts] = reads;
+  const [confirmed, negatives] = reads;
   const state = discoveryState(role, confirmed, negatives, family, session.promiseOpenJobs);
-  if (role) applyEligibilityQuestions(state, facts, resolvedMarketsFor(session.intent.searchAreas));
-  const languages = state.questions.find((q) => q.itemId === LANGUAGE_ITEM_ID);
-  if (languages && reads.cvLanguages.length > 0) languages.cvLanguages = reads.cvLanguages;
   state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
   // #338: where the last answer hands off — "Your CV, reviewed" while a brought CV is unreviewed,
   // the jobs otherwise. The server owns the gate (postingRetrieval.ts); this only tells the screen.

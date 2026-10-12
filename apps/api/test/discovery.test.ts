@@ -24,10 +24,11 @@ import {
   NON_ANSWER,
   parseCity,
   slug,
+  type DiscoveryQuestion,
   type DiscoveryState,
 } from "../src/discovery.js";
 import { ANY_FAMILY, PgEligibilityStore, type EligibilityStore } from "../src/eligibility.js";
-import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { DECLINE_OPTION, eligibilityCandidates, languagesQuestion, workRightsQuestionFor } from "../src/eligibilityDiscovery.js";
 import { answerLanguageLevel } from "../src/languageLevel.js";
 import { initialProductionFamilyFloors, productionDiscoveryFamily } from "../src/familyFloors.js";
 
@@ -195,6 +196,13 @@ const HK_WORK_RIGHTS = "eligibility-work-rights-hong-kong";
 const realAnswer = (q: DiscoveryState["questions"][number]) =>
   q.multiSelect ? { itemId: q.itemId, answers: ["English"] } : { itemId: q.itemId, answer: q.options[0]! };
 
+// #376 (ADR-0018 clause 8): discovery asks nothing after question 1 — work rights and languages are
+// answered in the profile's check mode. The answer route still answers both (answers given before,
+// and the profile's own doors), so these tests compose the question the one way the route looks it
+// up: per resolved market, or the no-market fallback when the session has none.
+const workRightsAsked = (market: string | null): DiscoveryQuestion =>
+  market ? workRightsQuestionFor(market) : eligibilityCandidates(ANY_FAMILY, [])[0]!;
+
 describe("#16 discovery routes", () => {
   it("GET /onboarding/discovery before Q1 → the empty skeleton, on the anonymous session (no wall)", async () => {
     const { app } = buildServer();
@@ -273,7 +281,7 @@ describe("#16 discovery routes", () => {
 
   // #184: city now comes from the confirmed search area, not role text (ROLE names Paris, which
   // isn't even covered) — the intent route is set first, a covered market, to seed it.
-  it("start seeds family/city/promise + only the eligibility questions + the role line", async () => {
+  it("start seeds family/city/promise + the role line, and asks nothing else (#376)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
@@ -287,10 +295,10 @@ describe("#16 discovery routes", () => {
     // is interviewed on: that was the number the deck could not keep. The promise names nothing at
     // all now — no family, no place — so a count is the whole of it.
     expect(s.promise).toEqual({ count: 16 });
-    // #339: the family floor is no longer asked — the eligibility questions are the whole list, and
-    // while they are open she stays in discovery. #162 removed the years-experience one.
-    expect(s.questions.map((q) => q.itemId)).toEqual([HK_WORK_RIGHTS, "eligibility-languages"]);
-    expect(s.stage).toBe("discovery");
+    // #339 retired the family floor; #376 moved work rights and languages into the profile's check
+    // mode — question 1 is the last thing asked, so its answer is the hand-off.
+    expect(s.questions).toEqual([]);
+    expect(s.stage).toBe("deck");
     expect(s.cvLines[0]).toMatchObject({ itemId: "role", text: "IT project manager in Paris" });
   });
 
@@ -334,8 +342,8 @@ describe("#16 discovery routes", () => {
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
     const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     expect(s.promise).toBeNull();
-    // The interview itself is untouched — she is asked her eligibility questions as always.
-    expect(s.questions.map((q) => q.itemId)).toEqual([HK_WORK_RIGHTS, "eligibility-languages"]);
+    // The screen itself is untouched — the role line, and the hand-off (#376: nothing else is asked).
+    expect(s).toMatchObject({ stage: "deck", questions: [] });
     expect(s.cvLines[0]).toMatchObject({ itemId: "role" });
   });
 
@@ -413,11 +421,11 @@ describe("#16 discovery routes", () => {
     const asked: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     // What question 1 would have produced, minus its own (now skipped) search.
     expect({ ...opened, promise: null }).toEqual({ ...asked, promise: null });
-    expect(opened.questions[0]?.itemId).toBe(HK_WORK_RIGHTS);
+    expect(opened).toMatchObject({ role: ROLE, stage: "deck", questions: [] }); // #376: the hand-off, not a question
     expect(opened.promise).toEqual({ count: 16 });
 
     const reloaded: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
-    expect(reloaded.questions[0]?.itemId).toBe(HK_WORK_RIGHTS);
+    expect(reloaded).toMatchObject({ role: ROLE, stage: "deck" });
     expect(searches).toBe(1);
   });
 
@@ -471,8 +479,7 @@ describe("#16 discovery routes", () => {
     const sid = (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
     expect(await claims.list(sid)).toEqual([]);
 
-    const start: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    const workRights = workRightsAsked(null);
     await post(app, cookie, "/onboarding/discovery/answer", realAnswer(workRights));
     const again = await post(app, cookie, "/onboarding/discovery/answer", realAnswer(workRights));
     expect(again.statusCode).toBe(200);
@@ -509,22 +516,17 @@ describe("#16 discovery routes", () => {
     expect(placements).toBe(0);
   });
 
-  // #18 AC1 / #339 — the gate: the last eligibility question answered flips stage to "deck", and
-  // it's PERSISTED (a fresh GET, and the session's own stage, both read "deck" — not just the one
-  // response). The funnel is pinned too: with the floor gone, the eligibility questions are every
-  // answer it takes to reach the deck.
-  it("answering the last eligibility question flips stage to deck; a fresh GET and the session both persist it", async () => {
+  // #18 AC1 / #339 / #376 — the gate: with nothing asked after question 1 (ADR-0018 clause 8), taking
+  // question 1 flips stage to "deck", and it's PERSISTED (a fresh GET, and the session's own stage,
+  // both read "deck" — not just the one response). An eligibility answer given later moves nothing.
+  it("question 1 alone flips stage to deck; a fresh GET and the session both persist it (#376)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(start.stage).toBe("discovery");
-    expect(start.questions).toHaveLength(2); // work-rights + languages, nothing else
+    expect(start).toMatchObject({ stage: "deck", questions: [] });
 
-    const [first, last] = start.questions;
-    const mid: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/answer", realAnswer(first!))).json();
-    expect(mid.stage).toBe("discovery"); // one eligibility question still open
-    const final: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/answer", realAnswer(last!))).json();
-    expect(final).toMatchObject({ stage: "deck", questions: [] });
+    const later: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/answer", realAnswer(languagesQuestion()))).json();
+    expect(later).toMatchObject({ stage: "deck", questions: [] });
 
     const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
     expect(resumed.stage).toBe("deck");
@@ -583,40 +585,21 @@ describe("#106 eligibility questions in discovery", () => {
     expect(await eligibility.get(sid, "language")).toBeNull();
   });
 
-  // #339: with the floor gone, the eligibility questions are the whole list from Q1.
-  it("appears in questions from Q1, and is the whole question list (must-fix 2, #339)", async () => {
+  // #376: discovery stopped asking them — the profile's check mode asks work rights per market and
+  // shows languages as a section. The route below still answers them.
+  it("is no longer served by discovery, with or without a market (#376)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(start.questions.map((q) => q.eligibility?.dimension ?? null)).toEqual(["work-rights", "language"]);
-  });
-
-  // #339: "Ask me later" is not an answer — the deck opens on real answers only. Declining every
-  // question leaves them all open and the stage at discovery; answering them for real opens it.
-  it("a decline keeps the stage at discovery; only real answers to every question open the deck (#339)", async () => {
-    const { app } = buildServer();
-    const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(start.questions).toHaveLength(2);
-
-    let state = start;
-    for (const q of start.questions) {
-      state = (await post(app, cookie, "/onboarding/discovery/answer", { itemId: q.itemId, answer: DECLINE_OPTION })).json();
-      expect(state.stage).toBe("discovery");
-    }
-    expect(state.questions.map((q) => q.itemId)).toEqual(start.questions.map((q) => q.itemId)); // all still open
-
-    for (const q of start.questions) {
-      state = (await post(app, cookie, "/onboarding/discovery/answer", realAnswer(q))).json();
-    }
-    expect(state.stage).toBe("deck");
+    expect(start).toMatchObject({ role: ROLE, questions: [] });
   });
 
   it("a real value answer produces no CV line, closes the question, and lands in the eligibility store", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
 
     const answered: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
@@ -625,7 +608,6 @@ describe("#106 eligibility questions in discovery", () => {
       })
     ).json();
     expect(answered.cvLines.some((l) => l.itemId === workRights.itemId)).toBe(false); // #106 AC7
-    expect(answered.questions.map((q) => q.itemId)).not.toContain(workRights.itemId); // closed, never re-offered
 
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
@@ -643,8 +625,8 @@ describe("#106 eligibility questions in discovery", () => {
   it("an affirmative eligibility answer never enters the claims store, so it can never reach the graph as a confirmed-gap node (must-fix 1)", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
 
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
@@ -662,7 +644,7 @@ describe("#106 eligibility questions in discovery", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    const workRights = workRightsAsked(null);
 
     const after: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
@@ -672,20 +654,17 @@ describe("#106 eligibility questions in discovery", () => {
 
   // #339: a decline stores nothing ANYWHERE — no eligibility fact and no claim of any kind (it used
   // to write a negative claim to close the question, which reached the graph as a confirmed gap). So
-  // the question is not closed: the same response, and a fresh GET, serve it again.
-  it("declining stores NO fact and NO claim — the dimension reads as unknown and the question is served again", async () => {
+  // the question is not closed — #376: check mode's card reads that market as unanswered.
+  it("declining stores NO fact and NO claim — the dimension reads as unknown", async () => {
     const { app, eligibility, claims } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
 
     const answered: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
     ).json();
-    expect(answered.questions.map((q) => q.itemId)).toContain(workRights.itemId); // still open — asked again
     expect(answered.cvLines.some((l) => l.itemId === workRights.itemId)).toBe(false);
-    const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
-    expect(resumed.questions.map((q) => q.itemId)).toContain(workRights.itemId);
 
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
@@ -697,8 +676,8 @@ describe("#106 eligibility questions in discovery", () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked("Hong Kong");
 
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
@@ -718,8 +697,8 @@ describe("#106 eligibility questions in discovery", () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked("Hong Kong");
 
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
@@ -730,18 +709,16 @@ describe("#106 eligibility questions in discovery", () => {
     // #182/#184: stored at the SLUG of the resolved search area.
     expect(await eligibility.get(sid, "work-rights", "hong-kong")).toMatchObject({ value: "needs-sponsorship" }); // stored
 
-    const corrected: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
-    ).json();
-    expect(corrected.questions.map((q) => q.itemId)).toContain(workRights.itemId); // #339: open again
+    const corrected = await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    expect(corrected.statusCode).toBe(200);
     expect(await eligibility.get(sid, "work-rights", "hong-kong")).toBeNull(); // retracted, not stale
   });
 
   it("re-answering an eligibility question corrects it, exactly like the existing idempotent upsert", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
     const answer = (a: string) =>
       post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: a });
 
@@ -761,8 +738,11 @@ describe("#106 eligibility questions in discovery", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(start.questions.some((q) => q.eligibility?.dimension === "years-experience")).toBe(false);
-    expect(start.questions.some((q) => /how many years/i.test(q.question))).toBe(false);
+    // #376: discovery asks nothing after question 1; the questions the profile still answers are these.
+    const answerable = [...start.questions, ...eligibilityCandidates(ANY_FAMILY, ["Hong Kong"])];
+    expect(answerable.length).toBeGreaterThan(0);
+    expect(answerable.some((q) => q.eligibility?.dimension === "years-experience")).toBe(false);
+    expect(answerable.some((q) => /how many years/i.test(q.question))).toBe(false);
   });
 
   // #182 QA round 3, MUST-FIX: a multi-word city used to reach the decline's claim id raw
@@ -774,11 +754,10 @@ describe("#106 eligibility questions in discovery", () => {
     const cookie = await anonSession(app);
     await signIn(app, cookie, "qa182-multiword@example.com");
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
-    const start: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager" })
-    ).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager" });
+    const workRights = workRightsAsked("Hong Kong");
+    const declined = await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    expect(declined.statusCode).toBe(200);
 
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
@@ -813,13 +792,11 @@ describe("#106 eligibility questions in discovery", () => {
   // production stops reading role text for a city at all).
   it("#184: case and whitespace variants of one search area resolve to the SAME work-rights market key", async () => {
     const { app } = buildServer();
+    // #376: the work-rights question is asked by the profile now — its rows carry the question id.
     const itemIdFor = async (searchArea: string) => {
       const cookie = await anonSession(app);
       await put(app, cookie, "/sessions/me/intent", { searchArea });
-      const start: DiscoveryState = (
-        await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager" })
-      ).json();
-      return start.questions.find((q) => q.eligibility?.dimension === "work-rights")!.itemId;
+      return (await get(app, cookie, "/profile")).json().location.workRights[0].questionId as string;
     };
     const ids = await Promise.all(
       ["Hong Kong", "hong kong", "HONG KONG", "Hong  Kong", "Hong kong,"].map(itemIdFor),
@@ -841,10 +818,10 @@ describe("#106 eligibility questions in discovery", () => {
     const start: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager in Hong Kong" }) // role deliberately names a DIFFERENT city
     ).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
     // The question follows the CONFIRMED search area's market (Australia), never the role text
     // (Hong Kong). #214 owner decision: the promise sentence names no place at all — with several
-    // selected places, naming one was a half-truth.
+    // selected places, naming one was a half-truth. #376: the profile asks it now.
+    const [workRights] = (await get(app, cookie, "/profile")).json().location.workRights;
     expect(workRights.question).toBe("Can you already work in Australia without visa sponsorship?");
     // #246: the promise carries a number and NOTHING else — no place, and no job family either.
     expect(Object.keys(start.promise!)).toEqual(["count"]);
@@ -862,10 +839,8 @@ describe("#106 eligibility questions in discovery", () => {
     const coincides = async (searchArea: string) => {
       const cookie = await anonSession(app);
       await put(app, cookie, "/sessions/me/intent", { searchArea });
-      const start: DiscoveryState = (
-        await post(app, cookie, "/onboarding/discovery/start", { role: `IT project manager in ${searchArea}` })
-      ).json();
-      const itemId = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!.itemId;
+      await post(app, cookie, "/onboarding/discovery/start", { role: `IT project manager in ${searchArea}` });
+      const itemId = (await get(app, cookie, "/profile")).json().location.workRights[0].questionId as string;
       return { marketKey: itemId, oldParseCitySlug: `eligibility-work-rights-${slug(searchArea)}` };
     };
     // "Hong Kong" the search area IS "Hong Kong" the country/territory name — the two slugs coincide.
@@ -883,8 +858,12 @@ describe("#106 eligibility questions in discovery", () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     await put(app, cookie, "/sessions/me/intent", { searchAreas: ["Hong Kong", "Sydney"] });
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.filter((q) => q.eligibility?.dimension === "work-rights");
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = ["Hong Kong", "Australia"].map(workRightsAsked);
+    // #376: the profile's rows (check mode's card) name the same two markets, in chip order.
+    expect((await get(app, cookie, "/profile")).json().location.workRights.map((r: { questionId: string }) => r.questionId)).toEqual(
+      workRights.map((q) => q.itemId),
+    );
     expect(workRights.map((q) => q.eligibility!.familyId)).toEqual(["hong-kong", "australia"]);
     expect(workRights.map((q) => q.question)).toEqual([
       "Can you already work in Hong Kong without visa sponsorship?",
@@ -904,9 +883,8 @@ describe("#106 eligibility questions in discovery", () => {
     // Two chips in the SAME country: still one work-rights question.
     const cookie2 = await anonSession(app);
     await put(app, cookie2, "/sessions/me/intent", { searchAreas: ["Sydney", "Melbourne"] });
-    const start2: DiscoveryState = (await post(app, cookie2, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights2 = start2.questions.filter((q) => q.eligibility?.dimension === "work-rights");
-    expect(workRights2.map((q) => q.eligibility!.familyId)).toEqual(["australia"]);
+    const rows2 = (await get(app, cookie2, "/profile")).json().location.workRights as Array<{ market: string }>;
+    expect(rows2.map((r) => r.market)).toEqual(["Australia"]);
   });
 
   it("an unknown eligibility itemId is a 404", async () => {
@@ -923,8 +901,8 @@ describe("#106 eligibility questions in discovery", () => {
   it("an unrecognized answer for a known eligibility item is a 400, never a crash", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
     const res = await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
       answer: "Maybe, one day",
@@ -939,8 +917,8 @@ describe("#106 eligibility questions in discovery", () => {
   it("resumes identically on a fresh GET — the whole screen stays a pure function of persisted state", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
     const answered: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
         itemId: workRights.itemId,
@@ -949,8 +927,8 @@ describe("#106 eligibility questions in discovery", () => {
     ).json();
 
     const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
-    expect(resumed.questions.map((q) => q.itemId)).toEqual(answered.questions.map((q) => q.itemId));
-    expect(resumed.stage).toBe(answered.stage);
+    expect(resumed).toMatchObject({ stage: "deck", questions: [] });
+    expect({ ...resumed, promise: null }).toEqual({ ...answered, promise: null });
   });
 
   // Store contract seam, both drivers (prior art: eligibility.test.ts) — proves THIS module's wiring
@@ -962,8 +940,8 @@ describe("#106 eligibility questions in discovery", () => {
     await eligibility.init();
     const { app } = buildServer({ eligibility });
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const workRights = workRightsAsked(null);
 
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
@@ -985,8 +963,8 @@ describe("#106 eligibility questions in discovery", () => {
 // mandarinAdvantage fixtures; this block covers the question's shape and the answer route's own
 // write/decline/correction/validation behaviour.
 describe("#123 the languages question", () => {
-  const languageQuestion = (start: DiscoveryState) =>
-    start.questions.find((q) => q.eligibility?.dimension === "language")!;
+  // #376: discovery no longer serves it; the route answers the one composed question.
+  const languageQuestion = (_start?: DiscoveryState) => languagesQuestion();
 
   it("#165 AC1: is a type-ahead whose options are COMPLETIONS, with the new copy and the same itemId", async () => {
     const { app } = buildServer();
@@ -1120,10 +1098,8 @@ describe("#123 the languages question", () => {
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
     expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "declared" });
 
-    const declined: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })
-    ).json();
-    expect(declined.questions.some((q) => q.itemId === itemId)).toBe(true); // #339: open again
+    const declined = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION });
+    expect(declined.statusCode).toBe(200);
     for (const language of ["English", "Mandarin", "Cantonese", "Vietnamese"]) {
       expect(await eligibility.get(sid, "language", language)).toBeNull(); // retracted, not stale
     }
@@ -1251,72 +1227,33 @@ describe("#123 the languages question", () => {
   });
 });
 
-// --- #336 the CV's languages pre-tick the languages question ------------------------------------
-describe("#336 languages pre-ticked from the CV's own level", () => {
-  const langClaim = (id: string, text: string) => ({
-    id,
-    semantic_key: id,
-    field_key: null,
-    field_value: null,
-    field_label: null,
-    role: "profile",
-    text,
-    machine_touch: "verbatim" as const,
-    classification: "Verified" as const,
-    source_quote: text,
-    needs_grill: false,
-    grill_hint: null,
-  });
-  async function withCvLanguages() {
+// --- #336 retired by #376 ----------------------------------------------------------------------
+// Discovery no longer asks the languages question, so it no longer carries the CV's languages to
+// pre-tick: they are the profile's Languages section (ADR-0018 clause 8). What a submit stores is
+// still the #123 block's subject above.
+describe("#376 the CV's languages stay in the profile", () => {
+  it("a CV listing languages adds no question to discovery", async () => {
     const server = buildServer();
     const cookie = await anonSession(server.app);
     const sid = (await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
     await server.claims.seed(sid, [
-      langClaim("lang-polish", "Polish (Native)"),
-      langClaim("lang-english", "English (Fluent)"),
-      langClaim("lang-german", "German (Professional working proficiency)"),
-      langClaim("lang-french", "French (Conversational)"),
-      langClaim("lang-italian", "Italian"),
+      {
+        id: "lang-polish",
+        semantic_key: "lang-polish",
+        field_key: null,
+        field_value: null,
+        field_label: null,
+        role: "profile",
+        text: "Polish (Native)",
+        machine_touch: "verbatim",
+        classification: "Verified",
+        source_quote: "Polish (Native)",
+        needs_grill: false,
+        grill_hint: null,
+      },
     ]);
     const start: DiscoveryState = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const question = start.questions.find((q) => q.eligibility?.dimension === "language")!;
-    return { ...server, cookie, sid, question };
-  }
-
-  it("carries every CV language with its level word; only Native, Fluent and Professional pre-tick", async () => {
-    const { question } = await withCvLanguages();
-    expect(question.cvLanguages).toEqual([
-      { language: "Polish", level: "Native", preTicked: true },
-      { language: "English", level: "Fluent", preTicked: true },
-      { language: "German", level: "Professional working proficiency", preTicked: true },
-      { language: "French", level: "Conversational", preTicked: false },
-      { language: "Italian", level: null, preTicked: false },
-    ]);
-  });
-
-  it("pre-ticking stores nothing: no language fact exists until the person submits", async () => {
-    const { eligibility, sid } = await withCvLanguages();
-    expect((await eligibility.list(sid)).filter((f) => f.dimension === "language")).toEqual([]);
-  });
-
-  it("what the person submits is what is stored — an untick and an added language included", async () => {
-    const { app, cookie, eligibility, sid, question } = await withCvLanguages();
-    // Unticks German, keeps Polish and English, adds Swedish the CV does not list.
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: question.itemId, answers: ["Polish", "English", "Swedish"] });
-    const stored = (await eligibility.list(sid)).filter((f) => f.dimension === "language").map((f) => f.familyId);
-    expect(stored.sort()).toEqual(["English", "Polish", "Swedish"]);
-  });
-
-  it(`"${DECLINE_OPTION}" stores no language at all`, async () => {
-    const { app, cookie, eligibility, sid, question } = await withCvLanguages();
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: question.itemId, answer: DECLINE_OPTION });
-    expect((await eligibility.list(sid)).filter((f) => f.dimension === "language")).toEqual([]);
-  });
-
-  it("a CV with no languages sends no cvLanguages field", async () => {
-    const { app } = buildServer();
-    const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(start.questions.find((q) => q.eligibility?.dimension === "language")).not.toHaveProperty("cvLanguages");
+    expect(start).toMatchObject({ stage: "deck", questions: [] });
+    expect((await server.claims.list(sid)).map((c) => c.id)).toEqual(["lang-polish"]); // the section's line is there
   });
 });

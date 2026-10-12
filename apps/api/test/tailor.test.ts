@@ -24,7 +24,8 @@ import {
   tailorCvLines,
   tailorQuestions,
 } from "../src/tailor.js";
-import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { DECLINE_OPTION, eligibilityCandidates } from "../src/eligibilityDiscovery.js";
+import { ANY_FAMILY } from "../src/eligibility.js";
 
 const AD: AdRequirementsV1 = {
   schemaVersion: "1",
@@ -551,11 +552,10 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     await reachTailor({ app, claims }, cookie, "elig-decline-factcount@example.com");
     const before = (await get(app, cookie, "/onboarding/tailor")).json();
 
-    const discovery = (await get(app, cookie, "/onboarding/discovery")).json();
-    const workRights = discovery.questions.find(
-      (q: { eligibility?: { dimension: string } }) => q.eligibility?.dimension === "work-rights",
-    )!;
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    // #376: discovery no longer serves it; the answer route still answers the composed question.
+    const workRights = eligibilityCandidates(ANY_FAMILY, [])[0]!;
+    const declined = await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    expect(declined.statusCode).toBe(200);
     // #63: answering a discovery question changes this session's evidence, which correctly stales
     // the retrieval snapshot the tailor target resolves against - #101's decided fail-closed rule,
     // pinned by postingRetrievalHttp.test.ts. The client returns to the deck and swipes again; that
@@ -630,10 +630,11 @@ describe("#23 POST /onboarding/tailor/answer", () => {
       ],
       [
         "POST /onboarding/discovery/answer",
-        // #339: the route takes eligibility answers only, so this seam declines the first open one —
-        // a decline stores nothing, so it cannot grow the raw count back up to peak on its own.
+        // #339: the route takes eligibility answers only, so this seam declines one — a decline
+        // stores nothing, so it cannot grow the raw count back up to peak on its own. #376: none is
+        // served by discovery any more; the composed question is the one the route looks up.
         async () => {
-          const open = (await get(app, cookie, "/onboarding/discovery")).json().questions[0];
+          const open = eligibilityCandidates(ANY_FAMILY, [])[0]!;
           return post(app, cookie, "/onboarding/discovery/answer", {
             itemId: open.itemId,
             answer: DECLINE_OPTION,

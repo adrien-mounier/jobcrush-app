@@ -28,7 +28,6 @@ import {
   itemIdOf,
   slug,
   type DiscoveryQuestion,
-  type DiscoveryState,
 } from "./discovery.js";
 import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "./eligibility.js";
 import { isDeclaredValue, LANGUAGE_DECLARED, levelOf, MAX_LANGUAGE_WORD } from "./languageLevel.js";
@@ -263,68 +262,6 @@ export function eligibilityCandidates(anyFamily: string, markets: readonly strin
       ? markets.map((market) => buildQuestion(d, anyFamily, market))
       : [buildQuestion(d, anyFamily, null)],
   );
-}
-
-/** itemIds already carrying a real, stored eligibility fact — `facts` is whatever
- *  eligibility.list(sessionId) returned. Each itemId is rebuilt from the FACT's own recorded
- *  dimension+familyId (not the session's currently-resolved family), so a fact stays correctly
- *  attributed even if the resolved family ever changed between the answer and this read.
- *
- *  #123: language is special-cased, not run through itemId() — one multi-select question now
- *  produces up to languagesUnion().length facts (one per language), so no single fact's own
- *  (dimension, familyId) maps back onto the ONE question itemId the way years-experience/work-rights
- *  still do. The question is answered iff AT LEAST ONE language fact exists at all, at ANY scope.
- *
- *  Code-review must-fix 3 (2026-08-04) — stated honestly, not assumed: the write is NOT atomic.
- *  routes/onboarding.ts writes languageFacts()'s N entries as N separately-awaited put() calls (and a
- *  decline as N separately-awaited remove() calls), so a crash or store outage mid-loop CAN leave a
- *  genuine partial-write state — some languages written, some not. "At least one fact exists" means a
- *  partial write still closes the question early, with whichever languages never got written reading
- *  unknown at their own scope. That is the SAFE failure direction (#86): unknown never withdraws
- *  (withdrawal.ts), so a partial write can only ever leave MORE jobs in the deck than a completed
- *  write would — it fails toward keeping a job, never toward silently deleting one. A stray fact at
- *  the pre-#123 single-English scope also counts toward "at least one", so an old session that
- *  answered under the superseded single-English question is not re-asked either — the same accepted
- *  pre-launch outcome LANGUAGE_ITEM_ID's own doc records for the itemId change. */
-function factResolvedItemIds(facts: readonly { dimension: EligibilityDimension; familyId: string }[]): Set<string> {
-  const ids = new Set<string>();
-  for (const f of facts) {
-    if (f.dimension === "language") {
-      ids.add(LANGUAGE_ITEM_ID);
-      continue;
-    }
-    ids.add(itemId(f.dimension, f.familyId));
-  }
-  return ids;
-}
-
-/** The eligibility questions this session still needs asked. #339: a question is closed by a stored
- *  fact and nothing else — "Ask me later" stores nothing, so a declined question stays open and is
- *  asked again on a later visit. */
-export function unresolvedEligibilityQuestions(
-  anyFamily: string,
-  markets: readonly string[],
-  facts: readonly { dimension: EligibilityDimension; familyId: string }[],
-): DiscoveryQuestion[] {
-  const resolved = factResolvedItemIds(facts);
-  return eligibilityCandidates(anyFamily, markets).filter((q) => !resolved.has(q.itemId));
-}
-
-/** #106: eligibility questions layered onto discoveryState()'s output. #339: they are the only
- *  questions discovery still asks, so they are the whole list, and while one is open the screen
- *  stays in discovery. Mutates `state` in place — every call site builds a fresh DiscoveryState from
- *  discoveryState() one line earlier and keeps using it after.
- *
- *  #162 rode the date-hole questions (yearsWorked.ts's dateHoleQuestions) in this band; #338 moved
- *  them to "Your CV, reviewed", where each is asked on its own job's card (ADR-0016 clause 2). */
-export function applyEligibilityQuestions(
-  state: DiscoveryState,
-  facts: readonly { dimension: EligibilityDimension; familyId: string }[],
-  markets: readonly string[],
-): void {
-  // #214: `markets` (the session's resolved covered markets, up to 3) — work-rights is per market.
-  state.questions = [...state.questions, ...unresolvedEligibilityQuestions(ANY_FAMILY, markets, facts)];
-  if (state.questions.length > 0) state.stage = "discovery";
 }
 
 /** Code-review must-fix 3: a decline ("Ask me later") is a refusal, not a recorded fact, and must not

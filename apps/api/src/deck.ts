@@ -32,7 +32,7 @@ import { NO_KNOWN_FAMILY } from "./adReader.js";
 import { pinBrought, withBroughtFacts, type BroughtJob } from "./broughtJobs.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
-import { excludingEligibility, unresolvedEligibilityQuestions } from "./eligibilityDiscovery.js";
+import { excludingEligibility } from "./eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "./language.js";
 import { addToCounter, incrementCounter, recordReadFailure } from "./counters.js";
 import {
@@ -65,7 +65,6 @@ import {
   type DiscoveryCvLine,
 } from "./discovery.js";
 import {
-  resolvedMarketsFor,
   retrievalFingerprint,
   retrievalRequestForSession,
   reviewOpensJobs,
@@ -1059,7 +1058,7 @@ export async function buildDeckResponse(
     deps,
   );
   // #235: whether the empty deck may say "answer a few more questions" (hasOpenDiscoveryQuestions).
-  const moreQuestions = hasOpenDiscoveryQuestions(session, facts);
+  const moreQuestions = hasOpenDiscoveryQuestions(session);
   // #22: authed tells the client whether the account wall at the reveal applies — false only for a
   // still-anonymous session, so a returning (claimed) visitor is never re-walled.
   return {
@@ -1325,11 +1324,9 @@ export function buildTailorState(
  *  deck's copy: "answer a few more questions and I'll widen the net" may only be shown when a
  *  question actually exists — a visitor whose word search returned nothing and whose questions are
  *  all answered is invited to try a different job title instead, never sent to an empty ask screen.
- *  #339: the questions discovery still asks are question 1 and the eligibility questions. */
-export function hasOpenDiscoveryQuestions(
-  session: Pick<SessionRecord, "targetTitles" | "intent">,
-  facts: readonly EligibilityFact[],
-): boolean {
-  if (!session.targetTitles[0]) return true; // question 1 itself is still open
-  return unresolvedEligibilityQuestions(ANY_FAMILY, resolvedMarketsFor(session.intent.searchAreas), facts).length > 0;
+ *  #339: the questions discovery still asks are question 1 and the eligibility questions. #376: the
+ *  eligibility questions moved into the profile's check mode (ADR-0018 clause 8), so question 1 is
+ *  the only one left. */
+export function hasOpenDiscoveryQuestions(session: Pick<SessionRecord, "targetTitles">): boolean {
+  return !session.targetTitles[0];
 }

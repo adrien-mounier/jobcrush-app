@@ -17,7 +17,7 @@ import { makeAdReader } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
-import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { DECLINE_OPTION, eligibilityCandidates, languagesQuestion } from "../src/eligibilityDiscovery.js";
 import { answerLanguageLevel } from "../src/languageLevel.js";
 import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
 import { discoveryClaimId } from "../src/discovery.js";
@@ -236,10 +236,11 @@ describe("#19 GET /onboarding/cards", () => {
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200);
     const body = res.json() as { stage: string; cards: JobCard[] };
-    // #106: stage no longer flips to deck on the essential band alone — eligibility questions
-    // are now pending and none were answered here. /onboarding/cards itself is never gated on stage
-    // (comment a few lines below, unchanged), so this is a pure echo-of-session-state check.
-    expect(body.stage).toBe("discovery");
+    // #376: question 1 is the last thing discovery asks (work rights and languages moved into the
+    // profile's check mode), so taking it flips the session to deck. /onboarding/cards itself is
+    // never gated on stage (comment a few lines below, unchanged), so this is a pure
+    // echo-of-session-state check.
+    expect(body.stage).toBe("deck");
 
     expect(body.cards.length).toBeGreaterThanOrEqual(3);
 
@@ -306,11 +307,11 @@ describe("#19 GET /onboarding/cards", () => {
   it("a declined eligibility question never shows up in any card's askedClosed (D1)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
-    const start = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const workRights = start.questions.find(
-      (q: { eligibility?: { dimension: string } }) => q.eligibility?.dimension === "work-rights",
-    )!;
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    // #376: discovery no longer serves it; the route still answers the composed question.
+    const workRights = eligibilityCandidates(ANY_FAMILY, [])[0]!;
+    const declined = await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    expect(declined.statusCode).toBe(200);
 
     const res = await get(app, cookie, "/onboarding/cards");
     const body = res.json() as { cards: JobCard[] };
@@ -1044,12 +1045,12 @@ const placeLevel = async (
 
 // #123 — module-scoped (not local to one describe block) so both the "driven end to end" block and
 // the withdrawn.total/byLanguage reporting block below can start discovery and find the languages
-// question's itemId the same way, without each re-implementing the lookup.
+// question's itemId the same way, without each re-implementing the lookup. #376: discovery no longer
+// serves the question (the profile asks it), so this takes question 1 and composes the one the
+// answer route looks up.
 const languageItemId = async (app: ReturnType<typeof buildServer>["app"], cookie: string): Promise<string> => {
-  const start = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
-    questions: Array<{ itemId: string; eligibility?: { dimension: string } }>;
-  };
-  return start.questions.find((q) => q.eligibility?.dimension === "language")!.itemId;
+  await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+  return languagesQuestion().itemId;
 };
 
 describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
@@ -1751,15 +1752,7 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
   const ROLE = "IT project manager";
   const session = (
     over: Partial<Parameters<typeof hasOpenDiscoveryQuestions>[0]> = {},
-  ): Parameters<typeof hasOpenDiscoveryQuestions>[0] => ({
-    targetTitles: [ROLE],
-    intent: { targetRole: ROLE, searchAreas: [] },
-    ...over,
-  });
-  const eligibilityClosed: EligibilityFact[] = [
-    { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
-    { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
-  ];
+  ): Parameters<typeof hasOpenDiscoveryQuestions>[0] => ({ targetTitles: [ROLE], ...over });
 
   // #339: an uncovered production question floor used to count as an open question; discovery no
   // longer asks the floor, so promising "a few more questions" over it would send her to an empty
@@ -1775,21 +1768,18 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
         checkpoint: "family_confirmed",
       },
     };
-    expect(hasOpenDiscoveryQuestions(uncovered, eligibilityClosed)).toBe(false);
+    expect(hasOpenDiscoveryQuestions(uncovered)).toBe(false);
   });
 
-  it("a fresh role still has its eligibility questions open", () => {
-    expect(hasOpenDiscoveryQuestions(session(), [])).toBe(true);
+  // #376 (ADR-0018 clause 8): work rights and languages moved into the profile's check mode, so a
+  // fresh role with nothing answered has no discovery question left — "a few more questions" would
+  // send her to an empty ask screen.
+  it("a fresh role with no eligibility answered has nothing open — those are asked in the profile now", () => {
+    expect(hasOpenDiscoveryQuestions(session())).toBe(false);
   });
 
   it("no role means question 1 itself is open", () => {
-    expect(
-      hasOpenDiscoveryQuestions(session({ targetTitles: [], intent: { targetRole: null, searchAreas: [] } }), []),
-    ).toBe(true);
-  });
-
-  it("with eligibility closed, nothing is open — no phantom questions", () => {
-    expect(hasOpenDiscoveryQuestions(session(), eligibilityClosed)).toBe(false);
+    expect(hasOpenDiscoveryQuestions(session({ targetTitles: [] }))).toBe(true);
   });
 });
 

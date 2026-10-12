@@ -9,7 +9,6 @@
 //     signal is the resolved search area). Still exported and tested as its own small text utility.
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
 //     facts, so GET /discovery resumes with no client state.
-import type { CvLanguage } from "./cvLanguages.js";
 import type { CandidateClaim, FloorItem, CvSection, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
 
@@ -110,10 +109,6 @@ export interface DiscoveryQuestion {
    *  never discovered later by a missing job. Present only alongside `multiSelect` today, but is its
    *  own field (not folded into `question`) so a future single-select question could carry one too. */
   consequence?: string;
-  /** #336: the languages question only, and only when the CV lists languages — each with the CV's
-   *  own level word and whether the screen pre-ticks it. A proposal: nothing is stored until the
-   *  person submits the question. */
-  cvLanguages?: CvLanguage[];
 }
 export interface DiscoveryCvLine {
   itemId: string; // "role" for the lead line, else the floor item id
@@ -188,9 +183,9 @@ export function discoveryCvLines(
 }
 
 /** Rebuild the whole screen state from persisted facts. `role` is the Q1 text (null before Q1).
- *  #339: discovery asks no floor question any more — the eligibility questions are layered on by
- *  eligibilityDiscovery.ts's applyEligibilityQuestions, which also holds `stage` at "discovery" while
- *  one is open. Pure + deterministic → GET resumes.
+ *  #339: discovery asks no floor question any more; #376: nor work rights and languages, which the
+ *  profile's check mode asks (ADR-0018 clause 8) — so a role is the hand-off. Pure + deterministic →
+ *  GET resumes.
  *
  *  #246: `openJobs` — how many adverts HER OWN search returned (preview.ts's
  *  retrievedPostingCount), passed in so the promise counts the search her deck is built from. `null`

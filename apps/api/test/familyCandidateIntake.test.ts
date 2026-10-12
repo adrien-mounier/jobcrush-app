@@ -91,7 +91,7 @@ describe("#236 the candidate screen on the word-search path", () => {
       payload: { role: "Orbital Farm Planner" },
     });
     expect(discovery.statusCode).toBe(200);
-    expect(discovery.json().questions.length).toBeGreaterThan(0);
+    expect(discovery.json()).toMatchObject({ role: "Orbital Farm Planner", stage: "deck" }); // #376: question 1 is the whole interview
     const pinned = (await server.sessions.getById(sessionId))!.discovery;
     expect(pinned).toMatchObject({
       questionFloors: [PUBLISHED],

@@ -11,18 +11,15 @@ import { ANY_FAMILY } from "../src/eligibility.js";
 import {
   DECLINE_OPTION,
   LANGUAGE_ITEM_ID,
-  applyEligibilityQuestions,
   eligibilityCandidates,
   isEligibilityItemId,
   isValidLanguageSelection,
   languageDeclarationPlan,
   languagesUnion,
   mapEligibilityAnswer,
-  unresolvedEligibilityQuestions,
 } from "../src/eligibilityDiscovery.js";
 import { discoveryState } from "../src/discovery.js";
 
-const ROLE = "IT project manager in Paris";
 
 describe("#106 eligibilityCandidates", () => {
   const candidates = eligibilityCandidates(ANY_FAMILY, ["Paris"]);
@@ -127,54 +124,6 @@ describe("#106 eligibilityCandidates", () => {
   it("certification and degree are never built — credentials belong to family floors", () => {
     expect(candidates.some((q) => q.eligibility?.dimension === "certification")).toBe(false);
     expect(candidates.some((q) => q.eligibility?.dimension === "degree")).toBe(false);
-  });
-});
-
-// #339: a question is closed by a stored eligibility fact and by nothing else — the claims store is
-// no longer consulted, so a decline ("Ask me later"), which stores nothing, leaves its question open
-// (the route-level proof that it is served again lives in discovery.test.ts's "#106" block).
-describe("#106 unresolvedEligibilityQuestions — never re-asked once a fact is stored", () => {
-  it("both are unresolved when nothing has been asked", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], []);
-    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights", "language"]);
-  });
-
-  it("a stored eligibility fact (a real answer) also closes its question, with no claim involved", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [
-      { dimension: "language", familyId: "English" },
-    ]);
-    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights"]);
-  });
-
-  // #123: the languages question is answered iff AT LEAST ONE language fact exists, at ANY scope —
-  // unlike years-experience, there is no single scope for one question to match. This also means a
-  // STALE fact from the pre-#123 single-English question (recorded at the same "English" scope,
-  // since ELIGIBILITY_LANGUAGE was "English") closes the new question too — an old session is not
-  // re-asked, the same accepted-pre-launch outcome LANGUAGE_ITEM_ID's own doc records for the itemId
-  // change itself.
-  it("a language fact at ANY scope (including one recorded under a different language name) closes the one languages question", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [
-      { dimension: "language", familyId: "Mandarin" },
-    ]);
-    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights"]);
-  });
-
-  // #182 (#180's falsifiable checks), at this seam: a work-rights fact stored for one city never
-  // closes another city's question, and switching back finds the original answer again. `familyId`
-  // below is the SLUG a real write actually stores (QA round 3 must-fix) — the raw display city
-  // ("Hong Kong"/"Paris") only ever appears in `markets` (this fn's 2nd arg) and in question text.
-  it("#182 AC1: a Paris work-rights answer leaves Hong Kong's question open (unknown, not borrowed)", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Hong Kong"], [
-      { dimension: "work-rights", familyId: "paris" },
-    ]);
-    expect(qs.map((q) => q.eligibility?.dimension)).toContain("work-rights");
-  });
-
-  it("#182 AC2: switching back to Paris finds the stored Paris answer and does not re-ask it", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Paris"], [
-      { dimension: "work-rights", familyId: "paris" },
-    ]);
-    expect(qs.map((q) => q.eligibility?.dimension)).not.toContain("work-rights");
   });
 });
 
@@ -300,37 +249,5 @@ describe("#123/#165 languagesUnion / languageDeclarationPlan / isValidLanguageSe
     expect(isValidLanguageSelection(["a".repeat(61)])).toBe(false);
     expect(isValidLanguageSelection(["Fren\nch"])).toBe(false);
     expect(isValidLanguageSelection(Array.from({ length: 21 }, (_, i) => `L${i}`))).toBe(false);
-  });
-});
-
-// #339: the eligibility questions are the only ones discovery still asks — the floor questions and
-// #106 round 3's band interleaving went with them. discoveryState() returns no questions and stage
-// "deck" once a role exists; this layer is what holds the visitor in discovery while one is open.
-describe("#106/#339 applyEligibilityQuestions — the whole question list", () => {
-  it("the eligibility questions are the whole list, and they keep the visitor in discovery", () => {
-    const state = discoveryState(ROLE, [], [], null);
-    expect(state).toMatchObject({ stage: "deck", questions: [] }); // guard: nothing else is asked
-
-    applyEligibilityQuestions(state, [], ["Paris"]);
-
-    expect(state.questions.length).toBeGreaterThan(0);
-    expect(state.questions.every((q) => isEligibilityItemId(q.itemId))).toBe(true);
-    expect(state.stage).toBe("discovery");
-  });
-
-  it("adds nothing and leaves the stage at deck once every eligibility fact is resolved", () => {
-    // The facts are derived from the questions this function itself asks, never from a hand-written
-    // familyId: work-rights is market-scoped, and a fact stored at a DIFFERENT scope silently resolves
-    // nothing. Deriving them is also the only way this test stays true if the scope derivation changes.
-    const probe = discoveryState(ROLE, [], [], null);
-    applyEligibilityQuestions(probe, [], ["Paris"]);
-    const facts = probe.questions.map((q) => ({ dimension: q.eligibility!.dimension, familyId: q.eligibility!.familyId }));
-    expect(facts).not.toHaveLength(0);
-
-    const resolved = discoveryState(ROLE, [], [], null);
-    applyEligibilityQuestions(resolved, facts, ["Paris"]);
-
-    expect(resolved.questions).toEqual([]);
-    expect(resolved.stage).toBe("deck");
   });
 });

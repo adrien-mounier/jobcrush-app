@@ -5,7 +5,13 @@ import { describe, expect, it } from "vitest";
 import type { CandidateClaim } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { isTerminal } from "../src/jobs.js";
-import { DECLINE_OPTION, languagesQuestion as composeLanguagesQuestion } from "../src/eligibilityDiscovery.js";
+import {
+  DECLINE_OPTION,
+  eligibilityCandidates,
+  languagesQuestion as composeLanguagesQuestion,
+  workRightsQuestionFor,
+} from "../src/eligibilityDiscovery.js";
+import { ANY_FAMILY } from "../src/eligibility.js";
 
 const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
   id: "acme-led-migration",
@@ -267,16 +273,16 @@ describe("#20 profile screen — the colour law over HTTP", () => {
   it("a declined eligibility question does not inflate /profile's factCount (D1)", async () => {
     const server = buildServer();
     const cookie = await anonSession(server.app);
-    const start = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
-      questions: Array<{ itemId: string; eligibility?: { dimension: string } }>;
-    };
-    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    // #376: discovery no longer serves it; the answer route still answers the composed question.
+    const workRights = eligibilityCandidates(ANY_FAMILY, [])[0]!;
 
     const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
-    await post(server.app, cookie, "/onboarding/discovery/answer", {
+    const declined = await post(server.app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
       answer: DECLINE_OPTION,
     });
+    expect(declined.statusCode).toBe(200);
     const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
 
     expect(after.factCount).toBe(before.factCount);
@@ -430,14 +436,13 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       const server = buildServer();
       const cookie = await anonSession(server.app);
       await put(server.app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
-      const start = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
-        questions: Array<{ itemId: string; question: string; options: string[]; eligibility?: { dimension: string } }>;
-      };
-      const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+      await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+      // #376: discovery no longer asks it — the one composition the answer route looks up is the pin.
+      const workRights = workRightsQuestionFor("Hong Kong");
 
       const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
-      // The rail's own question/options are byte-identical to the ones discovery/start actually
-      // asked — never re-composed, never paraphrased — and its questionId is the SAME id the answer
+      // The rail's own question/options are byte-identical to the composed question — never
+      // re-composed client-side, never paraphrased — and its questionId is the SAME id the answer
       // route below accepts (the round-trip pin).
       expect(before.location).toEqual({
         areas: [{ text: "Hong Kong", market: "Hong Kong", label: "Hong Kong" }],
@@ -515,16 +520,9 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     it("question/options are byte-identical to discovery's own, and a never-answered session reads answer: null", async () => {
       const server = buildServer();
       const cookie = await anonSession(server.app);
-      const start = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
-        questions: Array<{
-          itemId: string;
-          question: string;
-          consequence?: string;
-          options: string[];
-          eligibility?: { dimension: string };
-        }>;
-      };
-      const discoveryLanguages = start.questions.find((q) => q.eligibility?.dimension === "language")!;
+      await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+      // #376: discovery no longer asks it — the one composition the answer route looks up is the pin.
+      const discoveryLanguages = composeLanguagesQuestion();
 
       const { languagesQuestion } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
       expect(languagesQuestion).toEqual({
