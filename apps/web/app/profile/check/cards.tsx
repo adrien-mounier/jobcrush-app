@@ -19,6 +19,10 @@ const C_LANGUAGES = "Which languages do you speak?";
 const C_LANGUAGES_LABEL = "Languages, separated by commas";
 const C_LANGUAGES_HINT = "e.g. English, French";
 const C_SAVE = "Save";
+// What the discovery question said before the answer (#165): leaving a language out costs nothing.
+const C_LANGUAGES_SAFE = "Nothing you leave out counts against you.";
+const C_COMPLETIONS = "Languages I know";
+const offListCopy = (word: string) => `"${word}" isn't on my list. I'll keep it as you wrote it.`;
 
 export function WorkCard({ rows, busy, onAnswer }: { rows: ReviewWorkRights[]; busy: boolean; onAnswer: (itemId: string, answer: WorkRightsAnswer) => void }) {
   const sources = [...new Set(rows.flatMap((r) => (r.source ? [r.source] : [])))];
@@ -66,11 +70,32 @@ const split = (text: string) =>
     .map((w) => w.trim())
     .filter(Boolean);
 
-export function LanguagesCard({ languages, busy, onSave }: { languages: string[]; busy: boolean; onSave: (languages: string[]) => void }) {
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/** The languages card: a comma-separated list. The word being typed (after the last comma) completes
+ *  from the product's own list (`options`); a word the list has never heard of is kept as written. */
+export function LanguagesCard({
+  languages,
+  options,
+  busy,
+  onSave,
+}: {
+  languages: string[];
+  options: string[];
+  busy: boolean;
+  onSave: (languages: string[]) => void;
+}) {
   const stored = languages.join(", ");
   const [text, setText] = useState(stored);
   // What the server holds wins after a save (the walk re-reads it).
   useEffect(() => setText(stored), [stored]);
+  const words = text.split(",");
+  const typing = words[words.length - 1]!.trim();
+  const listed = words.slice(0, -1).map((w) => w.trim()).filter(Boolean);
+  const completions = typing
+    ? options.filter((o) => o.toLowerCase().startsWith(typing.toLowerCase()) && !same(o, typing) && !listed.some((l) => same(l, o)))
+    : [];
+  const offList = typing && completions.length === 0 && !options.some((o) => same(o, typing)) ? typing : null;
   return (
     <form
       className="card form langs"
@@ -80,12 +105,23 @@ export function LanguagesCard({ languages, busy, onSave }: { languages: string[]
       }}
     >
       <h3 className="ctitle">{C_LANGUAGES}</h3>
+      <p className="conseq">{C_LANGUAGES_SAFE}</p>
       <div className="fields">
         <label>
           {C_LANGUAGES_LABEL}
-          <input value={text} placeholder={C_LANGUAGES_HINT} onChange={(e) => setText(e.target.value)} />
+          <input value={text} placeholder={C_LANGUAGES_HINT} aria-autocomplete="list" onChange={(e) => setText(e.target.value)} />
         </label>
       </div>
+      {completions.length > 0 && (
+        <div className="sugg" role="group" aria-label={C_COMPLETIONS}>
+          {completions.map((o) => (
+            <button key={o} type="button" className="btn sm" onClick={() => setText(`${[...listed, o].join(", ")}, `)}>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+      {offList && <p className="note">{offListCopy(offList)}</p>}
       <span className="row">
         <button type="submit" className="btn sm" disabled={busy}>
           {C_SAVE}

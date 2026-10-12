@@ -125,7 +125,8 @@ await qa.expectText(
   'in Hong Kong.',
   'AC4 setup: the search area resolved to Hong Kong while the role text says Paris',
 );
-// #322: the front door already took the role, so discovery opens on the checklist - no question 1.
+// #322: the front door already took the role, so discovery opens without question 1 (and, #376,
+// without any other question: it holds the hand-off).
 await qa.scrollThrough('read the page the way a person would');
 // #214 owner decision: the promise sentence names NO place — with up to 3 selected places, naming
 // one was a half-truth. The location signal is proven by the work-rights question below instead.
@@ -135,25 +136,19 @@ await expectAbsent(
   'AC4 (#214): the promise never names one place while several can be selected',
 );
 
-// #339: after question 1 discovery asks eligibility only, so work rights is the first question on
-// screen; the loop below answers anything ahead of it (nothing, today) the way the screen serves it.
-const workRights = page.locator('.opts[data-elig="work-rights"]');
-for (let i = 0; i < 8 && (await workRights.count()) === 0; i += 1) {
-  const answered = await qa.answerVisibleQuestion({
-    note: `answer the question on screen (step ${i + 1}) to reach work rights`,
-  });
-  if (!answered) break;
+// #376 (ADR-0018 clause 8): discovery asks nothing after question 1 — work rights are a row on
+// check mode's "Where you can work" card. The row is for the RESOLVED SEARCH AREA, never the role text.
+await qa.expectVisible('.discovery .handoff .go', '#376: discovery asks nothing more — it holds the hand-off');
+await qa.goto('/profile/check', 'her profile in check mode, where work rights are asked now');
+const checkHeading = page.getByRole('heading', { level: 1 });
+for (let i = 0; i < 10 && (await checkHeading.innerText()) !== 'Additional information'; i += 1) {
+  const before = await checkHeading.innerText();
+  await qa.click('.foot .primary', `Next, from "${before}"`);
+  await page.waitForFunction((t) => document.querySelector('h1')?.textContent !== t, before);
 }
-await qa.expectVisible(workRights, 'the work-rights question is now the one being asked');
-await qa.expectText(
-  'body',
-  'Can you already work in Hong Kong without visa sponsorship?',
-  'AC4: the work-rights question asks about the RESOLVED SEARCH AREA, not the role text',
-);
-await expectAbsent(
-  page.getByText('Can you already work in Paris without visa sponsorship?'),
-  'AC4: the two location signals can no longer disagree',
-);
+await qa.expectVisible('.wrrow', 'the work-rights row is the one being asked');
+await qa.expectText('.wrrow legend', 'Hong Kong', 'AC4: the work-rights row asks about the RESOLVED SEARCH AREA, not the role text');
+await expectAbsent(page.locator('.wrrow legend', { hasText: 'Paris' }), 'AC4: the two location signals can no longer disagree');
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

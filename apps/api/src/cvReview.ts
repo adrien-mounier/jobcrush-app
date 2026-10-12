@@ -32,6 +32,7 @@ import type { SessionRecord, SessionStore } from "./sessions.js";
 import { answerJobDateHole, dateHoleQuestions, JOB_DATE_ITEM_PREFIX, type JobDateAnswerResult } from "./yearsWorked.js";
 import { unansweredMarkets, workRightsRows, type WorkRightsRow } from "./workRightsCard.js";
 import { declaredLanguages } from "./languageLevel.js";
+import { languagesUnion } from "./eligibilityDiscovery.js";
 import type { MinedDate, MinedEndValue } from "@jobcrush/contracts";
 
 /** A fix as the screen shows it: the line's text before and after, and whether the line currently
@@ -135,6 +136,9 @@ export interface ReviewState {
   /** #376: the languages the person said they speak (the eligibility store's declarations) — what
    *  the Languages screen's card shows when the CV lists none. */
   languages: string[];
+  /** #376: the languages the card completes from as the person types — the product's own list
+   *  (languages-by-market.json), so it grows with the data. Anything else typed is kept as written. */
+  languageOptions: string[];
   /** #385 (ADR-0018 clause 3): check mode brought back by a re-upload shows only these items — the
    *  ones the re-upload brought, and the suggestions made on them. Null for the first check mode,
    *  which shows every item. */
@@ -396,6 +400,7 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
     ),
     workRights,
     languages: declaredLanguages(await deps.eligibility.list(session.id)),
+    languageOptions: [...languagesUnion()],
     newItems,
   };
 }

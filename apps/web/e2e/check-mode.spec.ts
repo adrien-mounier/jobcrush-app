@@ -79,6 +79,7 @@ const REVIEW: ReviewState = {
   ],
   workRights: [],
   languages: [],
+  languageOptions: ["English", "Mandarin", "Cantonese", "Vietnamese"],
 };
 /** The screens REVIEW makes, in order: empty Certifications is skipped; Languages never is (#376 —
  *  a CV with none gets the card asking which languages the person speaks). */
@@ -1490,12 +1491,32 @@ test.describe("#376 where you can work and languages", () => {
     const card = page.locator(".langs");
     await expect(card.locator("h3")).toHaveText("Which languages do you speak?");
     await card.locator("input").fill("English,  Polish ,");
-    await card.locator("button").click();
+    await card.locator(".row button").click(); // Save
     expect(calls).toEqual([{ method: "PUT", url: "/api/review/languages", body: { languages: ["English", "Polish"] } }]);
     // Read back from the server's state, not from what was typed.
     await expect(card.locator("input")).toHaveValue("English, Polish");
     // Not a gate: the screen's button never waits on languages.
     await expect(primary(page)).toBeEnabled();
+  });
+
+  test("Languages: the card says leaving one out costs nothing, completes a known language, and keeps an unknown one as written", async ({ page }) => {
+    const { calls } = await stubReview(page);
+    await page.goto("/profile/check");
+    for (let i = 1; i < SCREENS.length; i++) await primary(page).click();
+    const card = page.locator(".langs");
+    await expect(card.locator(".conseq")).toBeVisible();
+    await card.locator("input").fill("Eng");
+    await expect(card.locator(".sugg button")).toHaveText(["English"]);
+    await card.locator(".sugg button").click();
+    await expect(card.locator("input")).toHaveValue("English, ");
+    // A known language the person leaves out is simply not listed; one the list never heard of stays.
+    await card.locator("input").pressSequentially("Wolof");
+    await expect(card.locator(".sugg button")).toHaveCount(0);
+    await expect(card.locator(".note")).toContainText('"Wolof"');
+    await card.locator(".row button").click(); // Save
+    expect(calls).toEqual([{ method: "PUT", url: "/api/review/languages", body: { languages: ["English", "Wolof"] } }]);
+    await expect(card.locator("input")).toHaveValue("English, Wolof");
+    await expect(card.locator(".note")).toContainText('"Wolof"'); // still its own word, read back
   });
 
   test("Languages: the CV's languages are the screen's items, and no card asks", async ({ page }) => {

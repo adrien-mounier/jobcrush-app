@@ -19,6 +19,7 @@ import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
 import { refreshWorkedYears } from "../src/yearsWorked.js";
 import type { ReviewState } from "../src/cvReview.js";
+import { languagesUnion } from "../src/eligibilityDiscovery.js";
 import { sessionPostings } from "../src/preview.js";
 import type { BroughtJob } from "../src/broughtJobs.js";
 import type { SessionRecord } from "../src/sessions.js";
@@ -473,6 +474,10 @@ describe("#376 languages, their own screen", () => {
     const before = await review(app, cookie);
     expect(linesOf(before, "lang")).toEqual([]); // the fixture CV lists no languages
     expect(before.languages).toEqual([]);
+    // The card completes from the product's own language list (languages-by-market.json), so the
+    // completions grow with the data, never with the screen.
+    expect(before.languageOptions).toEqual([...languagesUnion()]);
+    expect(before.languageOptions.length).toBeGreaterThan(0);
 
     const saved = await put(app, cookie, "/review/languages", { languages: ["English", "Polish"] });
     expect(saved.json()).toEqual({ ok: true });

@@ -6,7 +6,8 @@
 // that leaving Mandarin unticked REMOVES the Mandarin-mandatory posting, which is exactly the harm
 // #165 was written to delete. This journey proves the promise on the rendered screen:
 //
-//   front door -> discovery -> work-rights -> THE LANGUAGES TYPE-AHEAD (a known word
+//   front door -> discovery (#376: nothing asked after question 1) -> check mode's Languages card,
+//   THE LANGUAGES TYPE-AHEAD (a known word
 //   completed from the list, and a word OFF the list kept in the person's own spelling, with
 //   Mandarin and Cantonese deliberately LEFT OUT) -> sign in -> the deck, where
 //     * the Mandarin-MANDATORY posting is STILL THERE (leaving a language out costs nothing),
@@ -57,7 +58,6 @@ page.setDefaultTimeout(12000);
 const assert = (cond, note) => qa.expectText('body', cond ? '' : ' -IMPOSSIBLE-', note);
 const txt = async (sel) => (await page.locator(sel).count())
   ? (await page.locator(sel).first().textContent()).trim() : null;
-const askQ = () => txt('.discovery #ask-q, .discovery legend.q');
 const eligDim = async () => (await page.locator('.discovery .opts').count())
   ? page.locator('.discovery .opts').first().getAttribute('data-elig') : null;
 const deck = () => page.evaluate(async () => {
@@ -109,73 +109,69 @@ await qa.click(page.getByRole('button', { name: "That's me" }), 'Q1: submit the 
 await page.waitForTimeout(1800);
 
 // -------------------------------------------------------------------------------------------
-// 4. work-rights — the eligibility question #165 did not touch. #339: it comes straight after
-//    question 1; there is no floor to walk through first.
+// 4. #376 (ADR-0018 clause 8): discovery asks nothing after question 1 — no work rights, no
+//    languages. It holds the hand-off; both are answered in her profile's check mode.
 // -------------------------------------------------------------------------------------------
-await assert((await eligDim()) === 'work-rights', `REGRESSION: work-rights is still asked (got "${await eligDim()}")`);
-await qa.click(page.locator('.discovery .opts .opt').first(), 'answer work-rights with the first option');
-await page.waitForTimeout(2300);
+await qa.expectVisible('.discovery .handoff .go', '#376: discovery asks nothing after question 1 — it holds the hand-off');
+await assert((await eligDim()) === null, `#376: no eligibility question on discovery any more (got "${await eligDim()}")`);
 
 // -------------------------------------------------------------------------------------------
-// 5. THE LANGUAGES QUESTION — a type-ahead now, not a tick-list. (#165 point 1 / AC1)
+// 5. THE LANGUAGES QUESTION — #165's type-ahead, now the card on check mode's Languages screen
+//    (her CV lists no languages, so the screen asks). (#165 point 1 / AC1)
 // -------------------------------------------------------------------------------------------
-await page.waitForTimeout(600);
-await qa.scrollThrough('read the languages question the way a hurried visitor would');
-const langQ = await askQ();
-const conseq = await txt('.discovery .conseq');
-await qa.note(`question stem : ${JSON.stringify(langQ)}`);
-await qa.note(`consequence   : ${JSON.stringify(conseq)}`);
-await qa.expectVisible('.discovery .lang-typeahead #lang-input', 'AC1: the languages question is a TYPE-AHEAD input, not a checkbox list');
+await qa.goto('/profile/check', 'her profile in check mode, where her languages are asked now');
+const checkHeading = page.getByRole('heading', { level: 1 });
+for (let i = 0; i < 10 && (await checkHeading.innerText()) !== 'Languages'; i += 1) {
+  const before = await checkHeading.innerText();
+  await qa.click('.foot .primary', `Next, from "${before}"`);
+  await page.waitForFunction((t) => document.querySelector('h1')?.textContent !== t, before);
+}
+const card = page.locator('.check .langs');
+await qa.scrollThrough('read the languages card the way a hurried visitor would');
+const langQ = await txt('.check .langs .ctitle');
+const conseq = await txt('.check .langs .conseq');
+await qa.note(`question : ${JSON.stringify(langQ)}`);
+await qa.note(`consequence : ${JSON.stringify(conseq)}`);
+await qa.expectVisible(card.locator('input[aria-autocomplete="list"]'), 'AC1: the languages question is a TYPE-AHEAD input, not a checkbox list');
 
-const oldBoxes = await page.locator('.discovery .opt.check input[type=checkbox]').count();
+const oldBoxes = await card.locator('input[type=checkbox]').count();
 await assert(oldBoxes === 0, `the #123 tick-list is gone — ${oldBoxes} checkboxes on screen (the box whose unticked state wrote a hard "no")`);
 await assert(!/unticked|treat as a no/i.test(langQ ?? ''),
-  `the stem no longer threatens the visitor with a "no" it will infer — "${langQ}"`);
+  `the question no longer threatens the visitor with a "no" it will infer — "${langQ}"`);
 await assert(/still stays in your deck|nothing you leave out/i.test(conseq ?? ''),
   `AC2 said ON THE SCREEN, before the answer: leaving a language out costs nothing — "${conseq}"`);
 
 // (a) a KNOWN word completes from the list.
-await qa.fill('#lang-input', 'Eng', 'AC1: type three letters of a language on the list');
-await page.waitForTimeout(700);
-const engSuggestions = await page.locator('.discovery .sugg button').allTextContents();
+await qa.fill(card.locator('input'), 'Eng', 'AC1: type three letters of a language on the list');
+const engSuggestions = await card.locator('.sugg button').allTextContents();
 await qa.note(`completions offered for "Eng": ${JSON.stringify(engSuggestions)}`);
 await assert(engSuggestions.some((s) => s.trim() === 'English'), 'AC1: a known language COMPLETES from the list as the person types');
-await qa.click(page.locator('.discovery .sugg button', { hasText: 'English' }).first(), 'tap the completion "English"');
-await page.waitForTimeout(800);
+await qa.click(card.locator('.sugg button', { hasText: 'English' }).first(), 'tap the completion "English"');
 
 // (b) the list really does know Mandarin — and this visitor still leaves it out. This is the whole
 //     point of AC2: the omission below must cost her nothing.
-await qa.fill('#lang-input', 'Man', 'type "Man" — proving Mandarin IS on the list…');
-await page.waitForTimeout(700);
-const manSuggestions = await page.locator('.discovery .sugg button').allTextContents();
+await qa.fill(card.locator('input'), 'English, Man', 'type "Man" — proving Mandarin IS on the list…');
+const manSuggestions = await card.locator('.sugg button').allTextContents();
 await qa.note(`completions offered for "Man": ${JSON.stringify(manSuggestions)}`);
 await assert(manSuggestions.some((s) => s.trim() === 'Mandarin'), 'the list offers Mandarin — so leaving it out below is a choice, not an impossibility');
-await qa.fill('#lang-input', '', '…and clear it without adding: Mandarin is DELIBERATELY LEFT OUT');
-await page.waitForTimeout(600);
+await qa.fill(card.locator('input'), 'English, ', '…and clear it without adding: Mandarin is DELIBERATELY LEFT OUT');
 
 // (c) a word OFF the list is KEPT in the person's own spelling.
-await qa.fill('#lang-input', OFF_LIST_WORD, `AC1: type "${OFF_LIST_WORD}" — a language the market list has never heard of`);
-await page.waitForTimeout(800);
-const offListNote = await txt('.discovery .sugg .note');
+await qa.fill(card.locator('input'), `English, ${OFF_LIST_WORD}`, `AC1: type "${OFF_LIST_WORD}" — a language the market list has never heard of`);
+const offListNote = await txt('.check .langs .note');
 await qa.note(`what the screen says about an unknown word: ${JSON.stringify(offListNote)}`);
 await assert(offListNote !== null && offListNote.includes(OFF_LIST_WORD),
   `AC1: the unknown word is KEPT, not refused — the screen says so in the person's own spelling ("${offListNote}")`);
-await qa.press('#lang-input', 'Enter', `press Enter to keep "${OFF_LIST_WORD}"`);
-await page.waitForTimeout(800);
-const chips = await page.locator('.discovery .chips .lbl').allTextContents();
-await qa.note(`languages listed before confirming: ${JSON.stringify(chips)}`);
-await assert(chips.map((c) => c.trim()).join('|') === `English|${OFF_LIST_WORD}`,
-  `AC1: the list holds the completed word AND the off-list word, in her own spelling — ${JSON.stringify(chips)}`);
-await qa.expectVisible(page.locator('.discovery .chips li').nth(1), `"${OFF_LIST_WORD}" sits in her list as a first-class entry, not a warning`);
+const listed = (await card.locator('input').inputValue()).split(',').map((w) => w.trim()).filter(Boolean);
+await qa.note(`languages listed before confirming: ${JSON.stringify(listed)}`);
+await assert(listed.join('|') === `English|${OFF_LIST_WORD}`,
+  `AC1: the list holds the completed word AND the off-list word, in her own spelling — ${JSON.stringify(listed)}`);
 
-const confirmLabel = await txt('.discovery .elig-actions .go');
-await qa.note(`confirm button reads: ${JSON.stringify(confirmLabel)}`);
-await qa.click('.discovery .elig-actions .go', 'confirm the languages answer — English and Wolof only, no Mandarin, no Cantonese');
-await page.waitForTimeout(2400);
-// The confirm may complete the question set and navigate straight on, so read what she is told
-// without assuming the discovery screen is still mounted.
-const lockedIn = await page.evaluate(() => (document.querySelector('.discovery') ?? document.body).innerText.replace(/\n+/g, ' | ').slice(0, 400));
-await qa.note(`what she is told after confirming (at ${new URL(page.url()).pathname}): ${JSON.stringify(lockedIn)}`);
+await qa.click(card.locator('.row button'), 'save the languages — English and Wolof only, no Mandarin, no Cantonese');
+await page.waitForTimeout(1500);
+const saved = (await card.locator('input').inputValue()).split(',').map((w) => w.trim()).filter(Boolean);
+await assert(saved.join('|') === `English|${OFF_LIST_WORD}`,
+  `"${OFF_LIST_WORD}" is a first-class entry in what the server now holds, not a warning — ${JSON.stringify(saved)}`);
 
 // -------------------------------------------------------------------------------------------
 // 6. 🚨 THE HEADLINE PROMISE — leaving a language out removes NOTHING.

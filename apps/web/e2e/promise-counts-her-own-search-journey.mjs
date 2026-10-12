@@ -209,29 +209,28 @@ async function readPromise() {
   return { present: true, number, text };
 }
 
-/** Answer the work-rights questions the SCREEN puts to her, by pressing its own buttons. #339: after
- *  question 1 discovery asks eligibility only. The languages question is deliberately left open:
- *  answering the last question hands her off the discovery screen, and the promise lives there. */
-async function answerWorkRightsOnScreen(limit = 4) {
+/** Answer the work-rights questions her screens put to her, by pressing their own buttons. #376
+ *  (ADR-0018 clause 8): discovery asks nothing after question 1 — work rights are the rows of check
+ *  mode's "Where you can work" card, on its last screen. Each answer is still a fact that moves her
+ *  search. She walks there, taps "Yes" on every row, and comes back to discovery, where the promise
+ *  lives. */
+async function answerWorkRightsOnScreen() {
   const asked = [];
-  for (let i = 0; i < limit; i += 1) {
-    const state = await json('/onboarding/discovery');
-    const next = (state?.questions ?? []).find((q) => q.eligibility?.dimension === 'work-rights');
-    if (!next) break;
-    const opts = page.locator('.opts[data-elig="work-rights"] button.opt');
-    try {
-      await opts.first().waitFor({ state: 'visible', timeout: 20000 });
-    } catch {
-      await qa.note(`the screen never offered a control for "${next.itemId}" — stopping the answer loop`);
-      break;
-    }
-    const heading = (await page.locator('.ask .q').first().innerText().catch(() => '(no question)'))
-      .replace(/\s+/g, ' ')
-      .trim();
-    await qa.click(opts.first(), `she is asked "${heading}" — she presses "${(await opts.first().innerText()).trim()}"`);
-    asked.push(next.itemId);
-    await page.waitForTimeout(1200);
+  await qa.goto('/profile/check', 'she opens her profile, where work rights are asked now');
+  const heading = page.getByRole('heading', { level: 1 });
+  for (let i = 0; i < 10 && (await heading.innerText()) !== 'Additional information'; i += 1) {
+    const before = await heading.innerText();
+    await qa.click('.foot .primary', `Next, from "${before}"`);
+    await page.waitForFunction((t) => document.querySelector('h1')?.textContent !== t, before);
   }
+  const rows = page.locator('.wrrow');
+  for (let i = 0; i < (await rows.count()); i += 1) {
+    const market = (await rows.nth(i).locator('legend').innerText()).trim();
+    await qa.click(rows.nth(i).locator('.pill').first(), `she is asked where she can work — "${market}": she presses "Yes, I can work there"`);
+    await page.waitForTimeout(800);
+    asked.push(market);
+  }
+  await qa.goto('/discovery', 'back to discovery, where the promise lives');
   return asked;
 }
 
@@ -415,7 +414,7 @@ await assertTrue(
   !emptyBody.includes(PROMISE_TAIL) && !/\b0 jobs\b/.test(emptyBody),
   'AC1 — and no half-sentence and no zero leaked onto the screen in its place',
 );
-await qa.expectVisible('#ask-q', 'the interview itself is untouched — she is still asked her questions');
+await qa.expectVisible('.discovery .handoff .go', 'the screen itself is untouched — the hand-off, with Continue (#376: nothing is asked after question 1)');
 await sweepScreenForLeaks('the empty-search discovery screen');
 
 // =================================================================================================
@@ -434,7 +433,7 @@ await assertTrue(
   !outage.present,
   `AC1 — a failed search costs her the number and nothing else: no sentence, no broken sentence (present: ${outage.present})`,
 );
-await qa.expectVisible('#ask-q', 'she still gets a working interview — a real question, not an error screen');
+await qa.expectVisible('.discovery .handoff .go', 'she still gets a working screen — the hand-off with Continue, not an error screen');
 const outageBody = (await page.locator('body').innerText()).toLowerCase();
 await assertTrue(
   !outageBody.includes("we couldn't look for jobs just now") && !outageBody.includes(PROMISE_TAIL),

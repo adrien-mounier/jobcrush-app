@@ -69,6 +69,8 @@ export type Screen =
       workRights?: ReviewWorkRights[];
       /** #376: the languages the person said they speak — on an empty Languages screen only. */
       languages?: string[];
+      /** #376: what the languages card completes from — the product's own list. */
+      languageOptions?: string[];
     }
   /** #382: the Skills section — its items in named groups. Grouping is never an item to answer. */
   | { kind: "skills"; key: string; title: string; sub: null; tag: string; lines: ReviewLine[]; groups: SkillGroup[] };
@@ -124,10 +126,10 @@ function sectionExtras(
   tag: string,
   lines: ReviewLine[],
   reupload: boolean,
-): { workRights: ReviewWorkRights[] } | { languages: string[] } | null {
+): { workRights: ReviewWorkRights[] } | { languages: string[]; languageOptions: string[] } | null {
   const open = state.workRights.some((r) => r.answer === null);
   if (tag === ADDITIONAL && state.workRights.length > 0 && (!reupload || open || shown(lines))) return { workRights: state.workRights };
-  if (tag === "lang" && !reupload && !shown(lines)) return { languages: state.languages };
+  if (tag === "lang" && !reupload && !shown(lines)) return { languages: state.languages, languageOptions: state.languageOptions };
   return null;
 }
 
@@ -270,7 +272,7 @@ export function ScreenBody({
       </>
     );
   if (screen.kind === "section" && screen.languages)
-    return <LanguagesCard languages={screen.languages} busy={list.busy} onSave={answers.onLanguages} />;
+    return <LanguagesCard languages={screen.languages} options={screen.languageOptions ?? []} busy={list.busy} onSave={answers.onLanguages} />;
   return items;
 }
 

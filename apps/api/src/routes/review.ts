@@ -114,6 +114,8 @@ const ReviewStateSchema = z.object({
   ),
   // #376: the languages the person said they speak — the Languages screen's card when the CV has none.
   languages: z.array(z.string()),
+  // #376: what the languages card completes from — the product's own list; anything else is kept.
+  languageOptions: z.array(z.string()),
   // #385: check mode brought back by a re-upload shows only these items; null for the first one.
   newItems: z.array(z.string()).nullable(),
 });

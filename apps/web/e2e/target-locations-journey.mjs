@@ -102,27 +102,28 @@ await expectAbsent(
   '#124 amendment: the city chip is never confirmed back as its country',
 );
 
-// AC4 — the work-rights question is asked once per selected MARKET (Melbourne and Vietnam are two
-// different markets; visas are national, so the Melbourne chip asks about Australia). #257 already
-// landed her on discovery, where the eligibility questions are asked.
-// #322: the front door already took the role, so discovery opens on the checklist - no question 1.
+// AC4 — work rights are asked once per selected MARKET (Melbourne and Vietnam are two different
+// markets; visas are national, so the Melbourne chip asks about Australia). #376 (ADR-0018 clause
+// 8): discovery asks nothing after question 1 — the question is a row on check mode's "Where you
+// can work" card, on its last screen.
 await qa.scrollThrough('read the discovery page the way a person would');
-
-const workRights = page.locator('.opts[data-elig="work-rights"]');
-// #339: work rights comes straight after question 1 (no floor ahead of it); the loop answers
-// anything that is ahead of it the way the screen serves it.
-for (let i = 0; i < 10 && (await workRights.count()) === 0; i += 1) {
-  const answered = await qa.answerVisibleQuestion({
-    note: `answer the question on screen (step ${i + 1}) to reach work rights`,
-  });
-  if (!answered) break;
+await qa.expectVisible('.discovery .handoff .go', '#376: discovery asks nothing more — it holds the hand-off');
+await qa.goto('/profile/check', 'her profile in check mode, where work rights are asked now');
+const checkHeading = page.getByRole('heading', { level: 1 });
+for (let i = 0; i < 10 && (await checkHeading.innerText()) !== 'Additional information'; i += 1) {
+  const before = await checkHeading.innerText();
+  await qa.click('.foot .primary', `Next, from "${before}"`);
+  await page.waitForFunction((t) => document.querySelector('h1')?.textContent !== t, before);
 }
-await qa.expectVisible(workRights, 'AC4: a work-rights question is reached');
-await qa.note(
-  `the work-rights question on screen reads: ${await page.locator('.opts[data-elig="work-rights"]').locator('xpath=preceding::*[self::p or self::h2][1]').first().innerText().catch(() => '(not captured)')}`,
+const markets = (await page.locator('.wrrow legend').allTextContents()).map((t) => t.trim());
+await qa.note(`the work-rights rows on screen: ${JSON.stringify(markets)}`);
+await qa.expectText(
+  'body',
+  JSON.stringify(markets) === JSON.stringify(['Australia', 'Hong Kong', 'Vietnam']) ? '' : ' -IMPOSSIBLE-',
+  `AC4: one work-rights row per selected market, in chip order (${JSON.stringify(markets)})`,
 );
 await expectAbsent(
-  page.getByText('Can you already work in Melbourne without visa sponsorship?'),
+  page.locator('.wrrow legend', { hasText: 'Melbourne' }),
   '#124 amendment: work rights stays MARKET-level — nobody is asked about a visa for a city',
 );
 

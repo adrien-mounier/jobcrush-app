@@ -126,8 +126,9 @@ await json(`/job-blocks/${bsh.id}/correct`, {
 // #376 (ADR-0018 clause 8): nothing is asked after question 1 any more — work rights and languages
 // moved into check mode. Discovery only hands off.
 await qa.goto('/discovery', 'discovery — nothing is left to ask');
-await page.waitForURL(/\/profile\/check|\/review/, { timeout: 20_000 });
+await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
 await assert((await page.locator('.discovery .opts').count()) === 0, 'no question was put on screen');
+await qa.click('.discovery .handoff .go', 'Continue');
 
 // ---------------------------------------------------------------------------------------------
 // 2. The last answer lands on "Your CV, reviewed", not the jobs. (AC1)

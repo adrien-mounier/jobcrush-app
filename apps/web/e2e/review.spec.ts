@@ -91,6 +91,7 @@ const REVIEW: ReviewState = {
   ],
   workRights: [],
   languages: [],
+  languageOptions: ["English", "Mandarin", "Cantonese", "Vietnamese"],
 };
 
 const jobsOf = (state: ReviewState) => (state.sections[1] as Extract<ReviewState["sections"][number], { tag: "experience" }>).jobs;

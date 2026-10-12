@@ -478,6 +478,7 @@ test("#376: after question 1 nothing is asked — the hand-off holds with the pr
         sections: [],
         workRights: [],
         languages: [],
+        languageOptions: [],
       },
     });
   });
