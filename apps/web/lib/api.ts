@@ -624,10 +624,9 @@ export interface ProfileContactField {
   value: string;
   origin: "read" | "person-said";
 }
-export interface ProfileContact {
-  phone: ProfileContactField | null;
-  email: ProfileContactField | null;
-}
+/** #381: the letterhead's five fields — mirrors apps/api/src/contact.ts's ContactField. */
+export type ContactField = "name" | "title" | "email" | "phone" | "location";
+export type ProfileContact = Record<ContactField, ProfileContactField | null>;
 
 // #214: the rail's Location data is a LIST now — mirrors apps/api/src/profile.ts's ProfileLocation.
 // `areas` are the target-location chips (`label` is what the chip shows — city when a city was
@@ -675,14 +674,13 @@ export interface ContactValue {
   origin: ContactOrigin;
   sourceText: string;
 }
-export interface ContactRecord {
-  phone: ContactValue | null;
-  email: ContactValue | null;
-}
+export type ContactRecord = Record<ContactField, ContactValue | null>;
 
 // --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
-/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere. */
-export type ReviewLineState = "ticked" | "kept" | "drafted";
+/** `drafted` (#342): a line the review wrote that the person has not ticked — on the paper, printed nowhere.
+ *  `dismissed` (#378): a draft the person said No thanks to — held so it is never proposed again, shown nowhere.
+ *  `removal-suggested` (#380): an item the review proposes to remove, unanswered — printed nowhere. */
+export type ReviewLineState = "ticked" | "kept" | "drafted" | "dismissed" | "removal-suggested";
 export type ReviewDraftFlag = "OPTIONAL" | "INDUSTRY GUESS";
 /** #342: a drafted line's source — the must-have it covers, in the family's words, and/or the CV's
  *  own words it came from — and its flags. Worn whatever the line's state. */
@@ -705,10 +703,10 @@ export interface ReviewFix {
   corrected: string;
   applied: boolean;
 }
-/** #341: the review's untick suggestion — quality only, never fit — with its one-sentence reason.
- *  The line stays ticked until the person acts. */
+/** #380: the review's removal suggestion — only for an item that belongs nowhere, never for a weak
+ *  one or for fit — with its one-sentence reason. The line is `removal-suggested` until answered. */
 export interface ReviewSuggestion {
-  kind: "weak" | "duplicate" | "aim-without-result";
+  kind: "duplicate" | "fragment" | "personal-data";
   reason: string;
 }
 export interface ReviewLine {
@@ -746,11 +744,8 @@ export interface ReviewProgress {
 }
 export interface ReviewState {
   completed: boolean;
-  letterhead: {
-    header: string | null;
-    phone: ProfileContactField | null;
-    email: ProfileContactField | null;
-  };
+  /** #381: Your details' five fields. */
+  letterhead: ProfileContact;
   conflict: { fieldId: string; question: string; values: string[] } | null;
   progress: ReviewProgress | null;
   /** #362: some part of the CV has no review answer (still going, given up, or no run) — the screen never
@@ -804,6 +799,11 @@ export function setLanguages(languages: string[]): Promise<{ ok: true }> {
   return jfetch("/api/review/languages", { method: "PUT", body: JSON.stringify({ languages }) });
 }
 
+// #378: No thanks on a draft (dismissed: true) — never proposed again — or its Undo (false).
+export function dismissDraft(lineId: string, dismissed: boolean): Promise<{ id: string; state: "drafted" | "dismissed" }> {
+  return jfetch(`/api/review/drafts/${encodeURIComponent(lineId)}/dismissed`, { method: "PUT", body: JSON.stringify({ dismissed }) });
+}
+
 export function completeReview(): Promise<{ completed: true }> {
   return jfetch("/api/review/complete", { method: "POST" });
 }
@@ -811,6 +811,12 @@ export function completeReview(): Promise<{ completed: true }> {
 // #335's tap: untick (→ kept) or re-tick. The print gate is the server's; this only records it.
 export function setLineState(id: string, state: "ticked" | "kept"): Promise<{ id: string; state: ReviewLineState }> {
   return jfetch(`/api/cv/lines/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ state }) });
+}
+
+// #379: the person's own words on an item, in place (check mode's ✎ and the profile). The server
+// keeps the first original and records the words as theirs; the tick does not move.
+export function setLineText(id: string, text: string): Promise<{ id: string; text: string }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}/text`, { method: "PUT", body: JSON.stringify({ text }) });
 }
 
 export function settleReviewConflict(fieldId: string, value: string): Promise<{ ok: true }> {
@@ -828,10 +834,18 @@ export function answerReviewEndDate(blockId: string, answer: string): Promise<{ 
   });
 }
 
-export function saveContact(field: "phone" | "email", value: string): Promise<ContactRecord> {
+export function saveContact(field: ContactField, value: string): Promise<ContactRecord> {
   return jfetch("/api/contact", {
     method: "PUT",
     body: JSON.stringify({ field, value }),
+  });
+}
+
+/** #381: Your details saves the whole card in one request; an empty value is skipped server-side. */
+export function saveContactFields(fields: Partial<Record<ContactField, string>>): Promise<ContactRecord> {
+  return jfetch("/api/contact", {
+    method: "PUT",
+    body: JSON.stringify({ fields }),
   });
 }
 

@@ -4,7 +4,8 @@
 // A line's tick/untick is PUT /cv/lines/:id (routes/cv.ts, #335) — the review calls it, it does not
 // own it. #341 adds the fix's undo / use-again door and the lock on the confirm while the run goes.
 // #342 adds the drafted line's two doors: its wording before the tick, and the tick itself — the
-// one way a draft becomes a fact (the line door refuses a draft).
+// one way a draft becomes a fact (the line door refuses a draft). #378 adds the third answer, No
+// thanks, with its undo, and the complete's refusal while any suggestion is unanswered.
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
@@ -17,6 +18,7 @@ import {
   answerReviewEndDate,
   buildReviewState,
   completeReview,
+  dismissDraft,
   setDraftText,
   setReviewFixApplied,
   settleReviewConflict,
@@ -26,8 +28,10 @@ import {
 
 // Response schemas (CODING_STANDARDS: every route declares one per status) — the wire shape of
 // cvReview.ts's ReviewState, so a store record spread into it can never leak an internal field.
-const LineState = z.enum(["ticked", "kept", "drafted"]);
-// #341: the AI's marks on a line — a fix (applied, or undone by the person) and an untick suggestion.
+// `dismissed` (#378): a draft the person said No thanks to — on the paper, shown nowhere.
+// `removal-suggested` (#380): an item the review proposes to remove, unanswered.
+const LineState = z.enum(["ticked", "kept", "drafted", "dismissed", "removal-suggested"]);
+// #341: the AI's marks on a line — a fix (applied, or undone by the person) and (#380) a removal suggestion.
 const ReviewFix = z.object({ original: z.string(), corrected: z.string(), applied: z.boolean() });
 const ReviewSuggestion = z.object({ kind: z.enum(SUGGESTION_KINDS), reason: z.string() });
 // #342: a drafted line's source and flags. #343: its vague phrases, each with its choices.
@@ -68,7 +72,14 @@ const ReviewSection = z.union([
 const LetterheadField = z.object({ value: z.string(), origin: z.enum(["read", "person-said"]) });
 const ReviewStateSchema = z.object({
   completed: z.boolean(),
-  letterhead: z.object({ header: z.string().nullable(), phone: LetterheadField.nullable(), email: LetterheadField.nullable() }),
+  // #381: Your details' five fields.
+  letterhead: z.object({
+    name: LetterheadField.nullable(),
+    title: LetterheadField.nullable(),
+    email: LetterheadField.nullable(),
+    phone: LetterheadField.nullable(),
+    location: LetterheadField.nullable(),
+  }),
   conflict: z.object({ fieldId: z.string(), question: z.string(), values: z.array(z.string()) }).nullable(),
   // #341: the run while it is going; null once finished — or failed, which the person is never told.
   progress: z.object({ done: z.number().int(), total: z.number().int(), minutesLeft: z.number().int() }).nullable(),
@@ -103,7 +114,8 @@ export function reviewRoutes(deps: ReviewDeps) {
 
     // The person reached the end and confirmed. Idempotent: a reopened review confirms again and
     // nothing moves — the jobs opened the first time and stay open. Refused (409) while the review
-    // run is still going (#341): the screen keeps the confirm locked until then, and this is the gate.
+    // run is still going (#341) or a suggestion is unanswered (#378): the screen keeps the finish
+    // locked until then, and this is the gate.
     app.post(
       "/review/complete",
       { schema: { response: { 200: z.object({ completed: z.literal(true) }), 409: Refusal } } },
@@ -168,6 +180,26 @@ export function reviewRoutes(deps: ReviewDeps) {
         const result = await tickDraft(deps, session.id, req.params.lineId);
         if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
         return { id: req.params.lineId, text: result.text, state: "ticked" as const };
+      },
+    );
+
+    // #378: No thanks (dismissed: true) — the draft is held, never proposed again, printed nowhere —
+    // or its undo (dismissed: false), which puts the draft back unanswered. Only a draft in the
+    // state the move leaves answers here (404 otherwise).
+    app.put(
+      "/review/drafts/:lineId/dismissed",
+      {
+        schema: {
+          params: z.object({ lineId: z.string().min(1) }),
+          body: z.object({ dismissed: z.boolean() }),
+          response: { 200: z.object({ id: z.string(), state: z.enum(["drafted", "dismissed"]) }), 404: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const result = await dismissDraft(deps, session.id, req.params.lineId, req.body.dismissed);
+        if (!result.ok) return reply.status(404).send({ error: { code: result.code, message: result.message } });
+        return { id: req.params.lineId, state: result.state as "drafted" | "dismissed" };
       },
     );
 

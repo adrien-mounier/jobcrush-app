@@ -43,7 +43,7 @@ import { answerEligibilityItem, mapEligibilityAnswer } from "../eligibilityDisco
 import { answerLanguageLevel, rungForSituation } from "../languageLevel.js";
 import { isNoAnswer } from "../discovery.js";
 import type { JobStore } from "../jobs.js";
-import type { ContactStore } from "../contact.js";
+import { letterheadText, type ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView } from "../tailorDraft.js";
@@ -511,7 +511,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           .send({ error: { code: "no_facts", message: "no confirmed facts to draft from" } });
       // #310 (QA gate D1): the CV's letterhead, stored at mine time — without it the engine's own
       // rule 3 prints "Your name here" on a real person's CV.
-      const header = (await deps.contact.get(session.id, "header"))?.value ?? "";
+      const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
       const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
       const stored = await deps.tailorDrafts.get(session.id, posting.id);
       if (stored?.inputFingerprint === inputs.fingerprint) return { ready: true };
@@ -543,7 +543,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       }
       const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
       const stored = await deps.tailorDrafts.get(session.id, posting.id);
-      const header = (await deps.contact.get(session.id, "header"))?.value ?? "";
+      const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
       const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
       // A stored draft whose fingerprint no longer matches the current fact set reads as no draft
       // at all — "a supported answer changes the draft consistently" holds on EVERY door, not only
@@ -586,7 +586,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
             error: { code: "export_unavailable", message: "making the PDF is switched off on this deployment" },
           });
         const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
-        const header = (await deps.contact.get(session.id, "header"))?.value ?? "";
+        const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
         const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
         const stored = await deps.tailorDrafts.get(session.id, posting.id);
         // Both server-side gates — the current draft carries his approval AND the conservation

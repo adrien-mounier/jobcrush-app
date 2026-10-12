@@ -164,6 +164,13 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *  questions only, and nothing but the completed review holds the jobs back - a journey that
      *  needs a fact gets it from the CV it reads, or from the tailor step's own questions.
      *
+     *  #378 (ADR-0018 clause 7): the finish is refused while any suggestion is unanswered, and the
+     *  fake writer drafts lines on every placed job. A journey whose claim is not the suggestions
+     *  says No thanks to each (and, #380, Keep it to any removal suggestion) before finishing — the
+     *  CV stays exactly as read, which is what every
+     *  caller here has always asserted on. Answered on every attempt, because drafts land as the
+     *  run's units do.
+     *
      *  #376: discovery asks nothing after question 1, and check mode's finish is refused
      *  (work_rights_unset) while a target market has no work-rights answer. So this answers every
      *  open row "yes" through the card's own door first, the tap a person makes on the last screen.
@@ -184,6 +191,28 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
         // #341: the confirm is refused (409) while the review run is still going; on the fake stack
         // that is milliseconds, but a journey confirming right after the read lands can meet it.
         for (let attempt = 0; attempt < 40; attempt += 1) {
+          const state = await fetch('/api/review', { credentials: 'same-origin' });
+          if (state.ok) {
+            const { sections } = await state.json();
+            const lines = sections.flatMap((s) => ('jobs' in s ? s.jobs.flatMap((j) => j.lines) : s.lines));
+            for (const line of lines.filter((l) => l.state === 'drafted')) {
+              await fetch(`/api/review/drafts/${encodeURIComponent(line.id)}/dismissed`, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ dismissed: true }),
+              });
+            }
+            // #380: a removal suggestion is answered Keep it — the item stays, as read.
+            for (const line of lines.filter((l) => l.state === 'removal-suggested')) {
+              await fetch(`/api/cv/lines/${encodeURIComponent(line.id)}`, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ state: 'ticked' }),
+              });
+            }
+          }
           const res = await fetch('/api/review/complete', { method: 'POST', credentials: 'same-origin' });
           if (res.ok) return res.json();
           if (res.status !== 409) throw new Error(`review completion refused: ${res.status}`);

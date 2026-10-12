@@ -129,17 +129,33 @@
   margin: 10px 0 0;
 }
 
-/* the person's details, as read (#381 replaces this card with fields) */
-.check .clean {
-  font: 14px/1.5 var(--serif);
-  padding: 2px 6px;
-  white-space: pre-line;
+/* #381 Your details: the person's own facts as fields in a plain card (prototype .card.form, .fields) */
+.check .card.form {
+  padding: 14px 8px;
 }
-.check .clean .name {
-  font: 600 19px var(--serif);
+.check .fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  padding: 0 8px;
 }
-.check .clean span {
+.check .fields label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
   color: var(--muted-r);
+}
+.check .fields input {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font: 16px var(--sans);
+  color: var(--ink);
+  min-width: 0;
+}
+.check .fields input::placeholder {
+  color: var(--muted);
 }
 
 /* an item: plain text, two quiet actions that show on hover, focus or a tap */
@@ -413,6 +429,326 @@
   }
 }
 
+/* #379 — an item's words edited in place (prototype V2.1 `li.pt.edit`) */
+.check .pt.edit {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding-left: 8px;
+  background: rgba(31, 38, 47, 0.75);
+}
+.check .pt.edit::before {
+  display: none;
+}
+/* #378 — the add suggestion, answered in place: the prototype's .sg card (dashed gold frame, ⊕),
+   its "Only if true" badge, the No thanks row, the "new" tag and the landing gold rule, and the
+   word choices moved from the review page (#343), on check mode's own tokens. */
+.check {
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+}
+.check .btn.sm {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+.check .row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.check .sg {
+  --ind: 40px;
+  border: 1.5px dashed rgba(232, 163, 61, 0.7);
+  border-radius: 12px;
+  padding: 10px 8px 12px;
+  background: rgba(232, 163, 61, 0.035);
+  margin: 6px 0;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+.check .sg .hd {
+  padding: 0 8px;
+  font: 600 10.5px/1.4 var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+}
+.check .sg .hd b {
+  font-weight: 600;
+  color: var(--gold-ink);
+  background: var(--gold);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.check .sline {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 8px;
+  align-items: start;
+}
+.check .mark {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+.check .mark svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  fill: none;
+  stroke-linecap: round;
+}
+.check .mark.plus {
+  color: var(--gold);
+}
+.check .stxt {
+  font: 15px/1.5 var(--serif);
+}
+.check .meta {
+  padding-left: var(--ind);
+  display: grid;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .meta q {
+  font-family: var(--serif);
+  color: var(--ink);
+}
+.check .sg .row,
+.check .sg .wordchoices {
+  padding-left: var(--ind);
+}
+.check .sgedit {
+  display: grid;
+  gap: 8px;
+}
+.check textarea.ed {
+  width: 100%;
+  min-height: 76px;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 16px/1.5 var(--serif);
+  resize: vertical;
+}
+.check .sg textarea.ed {
+  margin-left: var(--ind);
+  width: calc(100% - var(--ind) - 8px);
+}
+.check .gone {
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  margin: 4px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.check .tag {
+  font: 11px var(--sans);
+  color: var(--gold-light);
+  border: 1px solid rgba(232, 163, 61, 0.45);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 8px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+/* a vague phrase: dotted gold underline, tappable; a picked choice keeps a solid one */
+.check .ph {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0 1px;
+  font: inherit;
+  color: var(--gold);
+  text-decoration: underline dotted 1.5px;
+  text-underline-offset: 3px;
+}
+.check .ph.set {
+  color: inherit;
+  text-decoration: underline solid 1px var(--gold-deep);
+}
+.check .ph.open {
+  background: rgba(232, 163, 61, 0.22);
+  border-radius: 4px;
+}
+.check .wordchoices p {
+  margin: 0 0 6px;
+}
+.check .wordchoices .ch-h {
+  font-size: 13px;
+}
+.check .wordchoices .ch-g {
+  margin-top: 10px;
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-r);
+}
+.check .wordchoices .ch-none {
+  font-size: 12px;
+  color: var(--muted-r);
+}
+.check .chip {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 13.5px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.check .chip:hover {
+  border-color: var(--gold-deep);
+}
+.check .chip .mk {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.check .chip.cv .mk {
+  background: var(--gold);
+  color: var(--gold-ink);
+}
+.check .chip.typ .mk {
+  border: 1px solid var(--muted-r);
+  color: var(--muted-r);
+}
+.check .chip .t {
+  flex: 1;
+}
+.check .chip small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted-r);
+}
+.check .wordchoices .own {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.check .wordchoices .own input {
+  flex: 1;
+  min-width: 0;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 10px;
+  font: inherit;
+}
+/* an added suggestion lands in the list with a gold rule that fades — once, never under reduced motion */
+.check .pt.landed {
+  animation: check-land 1.8s var(--ease);
+}
+@keyframes check-land {
+  0% {
+    background: rgba(232, 163, 61, 0.22);
+    box-shadow: inset 3px 0 0 var(--gold);
+    transform: translateY(-6px);
+  }
+  25% {
+    transform: none;
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}
+@media (max-width: 560px) {
+  .check .sg {
+    --ind: 8px;
+  }
+}
+
+/* #380 — "Remove this?": an item that belongs nowhere, where it sits. A coral bar on its left, never
+   the dashed gold frame (that look is for adding). Prototype V2.1 removeCard / .sg.rmv; every rule
+   scoped under .sg.rmv so #378's gold .sg rules can sit beside it. Buttons and .row: #379's above. */
+.check .sg.rmv {
+  --ind: 40px;
+  list-style: none;
+  margin: 6px 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px 8px 12px;
+  border: 0;
+  border-left: 3px solid var(--danger-soft);
+  border-radius: 0 10px 10px 0;
+  background: rgba(224, 135, 108, 0.07);
+}
+.check .sg.rmv .hd {
+  padding: 0 8px;
+  font: 600 10.5px/1.4 ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--danger-soft);
+}
+.check .sg.rmv .sline {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 8px;
+  align-items: start;
+}
+.check .sg.rmv .mark {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: var(--danger-soft);
+}
+.check .sg.rmv .mark svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  fill: none;
+  stroke-linecap: round;
+}
+.check .sg.rmv .stxt {
+  font: 15px/1.5 var(--serif);
+  text-decoration: underline wavy rgba(224, 135, 108, 0.6);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.check .sg.rmv .meta {
+  padding-left: var(--ind);
+  display: grid;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+.check .sg.rmv .row {
+  padding-left: var(--ind);
+}
+.check .sg.rmv .btn:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 560px) {
+  .check .sg.rmv {
+    --ind: 8px;
+  }
+}
 /* #376 — the person's own facts in plain cards (prototype V2.1 workCard): "Where you can work" on the
    last screen, "Which languages do you speak?" on an empty Languages screen. Scoped to the two cards. */
 .check .card.form.wr,

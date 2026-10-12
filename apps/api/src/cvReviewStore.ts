@@ -22,11 +22,14 @@ export interface ResolvedFix {
   corrected: string;
 }
 
-/** The only reasons the review may suggest an untick: quality, never fit (ADR-0016 clause 3). */
-export const SUGGESTION_KINDS = ["weak", "duplicate", "aim-without-result"] as const;
+/** #380 (ADR-0018 clause 4): the only reasons the review may suggest removing an item — it belongs
+ *  nowhere in a profile. A true but weak item is never suggested; fit is never a reason. A result
+ *  stored under the old untick kinds (`weak`, `aim-without-result`) reads as no suggestion
+ *  (cvReview.ts lineMarks). */
+export const SUGGESTION_KINDS = ["duplicate", "fragment", "personal-data"] as const;
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
 
-/** An untick suggestion resolved against a line that exists. */
+/** A removal suggestion resolved against a line that exists. */
 export interface ResolvedSuggestion {
   line: string;
   kind: SuggestionKind;

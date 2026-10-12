@@ -39,7 +39,13 @@ const line = (id: string, text: string, over: Partial<ReviewLine> = {}): ReviewL
 
 const REVIEW: ReviewState = {
   completed: false,
-  letterhead: { header: "Jane Doe\nParis, France", phone: CONTACT_PHONE, email: CONTACT_EMAIL },
+  letterhead: {
+    name: { value: "Jane Doe", origin: "read" },
+    title: null,
+    location: { value: "Paris, France", origin: "read" },
+    phone: CONTACT_PHONE,
+    email: CONTACT_EMAIL,
+  },
   conflict: { fieldId: "city", question: "City: your CV says Paris and also Lyon. Which one is right?", values: ["Paris", "Lyon"] },
   progress: null,
   unchecked: false,
@@ -105,7 +111,9 @@ function marked(over: Partial<ReviewState> = {}): ReviewState {
           },
           {
             ...jobsOf(REVIEW)[1]!,
-            lines: [line("bsh-1", "Coordinated releases for 4 agile squads."), line("bsh-2", AIM, { suggestion: { kind: "aim-without-result", reason: REASON } })],
+            // #380 retired the untick kinds; this skipped spec's old band test takes a current kind
+            // so it still typechecks — #386 moves or deletes it (check-mode.spec.ts covers removal).
+            lines: [line("bsh-1", "Coordinated releases for 4 agile squads."), line("bsh-2", AIM, { suggestion: { kind: "duplicate", reason: REASON } })],
           },
         ],
       },

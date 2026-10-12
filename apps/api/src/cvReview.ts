@@ -12,12 +12,14 @@
 //
 // Four stores meet here, one of them new: the lines are the claims (ticked/kept is #335's line
 // state on the claim; a fix is the claim's own text, #341), the jobs' dates are the job-block
-// records (#162), the letterhead is the contact store's as-read header plus phone/email (#190/#310),
+// records (#162), the letterhead is the contact store's five fields (#190/#381),
 // and the review run is cvReviewStore.ts. The review adds ONE fact of its own to the session,
 // `reviewCompletedAt`, and that is what the jobs gate reads.
 import type { ClaimRecord, ClaimStore, LineState } from "./claims.js";
-import type { ContactStore, ContactValue } from "./contact.js";
-import type { CvReviewStore, DraftFlag, DraftVague, ResolvedDraft, ResolvedFix, ResolvedSuggestion, ReviewRunRecord, ReviewUnitResult } from "./cvReviewStore.js";
+import { CONTACT_FIELDS, type ContactField, type ContactStore, type ContactValue } from "./contact.js";
+import { SUGGESTION_KINDS, type CvReviewStore, type DraftFlag, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewRunRecord, type ReviewUnitResult } from "./cvReviewStore.js";
+
+const KINDS: ReadonlySet<string> = new Set(SUGGESTION_KINDS);
 import type { ReviewRunner } from "./cvReviewRun.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { kindTag } from "./graph.js";
@@ -99,12 +101,8 @@ export interface ReviewProgress {
 }
 export interface ReviewState {
   completed: boolean;
-  letterhead: {
-    /** The CV's own letterhead block, as read (#310). Null when the read captured none. */
-    header: string | null;
-    phone: ReviewLetterheadField | null;
-    email: ReviewLetterheadField | null;
-  };
+  /** #381: Your details — the letterhead's five fields, each null when the CV has none. */
+  letterhead: Record<ContactField, ReviewLetterheadField | null>;
   /** #323: a field the CV gave two values for, asked once here. Null once settled or when none. */
   conflict: { fieldId: string; question: string; values: string[] } | null;
   progress: ReviewProgress | null;
@@ -236,10 +234,9 @@ export interface PaperDeps {
 }
 
 export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Paper> {
-  const [claims, blocks, header, record] = await Promise.all([
+  const [claims, blocks, record] = await Promise.all([
     deps.claims.list(sessionId),
     deps.jobBlocks.list(sessionId),
-    deps.contact.get(sessionId, "header"),
     deps.contact.getRecord(sessionId),
   ]);
   // list() already returns CV order (seq) on both drivers; the sort only pins it for a hand-built record.
@@ -253,7 +250,7 @@ export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Pap
     v ? { value: v.value, origin: v.origin } : null;
   const { jobs, roles } = jobsOf(byTag.get("experience") ?? [], blocks);
   return {
-    letterhead: { header: header?.value ?? null, phone: field(record.phone), email: field(record.email) },
+    letterhead: Object.fromEntries(CONTACT_FIELDS.map((f) => [f, field(record[f])])) as Paper["letterhead"],
     sections: SECTIONS.map(([tag, heading]) =>
       tag === "experience"
         ? { tag, heading, jobs }
@@ -284,7 +281,9 @@ function lineMarks(run: ReviewRunRecord | null) {
   const drafts = new Map<string, ResolvedDraft>();
   for (const unit of run?.units ?? []) {
     for (const fix of unit.result?.fixes ?? []) fixes.set(fix.line, fix);
-    for (const s of unit.result?.suggestions ?? []) suggestions.set(s.line, s);
+    // #380: a result stored before the removal kinds carries the old untick kinds (weak,
+    // aim-without-result) — read as no suggestion, never a 500 on the wire's enum.
+    for (const s of unit.result?.suggestions ?? []) if (KINDS.has(s.kind)) suggestions.set(s.line, s);
     for (const d of unit.result?.drafts ?? []) drafts.set(d.line, d);
   }
   return { fixes, suggestions, drafts };
@@ -344,25 +343,37 @@ export async function buildReviewState(deps: ReviewDeps, session: SessionRecord)
 }
 
 /** The finish gate's refusal codes — check mode (#377) finishes here, and this union is the one
- *  vocabulary it reads. Append, never rename: #378 adds `suggestions_open` (a drafted line not yet
- *  answered), #376 `work_rights_unset` (a target market with no work-rights answer). */
-export type CompleteReviewResult = { ok: true } | { ok: false; code: "review_running" | "work_rights_unset"; message: string };
+ *  vocabulary it reads. Append, never rename: `suggestions_open` (#378/#380) is a suggestion not yet
+ *  answered; #376 `work_rights_unset` is a target market with no work-rights answer. */
+export type CompleteReviewResult =
+  | { ok: true }
+  | { ok: false; code: "review_running" | "suggestions_open" | "work_rights_unset"; message: string };
+
+/** The line states that are a suggestion still waiting for its answer (ADR-0018 clauses 4 and 7:
+ *  nothing may be left open when check mode finishes). `drafted` is an add suggestion (#378),
+ *  `removal-suggested` a removal one (#380) — one set, one gate. A `dismissed` draft is answered.
+ *  Mirrored on the screen by screens.tsx OPEN_SUGGESTION_STATES. */
+const OPEN_SUGGESTION_STATES: ReadonlySet<LineState> = new Set<LineState>(["drafted", "removal-suggested"]);
+const isOpenSuggestion = (c: ClaimRecord) => OPEN_SUGGESTION_STATES.has(c.lineState);
 
 /** The person reached the end and confirmed. Every line still pending becomes theirs — the review
  *  IS the look at each line the old confirm deck asked for — in the state it is in (a kept line
  *  stays kept, so it still does not print). Two exceptions. An open conflict: "Not sure" stored
  *  nothing, so the two readings stay pending and neither prints until the person picks — the
- *  machine never turns a reading the person left open into a printed line. And a drafted line the
- *  person has not ticked (#342): it stays a proposal, on the paper for whenever they come back, and
- *  nobody vouches for it here — only their tick does (ADR-0016 clause 6: undecided drafts do not
- *  block completion; they simply do not print). Then the one fact the jobs gate reads.
+ *  machine never turns a reading the person left open into a printed line. And a draft the person
+ *  said No thanks to (#378): it stays pending and dismissed, held only so it is never proposed
+ *  again; nobody vouches for it. Then the one fact the jobs gate reads.
  *
  *  Refused while the review run is still going (#341, layout decision on #338): a fix landing after
  *  the confirm would change a line the person already signed off without their having seen it. The
- *  screen keeps the confirm locked for the same reason; this is the gate behind the lock.
+ *  screen keeps the confirm locked for the same reason; this is the gate behind the lock. And
+ *  refused while any suggestion is unanswered (#378, ADR-0018 clause 7, which replaced ADR-0016
+ *  clause 6's "undecided drafts do not block"): an add suggestion is answered by Add it, Edit
+ *  first or No thanks, and the jobs wait until every one is.
  *
  *  #376 (ADR-0018 clause 7): refused too while a target market has no work-rights answer — the job
- *  search reads it. A proposal from the CV is not an answer; with no target market, nothing holds. */
+ *  search reads it. A proposal from the CV is not an answer; with no target market, nothing holds.
+ *  The screen names the markets first, then the suggestions, and so does the order here. */
 export async function completeReview(
   deps: ReviewDeps,
   session: Pick<SessionRecord, "id" | "importProof" | "intent">,
@@ -372,9 +383,12 @@ export async function completeReview(
   const unset = await unansweredMarkets(deps.eligibility, session.id, session.intent.searchAreas);
   if (unset.length > 0)
     return { ok: false, code: "work_rights_unset", message: `Tell me if you can work in ${unset.join(" and ")} first.` };
+  const claims = await deps.claims.list(session.id);
+  if (claims.some(isOpenSuggestion))
+    return { ok: false, code: "suggestions_open", message: "Answer every suggestion to finish your profile." };
   const openConflict = session.importProof?.conflict?.fieldId ?? null;
-  for (const c of await deps.claims.list(session.id)) {
-    if (c.decision !== "pending" || c.lineState === "drafted" || (openConflict !== null && c.field_key === openConflict)) continue;
+  for (const c of claims) {
+    if (c.decision !== "pending" || c.lineState === "dismissed" || (openConflict !== null && c.field_key === openConflict)) continue;
     await deps.claims.confirm(session.id, c.id);
   }
   await deps.sessions.completeReview(session.id);
@@ -423,6 +437,16 @@ export async function tickDraft(deps: ReviewDeps, sessionId: string, lineId: str
   if (!(await deps.claims.acceptDraft(sessionId, lineId))) return { ok: false, code: "not_found", message: "no unticked draft on that line" };
   const line = (await deps.claims.list(sessionId)).find((c) => c.id === lineId)!;
   return { ok: true, text: line.text };
+}
+
+/** #378: the person's "No thanks" on a draft they have not ticked — it is held as dismissed, never
+ *  proposed again from the same evidence (ADR-0018 clause 4), and prints nowhere — or their Undo of
+ *  it, which puts the draft back unanswered. Only a draft in the state the move leaves answers
+ *  here: a line read from the CV, an added draft, a second No thanks or an undo with nothing to
+ *  undo are all "no such draft". */
+export async function dismissDraft(deps: ReviewDeps, sessionId: string, lineId: string, dismissed: boolean): Promise<{ ok: true; state: LineState } | { ok: false; code: "not_found"; message: string }> {
+  if (!(await deps.claims.dismissDraft(sessionId, lineId, dismissed))) return { ok: false, code: "not_found", message: dismissed ? "no unticked draft on that line" : "no dismissed draft on that line" };
+  return { ok: true, state: dismissed ? "dismissed" : "drafted" };
 }
 
 export type SettleConflictResult = { ok: true } | { ok: false; status: 404 | 400; code: string; message: string };

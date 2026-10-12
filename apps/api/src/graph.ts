@@ -37,9 +37,12 @@ const RISK_BY_CLASS: Record<CandidateClaim["classification"], ClaimNode["risk"]>
 // tagging (for S3 clustering) is a later pass.
 // Exported: #20's profile route buckets claims into the same domains the root-CV renderer uses,
 // straight from the claim (not the graph node), so it needs this same classifier.
+const KIND_PREFIXES = new Set(["cert", "lang", "skill", "edu", "project", "additional"]);
 export function kindTag(claim: CandidateClaim): string {
-  const prefix = claim.id.split("-", 1)[0];
-  if (prefix === "cert" || prefix === "lang" || prefix === "skill" || prefix === "edu") return prefix;
+  const prefix = claim.id.split("-", 1)[0] ?? "";
+  // The claim-miner prompt's rule-8 kind prefixes (#373 added project-/additional-: before them a
+  // personal project or a nationality line, role "profile", fell into the summary).
+  if (KIND_PREFIXES.has(prefix)) return prefix;
   return claim.role === "profile" ? "profile" : "experience";
 }
 

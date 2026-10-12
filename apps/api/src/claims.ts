@@ -16,14 +16,26 @@ export type ClaimOrigin = "mined" | "user-authored" | "drafted" | "drafted-accep
  *  untick — held in the profile under "kept for when a job needs it", never printed, never deleted,
  *  re-tickable. Lines read from the CV arrive ticked. `drafted` (#342) is a review draft the person
  *  has not ticked yet: refused by the same print gate (`prints`/confirmed()) with no schema change
- *  (the column is text), and left only by acceptDraft(). Orthogonal to `decision`: confirming,
- *  editing or re-answering a line never re-ticks it — only the person's tick does. */
-export type LineState = "ticked" | "kept" | "drafted";
+ *  (the column is text), and left only by acceptDraft() — or by dismissDraft() (#378, ADR-0018
+ *  clause 4): `dismissed` is the person's "No thanks" to a draft, held so the same suggestion is
+ *  never made again from the same evidence (seedDrafted ignores an id already stored), refused by
+ *  the print gate and by every door but the undo back to `drafted`. Orthogonal to `decision`:
+ *  confirming, editing or re-answering a line never re-ticks it — only the person's tick does.
+ *  `removal-suggested` (#380) is an item the review proposes to remove, unanswered: refused by the
+ *  same print gate, counted by the finish gate (cvReview.ts completeReview); "Keep it" → ticked,
+ *  "Remove it" → kept. */
+export type LineState = "ticked" | "kept" | "drafted" | "dismissed" | "removal-suggested";
+/** The states setLineState moves a line between — never a draft's own (`drafted`, `dismissed`). */
+export type SettableLineState = Exclude<LineState, "drafted" | "dismissed">;
+const SETTABLE: ReadonlySet<LineState> = new Set<LineState>(["ticked", "kept", "removal-suggested"]);
 
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
   origin: ClaimOrigin;
   lineState: LineState;
+  /** #379 (ADR-0018 clause 2): the words the item had before the person's first edit, kept once so
+   *  the change can be traced; null until then. edit() alone writes it, and only when it is null. */
+  originalText: string | null;
   /** #28: a monotonic per-session ordinal — the order this claim's answer was FIRST RECORDED, so a
    *  derived view (tailor.ts's buildTailorLedger) can replay confirmed() and negatives() — two
    *  separately-ordered lists — as ONE true answer order instead of stamping every line from today's
@@ -51,8 +63,11 @@ export interface ClaimStore {
   confirmed(sessionId: string): Promise<ClaimRecord[]>;
   confirm(sessionId: string, id: string): Promise<void>;
   reject(sessionId: string, id: string): Promise<void>;
-  /** Deck edit: user retyped the text → user-authored, auto-confirmed (they vouched for it). */
-  edit(sessionId: string, id: string, text: string): Promise<void>;
+  /** The person's own words on a line (deck edit, check mode's ✎, the profile): user-authored,
+   *  auto-confirmed (they vouched for it), the first original kept in `originalText` (#379). The tick
+   *  is untouched — a removed item stays removed. False when the session has no such line, or it is
+   *  a draft nobody has ticked (setDraftText is a draft's door). */
+  edit(sessionId: string, id: string, text: string): Promise<boolean>;
   /** Grill answer: a new confirmed, user-authored claim. */
   add(sessionId: string, claim: CandidateClaim): Promise<void>;
   /** #13: the decision === "negative" subset (persisted "no" answers), in insertion/seq order. */
@@ -61,10 +76,12 @@ export interface ClaimStore {
   answerNegative(sessionId: string, claim: CandidateClaim): Promise<void>;
   /** #13: correction — flip a mistapped decision (e.g. a "no") back to pending, reopening the gap. */
   reopen(sessionId: string, id: string): Promise<void>;
-  /** #335: the person's untick (→ kept) or re-tick. Touches nothing else. False when the session has
-   *  no such line — or when the line is a draft nobody has ticked (#342): a draft leaves `drafted`
-   *  only through acceptDraft(), so this door can never tick one. */
-  setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean>;
+  /** #335: the person's untick (→ kept) or re-tick — and (#380) the run's removal suggestion landing
+   *  on a line, and its answer (Keep it → ticked, Remove it → kept). Touches nothing else. False when
+   *  the session has no such line — or when the line is a draft, unticked or dismissed (#342/#378):
+   *  a draft leaves those states only through acceptDraft() / dismissDraft(), so this door can never
+   *  tick one. */
+  setLineState(sessionId: string, id: string, state: SettableLineState): Promise<boolean>;
   /** #342: the review's drafted lines for a job — pending, origin `drafted`, state `drafted`, so
    *  they show on the paper and print nowhere. Idempotent like seed(): a draft already stored under
    *  its id is left exactly as it is (generated once, stored — ADR-0016 clause 7). */
@@ -72,6 +89,9 @@ export interface ClaimStore {
   /** #342: the person's tick on a draft — it becomes a confirmed, ticked, `drafted-accepted` fact,
    *  reused wherever a fact helps. False when the session has no such line, or it is not a draft. */
   acceptDraft(sessionId: string, id: string): Promise<boolean>;
+  /** #378: "No thanks" on an unticked draft (`drafted` → `dismissed`), or its undo (`dismissed` →
+   *  `drafted`). False when the line is not in the state the move leaves. */
+  dismissDraft(sessionId: string, id: string, dismissed: boolean): Promise<boolean>;
   /** #341: the review's spelling/grammar fix, applied or undone — the text alone moves. Unlike
    *  edit(), nobody vouched for anything: decision, origin and tick are untouched, so a fix on a
    *  pending line leaves it pending and a fix on a kept line leaves it kept. False when the session
@@ -93,6 +113,7 @@ const withFields = (c: CandidateClaim) => ({
   field_key: c.field_key ?? null,
   field_value: c.field_value ?? null,
   field_label: c.field_label ?? null,
+  originalText: null,
 });
 
 export class InMemoryClaimStore implements ClaimStore {
@@ -163,14 +184,15 @@ export class InMemoryClaimStore implements ClaimStore {
     }
   }
 
-  async edit(sessionId: string, id: string, text: string): Promise<void> {
+  async edit(sessionId: string, id: string, text: string): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (c) {
-      c.text = text;
-      c.origin = "user-authored";
-      c.decisionSeq = this.decisionSeq(sessionId, c);
-      c.decision = "confirmed";
-    }
+    if (!c || c.lineState === "drafted") return false;
+    c.originalText ??= c.text;
+    c.text = text;
+    c.origin = "user-authored";
+    c.decisionSeq = this.decisionSeq(sessionId, c);
+    c.decision = "confirmed";
+    return true;
   }
 
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
@@ -185,6 +207,7 @@ export class InMemoryClaimStore implements ClaimStore {
       decision: "confirmed",
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
+      originalText: existing?.originalText ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -203,6 +226,7 @@ export class InMemoryClaimStore implements ClaimStore {
       decision: "negative",
       origin: "user-authored",
       lineState: existing?.lineState ?? "ticked",
+      originalText: existing?.originalText ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -216,9 +240,9 @@ export class InMemoryClaimStore implements ClaimStore {
     }
   }
 
-  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: SettableLineState): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
-    if (!c || c.lineState === "drafted") return false;
+    if (!c || !SETTABLE.has(c.lineState)) return false;
     c.lineState = state;
     return true;
   }
@@ -244,6 +268,13 @@ export class InMemoryClaimStore implements ClaimStore {
     c.decision = "confirmed";
     c.origin = "drafted-accepted";
     c.lineState = "ticked";
+    return true;
+  }
+
+  async dismissDraft(sessionId: string, id: string, dismissed: boolean): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (!c || c.lineState !== (dismissed ? "drafted" : "dismissed")) return false;
+    c.lineState = dismissed ? "dismissed" : "drafted";
     return true;
   }
 }
@@ -286,6 +317,10 @@ const CLAIMS_ALTERS = [
   // before. No insert or upsert below names the column: a new line takes the default, and a re-seed
   // or re-answer never re-ticks a line the person unticked.
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS line_state text NOT NULL DEFAULT 'ticked'",
+  // #379: the words before the person's first edit; null until then. No insert names it (CLAIM_COLS
+  // is untouched, so every positional placeholder keeps its index): a new line has no original, and
+  // edit() alone fills it, once.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS original_text text",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -314,6 +349,7 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     decision: r.decision as ClaimDecision,
     origin: r.origin as ClaimOrigin,
     lineState: r.line_state as LineState,
+    originalText: (r.original_text as string | null) ?? null,
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
     seq: Number(r.seq),
@@ -381,14 +417,15 @@ export class PgClaimStore implements ClaimStore {
     await this.pool.query(`UPDATE claims SET decision = 'rejected', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
-  async edit(sessionId: string, id: string, text: string): Promise<void> {
+  async edit(sessionId: string, id: string, text: string): Promise<boolean> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
-    await this.pool.query(
-      `UPDATE claims SET text = $3, origin = 'user-authored', decision = 'confirmed',
-         decision_seq = COALESCE(decision_seq, $4)
-       WHERE session_id = $1 AND id = $2`,
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET original_text = COALESCE(original_text, text), text = $3,
+         origin = 'user-authored', decision = 'confirmed', decision_seq = COALESCE(decision_seq, $4)
+       WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
       [sessionId, id, text, decisionSeq],
     );
+    return (rowCount ?? 0) > 0;
   }
 
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
@@ -437,9 +474,9 @@ export class PgClaimStore implements ClaimStore {
     await this.pool.query(`UPDATE claims SET decision = 'pending', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
-  async setLineState(sessionId: string, id: string, state: "ticked" | "kept"): Promise<boolean> {
+  async setLineState(sessionId: string, id: string, state: SettableLineState): Promise<boolean> {
     const { rowCount } = await this.pool.query(
-      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state <> 'drafted'`,
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state IN ('ticked', 'kept', 'removal-suggested')`,
       [sessionId, id, state],
     );
     return (rowCount ?? 0) > 0;
@@ -470,6 +507,14 @@ export class PgClaimStore implements ClaimStore {
          decision_seq = COALESCE(decision_seq, $3)
        WHERE session_id = $1 AND id = $2 AND line_state = 'drafted'`,
       [sessionId, id, decisionSeq],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async dismissDraft(sessionId: string, id: string, dismissed: boolean): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2 AND line_state = $4`,
+      [sessionId, id, dismissed ? "dismissed" : "drafted", dismissed ? "drafted" : "dismissed"],
     );
     return (rowCount ?? 0) > 0;
   }

@@ -469,7 +469,7 @@ test("#376: after question 1 nothing is asked — with a CV to review, discovery
     await route.fulfill({
       json: {
         completed: false,
-        letterhead: { header: "Jane Doe", phone: null, email: null },
+        letterhead: { name: { value: "Jane Doe", origin: "read" }, title: null, email: null, phone: null, location: null },
         conflict: null,
         progress: null,
         unchecked: false,

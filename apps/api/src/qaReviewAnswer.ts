@@ -8,7 +8,7 @@
 // "## heading" — and derives every mark from the text it is handed, never from a canned id: a line
 // containing "accross" gets a fix for that word alone (the model may name just the misspelt words),
 // a line containing "Projcet" gets a whole-line fix (it may name the whole line), a line containing
-// "intended to" gets an aim-without-result untick suggestion, every other line is kept.
+// "Date of birth" gets a personal-data removal suggestion (#380), every other line is kept.
 //
 // #342 — drafted lines, the same way: a job placed in a family gets one line per must-have none of
 // its lines shows (a line "shows" a must-have when it contains the must-have's id with its dashes as
@@ -93,10 +93,12 @@ const fixesOf = (lines: Line[]) =>
         ? [{ line: l.id, original: l.text, corrected: l.text.replace("Projcet", "Project") }]
         : [],
   );
+// #380: removal only for what belongs nowhere — a "Date of birth" line is personal data. A weak
+// line ("intended to") is kept: a true but weak item is never suggested for removal.
 const judgementsOf = (lines: Line[]) =>
   lines.map((l) =>
-    l.text.includes("intended to")
-      ? { line: l.id, verdict: "untick", kind: "aim-without-result", reason: "States an aim and no delivered result." }
+    /date of birth/i.test(l.text)
+      ? { line: l.id, verdict: "remove", kind: "personal-data", reason: "A date of birth hurts on any CV." }
       : { line: l.id, verdict: "keep" },
   );
 
@@ -159,7 +161,7 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
         const judgements = judgementsOf(lines);
         if (opts.bogus && lines[0]) {
           fixes.push({ line: lines[0].id, original: "nope", corrected: "never" });
-          judgements.push({ line: "ghost", verdict: "untick", kind: "weak", reason: "A line that is not there." });
+          judgements.push({ line: "ghost", verdict: "remove", kind: "duplicate", reason: "A line that is not there." });
         }
         const familyId = (placements.get(id) ?? [])[0] ?? null;
         const family = familyId ? families.get(familyId) : undefined;

@@ -4,16 +4,21 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
-import type { ContactStore } from "../contact.js";
+import { CONTACT_FIELDS, type ContactField, type ContactStore } from "../contact.js";
 
 export interface ContactDeps {
   contact: ContactStore;
 }
 
-const Body = z.object({
-  field: z.enum(["phone", "email"]),
-  value: z.string().trim().min(1).max(200),
-});
+const Field = z.enum(CONTACT_FIELDS as [ContactField, ...ContactField[]]);
+const Value = z.string().trim().max(200);
+// One field (the profile's door) or several at once (#381: check mode's Your details saves the
+// whole card on Next). An empty value in the batch says nothing and is skipped — the store keeps
+// no "cleared" state, so a blank never erases a fact the CV gave.
+const Body = z.union([
+  z.object({ field: Field, value: Value.min(1) }),
+  z.object({ fields: z.record(Field, Value) }),
+]);
 
 export function contactRoutes(deps: ContactDeps) {
   return async function plugin(fastify: FastifyInstance) {
@@ -25,11 +30,11 @@ export function contactRoutes(deps: ContactDeps) {
     // product, not about correcting a fact the person already owns).
     app.put("/contact", { schema: { body: Body } }, async (req) => {
       const session = requireSession(req);
-      await deps.contact.put(session.id, req.body.field, {
-        value: req.body.value,
-        origin: "person-said",
-        sourceText: req.body.value,
-      });
+      const entries = "field" in req.body ? [[req.body.field, req.body.value] as const] : Object.entries(req.body.fields);
+      for (const [field, value] of entries) {
+        if (!value) continue;
+        await deps.contact.put(session.id, field as ContactField, { value, origin: "person-said", sourceText: value });
+      }
       return deps.contact.getRecord(session.id);
     });
   };

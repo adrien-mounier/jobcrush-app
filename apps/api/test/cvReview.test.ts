@@ -152,12 +152,18 @@ describe("#338 the paper", () => {
     const state = await review(app, cookie);
 
     expect(state.completed).toBe(false);
-    expect(state.letterhead.header).toContain("Jane Doe");
-    expect(state.letterhead.email).toEqual({ value: "jane.doe.338@example.com", origin: "read" });
-    expect(state.letterhead.phone?.origin).toBe("read");
+    // #381: the letterhead as Your details' five fields; this CV has a city but no title.
+    expect(state.letterhead).toEqual({
+      name: { value: "Jane Doe", origin: "read" },
+      title: null,
+      email: { value: "jane.doe.338@example.com", origin: "read" },
+      phone: { value: "+33 6 00 00 00 00", origin: "read" },
+      location: { value: "Paris, France", origin: "read" },
+    });
 
-    // The master CV's own print order: summary, experience, skills, certifications, education, languages.
-    expect(state.sections.map((s) => s.tag)).toEqual(["profile", "experience", "skill", "cert", "edu", "lang"]);
+    // The master CV's own print order: summary, experience, personal projects, skills, certifications,
+    // education, languages, additional information (#373 added the two the summary used to swallow).
+    expect(state.sections.map((s) => s.tag)).toEqual(["profile", "experience", "project", "skill", "cert", "edu", "lang", "additional"]);
     const jobs = jobsOf(state);
     expect(jobs.map((j) => [j.employer, j.title])).toEqual([
       ["Nordic Retail Group", "IT Project Manager"],

@@ -18,7 +18,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./check.css";
-import { completeReview, ensureSession, getReview, setLanguages, setLineState, setWorkRights, type ReviewLine, type ReviewState } from "../../../lib/api";
+import {
+  completeReview,
+  dismissDraft,
+  ensureSession,
+  getReview,
+  saveContactFields,
+  setDraftText,
+  setLanguages,
+  setLineState,
+  setLineText,
+  setWorkRights,
+  tickDraft,
+  type ContactField,
+  type ReviewLine,
+  type ReviewState,
+} from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
 import { blockersOf, leadFor, ScreenBody, screensOf, type Screen } from "./screens";
 
@@ -42,6 +57,8 @@ const C_CHECKING = "Checking your CV…";
 const minutesCopy = (n: number) => `About ${n} ${n === 1 ? "minute" : "minutes"} left.`;
 /** How often the walk re-reads the paper while the run is going. */
 const POLL_MS = 3000;
+/** #378: how long "No thanks. I won't suggest it again." stays, with its Undo (the prototype's 6 s). */
+const UNDO_MS = 6000;
 
 interface Fx {
   /** The screen whose segment fills: the one just finished. */
@@ -49,6 +66,8 @@ interface Fx {
   /** The screen whose removed count glows. */
   bump?: string;
   arm?: boolean;
+  /** #378: the item just added from a suggestion — its gold rule fades. */
+  landed?: string;
 }
 
 const allLines = (state: ReviewState): ReviewLine[] =>
@@ -65,6 +84,11 @@ export default function CheckPage() {
   const [error, setError] = useState<string | null>(null);
   const [fx, setFx] = useState<Fx>({});
   const [pollTick, setPollTick] = useState(0);
+  /** #378: drafts dismissed moments ago — their No thanks row shows, with Undo, for UNDO_MS. */
+  const [justDismissed, setJustDismissed] = useState<ReadonlySet<string>>(new Set());
+  /** #381: what the person typed into Your details, by field. Page state, so it outlives Back/Next
+   *  and every re-read of the paper; the footer button saves what differs from the saved value. */
+  const [typed, setTyped] = useState<Partial<Record<ContactField, string>>>({});
   const headingRef = useRef<HTMLHeadingElement>(null);
   /** The screen the footer button was last held on — it pulses once when released there. */
   const heldOn = useRef<string | null>(null);
@@ -120,7 +144,7 @@ export default function CheckPage() {
 
   /** A write, then a fresh read of the paper. A failed write is reported; a failed re-read is not
    *  a save failure (the profile's own rule) — the next tick or tap re-reads. */
-  const write = async (action: () => Promise<unknown>, then?: () => void) => {
+  const write = async (action: () => Promise<unknown>, then?: () => void): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
@@ -128,7 +152,7 @@ export default function CheckPage() {
     } catch {
       setError(C_SAVE_FAILED);
       setBusy(false);
-      return;
+      return false;
     }
     try {
       setState(await getReview());
@@ -137,7 +161,10 @@ export default function CheckPage() {
     }
     then?.();
     setBusy(false);
+    return true;
   };
+  // #379: the words saved; on a failure the editor stays open with what was typed.
+  const edit = (id: string, text: string) => write(() => setLineText(id, text));
   const remove = (id: string) =>
     write(
       () => setLineState(id, "kept"),
@@ -146,6 +173,36 @@ export default function CheckPage() {
       },
     );
   const putBack = (id: string) => write(() => setLineState(id, "ticked"));
+  // #378: the three answers to an add suggestion. Edit first saves the person's wording, then adds.
+  const forget = (id: string) =>
+    setJustDismissed((s) => {
+      const next = new Set(s);
+      next.delete(id);
+      return next;
+    });
+  const drafts = {
+    justDismissed,
+    onAdd: (id: string, text?: string) =>
+      write(
+        async () => {
+          if (text !== undefined) await setDraftText(id, text);
+          await tickDraft(id);
+        },
+        () => {
+          if (!reduced) setFx((f) => ({ ...f, landed: id }));
+        },
+      ),
+    onSaveText: (id: string, text: string) => write(() => setDraftText(id, text)),
+    onDismiss: (id: string) =>
+      write(
+        () => dismissDraft(id, true),
+        () => {
+          setJustDismissed((s) => new Set(s).add(id));
+          setTimeout(() => forget(id), UNDO_MS);
+        },
+      ),
+    onUndo: (id: string) => write(() => dismissDraft(id, false), () => forget(id)),
+  };
   const go = (dir: 1 | -1) => {
     const to = screens[k + dir];
     if (!to || !screen) return;
@@ -154,14 +211,34 @@ export default function CheckPage() {
     setStepKey(to.key);
     window.scrollTo(0, 0);
   };
-  const finish = () =>
-    write(
-      () => completeReview(),
-      () => {
-        setDone(true);
-        window.scrollTo(0, 0);
-      },
-    );
+  const saved = (field: ContactField) => state?.letterhead[field]?.value ?? "";
+  /** Your details' changes, trimmed. Empty when nothing changed — or off that screen. */
+  const detailChanges = (): Partial<Record<ContactField, string>> =>
+    screen?.kind !== "details"
+      ? {}
+      : Object.fromEntries(
+          Object.entries(typed)
+            .map(([field, value]) => [field, value.trim()] as const)
+            .filter(([field, value]) => value !== saved(field as ContactField)),
+        );
+  /** The footer button: saves Your details when they changed, then moves on (or finishes). */
+  const advance = () => {
+    const changes = detailChanges();
+    const save = Object.keys(changes).length > 0 ? () => saveContactFields(changes) : null;
+    if (last)
+      return void write(
+        async () => {
+          if (save) await save();
+          await completeReview();
+        },
+        () => {
+          setDone(true);
+          window.scrollTo(0, 0);
+        },
+      );
+    if (save) return void write(save, () => go(1));
+    go(1);
+  };
 
   if (failed && !state) {
     return (
@@ -247,9 +324,23 @@ export default function CheckPage() {
           list={{
             busy,
             bump: fx.bump === screen.key,
+            landed: fx.landed ?? null,
+            onLandedEnd: () => setFx((f) => ({ ...f, landed: undefined })),
             onRemove: remove,
             onPutBack: putBack,
+            onEdit: edit,
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
+          }}
+          drafts={drafts}
+          details={{
+            values: {
+              name: typed.name ?? saved("name"),
+              title: typed.title ?? saved("title"),
+              email: typed.email ?? saved("email"),
+              phone: typed.phone ?? saved("phone"),
+              location: typed.location ?? saved("location"),
+            },
+            onChange: (field, value) => setTyped((t) => ({ ...t, [field]: value })),
           }}
           answers={{
             onWorkRights: (itemId, answer) => void write(() => setWorkRights(itemId, answer)),
@@ -279,7 +370,7 @@ export default function CheckPage() {
             className={`btn primary${fx.arm ? " arm" : ""}`}
             disabled={busy || !canGo}
             onAnimationEnd={() => setFx((f) => ({ ...f, arm: undefined }))}
-            onClick={() => (last ? void finish() : go(1))}
+            onClick={advance}
           >
             {label}
           </button>
