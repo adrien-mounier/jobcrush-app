@@ -46,6 +46,11 @@ export interface ProfileFact {
   /** #382: the named group a skill sits in (ADR-0018 clause 6). Absent on every fact that is not
    *  a skill. */
   group?: string;
+  /** #371/#383: where the review moved this line from ("your summary", a job's employer), worn as
+   *  a tag as check mode wears it; `copied` when it is a tool copied from an achievement ("Taken
+   *  from") rather than moved. Both absent on a line that never moved. */
+  movedFrom?: string;
+  copied?: true;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -263,6 +268,8 @@ export function buildProfileState(
       kept: c.lineState === "kept" || undefined,
       fix: fixOf(c.text, fixes.get(c.id)) ?? undefined,
       group: tag === "skill" ? groupOf(c) : undefined,
+      movedFrom: c.movedFrom ?? undefined,
+      copied: c.copied || undefined,
     });
     byTag.set(tag, bucket);
   }

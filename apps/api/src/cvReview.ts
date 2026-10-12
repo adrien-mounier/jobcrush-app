@@ -66,6 +66,9 @@ export interface ReviewLine {
   draft: ReviewDraft | null;
   /** #371: where the review moved this line from ("your summary"), worn as a tag; null otherwise. */
   movedFrom: string | null;
+  /** #383: present only on a copy — a tool taken from an achievement that stays under its job
+   *  ("Taken from <job>"); a line that moved ("Moved from <job>") has none. */
+  copied?: true;
 }
 export interface ReviewJob {
   /** The job-block id when the lines matched a dated record, else the role heading's own key. */
@@ -151,7 +154,7 @@ const endText = (end: MinedEndValue): string | null =>
 /** The lines a person can see on the paper: everything read or said, minus what they rejected or
  *  answered "no" to — the same cut the profile makes. In CV order (seq). */
 const onPaper = (c: ClaimRecord) => c.decision === "pending" || c.decision === "confirmed";
-const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null, draft: null, movedFrom: c.movedFrom ?? null });
+const toLine = (c: ClaimRecord): ReviewLine => ({ id: c.id, text: c.text, state: c.lineState, fix: null, suggestion: null, draft: null, movedFrom: c.movedFrom ?? null, ...(c.copied ? { copied: true as const } : {}) });
 
 const norm = (s: string) => s.trim().toLowerCase();
 

@@ -600,6 +600,10 @@ export interface ProfileFact {
   fix?: ReviewFix;
   // #382: the named group a skill sits in. Absent on every fact that is not a skill.
   group?: string;
+  // #371/#383: where the review moved this fact from, and `copied` for a tool copied from an
+  // achievement — worn as check mode wears them. Both absent on a fact that never moved.
+  movedFrom?: string;
+  copied?: true;
 }
 
 export interface ProfileDomain {
@@ -726,6 +730,8 @@ export interface ReviewLine {
   draft: ReviewDraft | null;
   /** #371: where the review moved this line from ("your summary"); null on a line that never moved. */
   movedFrom: string | null;
+  /** #383: present only on a copy — a tool taken from an achievement ("Taken from <job>"). */
+  copied?: true;
 }
 export interface ReviewJob {
   id: string;

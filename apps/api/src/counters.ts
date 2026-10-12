@@ -391,6 +391,8 @@ const counts = {
   "cvReview.about_issue": 0,
   // #371 — a summary move naming a line outside the summary, or a section the profile lacks.
   "cvReview.move_dropped": 0,
+  // #383 — a tool list naming a line outside its job, or a tool its line never says.
+  "cvReview.tool_dropped": 0,
 };
 
 export type CounterName = keyof typeof counts;

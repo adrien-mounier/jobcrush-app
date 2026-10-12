@@ -64,6 +64,9 @@ export interface ClaimRecord extends CandidateClaim {
   /** #371/#383: where a moved line came from, as the tag names it ("your summary", a job's short
    *  name). Null/absent on a line that never moved. */
   movedFrom?: string | null;
+  /** #383: the line is a copy — a tool named in an achievement, copied to Skills ("Taken from
+   *  <job>") while the achievement stays put. False/absent on a line that moved, or never moved. */
+  copied?: boolean;
 }
 
 export interface ClaimStore {
@@ -113,8 +116,9 @@ export interface ClaimStore {
   setText(sessionId: string, id: string, text: string): Promise<boolean>;
   /** #371 (ADR-0018 clause 6): the review re-homes a line to the section a reader expects, and
    *  records where it came from. Text, decision, origin and tick are untouched; a re-seed or a
-   *  correction never un-moves it. False when the session has no such line. */
-  move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean>;
+   *  correction never un-moves it. False when the session has no such line. #383: `copied` marks
+   *  a copy (a tool taken from an achievement that stays put) apart from a move. */
+  move(sessionId: string, id: string, section: string, movedFrom: string, copied?: boolean): Promise<boolean>;
   /** #382: move one skill to a group. False when the session has no such line. */
   setGroup(sessionId: string, id: string, group: string): Promise<boolean>;
   /** #382: rename a group — every line of the session in it. Returns how many moved (0 = no such group). */
@@ -232,6 +236,7 @@ export class InMemoryClaimStore implements ClaimStore {
       originalText: existing?.originalText ?? null,
       section: existing?.section ?? null,
       movedFrom: existing?.movedFrom ?? null,
+      copied: existing?.copied ?? false,
       groupName: existing?.groupName ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
@@ -254,6 +259,7 @@ export class InMemoryClaimStore implements ClaimStore {
       originalText: existing?.originalText ?? null,
       section: existing?.section ?? null,
       movedFrom: existing?.movedFrom ?? null,
+      copied: existing?.copied ?? false,
       groupName: existing?.groupName ?? null,
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
@@ -281,11 +287,12 @@ export class InMemoryClaimStore implements ClaimStore {
     return c !== undefined;
   }
 
-  async move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean> {
+  async move(sessionId: string, id: string, section: string, movedFrom: string, copied = false): Promise<boolean> {
     const c = this.forSession(sessionId).get(id);
     if (!c) return false;
     c.section = section;
     c.movedFrom = movedFrom;
+    c.copied = copied;
     return true;
   }
 
@@ -381,6 +388,9 @@ const CLAIMS_ALTERS = [
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS moved_from text",
   // #382: a skill's group (null on every other claim). Appended last, like every column here.
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS group_name text",
+  // #383: beside moved_from, a copy (a tool taken from an achievement) apart from a move. Set only
+  // by move(), like section and moved_from; every existing row reads false.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS copied boolean NOT NULL DEFAULT false",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -414,6 +424,7 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     originalText: (r.original_text as string | null) ?? null,
     section: (r.section as string | null) ?? null,
     movedFrom: (r.moved_from as string | null) ?? null,
+    copied: r.copied === true,
     groupName: (r.group_name as string | null) ?? null,
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
@@ -555,10 +566,10 @@ export class PgClaimStore implements ClaimStore {
     return (rowCount ?? 0) > 0;
   }
 
-  async move(sessionId: string, id: string, section: string, movedFrom: string): Promise<boolean> {
+  async move(sessionId: string, id: string, section: string, movedFrom: string, copied = false): Promise<boolean> {
     const { rowCount } = await this.pool.query(
-      `UPDATE claims SET section = $3, moved_from = $4 WHERE session_id = $1 AND id = $2`,
-      [sessionId, id, section, movedFrom],
+      `UPDATE claims SET section = $3, moved_from = $4, copied = $5 WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, section, movedFrom, copied],
     );
     return (rowCount ?? 0) > 0;
   }

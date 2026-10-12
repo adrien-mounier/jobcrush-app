@@ -53,6 +53,8 @@ const ReviewLine = z.object({
   draft: ReviewDraft.nullable(),
   // #371: where the review moved the line from ("your summary").
   movedFrom: z.string().nullable(),
+  // #383: present only on a copy — "Taken from <job>" rather than "Moved from <job>".
+  copied: z.literal(true).optional(),
 });
 const ReviewJob = z.object({
   id: z.string(),

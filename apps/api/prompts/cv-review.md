@@ -17,7 +17,10 @@ comment (preview.ts tailorPrompt does the same) and appends the four input block
 v2 (#380; ADR-0018 clause 4, amending ADR-0016 clause 3): section B no longer suggests unticking a
 weak, duplicate or aim-without-result line. It suggests `remove` only for an item that belongs
 nowhere in any CV — a duplicate, a PDF-reading fragment, personal data — and never for a true but
-weak line or for fit. The rest of the prompt is unchanged. -->
+weak line or for fit. The rest of the prompt is unchanged.
+#383 (ADR-0018 clause 6) adds H. TOOLS: per job, the line that is only a tool list (the caller moves
+it to Skills, split one per item) and the tools an achievement uses (the caller copies the names to
+Skills; the achievement stays). Detection rides on the job's own call — zero extra calls. -->
 
 You review a candidate's CV, job by job, before the candidate confirms it. The candidate will see
 every change and keep, remove or edit each line; nothing you write prints until the candidate adds
@@ -130,6 +133,13 @@ G. MOVES. Only when `sections` is listed. A line in the summary that belongs in 
    the caller moves it and tags it. A line that reads as a sentence about the candidate stays in the
    summary.
 
+H. TOOLS. For every job in JOBS TO REVIEW. A line under the job that is only a list of tools,
+   software or technologies ("Tools: JIRA, Confluence, MS Project", "Tech stack: Python, AWS") is
+   named in `toolLists`: the caller moves it to Skills, one item per tool. An achievement that uses a
+   tool stays under its job, unchanged; name the tools it uses in `toolsUsed`, each one
+   exactly as the line writes it, and the caller copies those names to Skills. A method, a skill or a domain is not
+   a tool ("Agile", "stakeholder management", "retail"). No tool, nothing to name: `[]`.
+
 A job with nothing to fix, nothing to remove, every must-have of its family shown, no missing end
 date and no conflict is `complete: true`. That is the review telling the candidate the CV already
 did the work.
@@ -178,7 +188,9 @@ including the candidate's own mistakes.
         }
       ],
       "endDateMissing": false,
-      "conflicts": [{ "what": "<the thing>", "values": ["<value>", "<value>"] }]
+      "conflicts": [{ "what": "<the thing>", "values": ["<value>", "<value>"] }],
+      "toolLists": ["<id of a line that is only a list of tools>"],
+      "toolsUsed": [{ "line": "<id of a line that uses a tool>", "tools": ["<the tool, verbatim>"] }]
     }
   ],
   "refused": [{ "job": "<id>", "what": "<what you did not draft>", "rule": "<R1 | R2 | R3 | R4 | R5 | R6>" }]

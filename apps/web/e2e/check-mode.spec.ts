@@ -1264,3 +1264,77 @@ test.describe("#382 the Skills screen: named groups, rename, move", () => {
     expect(await itemsOf(page, 1)).toEqual(["Confluence", "Splunk"]);
   });
 });
+
+// #383 (ADR-0018 clause 6): a job's tool list has left the job for Skills, one item per tool, each
+// wearing "Moved from <job>"; a tool an achievement uses is copied to Skills wearing "Taken from
+// <job>" while the achievement stays under its job, word for word. A moved item is removed and put
+// back like any other, and the tags are still there after a reload. The tag's words are what the
+// ticket asks for, so they are read; everything else is selected by structure.
+test.describe("#383 tools moved and copied to Skills", () => {
+  const SPLUNK = "Cut incident triage time by 40% using Splunk dashboards.";
+  const FROM = "Nordic Retail Group";
+  const MOVED: ReviewState = {
+    ...REVIEW,
+    sections: REVIEW.sections.map((s) =>
+      "jobs" in s
+        ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, lines: [line("nrg-1", "Led the checkout replatform."), line("nrg-splunk", SPLUNK)] } : j)) }
+        : s.tag === "skill"
+          ? {
+              tag: "skill",
+              heading: "Skills",
+              lines: [
+                line("s1", "Miro"),
+                line("skill-nrg-splunk-splunk", "Splunk", { movedFrom: FROM, copied: true }),
+                line("skill-nrg-tools-jira", "JIRA", { movedFrom: FROM }),
+                line("skill-nrg-tools-confluence", "Confluence", { movedFrom: FROM }),
+              ],
+              groups: [
+                { name: "Skills", ids: ["s1", "skill-nrg-splunk-splunk"] },
+                { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence"] },
+              ],
+            }
+          : s,
+    ),
+  };
+  const tagOf = (page: Page, text: string) => page.locator(".groups li.pt", { hasText: text }).locator(".tag.moved");
+  async function toScreen(page: Page, name: string) {
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== name; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText(name);
+  }
+
+  test("the job keeps its achievement as written and no tool list; Skills shows the moved tools tagged Moved from the job and the copied tool tagged Taken from it", async ({ page }) => {
+    await stubReview(page, MOVED);
+    await page.goto("/profile/check");
+    await toScreen(page, FROM);
+    await expect(items(page).locator(".txt")).toHaveText(["Led the checkout replatform.", SPLUNK]);
+    await expect(items(page).locator(".tag")).toHaveCount(0);
+
+    await toScreen(page, "Skills");
+    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(tagOf(page, "Confluence")).toHaveText(`Moved from ${FROM}`);
+    await expect(tagOf(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
+    await expect(tagOf(page, "Miro")).toHaveCount(0);
+    await expect(page.locator(".groups .tag.moved")).toHaveCount(3);
+  });
+
+  test("a moved tool is removed and put back like any item, and its tag is still there after a reload", async ({ page }) => {
+    const { calls } = await stubReview(page, MOVED);
+    await page.goto("/profile/check");
+    await toScreen(page, "Skills");
+    const jira = page.locator(".groups li.pt", { hasText: "JIRA" });
+    await jira.hover();
+    await removeButton(jira).click();
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/skill-nrg-tools-jira", body: { state: "kept" } });
+    await expect(jira).toHaveCount(0);
+    await tray(page).getByRole("button", { expanded: false }).click();
+    await expect(tray(page).locator("s")).toHaveText("JIRA");
+    await tray(page).locator("li button").click(); // Put back
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/skill-nrg-tools-jira", body: { state: "ticked" } });
+    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+
+    await page.reload();
+    await toScreen(page, "Skills");
+    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(tagOf(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
+  });
+});
