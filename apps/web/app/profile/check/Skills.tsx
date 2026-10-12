@@ -6,6 +6,7 @@
 // the move icon beside ✎ / ⊖ opens "Move to group". Both persist through the server's two group
 // doors. Grouping is never an item to answer, so nothing here holds the footer button. Each skill is
 // an ordinary item: ⊖ removes it into the one tray at the end; a group with nothing left in it hides.
+// A skill in any other state (a suggestion to answer, #380) draws the screen's card in its group.
 import { useEffect, useRef, useState } from "react";
 import type { ReviewLine, SkillGroup } from "../../../lib/api";
 import { Item, Tray, type ItemListProps } from "./Item";
@@ -27,7 +28,7 @@ export interface GroupActions {
 }
 
 export function SkillsBody({ lines, groups, list, actions }: { lines: ReviewLine[]; groups: SkillGroup[]; list: Omit<ItemListProps, "lines">; actions: GroupActions }) {
-  const { busy, bump, onRemove, onPutBack, onBumpEnd, onEdit } = list;
+  const { busy, bump, onRemove, onPutBack, onBumpEnd, onEdit, card } = list;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -55,7 +56,7 @@ export function SkillsBody({ lines, groups, list, actions }: { lines: ReviewLine
         {groups.map((g) => {
           const shown = g.ids.flatMap((id) => {
             const l = byId.get(id);
-            return l && l.state === "ticked" ? [l] : [];
+            return l && l.state !== "kept" ? [l] : [];
           });
           if (shown.length === 0) return null;
           return (
@@ -82,7 +83,10 @@ export function SkillsBody({ lines, groups, list, actions }: { lines: ReviewLine
                 </button>
               )}
               <ul className="pts">
-                {shown.map((l) => (
+                {shown.map((l) =>
+                  l.state !== "ticked" ? (
+                    (card?.(l) ?? null)
+                  ) : (
                   <Item
                     key={l.id}
                     line={l}
@@ -116,7 +120,8 @@ export function SkillsBody({ lines, groups, list, actions }: { lines: ReviewLine
                       )
                     }
                   />
-                ))}
+                  ),
+                )}
               </ul>
             </div>
           );

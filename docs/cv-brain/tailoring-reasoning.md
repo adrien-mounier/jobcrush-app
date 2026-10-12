@@ -22,7 +22,7 @@
   - [The door](#the-door)
   - [The application report](#the-application-report)
   - [Not decided here](#not-decided-here)
-- [9. The CV review: drafting rules R1–R6 and quality-only judging (#340, ADR-0016)](#9-the-cv-review-drafting-rules-r1r6-and-quality-only-judging-340-adr-0016)
+- [9. The CV review: drafting rules R1–R6 and removal only for what belongs nowhere (#340, #380)](#9-the-cv-review-drafting-rules-r1r6-and-removal-only-for-what-belongs-nowhere-340-380)
 
 ## 1. What tailoring produces
 
@@ -248,18 +248,23 @@ separate feature, [#299](https://github.com/adrien-mounier/jobcrush-app/issues/2
 **"Add something new"** flow that recognises a denied capability at the moment she types it. A design
 session owns its screen-versus-sheet question.
 
-## 9. The CV review: drafting rules R1–R6 and quality-only judging (#340, ADR-0016)
+## 9. The CV review: drafting rules R1–R6 and removal only for what belongs nowhere (#340, #380)
 
 Before any jobs are shown, the review reads the whole CV and, per job, fixes spelling, judges each
 existing line, and drafts the lines a thin job is missing for its **own** family's must-haves. The
 prompt is `apps/api/prompts/cv-review.md`; this section is the rule it must stay true to.
 
-**Judging is quality-only.** A line may be suggested for unticking for one of three kinds — *weak*
-(nothing a reader can use), *duplicate* (another line of the same job says it), *aim without result*
-(an intention with no delivered result) — each with a one-sentence reason. **Fit is never a reason:**
-whether a line matters for a target job is decided per advert (ADR-0007), never on the master CV.
-The research run that marked a real revenue result "off-topic for an IT PM role" is the forbidden
-kind. The machine never applies an untick; the line arrives ticked and the person decides.
+**Removal is suggested only for what belongs nowhere** (#380, ADR-0018 clause 4, amending ADR-0016
+clause 3). A line may be suggested for removal for one of three kinds — *duplicate* (another line
+already says it), *fragment* (a piece broken by reading the PDF that says nothing on its own),
+*personal data* that hurts on any CV (date of birth, marital status, and similar) — each with a
+one-sentence reason. **A true but weak item is never suggested for removal; fit is never a reason.**
+A plain duty or an aim with no stated result stays: each application leaves out what does not fit
+that job. Whether a line matters for a target job is decided per advert (ADR-0007), never on the
+master CV. The research run that marked a real revenue result "off-topic for an IT PM role" is the
+forbidden kind. The machine never removes; the suggestion holds the item out of every render until
+the person answers *Remove it* or *Keep it*. (Before #380 the review suggested unticking *weak*,
+*duplicate* and *aim-without-result* lines; those kinds are retired.)
 
 **Drafting rules, carried from the blind test (`research/2026-10-03_thin-job-line-generation/`):**
 

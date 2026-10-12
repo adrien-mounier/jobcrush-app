@@ -15,6 +15,11 @@ const C_CANCEL = "Cancel";
 const C_REMOVE = "Remove";
 const C_PUT_BACK = "Put back";
 const C_NEW = "new";
+const C_REMOVE_HD = "Suggestion · Remove this?";
+const C_TO_REMOVE = "To remove: ";
+const C_WHY = "Why: ";
+const C_REMOVE_IT = "Remove it";
+const C_KEEP_IT = "Keep it";
 const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hide" : "Show"}`;
 
 const PEN = (
@@ -138,6 +143,47 @@ export function Item({
   );
 }
 
+const MINUS_BIG = (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <circle cx="10" cy="10" r="8.25" />
+    <path d="M6 10h8" />
+  </svg>
+);
+
+/** #380 (ADR-0018 clause 4): the review proposes removing an item that belongs nowhere. It sits
+ *  where the item does — a coral bar, ⊖, the text underlined wavy — never the dashed gold frame,
+ *  which is for adding. Remove it = the ordinary removal (→ the tray); Keep it = back in. */
+export function RemoveCard({ line, busy, onRemove, onKeep }: { line: ReviewLine; busy: boolean; onRemove: (id: string) => void; onKeep: (id: string) => void }) {
+  return (
+    <li className="sg rmv">
+      <span className="hd">{C_REMOVE_HD}</span>
+      <span className="sline">
+        <span className="mark minus">{MINUS_BIG}</span>
+        <span className="stxt">
+          <span className="sr-only">{C_TO_REMOVE}</span>
+          {line.text}
+        </span>
+      </span>
+      {line.suggestion && (
+        <span className="meta">
+          <span>
+            {C_WHY}
+            {line.suggestion.reason}
+          </span>
+        </span>
+      )}
+      <span className="row">
+        <button type="button" className="btn sm" disabled={busy} onClick={() => onRemove(line.id)}>
+          {C_REMOVE_IT}
+        </button>
+        <button type="button" className="btn sm ghost" disabled={busy} onClick={() => onKeep(line.id)}>
+          {C_KEEP_IT}
+        </button>
+      </span>
+    </li>
+  );
+}
+
 export function Tray({ removed, busy, bump, onPutBack, onBumpEnd }: { removed: ReviewLine[]; busy: boolean; bump: boolean; onPutBack: (id: string) => void; onBumpEnd: () => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -175,8 +221,8 @@ export interface ItemListProps {
   /** #379: ✎ on every item when set. ScreenBody leaves it off where a screen edits its own way. */
   onEdit?: OnEdit;
   /** What a line that is neither in nor removed renders as — a card type: #378's add card for a
-   *  `drafted` line (and its "No thanks" row for a just-`dismissed` one); #380 routes a line in
-   *  `removal-suggested` state here too. Null draws nothing. */
+   *  `drafted` line (and its "No thanks" row for a just-`dismissed` one); #380's RemoveCard for a
+   *  `removal-suggested` one (screens.tsx ScreenBody routes all three). Null draws nothing. */
   card?: (line: ReviewLine) => ReactNode;
 }
 
