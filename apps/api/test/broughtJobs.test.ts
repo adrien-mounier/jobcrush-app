@@ -328,8 +328,22 @@ describe("#338 a job he brought waits for the review too", () => {
     const jobScreen = () => get(`/onboarding/jobs/${encodeURIComponent(adId)}`);
     expect((await jobScreen()).statusCode).toBe(200);
     expect((await deck(app, cookie)).cards.length).toBeGreaterThan(0);
+    // The doors that reach a posting through the pool: the want handoff, the tailor screen and the
+    // tailored draft. Wanted once before the hold, so a tailor target is already set.
+    await signIn(app, cookie, "brought-work-rights@example.com");
+    const want = () => post(app, cookie, `/onboarding/cards/${encodeURIComponent(adId)}/want`);
+    const tailor = () => get("/onboarding/tailor");
+    const draft = () => post(app, cookie, "/onboarding/tailor/draft");
+    expect((await want()).statusCode).toBe(200);
+    // The draft door answers 503 here only AFTER it has found the posting (no model is wired on this
+    // stack), so 503 is "open" and 404 is "held" — both read off the same request.
+    const postingDoors = async () => [(await want()).statusCode, (await tailor()).statusCode, (await draft()).statusCode];
 
     const held = async () => {
+      // They refuse the way they do before Finish (an empty pool → "unknown card"), which the
+      // tailor screen already answers by going to the deck, and the deck sends him to check mode.
+      expect(await postingDoors()).toEqual([404, 404, 404]);
+      expect((await tailor()).json().error.code).toBe("not_found");
       expect((await get("/onboarding/cards")).json()).toMatchObject({ reviewPending: true, cards: [] });
       expect((await get("/onboarding/discovery")).json()).toMatchObject({ reviewPending: true });
       const screen = await jobScreen();
@@ -356,6 +370,7 @@ describe("#338 a job he brought waits for the review too", () => {
     await held();
     expect((await put("/review/work-rights/eligibility-work-rights-hong-kong", { answer: "eligible" })).statusCode).toBe(200);
     expect((await jobScreen()).statusCode).toBe(200);
+    expect(await postingDoors()).toEqual([200, 200, 503]);
     expect((await get("/review")).json().newItems).toBeNull();
 
     // Taken back on the profile's own door (its decline stores nothing): held again.
@@ -364,6 +379,7 @@ describe("#338 a job he brought waits for the review too", () => {
     await held();
     expect((await put("/review/work-rights/eligibility-work-rights-hong-kong", { answer: "needs-sponsorship" })).statusCode).toBe(200);
     expect((await jobScreen()).statusCode).toBe(200);
+    expect(await postingDoors()).toEqual([200, 200, 503]);
     expect((await deck(app, cookie)).cards.length).toBeGreaterThan(0);
   });
 });

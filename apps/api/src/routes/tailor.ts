@@ -194,7 +194,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       const [confirmed, negatives, facts, blocks] = await reads(session.id);
       const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
       const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want.
-      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
+      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, facts, brought);
       if (!target)
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
@@ -234,7 +234,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           retrievalRequestForSession(session, targetConfirmed, targetNegatives),
         );
         const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want.
-        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
+        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, targetFacts, brought);
         if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         const { posting, adReq } = target;
@@ -324,7 +324,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         const [confirmed, negatives, factsBefore, blocks] = await reads(session.id);
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
         const brought = (await deps.broughtJobs?.(session.id)) ?? [];
-        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
+        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, factsBefore, brought);
         if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         const { posting, adReq } = target;
@@ -400,7 +400,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         // withdraw under the new facts but not the old. Resolution is fixture-first and cached
         // (resolveAdRequirements), the same per-posting read the deck already performs.
         const langs = readingLanguages(session);
-        const pool = eligiblePostings(langs, sessionPostings(session, fingerprint, brought));
+        const pool = eligiblePostings(langs, sessionPostings(session, fingerprint, factsAfter, brought));
         const candidates = (
           await Promise.all(
             pool.map(async (p: Posting) => {
@@ -472,7 +472,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       const [confirmed, negatives, facts, blocks] = await reads(session.id);
       const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
       const brought = (await deps.broughtJobs?.(session.id)) ?? [];
-      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
+      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, facts, brought);
       if (!target)
         return { refused: { status: 404, code: "not_found", message: "unknown card" } };
       if (findWithdrawingRequirement(target.adReq, facts, target.posting.location, brought)) {

@@ -321,11 +321,11 @@ describe("#338 the jobs gate — review completed", () => {
     // a pasted job is matched against the same unreviewed CV. Driven at the shared predicate, which
     // every reader (deck, want, tailor) composes.
     const brought = [{ posting: { id: "posting:x", title: "PM", company: "Acme", location: "Paris", keywords: [], excerpt: "", language: "en" } }] as unknown as BroughtJob[];
-    const base = { retrieval: null, discovery: { questionFloors: [], searchFamily: null, coveredItemIds: [], checkpoint: null, fallback: { declined: false, family: null } } } as unknown as Pick<SessionRecord, "retrieval" | "discovery">;
+    const base = { retrieval: null, discovery: { questionFloors: [], searchFamily: null, coveredItemIds: [], checkpoint: null, fallback: { declined: false, family: null } }, intent: { searchAreas: [] } } as unknown as Pick<SessionRecord, "retrieval" | "discovery" | "intent">;
     const proof = { outcome: "success", usefulFactCount: 1, representativeFacts: [], conflict: null } as SessionRecord["importProof"];
-    expect(sessionPostings({ ...base, importProof: proof, reviewCompletedAt: null }, "fp", brought)).toEqual([]);
-    expect(sessionPostings({ ...base, importProof: proof, reviewCompletedAt: "2026-10-06T00:00:00.000Z" }, "fp", brought)).toHaveLength(1);
-    expect(sessionPostings({ ...base, importProof: null, reviewCompletedAt: null }, "fp", brought)).toHaveLength(1);
+    expect(sessionPostings({ ...base, importProof: proof, reviewCompletedAt: null }, "fp", [], brought)).toEqual([]);
+    expect(sessionPostings({ ...base, importProof: proof, reviewCompletedAt: "2026-10-06T00:00:00.000Z" }, "fp", [], brought)).toHaveLength(1);
+    expect(sessionPostings({ ...base, importProof: null, reviewCompletedAt: null }, "fp", [], brought)).toHaveLength(1);
 
     const { app, cookie } = await withCv();
     const screen = await get(app, cookie, "/onboarding/jobs/posting:x");

@@ -1177,6 +1177,7 @@ describe("#248 a snapshot is data, not permission", () => {
   const sessionAt = (cv: { importProof: typeof PROOF | null; reviewCompletedAt: string | null }) =>
     ({
       ...cv,
+      intent: { searchAreas: [] },
       retrieval: {
         requestFingerprint: FINGERPRINT,
         recordedAt: NOW,
@@ -1199,7 +1200,7 @@ describe("#248 a snapshot is data, not permission", () => {
     }) as unknown as SessionRecord;
 
   it("keeps an unreviewed CV's snapshot out of the pool, and lets the SAME snapshot in once reviewed", () => {
-    const unreviewed = sessionPostings(sessionAt({ importProof: PROOF, reviewCompletedAt: null }), FINGERPRINT);
+    const unreviewed = sessionPostings(sessionAt({ importProof: PROOF, reviewCompletedAt: null }), FINGERPRINT, []);
     expect(unreviewed.some((posting) => posting.id === live.id)).toBe(false);
     // #63: an unearned pool is EMPTY, not the fixture pool. Falling back to the 17 hand-maintained
     // adverts was the whole defect this ticket closes - the refusal was real in the retrieval
@@ -1212,6 +1213,7 @@ describe("#248 a snapshot is data, not permission", () => {
     const reviewed = sessionPostings(
       sessionAt({ importProof: PROOF, reviewCompletedAt: NOW }),
       FINGERPRINT,
+      [],
     );
     expect(reviewed.some((posting) => posting.id === live.id)).toBe(true);
   });
@@ -1219,7 +1221,7 @@ describe("#248 a snapshot is data, not permission", () => {
   // #339: the floor checkpoint above is uncovered, and a session with no CV has nothing to review —
   // so nothing holds its snapshot back.
   it("lets an uncovered-floor snapshot into the pool for a session with no CV", () => {
-    const noCv = sessionPostings(sessionAt({ importProof: null, reviewCompletedAt: null }), FINGERPRINT);
+    const noCv = sessionPostings(sessionAt({ importProof: null, reviewCompletedAt: null }), FINGERPRINT, []);
     expect(noCv.some((posting) => posting.id === live.id)).toBe(true);
   });
 });

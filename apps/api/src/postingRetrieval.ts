@@ -63,11 +63,11 @@ export function searchFamilyOf(
 /** #338 (ADR-0016 clause 6) — the jobs wait for a completed review. A session that brought a CV
  *  (it holds an import proof, whatever the read's outcome) sees no posting until the person reached
  *  the end of "Your CV, reviewed" and confirmed it. A session with no CV has nothing to review and
- *  is not held. preview.ts's sessionPostings asks it, so every posting reader — the deck, the want
+ *  is not held. preview.ts's sessionPostings asks it (via jobsOpen), so every posting reader — the deck, the want
  *  door, the tailor target — gets it without being able to forget it. #339 removed the floor gate
  *  that sat beside it: discovery no longer asks the floor, so nothing could cover it. ADR-0018
- *  clause 7 adds work rights per target market: the doors that open jobs ask workRightsCard.ts's
- *  jobsOpen, which is this AND every market answered (it needs the eligibility facts this has not). */
+ *  clause 7 adds work rights per target market: workRightsCard.ts's jobsOpen is this AND every
+ *  market answered (it needs the eligibility facts this has not), and sessionPostings asks that. */
 export function reviewOpensJobs(session: Pick<SessionRecord, "importProof" | "reviewCompletedAt">): boolean {
   return session.importProof === null || session.reviewCompletedAt !== null;
 }

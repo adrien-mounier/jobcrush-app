@@ -496,7 +496,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
         // #305: a job he brought is in no snapshot — it is stitched in from storage (broughtJobs.ts).
         const brought = (await deps.broughtJobs?.(session.id)) ?? [];
-        const pool = sessionPostings(session, fingerprint, brought);
+        const pool = sessionPostings(session, fingerprint, facts, brought);
         const posting = eligiblePostings(langs, pool).find((p) => p.id === req.params.adId);
         const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
         // T3 (code review): guard on `posting`/`adReq` themselves, not a derived boolean, so TS

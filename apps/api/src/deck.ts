@@ -1034,6 +1034,7 @@ export async function buildDeckResponse(
     retrieval: session.retrieval,
     importProof: session.importProof,
     reviewCompletedAt: session.reviewCompletedAt,
+    intent: session.intent,
   };
   // deckRetrieval.ts returns the response snapshot and starts background work when this process owns it.
   const retrieval = deps.ensureRetrieval(session, retrievalRequest, requestFingerprint);
@@ -1050,7 +1051,7 @@ export async function buildDeckResponse(
   // the one door every posting reader passes through); buildDeckCards is told which ids they are
   // because three of its rules read the origin.
   const brought = (await deps.broughtJobs?.(session.id)) ?? [];
-  const postings = eligiblePostings(langs, sessionPostings(observed, requestFingerprint, brought));
+  const postings = eligiblePostings(langs, sessionPostings(observed, requestFingerprint, facts, brought));
   // buildDeckCards: read → delete wrong-family → withdraw → judge within the paid bound → shape +
   // order + pin. See its own doc (and judgeDeck's) for the spend-bound properties.
   const { cards, pendingCount, withdrawn, unread } = await buildDeckCards(
@@ -1207,10 +1208,13 @@ export async function tailorTarget(
   // #248: `discovery` is here because sessionPostings now reads it to answer "may she be shown
   // retrieved postings at all?" — the tailor target is one of the three doors onto that pool, and
   // widening the type is what makes it impossible for this one to skip the check.
-  session: Pick<SessionRecord, "id" | "retrieval" | "discovery" | "importProof" | "reviewCompletedAt">,
+  // ADR-0018 clause 7: `intent` + `facts` because sessionPostings holds the pool while a target
+  // market has no work-rights answer — the want door, this target and the draft refuse together.
+  session: Pick<SessionRecord, "id" | "retrieval" | "discovery" | "importProof" | "reviewCompletedAt" | "intent">,
   adId: string,
   readAd: ReadAdFn | undefined,
   requestFingerprint: string,
+  facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
   // #305: a job HE BROUGHT is never in the snapshot — it is stitched in from storage — so without this
   // the tailor target for the one kind of job that cannot drop out would be the one that 404s.
   brought: readonly BroughtJob[] = [],
@@ -1219,7 +1223,7 @@ export async function tailorTarget(
   // requirement set) this session's languages can no longer read (or never could) fails closed with
   // the existing "unknown card" 404.
   const langs = readingLanguages(session);
-  const pool = sessionPostings(session, requestFingerprint, brought);
+  const pool = sessionPostings(session, requestFingerprint, facts, brought);
   const posting = eligiblePostings(langs, pool).find((p) => p.id === adId);
   if (!posting) return null;
   // #104: a card the user can already see must be tailorable — fixture-or-reader via the same

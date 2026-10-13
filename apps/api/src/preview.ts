@@ -31,7 +31,9 @@ import { cvLanguages, isKnownLanguageName } from "./cvLanguages.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
-import { isReusableRetrievalSnapshot, reviewOpensJobs } from "./postingRetrieval.js";
+import { isReusableRetrievalSnapshot } from "./postingRetrieval.js";
+import { jobsOpen } from "./workRightsCard.js";
+import type { EligibilityFact } from "./eligibility.js";
 // #305: type-only, and it has to stay that way — broughtJobs.ts reads `Posting` from here, so a value
 // import in this direction would close a runtime cycle. TS erases this one.
 import type { BroughtJob } from "./broughtJobs.js";
@@ -118,10 +120,13 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
  * target — so a guard here cannot be forgotten by a caller, and it is what keeps #246 honest: once
  * the promise fetches at question 1, a real relevant-postings snapshot exists BEFORE she has earned
  * anything, and only this stops it becoming her deck. #339: what she earns it with is a completed
- * review (reviewOpensJobs); the floor coverage this also asked for is no longer asked of anyone. */
+ * review (reviewOpensJobs); the floor coverage this also asked for is no longer asked of anyone.
+ * ADR-0018 clause 7: and a work-rights answer for every target market (jobsOpen), read on every
+ * call — `facts` is required so no reader can skip it. */
 export function sessionPostings(
-  session: Pick<SessionRecord, "retrieval" | "importProof" | "reviewCompletedAt">,
+  session: Pick<SessionRecord, "retrieval" | "importProof" | "reviewCompletedAt" | "intent">,
   requestFingerprint: string,
+  facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
   // #305: the adverts HE BROUGHT, stitched in here — at the one door all three posting readers pass
   // through, so no caller can forget them and no caller can apply the snapshot's rules to them. They
   // are deliberately OUTSIDE both checks above: a job he pasted is his own, it was never fetched, and
@@ -139,8 +144,9 @@ export function sessionPostings(
   // #338 (ADR-0016 clause 6): the review gate is NOT the #248 gate the paragraph above bypasses. It
   // asks whether the CV the jobs are matched against has been checked, and a job he brought is
   // matched against it exactly as a fetched one is — so an unreviewed CV holds every row, his own
-  // included. The job's own screen (routes/paste.ts) refuses on the same predicate.
-  if (!reviewOpensJobs(session)) return [];
+  // included. The job's own screen (routes/paste.ts) refuses on the same predicate. ADR-0018 clause
+  // 7 holds them the same way while a target market has no work-rights answer.
+  if (!jobsOpen(session, facts)) return [];
   const retrieved = isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)
     ? retrievedPostings(session.retrieval?.result ?? null)
     : [];
