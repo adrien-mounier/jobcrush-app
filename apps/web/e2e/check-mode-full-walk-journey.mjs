@@ -500,6 +500,14 @@ try {
   await assert(tailor2.status >= 400, `the tailor holds with Hong Kong unanswered: ${tailor2.status}`);
   const draft2 = await send('POST', '/onboarding/tailor/draft');
   await assert(draft2.status >= 400, `a tailored draft is refused with Hong Kong unanswered: ${draft2.status}`);
+  // In the browser: the job she was tailoring, opened again, must send her somewhere useful — the
+  // tailor screen hands the refusal to the deck, the deck to check mode — never an error screen.
+  await qa.goto('/tailor', 'she opens the job she was tailoring');
+  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 }).catch(() => {});
+  await assert(/\/profile\/check/.test(page.url()), `the tailor screen sends her to check mode (${new URL(page.url()).pathname})`);
+  await h1.waitFor();
+  const heldText = (await page.locator('main').innerText().catch(() => '')) ?? '';
+  await assert(!/error|went wrong|couldn't|not found|try again/i.test(heldText), 'nothing on the screen reads as an error');
   await qa.goto('/profile/check', 'check mode comes back for that market');
   await h1.waitFor();
   await qa.note(`check mode shows: "${(await h1.textContent())?.trim()}"`);
@@ -508,6 +516,10 @@ try {
   await page.waitForTimeout(800);
   const c3 = (await api('/onboarding/cards')).body;
   await assert(c3?.reviewPending === undefined, `answered, the deck is open again (reviewPending ${c3?.reviewPending})`);
+  const want3 = await send('POST', `/onboarding/cards/${encodeURIComponent(adOpen)}/want`);
+  const tailor3 = await api('/onboarding/tailor');
+  const draft3 = await send('POST', '/onboarding/tailor/draft');
+  await assert(want3.status < 300 && tailor3.status === 200 && draft3.status < 300, `and the want, tailor and draft doors open again: ${want3.status} ${tailor3.status} ${draft3.status}`);
 
   // The same rule with an answer taken back ("Ask me later" on the profile's work-rights door):
   // the search does not change, so a job the deck fetched is in play too, not only one she brought.
@@ -527,9 +539,17 @@ try {
     await assert(w2.status >= 400, `the want door holds on a fetched job with Hong Kong taken back: ${w2.status}`);
     const t2 = await api('/onboarding/tailor');
     await assert(t2.status >= 400, `the tailor holds on a fetched job with Hong Kong taken back: ${t2.status}`);
+    const d2 = await send('POST', '/onboarding/tailor/draft');
+    await assert(d2.status >= 400, `a tailored draft is refused with Hong Kong taken back: ${d2.status}`);
   }
   await send('PUT', '/review/work-rights/eligibility-work-rights-hong-kong', { answer: 'eligible' });
   await assert((await api('/onboarding/cards')).body?.reviewPending === undefined, 'answered again, the deck opens');
+  if (fetched) {
+    const w5 = await send('POST', `/onboarding/cards/${encodeURIComponent(fetched)}/want`);
+    const t5 = await api('/onboarding/tailor');
+    const d5 = await send('POST', '/onboarding/tailor/draft');
+    await assert(w5.status < 300 && t5.status === 200 && d5.status < 300, `and the want, tailor and draft doors open again: ${w5.status} ${t5.status} ${d5.status}`);
+  }
 
 
   // -------------------------------------------------------------------------------------------
