@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-12 (close-session: check mode ready to build)_
+_Last updated: 2026-10-14 (check mode shipped, 482ca57)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,16 +15,15 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: build check mode** (decided 2026-10-11/12; [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)).
-The profile becomes the master CV's home and its guided **check mode** (prototype V2.1,
-`docs/design/profile-check-mode-prototype.html`) replaces "Your CV, reviewed". The jobs open once every
-screen is confirmed, every suggestion answered and work rights set. The rebuild comes **before** finishing v1.
+**Now: check mode is live** (V6b, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md);
+shipped 2026-10-14 in 482ca57, all 15 sub-issues closed; real-CV evals passed). The profile is the master CV's home; its check
+mode replaced "Your CV, reviewed"; the jobs open once every screen is confirmed, every suggestion
+answered and every market's work rights set.
 
-- **Owner: launch `/implement-spec #375`** — Fable 5.1, high (Opus 5.5, high if Fable quota is short).
-  #375 + ADR-0018 serve as the spec (no `/to-spec` was run); its 15 sub-issues are wired with blocking
-  edges: #377 the walk first, then #378–#384 with #360, #371, #373, #376, then #383, #385, #368, last
-  #386 (retire the review page). One integration branch, `/qa-gate` on its tip, then main.
-- Outside this build: #387 a fact added while tailoring joins the profile (tailoring spine).
+- **Owner: answer [#389](https://github.com/adrien-mounier/jobcrush-app/issues/389)**, the nine calls check mode left
+  open (master CV letterhead, old summary lines beside About you, copy and tag wording, the full walk in
+  CI). None blocks. Re-upload edge cases: #388.
+- Outside that build: #387 a fact added while tailoring joins the profile (tailoring spine).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
@@ -47,8 +46,8 @@ run); `/implement` is for a lone ticket. Never point `/implement` at a parent or
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
 - V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 half done (#312, #313); #314–#317 open.
-- V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page is being replaced.
-- V6b — the profile's check mode (ADR-0018, parent #375): **tickets ready**, build not started.
+- V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page was replaced by V6b.
+- V6b — the profile's check mode (ADR-0018, parent #375): **done** 2026-10-14 (482ca57).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
 - Phases 2–6 — the profile gets rich (#127), the deck gets cheap and trustworthy, the live-jobs chain (#54), where the jobs come from, the next products: **parked 2026-09-26, not cancelled** — see archive.
 

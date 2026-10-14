@@ -2,6 +2,13 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-14 — Check mode shipped: spec #375, 15 tickets (482ca57)
+
+`/implement-spec #375` built all 15 sub-issues on one branch, followed by `/code-review`, where one fix agent took the 3 standards breaches and 7 spec findings. QA was NO-GO first: an unanswered market did not hold the want, tailor and draft doors (fixed in 11b36ad). Then GO on tree 35bdff5 (full walk at 1280 and 390 px, 38/38 tier-2, 247 mocked, api 2072). Main went 0c6532b..482ca57, CI was green and staging was confirmed by /healthz.
+Paid evals on staging: 2 calls, USD 2.34. On the real CV, no removal suggested (#380 PASS), and About you has no lint issues (#371). On the DOB fixture, exactly that one line was suggested as personal data. All 15 sub-issues and #375 are closed.
+The owner calls that remain are in **#389**. Re-upload edge cases are in #388 (filed). Retired journeys: eligibility-questions and cv-languages-preticked. New: check-mode-{journey,gate-doors,work-rights-journey}, plus the QA full walk, which is committed but not in tier-2 (#389 item 9). Cleanup: 17 worktrees and every build branch deleted.
+**Next:** the owner answers #389, then Chat with JobCrush (#350) or the V6 leftovers.
+
 ## 2026-10-12 — ADR-0018 written; check mode broken into tickets #377–#387 (docs-only)
 
 ADR-0018: the profile is the master CV's home; check mode (prototype V2.1) replaces the review page; items
@@ -113,12 +120,3 @@ Defects filed: #359 (any read failure blames a scan), #360 (letterhead swallows 
 (Product Owner unplaced → no must-haves), #362 (failed review shows "0 to check"), #363 (Fly
 auto-stop kills a running review, killed call burns an attempt), #364 (unit failure reason not
 kept; SG failed first attempt twice). ~USD 2.80 spent. **Next:** #361–#364 before #344.
-
-## 2026-10-08 — #358: the two review journeys run in the tier-2 CI set (b5432c5)
-
-`drafted-lines-gate-journey.mjs` and `word-choices-journey.mjs` now run on every deploy, each with
-its "earns its slot" note. They are the only journeys that read the master CV back after the
-review's new lines are handled. Added CI time: ~3.5 min (106s + 103s locally). The QA gate caught a
-narrowing the first draft made: `qaReviewAnswer.ts` had been unmapped, so it selected every journey.
-It now sits in the shared REVIEW area, which selects all 13 review-carrying journeys. QA gate **GO**.
-Still to confirm: a green CI run with both journeys in it. **Next:** #344 (Fable).

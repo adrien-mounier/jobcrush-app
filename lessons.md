@@ -353,3 +353,10 @@ The dependency graph gives order, not collisions. Two worktrees creating the sam
 version at merge with no conflict marker (#20's whole deliverable was a file #17's AC forced into
 existence). Semantic collisions need no shared file (#26 rescoring numbers #23's tests assert). A
 blocked ticket's documented deferred limitation is often the safest parallel work.
+
+`/implement-spec` #375 (15 tickets, 2026-10-12/14) put up to nine builders on the same few check-mode
+files at once, so every merge conflicted. Bouncing each branch back to its builder cost a round trip
+per merge. It was faster for the orchestrator to resolve additive conflicts itself (union, then the
+gates) and send back only the semantic ones (two tickets each changing the same gate). Expect one
+ticket that reshapes a shared screen (#376 removed the discovery screen's only question) to break
+journeys across the set. Give that kind of ticket its own wave.
