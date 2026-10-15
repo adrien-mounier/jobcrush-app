@@ -905,6 +905,37 @@ test.describe("#371 About you", () => {
     await expect(items(page)).toHaveCount(0);
     await expect(tray(page)).toHaveCount(1);
   });
+
+  // #391 (owner, #371 option a): saving About you moved the CV's own summary lines to the removed
+  // list (the server holds them `kept`). The screen lists them under "N removed · Show", each one
+  // tap from Put back — never as items beside the text, never gone.
+  test("the CV's old summary lines that stepped aside list under the removed count on the About you screen, and Put back restores one", async ({ page }) => {
+    const steppedAside: ReviewState = {
+      ...WITH_ABOUT,
+      sections: REVIEW.sections.map((s) =>
+        s.tag === "profile" ? { ...s, lines: [line("p1", "Delivery-accountable project manager.", { state: "kept" }), line("p2", "Ten years in retail IT.", { state: "kept" })] } : s,
+      ),
+    };
+    const { calls } = await stubReview(page, steppedAside);
+    await page.goto("/profile/check");
+    await primary(page).click();
+    await expect(heading(page)).toHaveText("About you");
+    await expect(card(page).locator(".about")).toHaveText(ABOUT.text);
+    await expect(items(page)).toHaveCount(0); // the old lines are not items beside the text
+    const count = tray(page).getByRole("button", { expanded: false });
+    await expect(count).toHaveText("2 removed · Show");
+    await count.click();
+    await expect(tray(page).locator("s")).toHaveText(["Delivery-accountable project manager.", "Ten years in retail IT."]);
+    await tray(page).locator("li").first().locator("button").click(); // Put back
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/p1", body: { state: "ticked" } });
+    await expect(tray(page).locator("s")).toHaveText(["Ten years in retail IT."]);
+    await expect(tray(page).getByRole("button", { expanded: true })).toHaveText("1 removed · Hide");
+    // A put-back summary line is in again — it is not drawn as an item on this screen either (the
+    // screen is the text), and the footer still only keeps the text.
+    await expect(items(page)).toHaveCount(0);
+    await primary(page).click();
+    expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/review/about", body: { text: ABOUT.text } });
+  });
 });
 
 // #384: the review's spelling fixes in check mode (ADR-0016 clause 2, kept by ADR-0018). A fix stays
@@ -1200,14 +1231,20 @@ test.describe("#368 the source names the job its quote came from", () => {
     state: "drafted",
     draft: { mustHave: null, quote: "Kept a release calendar.", source: null, flags: ["INDUSTRY GUESS"], vague: [] },
   });
+  // #391: a quote from the summary is named by the screen's title for it, "About you" — the server
+  // sends that name; the card prints it as it prints a job's.
+  const FROM_SUMMARY = line("draft-nrg-3", "Delivery-accountable across three vendor teams.", {
+    state: "drafted",
+    draft: { mustHave: null, quote: "Delivery-accountable project manager.", source: "About you", flags: ["OPTIONAL"], vague: [] },
+  });
   const WITH_SOURCES: ReviewState = {
     ...REVIEW,
     sections: REVIEW.sections.map((s) =>
-      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, family: "IT Project Manager", lines: [...j.lines, FROM_BSH, PLACED_NOWHERE] } : j)) } : s,
+      "jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, family: "IT Project Manager", lines: [...j.lines, FROM_BSH, PLACED_NOWHERE, FROM_SUMMARY] } : j)) } : s,
     ),
   };
 
-  test("a quote from another job names that job beside the quote; a quote placed nowhere shows the quote alone", async ({ page }) => {
+  test("a quote from another job names that job beside the quote; a quote placed nowhere shows the quote alone; a quote from the summary reads \"From your CV (About you)\"", async ({ page }) => {
     await stubReview(page, WITH_SOURCES);
     await page.goto("/profile/check");
     await primary(page).click();
@@ -1220,6 +1257,8 @@ test.describe("#368 the source names the job its quote came from", () => {
     await expect(source(1).locator("q")).toHaveText(PLACED_NOWHERE.draft!.quote!);
     await expect(source(1)).not.toContainText("Baltic Software House");
     await expect(source(1)).not.toContainText("Nordic Retail Group");
+    await expect(source(2)).toHaveText(`From your CV (About you): ${FROM_SUMMARY.draft!.quote!}`); // #391: the exact string, pinned
+    await expect(source(2)).not.toContainText("Professional Summary");
   });
 });
 

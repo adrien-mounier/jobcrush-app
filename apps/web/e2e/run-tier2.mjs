@@ -261,6 +261,17 @@ export const JOURNEYS = [
   // work rights nowhere), and puts the knob back when it finishes. ~3 min; TWO magic-link sign-ins
   // (the yes path and the no path are different people by design).
   "asked-once-journey.mjs",
+  // #391 (left by #375's whole-spec QA gate, adopted on the owner's call in #389 item 9): the ONLY
+  // journey that walks EVERY check-mode screen as a person does and then reads the result back off
+  // the real stack — Your details' fields, About you edited, each job's add / removal suggestions
+  // answered both ways with Undo, ⊖ and Put back, ✎, the Skills rename, Languages, Where you can
+  // work holding the finish — then the done screen's counts against the server, the deck, the
+  // master CV (removed and dismissed never print; added and edited words do), a re-upload of the
+  // same CV, and the work-rights rule after the finish. check-mode-journey.mjs walks the run and
+  // the gate; this one is the screens' own contract, and it is what found the three deviations
+  // #389 records. Runs at 1280 here (QA_WIDTH=390 is the gate's own second pass). Measured
+  // 2026-10-14: ~2 min, one magic-link sign-in.
+  "check-mode-full-walk-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

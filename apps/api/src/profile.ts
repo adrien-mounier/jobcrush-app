@@ -12,7 +12,7 @@ import { buildClaimGraph, kindTag } from "./graph.js";
 import { renderRootCv, SECTIONS } from "./rootcv.js";
 import { isUnaddedDraft, prints, type ClaimRecord, type ClaimStore } from "./claims.js";
 import { CONTACT_FIELDS, EMPTY_CONTACT_RECORD, type ContactField, type ContactRecord, type ContactStore } from "./contact.js";
-import { fixOf, lineMarks, type ReviewFix } from "./cvReview.js";
+import { ABOUT_YOU_HEADING, fixOf, lineMarks, type ReviewFix } from "./cvReview.js";
 import type { CvReviewStore, ResolvedFix } from "./cvReviewStore.js";
 import { factCount } from "./discovery.js";
 import type { EligibilityStore } from "./eligibility.js";
@@ -56,7 +56,6 @@ export interface ProfileFact {
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
 // that heading still prints on the root CV itself.
 const PROFILE_TAG = "profile";
-const ABOUT_YOU_HEADING = "About you";
 export interface ProfileDomain {
   tag: string;
   heading: string;
