@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-15 (#389 built: #390 Preview as CV, #391 follow-ups shipped)_
+_Last updated: 2026-10-15 (#387 shipped: a fact added while tailoring joins the profile)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -26,8 +26,9 @@ answered and every market's work rights set.
   Owner-pending calls are commented on #389. Re-upload edge cases: #388.
 - **Owner staging feedback (2026-10-15):** #392 live job counter during loading (`/implement 392`, Opus 5.5, medium) ·
   #393 tools from a job show under a fake "Skills" group (`/implement 393`, Fable 5.1, high).
-- **Next build: #387** a fact added while tailoring joins the profile (tailoring spine) — a lone ticket:
-  `/implement #387` (Fable 5.1, high).
+- ~~#387 a fact added while tailoring joins the profile (tailoring spine)~~ — **shipped 2026-10-15**
+  (eb977f1, GO on tree 0737687). A stretch still cannot join: no screen approves one yet, and the draft
+  never writes to the profile (test-guarded).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 

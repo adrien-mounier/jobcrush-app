@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-15 — #387 shipped: a fact added while tailoring joins the profile (eb977f1)
+
+`/implement #387` (ADR-0018 clause 9). The tailor screen's "Yes" already wrote a fact; it now carries the requirement's section and the job it was added for, so the profile lists it under Experience/Skills/Education/About you wearing "Added while tailoring for <title> at <company>" (row, chip, detail sheet). A "No" never shows; the next job's questions and draft use it like any fact. No screen approves a stretch today, so AC2 is proven only by "the draft writes nothing to the profile" (test guards it). `/code-review`: no hard findings; stale comments, a draft-level AC3 test and the detail-sheet line fixed. QA was NO-GO first: check mode invented a job headed "profile" for the joined Experience fact (D1) — fixed in readPaper (listed with About you; the profile page gives it no employer block). GO on tree 0737687: api 2096, typecheck 7/7, new journey 21/21, check-mode 80/80, full walk 126/126, profile+check-mode specs 130/130. Tier 2 gains `tailoring-fact-joins-profile-journey.mjs` (QA-gate-born). Edge cases the gate noted, not blockers: a summary-section "Yes" files under About you and an About you save would step it aside (Put back one tap away); a review run after tailoring would read the answer as CV summary text.
+**Next:** Chat with JobCrush (#350), or the owner's staging feedback (#392, #393).
+
 ## 2026-10-15 — Owner staging feedback filed: #392 job counter, #393 fake "Skills" group
 
 Owner uploaded the AI-transformation-lead CV on staging. Two remarks → tickets, no code. #392: the standalone "N new jobs are open" step goes; owner decision: the count becomes a live counter that climbs during the loading wait, and must count the same jobs the deck shows (the #246 trap) or not show. #393: Salesforce CRM and JIRA sat under a sub-group named "Skills" inside Skills. Probable cause: tools moved out of a job (#383 `moveTools`) keep the internal fallback group, and the group-naming step only covers skills ungrouped before the move.
@@ -98,14 +103,3 @@ QA gate **GO**: API 1958, review.spec 20/20, journeys cv-review 83/83 + new
 `review-unchecked-counter-journey.mjs` 10/10 (not in CI's tier2 lists yet), reopen on real PG17. CI
 green on a side branch before main was pushed. Old run `53729e1f…` will now retry on its next open.
 Open: heading "Your CV, reviewed" on an unchecked CV (owner's call). **Next:** #361 → #360 → #359.
-
-## 2026-10-09 — #364: a review unit keeps why its last attempt failed (b0d1024)
-
-Each `cv_review_units` row gains `last_error` (message + `cause`, capped 2000, ops-only, added on boot).
-QA gate **GO** (gates-only: API 1954, migration on real PG16). SG cause, from the staging DB: the failed
-attempt left no usage-ledger row, so its API call never returned (not the model's answer, not the
-600 s deadline). Evidence on #364, closed on the owner's OK. The owner's next real upload (04:22Z)
-settled it: every job answered first try with the keep-alive holding, so #365 closed as the #363 stop.
-Its "no fixes, no drafts" checked: no typos in the CV; BRED/SG complete by design; Okoone is #361.
-Old run `53729e1f…` still reads unfinished (opening it would pay ~2 Fable calls).
-**Next:** #362 (owner running it in another session), then #361 → #360 → #359.
