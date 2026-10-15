@@ -483,7 +483,7 @@ function WorkHistoryDoor() {
 function CvPreviewDoor({ hold }: { hold: string | null }) {
   if (hold === null)
     return (
-      <Link className="review-door" href="/profile/preview">
+      <Link className="review-door preview-door" href="/profile/preview">
         {P31}
       </Link>
     );

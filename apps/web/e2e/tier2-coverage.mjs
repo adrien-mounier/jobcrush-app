@@ -393,6 +393,19 @@ export const COVERAGE = {
     AUTH,
     PROFILE,
   ),
+  // #390: Preview as CV over the real stack — two CVs through the front door, check mode finished
+  // over the wire, Your details saved and changed through the contact route, the profile's door,
+  // the preview routes and screen (PROFILE), the tailor and renderer behind them (TAILOR), the
+  // sign-in it mints. tailorDraft.ts / tailorExport.ts / documentMaker.ts stay unmapped on purpose:
+  // mapping them here alone would let a change to them skip the tailor journeys that ride them too.
+  "cv-preview-journey.mjs": union(
+    CV_INTAKE,
+    REVIEW,
+    PROFILE,
+    TAILOR,
+    AUTH,
+    ["apps/api/src/contact.ts", "apps/api/src/routes/contact.ts"],
+  ),
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),
   // #116: CV upload → discovery → the held deck; arms qa-main's readDelayMs for its own run.

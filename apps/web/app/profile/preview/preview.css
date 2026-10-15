@@ -1,9 +1,22 @@
 /* #390 Preview as CV — a dark-room screen holding one sheet of paper (the server's render). The
    wait and failure types mirror the tailor ending's draft block (tailor.css) at the same steps. */
 .cvpreview {
+  /* The dark-room tokens, scoped here like check.css scopes its own: deck.css defines them only on
+     .jobdeck, which this page is not (it scrolls; .jobdeck is a fixed full-screen frame). */
+  --hud-0: #101419;
+  --hud-line: #2b333d;
+  --hud-ink: #e8eaed;
+  --hud-mute: #7f8b98;
+  --gold: #e8a33d;
+  --sans:
+    "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
+    sans-serif;
+
   min-height: 100dvh;
   padding: 10px 16px 32px;
+  background: var(--hud-0);
   color: var(--hud-ink);
+  font-family: var(--sans);
 }
 .cvpreview .topbar {
   display: flex;

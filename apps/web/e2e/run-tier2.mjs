@@ -272,6 +272,15 @@ export const JOURNEYS = [
   // #389 records. Runs at 1280 here (QA_WIDTH=390 is the gate's own second pass). Measured
   // 2026-10-14: ~2 min, one magic-link sign-in.
   "check-mode-full-walk-journey.mjs",
+  // #390 (left by #389's whole-spec QA gate): Preview as CV over the real stack — the door held
+  // while check mode is open and when the profile has no job, the wait, the CV drawn with the saved
+  // letterhead and its job named, a real PDF download, a second open spending nothing, a changed
+  // Your details remaking it once, and a download refused in the server's words. It earns its slot
+  // because cv-preview.spec.ts mocks every server answer: this is the ONLY flow that runs the
+  // route, the stored copy and the document maker behind it, and the only one that checks the two
+  // doors stand apart and the page carries its own theme (the gate's two findings). Measured
+  // 2026-10-15: ~1 min, two front-door pastes, one magic-link sign-in.
+  "cv-preview-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

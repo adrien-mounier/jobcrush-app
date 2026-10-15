@@ -138,6 +138,11 @@
 .profile .review-door:hover {
   text-decoration: underline;
 }
+/* #390 the Preview as CV door stands on its own line under Check your CV (the QA gate found the two
+   doors glued into one run of text). */
+.profile .preview-door {
+  display: block;
+}
 /* #390 the Preview as CV door, held: greyed, reachable, does nothing; the server's one line beside it. */
 .profile .review-door-held {
   margin: 0 0 6px;
