@@ -238,6 +238,7 @@ function DetailBody({ fact }: { fact: ProfileFact }) {
         {on ? P21 : P22}
       </p>
       {fact.job !== null && <p className="dctx">{fact.job}</p>}
+      {fact.addedFor && <p className="dctx">{addedCopy(fact.addedFor)}</p>}
       <p className="txt">{fact.text}</p>
       <p className="src">
         {!on && greyDetailCaption(fact)}
@@ -256,6 +257,12 @@ function FixedTag({ fact }: { fact: ProfileFact }) {
 // #371/#383 — a fact the review moved, or a tool it copied, wears where it came from, as in check mode.
 function MovedTag({ fact }: { fact: ProfileFact }) {
   return fact.movedFrom ? <span className="tag moved">{movedCopy(fact.movedFrom, fact.copied)}</span> : null;
+}
+// #387 (ADR-0018 clause 9) — a fact added while tailoring for a job wears that job: it joined the
+// profile from there, and the next application can use it like any other fact.
+const addedCopy = (job: string) => `Added while tailoring for ${job}`;
+function AddedTag({ fact }: { fact: ProfileFact }) {
+  return fact.addedFor ? <span className="tag added">{addedCopy(fact.addedFor)}</span> : null;
 }
 
 // #379 (ADR-0018 clause 2) — a fact's words, edited in place from its detail: the same door as check
@@ -368,6 +375,7 @@ function FactRow({
       <span className="ftxt">
         {fact.text}
         <MovedTag fact={fact} />
+        <AddedTag fact={fact} />
         <FixedTag fact={fact} />
       </span>
     </button>
@@ -399,6 +407,7 @@ function ChipButton({
     >
       {chipText(fact.text)}
       <MovedTag fact={fact} />
+      <AddedTag fact={fact} />
       <FixedTag fact={fact} />
     </button>
   );

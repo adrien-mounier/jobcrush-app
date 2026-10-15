@@ -199,6 +199,24 @@ describe("#338 the paper", () => {
   });
 });
 
+// #387 (QA gate D1): a fact added while tailoring sits in Experience with no job of its own (role
+// "profile"). Check mode never invents a job headed "profile" for it — it is listed with About you.
+describe("#387 a joined tailoring fact is no job of its own in check mode", () => {
+  it("lists it with About you, and the paper's jobs are the CV's own", async () => {
+    const { app, cookie, sessionId, server } = await withCv();
+    await server.claims.add(sessionId, {
+      ...claim({ id: "tailor-acme-own-budget", text: "Own a project budget with vendor oversight." }),
+      role: "profile",
+      section: "experience",
+      addedFor: "Senior Project Manager at Acme",
+    });
+    const state = await review(app, cookie);
+    expect(jobsOf(state).map((j) => j.employer)).toEqual(["Nordic Retail Group", "Baltic Software House"]);
+    expect(jobsOf(state).flatMap((j) => j.lines.map((l) => l.id))).not.toContain("tailor-acme-own-budget");
+    expect(linesOf(state, "profile").map((l) => l.id)).toContain("tailor-acme-own-budget");
+  });
+});
+
 describe("#338 the end date, asked on the job's own card", () => {
   it("a job with no end date asks for it there, and nowhere in discovery", async () => {
     const { app, cookie } = await withCv();

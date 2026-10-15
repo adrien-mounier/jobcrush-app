@@ -52,12 +52,14 @@ import type { AuthStore } from "../auth.js";
 import type { Mailer } from "../mailer.js";
 import type { DocumentMaker } from "../documentMaker.js";
 import {
+  addedForLabel,
   advertDeniedRows,
   composeGrownLine,
   composeTailorLine,
   growSinceYear,
   grownTailorClaimId,
   tailorClaimId,
+  tailorSectionTag,
   userAnswerClaim,
 } from "../tailor.js";
 import {
@@ -267,6 +269,10 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         // had it and never prints a date he never gave. Refused (fail-closed, like the unknown-
         // requirement 404 above) unless a stored denial actually names this requirement — the only
         // rows that carry the door.
+        // #387 (ADR-0018 clause 9): a true fact added here joins the profile — in the requirement's
+        // own section, wearing this job — so the next application can use it. Whether it prints is
+        // still decided per job ad (ADR-0007). A "No" carries no such fields: it is no fact.
+        const joins = { section: tailorSectionTag(requirement), addedFor: addedForLabel(posting) };
         const sinceYear = growSinceYear(req.body.answer);
         if (sinceYear !== null) {
           const denied = advertDeniedRows(adReq, targetConfirmed, targetNegatives);
@@ -280,6 +286,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
               grownTailorClaimId(adReq.adId, requirement.id),
               composeGrownLine(requirement, sinceYear),
               req.body.answer,
+              joins,
             ),
           );
         } else {
@@ -288,6 +295,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
             tailorClaimId(adReq.adId, requirement.id),
             no ? `Not applicable — ${requirement.requirement}` : composeTailorLine(requirement, req.body.answer),
             req.body.answer,
+            no ? undefined : joins,
           );
           if (no) await deps.claims.answerNegative(session.id, claim);
           else await deps.claims.add(session.id, claim);

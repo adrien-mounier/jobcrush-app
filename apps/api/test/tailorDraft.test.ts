@@ -360,3 +360,50 @@ describe("#311 the never-print list is session-wide, not advert-scoped", () => {
     expect(prompts[0]).not.toContain("Not applicable —");
   });
 });
+
+// #387 / ADR-0005: the draft — whatever it softened, stretched or invented for THIS job — belongs to
+// this job alone. It writes nothing to the profile: the claims store is byte-identical after a draft.
+describe("#387 a stretch never joins the profile", () => {
+  it("drafting leaves the claims store untouched, and the profile wears no 'added for' fact", async () => {
+    const { llm } = draftingLlm();
+    const { app, claims } = buildServer({ tailorLlm: llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "draft-never-joins@example.com");
+    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+    const before = await claims.list(sessionId);
+
+    const { jobId } = (await post(app, cookie, "/onboarding/tailor/draft")).json();
+    expect((await awaitJob(app, cookie, jobId)).status).toBe("completed");
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(200);
+
+    expect(await claims.list(sessionId)).toEqual(before);
+    const profile = (await get(app, cookie, "/profile")).json();
+    const facts = profile.domains.flatMap((d: { facts: Array<{ addedFor?: string }> }) => d.facts);
+    expect(facts.some((f: { addedFor?: string }) => f.addedFor)).toBe(false);
+  });
+});
+
+// #387 AC3 at the draft level: a fact added while tailoring ONE job rides into the NEXT job's draft
+// like any other confirmed fact — the engine is given the whole profile, and the joined fact is in it.
+describe("#387 the joined fact reaches the next job's draft", () => {
+  it("a 'Yes' on job A is among the claims the draft for job B is written from", async () => {
+    const { prompts, llm } = draftingLlm();
+    const { app, claims } = buildServer({ tailorLlm: llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "joined-fact-next-draft@example.com");
+    const q = (await get(app, cookie, "/onboarding/tailor")).json().questions[0];
+    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
+    const adReq = loadAdRequirements(FIXTURE_AD_ID);
+    const joinedLine = `${adReq.requirements.find((r) => r.id === q.requirementId)!.requirement}.`;
+    await post(app, cookie, "/onboarding/tailor/drop");
+
+    const other = (await get(app, cookie, "/onboarding/cards")).json().cards.find(
+      (c: { adId: string }) => c.adId !== VALID_AD_ID,
+    );
+    expect((await post(app, cookie, `/onboarding/cards/${other.adId}/want`)).statusCode).toBe(200);
+    const { jobId } = (await post(app, cookie, "/onboarding/tailor/draft")).json();
+    expect((await awaitJob(app, cookie, jobId)).status).toBe("completed");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain(joinedLine);
+  });
+});

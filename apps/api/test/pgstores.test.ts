@@ -935,6 +935,20 @@ for (const [name, make] of claimDrivers) {
       expect(c!.copied ?? false).toBe(false);
     });
 
+    // #387 (ADR-0018 clause 9): a fact added while tailoring joins the profile in its section,
+    // wearing the job it was added for. add() takes both at the first write; a correction (the
+    // same id re-added) keeps them; a plain add reads neither on both drivers.
+    it("add records the section and the job a tailoring fact was added for; a correction keeps them; a plain add reads neither", async () => {
+      await store.add(sid, { ...claim({ id: "tailor-x-own-budget", text: "Own a project budget." }), section: "skill", addedFor: "PM at Acme" });
+      await store.add(sid, claim({ id: "plain" }));
+      const [joined, plain] = await store.confirmed(sid);
+      expect(joined).toMatchObject({ id: "tailor-x-own-budget", section: "skill", addedFor: "PM at Acme", decision: "confirmed", origin: "user-authored" });
+      expect(plain!.section ?? null).toBeNull();
+      expect(plain!.addedFor ?? null).toBeNull();
+      await store.add(sid, claim({ id: "tailor-x-own-budget", text: "Corrected." }));
+      expect((await store.confirmed(sid))[0]).toMatchObject({ text: "Corrected.", section: "skill", addedFor: "PM at Acme" });
+    });
+
     // #379 (ADR-0018 clause 2) — the person's own words on an item, in place: edit() keeps the first
     // original once (a second edit never overwrites it), records the words as theirs, and leaves the
     // tick alone — a removed item stays removed. Lines never edited read a null original on both

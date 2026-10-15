@@ -40,7 +40,8 @@ const RISK_BY_CLASS: Record<CandidateClaim["classification"], ClaimNode["risk"]>
 /** The claim-miner prompt's rule-8 kind prefixes — also the ids miner.ts treats as repeatable. */
 export const KIND_PREFIXES: ReadonlySet<string> = new Set(["cert", "lang", "skill", "edu", "project", "additional"]);
 // #371: a line the review moved to the section a reader expects (ADR-0018 clause 6) carries that
-// section on the record (claims.ts `section`), which wins over the id prefix.
+// section on the record (claims.ts `section`), which wins over the id prefix. #387: so does a fact
+// added while tailoring (its requirement's own section).
 export function kindTag(claim: CandidateClaim & { section?: string | null }): string {
   if (claim.section) return claim.section;
   const prefix = claim.id.split("-", 1)[0] ?? "";

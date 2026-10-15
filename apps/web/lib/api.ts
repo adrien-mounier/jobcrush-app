@@ -595,6 +595,9 @@ export interface ProfileFact {
   // achievement — worn as check mode wears them. Both absent on a fact that never moved.
   movedFrom?: string;
   copied?: true;
+  // #387: the job this fact was added while tailoring for ("<title> at <company>"), worn as a tag.
+  // Absent on every fact that arrived any other way.
+  addedFor?: string;
 }
 
 export interface ProfileDomain {

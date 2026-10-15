@@ -406,6 +406,9 @@ export const COVERAGE = {
     AUTH,
     ["apps/api/src/contact.ts", "apps/api/src/routes/contact.ts"],
   ),
+  // #387: the tailor write, then the profile and check mode reading it — every surface the joined
+  // fact crosses (claims, graph's kind tag, cvReview's paper are in TAILOR/REVIEW already).
+  "tailoring-fact-joins-profile-journey.mjs": union(CV_INTAKE, REVIEW, PROFILE, TAILOR, AUTH, DECK),
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),
   // #116: CV upload → discovery → the held deck; arms qa-main's readDelayMs for its own run.

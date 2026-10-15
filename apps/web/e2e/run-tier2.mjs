@@ -281,6 +281,10 @@ export const JOURNEYS = [
   // doors stand apart and the page carries its own theme (the gate's two findings). Measured
   // 2026-10-15: ~1 min, two front-door pastes, one magic-link sign-in.
   "cv-preview-journey.mjs",
+  // #387: a "Yes" at tailoring joins the profile in its section, wearing the job, and check mode
+  // invents no job for it. profile.spec.ts mocks the payload; this is the only flow that runs the
+  // tailor write and both readers (profile, check mode) together. QA-gate-born, 2026-10-15.
+  "tailoring-fact-joins-profile-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

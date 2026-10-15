@@ -23,6 +23,7 @@ import {
   tailorClaimId,
   tailorCvLines,
   tailorQuestions,
+  tailorSectionTag,
 } from "../src/tailor.js";
 import { DECLINE_OPTION, eligibilityCandidates } from "../src/eligibilityDiscovery.js";
 import { ANY_FAMILY } from "../src/eligibility.js";
@@ -286,6 +287,24 @@ describe("#23 tailorCvLines — B2: a confirmed tailor answer becomes a CV line"
 
   it("a negative produces no CV line, and an unanswered requirement produces none either", () => {
     expect(tailorCvLines(AD, [])).toEqual([]);
+  });
+});
+
+// #387 (ADR-0018 clause 9): a fact added while tailoring joins the profile, in its section.
+describe("#387 tailorSectionTag — the profile section a tailoring fact joins", () => {
+  it("maps the requirement's cvSection to the profile's own section tag; experience when it has none", () => {
+    expect(tailorSectionTag(OWN_BUDGET)).toBe("experience");
+    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "experience" })).toBe("experience");
+    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "skills" })).toBe("skill");
+    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "education" })).toBe("edu");
+    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "summary" })).toBe("profile");
+  });
+});
+
+describe("#387 the joined fact is used by the next tailoring like any other item (AC3)", () => {
+  it("a fact answered for ANOTHER job covers this job's requirement — never re-asked", () => {
+    const joined = claimFor("some-other-ad", OWN_BUDGET, "Yes", "confirmed");
+    expect(tailorQuestions(AD, [joined], []).map((q) => q.requirementId)).toEqual(["lead-team", "certification"]);
   });
 });
 
@@ -1174,5 +1193,38 @@ describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe("invalid_answer");
+  });
+});
+
+// #387 (ADR-0018 clause 9): a true fact added while tailoring joins the profile — in its section,
+// wearing the job it was added for — so the next application can use it. A "No" is no fact and
+// never shows (the profile never lists what the person lacks).
+describe("#387 a fact added while tailoring joins the profile", () => {
+  it("a 'Yes' lands on the profile in its section, wearing the job it was added for; a 'No' never shows", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "joins-profile@example.com");
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    const [yes, no] = state.questions as Array<{ requirementId: string; question: string }>;
+    expect((await post(app, cookie, "/onboarding/tailor/answer", { requirementId: yes.requirementId, answer: "Yes" })).statusCode).toBe(200);
+    expect((await post(app, cookie, "/onboarding/tailor/answer", { requirementId: no.requirementId, answer: "No" })).statusCode).toBe(200);
+
+    const profile = (await get(app, cookie, "/profile")).json();
+    const facts = profile.domains.flatMap((d: { tag: string; facts: Array<Record<string, unknown>> }) =>
+      d.facts.map((f) => ({ ...f, domain: d.tag })),
+    );
+    const adReq = loadAdRequirements(FIXTURE_AD_ID);
+    const yesReq = adReq.requirements.find((r) => r.id === yes.requirementId)!;
+    const noReq = adReq.requirements.find((r) => r.id === no.requirementId)!;
+    const joined = facts.filter((f: { addedFor?: string }) => f.addedFor);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]).toMatchObject({
+      text: `${yesReq.requirement}.`,
+      domain: tailorSectionTag(yesReq),
+      source: "told",
+      job: null, // not a job line of the CV: no employer heading is invented for it
+      addedFor: `${state.card.title} at ${state.card.company}`,
+    });
+    expect(facts.some((f: { text: string }) => f.text.includes(noReq.requirement))).toBe(false);
   });
 });

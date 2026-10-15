@@ -2207,6 +2207,37 @@ test("#383: moved and copied facts wear where they came from on the profile; a f
   await expect(page.locator(".frow .tag")).toHaveCount(0);
 });
 
+// #387 (ADR-0018 clause 9): a fact added while tailoring for a job wears that job on the profile —
+// a row in Experience and a chip in Skills alike; every other fact wears nothing.
+test("#387: a fact added while tailoring wears the job it was added for; other facts wear no tag", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        ...PROFILE.domains[0]!,
+        facts: [
+          ...PROFILE.domains[0]!.facts,
+          { id: "tailor-acme-own-budget", text: "Own a project budget with vendor oversight.", colour: "grey", source: "told", job: null, addedFor: "Senior Project Manager at Endava" },
+        ],
+      },
+      {
+        ...PROFILE.domains[1]!,
+        facts: [
+          PROFILE.domains[1]!.facts[0]!,
+          { id: "tailor-acme-jira", text: "JIRA", colour: "grey", source: "told", job: null, addedFor: "Senior Project Manager at Endava" },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await expect(page.locator(".frow", { hasText: "Own a project budget" }).locator(".tag.added")).toHaveText("Added while tailoring for Senior Project Manager at Endava");
+  await expect(page.locator(".fact", { hasText: "JIRA" }).locator(".tag.added")).toHaveText("Added while tailoring for Senior Project Manager at Endava");
+  await expect(page.locator(".tag.added")).toHaveCount(2);
+  await expect(page.locator(".frow", { hasText: "Managed a team of six" }).locator(".tag")).toHaveCount(0);
+});
+
 // #379 (ADR-0018 clause 2): after check mode, an item's words are edited in place from its detail —
 // the same door check mode's ✎ uses. Save sends the trimmed words and the profile re-reads them;
 // Cancel sends nothing; empty words are never sent. Selected by structure, not copy.

@@ -269,7 +269,12 @@ export async function readPaper(deps: PaperDeps, sessionId: string): Promise<Pap
   const visible = claims.filter(onPaper).sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
   const byTag = new Map<string, ClaimRecord[]>();
   for (const c of visible) {
-    const tag = kindTag(c);
+    // #387: a fact added while tailoring sits in Experience on the profile, with no job of its own
+    // (role "profile", the no-job sentinel kindTag reads). Check mode walks Experience job by job, so
+    // here it is listed with About you, as every no-job line was before — never as a job headed
+    // "profile", which the review run would then review as one (QA gate D1).
+    const kind = kindTag(c);
+    const tag = kind === "experience" && c.role === "profile" ? "profile" : kind;
     byTag.set(tag, [...(byTag.get(tag) ?? []), c]);
   }
   const field = (v: ContactValue | null): ReviewLetterheadField | null =>

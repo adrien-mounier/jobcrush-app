@@ -53,6 +53,9 @@ export interface ProfileFact {
    *  from") rather than moved. Both absent on a line that never moved. */
   movedFrom?: string;
   copied?: true;
+  /** #387 (ADR-0018 clause 9): the job this fact was added while tailoring for ("<title> at
+   *  <company>"), worn as a tag. Absent on every fact that arrived any other way. */
+  addedFor?: string;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -274,12 +277,15 @@ export function buildProfileState(
       text: c.text,
       colour: goldIds.has(c.id) ? "gold" : "grey",
       source: c.origin === "mined" ? "read" : "told",
-      job: tag === "experience" ? c.role : null,
+      // #387: a fact with no job line of its own (role "profile" — a tailoring answer landed in
+      // Experience) heads no employer block; kindTag reads that role the same way.
+      job: tag === "experience" && c.role !== PROFILE_TAG ? c.role : null,
       kept: c.lineState === "kept" || undefined,
       fix: fixOf(c.text, fixes.get(c.id)) ?? undefined,
       group: tag === "skill" ? groupOf(c) : undefined,
       movedFrom: c.movedFrom ?? undefined,
       copied: c.copied || undefined,
+      addedFor: c.addedFor ?? undefined,
     });
     byTag.set(tag, bucket);
   }

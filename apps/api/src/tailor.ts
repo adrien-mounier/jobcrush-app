@@ -2,8 +2,8 @@
 // template, the composed CV line, and the ledger derivation. Same split as discovery.ts: this module
 // holds pure helpers; the route (routes/onboarding.ts, alongside buildJobCard) does the I/O and
 // assembles these into TailorState.
-import type { AdRequirementV1, AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
-import type { ClaimRecord } from "./claims.js";
+import type { AdRequirementV1, AdRequirementsV1, CvSection } from "@jobcrush/contracts";
+import type { ClaimRecord, SeedClaim } from "./claims.js";
 import { anyClauseAsked, BAND_WEIGHT, phraseStated, textTokens, uncoveredRequirements } from "./matchtick.js";
 import { excludingEligibility } from "./eligibilityDiscovery.js";
 import { freeTextLine, type DiscoveryCvLine } from "./discovery.js";
@@ -88,8 +88,16 @@ const isAnswerClaimId = (claimId: string, adId: string, requirementId: string): 
   claimId === tailorClaimId(adId, requirementId) || claimId === grownTailorClaimId(adId, requirementId);
 
 /** One user-answered tailor claim, fully shaped — the route's two write branches (plain answer,
- *  grow) differ only in id and text, and the claim composition belongs here, not in the route. */
-export function userAnswerClaim(id: string, text: string, sourceQuote: string): CandidateClaim {
+ *  grow) differ only in id and text, and the claim composition belongs here, not in the route.
+ *  #387 (ADR-0018 clause 9): a "Yes" passes `joins` — the profile section the fact lands in and the
+ *  job it was added for — so the fact joins the profile for the next application; a "No" passes
+ *  nothing (it is no fact, and the profile never lists what the person lacks). */
+export function userAnswerClaim(
+  id: string,
+  text: string,
+  sourceQuote: string,
+  joins?: { section: string; addedFor: string },
+): SeedClaim {
   return {
     id,
     semantic_key: id,
@@ -103,8 +111,18 @@ export function userAnswerClaim(id: string, text: string, sourceQuote: string): 
     source_quote: sourceQuote.slice(0, 200),
     needs_grill: false,
     grill_hint: null,
+    ...joins,
   };
 }
+
+/** #387: the profile section (a graph.ts kind tag) a tailoring fact joins — the requirement's own
+ *  cvSection, in the profile's vocabulary; experience when it carries none, as tailorCvLines falls
+ *  back. The contract's four sections are mapped by name, so a fifth would fail typecheck here. */
+const SECTION_TAG: Record<CvSection, string> = { summary: "profile", experience: "experience", skills: "skill", education: "edu" };
+export const tailorSectionTag = (req: AdRequirementV1): string => SECTION_TAG[req.cvSection ?? "experience"];
+
+/** #387: what a joined fact wears on the profile — the job it was added while tailoring for. */
+export const addedForLabel = (posting: { title: string; company: string }): string => `${posting.title} at ${posting.company}`;
 
 /** The dated CV line a grow lands: the requirement restated (the tap is the warrant, same as a bare
  *  "Yes") plus the asked date — a recently acquired skill reads as someone still learning (#287 c9). */
