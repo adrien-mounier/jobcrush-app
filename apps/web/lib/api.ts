@@ -775,10 +775,12 @@ export interface ReviewJob {
   family: string | null;
   lines: ReviewLine[];
 }
-/** #382: a skills group — its name and its lines, by id, in CV order. */
+/** #382: a skills group — its name and its lines, by id, in CV order. #394: `unnamed` marks the
+ *  group of the skills the CV gave no label to — the review names them while it runs. */
 export interface SkillGroup {
   name: string;
   ids: string[];
+  unnamed?: true;
 }
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }

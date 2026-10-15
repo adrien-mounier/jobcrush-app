@@ -358,6 +358,7 @@ export default function CheckPage() {
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
           groups={{ onRename: renameGroup, onMove: moveToGroup }}
+          running={running}
           drafts={drafts}
           details={{
             values: {
@@ -377,7 +378,8 @@ export default function CheckPage() {
             onConflict: (fieldId, value) => void write(() => settleReviewConflict(fieldId, value)),
           }}
         />
-        {last && running && state.progress && (
+        {/* #394: the Skills screen says the run is going while it still holds skills the review has not named */}
+        {(last || (screen.kind === "skills" && screen.groups.some((g) => g.unnamed))) && running && state.progress && (
           <p className="hint" aria-live="polite">
             {C_CHECKING} {minutesCopy(state.progress.minutesLeft)}
           </p>

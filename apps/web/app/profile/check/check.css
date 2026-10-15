@@ -588,6 +588,8 @@
   gap: 10px;
   align-items: center;
 }
+/* #394: a tag wraps inside its item — "Taken from <a long employer name>" is wider than a skills
+   column — and each wrapped piece keeps the pill's border. */
 .check .tag {
   font: 11px var(--sans);
   color: var(--gold-light);
@@ -596,7 +598,8 @@
   padding: 0 7px;
   margin-left: 8px;
   vertical-align: 1px;
-  white-space: nowrap;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 /* a vague phrase: dotted gold underline, tappable; a picked choice keeps a solid one */
 .check .ph {

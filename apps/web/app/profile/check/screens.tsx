@@ -216,6 +216,7 @@ export function ScreenBody({
   answers,
   aboutDraft,
   groups,
+  running,
 }: {
   screen: Screen;
   list: Omit<ItemListProps, "lines" | "card">;
@@ -224,6 +225,8 @@ export function ScreenBody({
   answers: CardAnswers;
   aboutDraft: AboutDraft;
   groups: GroupActions;
+  /** #394: the review run is still going (the Skills screen hides its unnamed group's heading). */
+  running: boolean;
 }): ReactNode {
   if (screen.kind === "about") {
     // #391 (ADR-0018 clause 2): the CV's own summary lines that stepped aside when About you was
@@ -289,7 +292,7 @@ export function ScreenBody({
   if (screen.kind === "skills") {
     return (
       <div className="card">
-        <SkillsBody lines={screen.lines} groups={screen.groups} list={{ ...list, card }} actions={groups} />
+        <SkillsBody lines={screen.lines} groups={screen.groups} running={running} list={{ ...list, card }} actions={groups} />
       </div>
     );
   }

@@ -97,8 +97,9 @@ export interface ReviewJob {
 export type ReviewSection =
   | { tag: "experience"; heading: string; jobs: ReviewJob[] }
   /** #382: `groups` on the Skills section only — its lines as named groups, by line id, in the
-   *  order each group first appears. Grouping is never an item to answer. */
-  | { tag: string; heading: string; lines: ReviewLine[]; groups?: Array<{ name: string; ids: string[] }> };
+   *  order each group first appears. Grouping is never an item to answer. #394: the fallback
+   *  group is `unnamed` (skillsSplit.ts skillGroups). */
+  | { tag: string; heading: string; lines: ReviewLine[]; groups?: Array<{ name: string; ids: string[]; unnamed?: true }> };
 export interface ReviewLetterheadField {
   value: string;
   origin: ContactValue["origin"];

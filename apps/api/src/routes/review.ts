@@ -78,8 +78,9 @@ const ReviewSection = z.union([
     tag: z.string(),
     heading: z.string(),
     lines: z.array(ReviewLine),
-    // #382: the Skills section's named groups, by line id.
-    groups: z.array(z.object({ name: z.string(), ids: z.array(z.string()) })).optional(),
+    // #382: the Skills section's named groups, by line id. #394: the fallback group is `unnamed`
+    // (the screen hides its heading while the run that names it goes).
+    groups: z.array(z.object({ name: z.string(), ids: z.array(z.string()), unnamed: z.literal(true).optional() })).optional(),
   }),
 ]);
 const LetterheadField = z.object({ value: z.string(), origin: z.enum(["read", "person-said"]) });

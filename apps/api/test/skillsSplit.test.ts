@@ -3,9 +3,11 @@
 // skills line carries one, else under the fallback group. The rule is this table of real inputs
 // (CODING_STANDARDS: a blocking check ships with the inputs it must let through); the recordings
 // under test/eval/recordings are real miner output, so their shapes are rows here.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CandidateClaim, type CandidateClaim as Claim } from "@jobcrush/contracts";
-import { FALLBACK_GROUP, GROUP_NAME_MAX, splitSkillClaims, splitSkillText, usableGroupName } from "../src/skillsSplit.js";
+import { FALLBACK_GROUP, GROUP_NAME_MAX, skillGroups, splitSkillClaims, splitSkillText, usableGroupName } from "../src/skillsSplit.js";
 import { SECTIONS } from "../src/rootcv.js";
 
 const claim = (over: Partial<Claim>): Claim =>
@@ -123,5 +125,41 @@ describe("the fallback group is never named after a section", () => {
     expect(usableGroupName("  Tools and platforms ")).toBe("Tools and platforms");
     expect(usableGroupName("x".repeat(GROUP_NAME_MAX))).toBe("x".repeat(GROUP_NAME_MAX));
     for (const bad of [undefined, null, "", "   ", "x".repeat(GROUP_NAME_MAX + 1), "Skills", " skills ", "SKILLS"]) expect(usableGroupName(bad)).toBeNull();
+  });
+});
+
+// #394: a labelled CV is grouped at import, before any review runs — which needs the miner to keep
+// the CV's label in the claim's text (the same CV lost its labels on one run and kept them on the
+// next; a label kept only in the id reaches nothing). The split already reads "Label: a, b"; the
+// prompt is what the test pins — by its load-bearing words inside the `skill-…` clause (label, text,
+// colon), not its sentence, so a rewording that keeps the rule stays green. The wire marks the
+// fallback group, so the screen can hide its heading while the run that names it is going without
+// ever learning the fallback word.
+describe("#394 the CV's group labels survive the mine, and the fallback group is marked on the wire", () => {
+  it("the miner prompt's rule 8 tells the model to open a skill- claim's text with the CV's group label and a colon", () => {
+    const prompt = readFileSync(join(import.meta.dirname, "..", "prompts", "claim-miner.md"), "utf8");
+    const clause = /`skill-…` \(([^)]*)\)/.exec(prompt)?.[1] ?? "";
+    for (const word of ["label", "`text`", "colon"]) expect(clause, `rule 8's skill- clause names "${word}"`).toContain(word);
+  });
+
+  it("a labelled skills line, as rule 8 asks for it, is grouped under the CV's own label", () => {
+    expect(splitSkillText("AI and Automation: Generative AI workflows, agent orchestration")).toEqual({
+      group: "AI and Automation",
+      items: ["Generative AI workflows", "agent orchestration"],
+    });
+  });
+
+  it("skillGroups marks the fallback group unnamed and no other", () => {
+    expect(
+      skillGroups([
+        { id: "a", groupName: "Tools" },
+        { id: "b", groupName: null },
+        { id: "c", groupName: FALLBACK_GROUP },
+        { id: "d", groupName: "Tools" },
+      ]),
+    ).toEqual([
+      { name: "Tools", ids: ["a", "d"] },
+      { name: FALLBACK_GROUP, ids: ["b", "c"], unnamed: true },
+    ]);
   });
 });

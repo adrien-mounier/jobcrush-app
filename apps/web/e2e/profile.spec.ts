@@ -2207,6 +2207,42 @@ test("#383: moved and copied facts wear where they came from on the profile; a f
   await expect(page.locator(".frow .tag")).toHaveCount(0);
 });
 
+// #394: a "Taken from <job>" tag with a long employer name wraps inside its chip; at 390 and 1280
+// no chip runs out of its Skills group.
+test("#394: a long Taken from tag wraps inside its chip on the profile at 390 and 1280", async ({ page }) => {
+  await stubSession(page);
+  const FROM = "Nordic Retail Group (International Franchise Operations Division)";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      PROFILE.domains[0]!,
+      {
+        ...PROFILE.domains[1]!,
+        facts: [
+          PROFILE.domains[1]!.facts[0]!,
+          { id: "skill-nrg-splunk-splunk", text: "Splunk", colour: "gold", source: "read", job: null, group: "Tools", movedFrom: FROM, copied: true },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  // Sub-pixel rounding of the boxes: a right edge may read a fraction past its parent's.
+  const ROUNDING = 1;
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const chip = page.locator(".fact", { hasText: "Splunk" });
+    const tag = chip.locator(".tag.moved");
+    await expect(tag).toHaveText(`Taken from ${FROM}`);
+    const group = page.locator(".sgrp", { has: chip });
+    const [t, c, g] = [await tag.boundingBox(), await chip.boundingBox(), await group.boundingBox()];
+    expect(t!.x + t!.width, `at ${width}px the tag stays inside its chip`).toBeLessThanOrEqual(c!.x + c!.width + ROUNDING);
+    expect(c!.x + c!.width, `at ${width}px the chip stays inside its group`).toBeLessThanOrEqual(g!.x + g!.width + ROUNDING);
+    const [scrollWidth, clientWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    expect(scrollWidth, `at ${width}px nothing scrolls sideways`).toBeLessThanOrEqual(clientWidth);
+  }
+});
+
 // #387 (ADR-0018 clause 9): a fact added while tailoring for a job wears that job on the profile —
 // a row in Experience and a chip in Skills alike; every other fact wears nothing.
 test("#387: a fact added while tailoring wears the job it was added for; other facts wear no tag", async ({ page }) => {

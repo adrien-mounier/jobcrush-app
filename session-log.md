@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-15 — #394 shipped: a fresh upload's skills no longer read under "Other" while the review names them
+
+`/implement #394` (Fable 5.1). Two causes behind the owner's staging report: the miner sometimes dropped the CV's own group labels (kept only in the claim id), and check mode printed the fallback label "Other" over skills the running review had not named yet — a pending state that read as a wrong grouping. Fix: miner rule 8 keeps the label in the claim text ("Tools: Jira, …"), so a labelled CV is grouped at import; the review wire marks the fallback group `unnamed` and the Skills screen hides that heading while the run goes, under the existing "Checking your CV…" line (the profile page keeps "Other"); a tag ("Taken from <long employer>") wraps inside its item and chip instead of running out of the column (AC7 built as the default — per-item, wrapped — the owner's call stays open). `/code-review`: no hard blocker; the verbatim prompt pin was loosened to its load-bearing words, and the overflow tests now measure the column, not the container. Found on the way: the route's response schema silently dropped the new wire field, and the HTTP test that mapped the groups could not see it (lesson under Testing traps). QA GO on tree 89c1dd2: api 2102, typecheck 7/7, mocked specs 133/133 (the #394 ones red on old code), qa-393 journey 23/23 at 1280 and 390, live walk at both widths. Gate observations, not defects: at 390 headless skills listed after a named group read as that group's tail; the move dropdown still lists "Other" mid-run.
+**Next:** owner re-runs the real CV on staging (AC5: no "Other" or "Skills" at any point of the walk; the long BRED tag wraps); `/implement 392` (Opus 5.5, medium); then Chat with JobCrush (#350).
+
 ## 2026-10-15 — #393 shipped: no skills group is named after its own section
 
 `/implement #393` (Fable 5.1, high). Root cause confirmed: the fallback bucket for a skill with no group was literally named "Skills", and a tool copied out of a job by its review call (#383 `moveTools`) always landed in it, after the sections call had already named the ungrouped skills. Fix: the fallback label is the neutral "Other" (renamable like any group); each job's review answer names the Skills group its tools belong in (`toolsGroup`, an existing group when one fits — a list's own label still wins); one gate (`usableGroupName`) refuses the section's own name on the rename and move doors and on the model's names, which also makes the boot-time backfill of old "Skills" rows safe to re-run. `/code-review`: no hard findings; its soft points (stale e2e fixtures on the old literal, a negative-only test, a shadowed name, the 60 cap in three places) were fixed before the gate; the Spec axis found the every-boot backfill would have renamed a person's own "Skills" group — closed by the gate above. Known ceiling: a CV whose own label is "Other" reads as ungrouped (ponytail note in skillsSplit.ts). QA GO on tree bd8169f: 6 new tests red on HEAD (the owner's defect reproduced over HTTP) and green on the fix, api 2099, typecheck 7/7, check-mode+profile specs 130/130 (one timing flake under the parallel run, 3/3 alone), the gate's journey 23/23 at 1280 and 390, the backfill proven on a throwaway Postgres. Tier 2 gains `qa-393-skills-groups-journey.mjs` (QA-gate-born). Residual: whether the real model fills `toolsGroup` is unproven locally (no key) — if it leaves it empty the tools sit under "Other", never "Skills". Committed as 191bbcb, pushed, #393 closed; CI green and staging confirmed by /healthz at 14:28 UTC (88 min — the longest run yet, see lessons).
@@ -85,15 +90,4 @@ COMPLETE, under one label, "Only if true", with a reason (#370, after #368). Fla
 Roadmap: the CI-minutes risk is retired (repo public since 2026-10-08). The owner's re-upload (screenshots 7–9):
 the summary leaves the master CV (option C → #371, ADR first); import misfiles projects and nationality into
 the summary (#373); subtitle says "as it will print" for a master CV holding ~16 BRED lines (#372).
-**Next:** owner re-runs the real CV on staging; #366; then #360 → #359.
-
-## 2026-10-10 — #361: Product Owner gets a family — product-management v1 published (13ea5a0, 55996df)
-
-Vocabulary-growth run. The labeler was right to answer unmapped: the family was missing. Corpus: 13 techmap
-calls + the owner's 600 LinkedIn ads → 477 distinct, 285 in-family. PO and PM are one occupation (every floor
-item 63%+ for both titles; web research agrees). HK "Product Manager" is 27% bank-commercial jobs, and the scope edge
-excludes them (verified live). Owner approved "Product Manager" with 5 must-haves (roadmap, backlog, discovery,
-metrics, stakeholders). Grid 98/100/0 on minimax-m3; QA **GO** (2017 tests, live 14/14). Spend ≈ USD 0.40.
-Found: the techmap plan is **100 calls/month**, not 1000 (81 left) → #366. Grid cases pm-01..04 + str-10 await owner
-arbitration. Old sessions keep their stored "no family": re-upload the CV to see Okoone reviewed.
 **Next:** owner re-runs the real CV on staging; #366; then #360 → #359.

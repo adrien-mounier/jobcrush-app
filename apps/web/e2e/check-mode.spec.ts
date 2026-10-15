@@ -1470,6 +1470,80 @@ test.describe("#383 tools moved and copied to Skills", () => {
   });
 });
 
+// #394: while the review is still running, the skills it has not named yet (the wire's `unnamed`
+// group) show with no heading, under the screen's "Checking your CV…" line; once the run is over a
+// skill the model left unnamed sits under the heading the wire gives it. A named group keeps its
+// heading throughout. And a "Taken from <job>" tag wraps inside its item: a long employer name
+// overflows no skills column, on a phone or a wide screen.
+test.describe("#394 unnamed skills while the review runs; long tags wrap", () => {
+  const PENDING: ReviewState = {
+    ...REVIEW,
+    progress: { done: 1, total: 2, minutesLeft: 4 },
+    sections: REVIEW.sections.map((s) =>
+      s.tag === "skill"
+        ? {
+            tag: "skill",
+            heading: "Skills",
+            lines: [line("u1", "Jira"), line("u2", "MS Project"), line("t1", "Splunk", { movedFrom: "Nordic Retail Group", copied: true })],
+            groups: [
+              { name: "Other", ids: ["u1", "u2"], unnamed: true },
+              { name: "Tools", ids: ["t1"] },
+            ],
+          }
+        : s,
+    ),
+  };
+  const groupBoxes = (page: Page) => page.locator(".groups .grp");
+  async function toSkills(page: Page) {
+    await page.goto("/profile/check");
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== "Skills"; i++) await primary(page).click();
+    await expect(heading(page)).toHaveText("Skills");
+  }
+
+  test("the unnamed group has no heading while the run goes, and the screen says it is checking; once the run is over the heading the wire gives it shows", async ({ page }) => {
+    const { box } = await stubReview(page, PENDING);
+    await toSkills(page);
+    await expect(groupBoxes(page)).toHaveCount(2);
+    await expect(groupBoxes(page).nth(0).locator(".gh")).toHaveCount(0);
+    await expect(groupBoxes(page).nth(0).locator("li.pt .txt")).toHaveText(["Jira", "MS Project"]);
+    await expect(groupBoxes(page).nth(1).locator(".gh")).toHaveText("Tools");
+    await expect(page.locator(".hint")).toHaveText("Checking your CV… About 4 minutes left.");
+
+    box.state = { ...box.state, progress: null }; // the run finished and left the two unnamed
+    await expect(groupBoxes(page).nth(0).locator(".gh")).toHaveText("Other", { timeout: 10_000 });
+    await expect(page.locator(".hint")).toHaveCount(0);
+  });
+
+  test("a long Taken from tag wraps inside its item: no skills column overflows at 390 or 1280", async ({ page }) => {
+    const FROM = "Nordic Retail Group (International Franchise Operations Division)";
+    const LONG: ReviewState = {
+      ...PENDING,
+      progress: null,
+      sections: PENDING.sections.map((s) =>
+        "lines" in s && s.tag === "skill" ? { ...s, lines: s.lines.map((l) => (l.movedFrom ? { ...l, movedFrom: FROM } : l)) } : s,
+      ),
+    };
+    await stubReview(page, LONG);
+    await toSkills(page);
+    // Sub-pixel rounding of the boxes: a right edge may read a fraction past its parent's.
+    const ROUNDING = 1;
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      const tag = page.locator(".groups li.pt .tag.moved");
+      await expect(tag).toHaveText(`Taken from ${FROM}`);
+      const item = page.locator(".groups li.pt", { has: page.locator(".tag.moved") });
+      // The groups lay out in CSS columns: the group box (.grp) is the column, so the tag is
+      // measured against it — a tag bleeding into the gutter widens neither .groups nor the page.
+      const column = page.locator(".groups .grp", { has: page.locator(".tag.moved") });
+      const [t, i, c] = [await tag.boundingBox(), await item.boundingBox(), await column.boundingBox()];
+      expect(t!.x + t!.width, `at ${width}px the tag stays inside its item`).toBeLessThanOrEqual(i!.x + i!.width + ROUNDING);
+      expect(t!.x + t!.width, `at ${width}px the tag stays inside its column`).toBeLessThanOrEqual(c!.x + c!.width + ROUNDING);
+      const [scrollWidth, clientWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+      expect(scrollWidth, `at ${width}px nothing scrolls sideways`).toBeLessThanOrEqual(clientWidth);
+    }
+  });
+});
+
 // #376 (ADR-0018 clauses 5, 7, 8): the start asks nothing after the upload, so work rights and
 // languages are answered here. "Where you can work" is a plain card on the last screen, one row per
 // target market, the CV's proposal pre-selected but not stored until tapped; the footer button names

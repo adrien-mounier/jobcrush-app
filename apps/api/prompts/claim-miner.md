@@ -63,7 +63,9 @@ Rules — these mirror the claim-graph extraction discipline:
    downstream. Any source section that yields zero claims gets a parser_flag
    `uncovered-section: <heading>`. Prefix claim ids by kind so downstream checks can find
    them: `cert-…` (one claim per certification, exact name + date in `text`), `lang-…` (one
-   per language, with level), `skill-…` (skill-inventory items, one claim per group is fine),
+   per language, with level), `skill-…` (skill-inventory items, one claim per group is fine;
+   when the CV labels a group, `text` opens with that label as written and a colon —
+   `"Tools: Jira, Confluence, Splunk"` — a label kept only in the id is lost),
    `edu-…` (education entries), `project-…` (personal or side projects: one claim per project,
    whether the CV lists them under "Personal Projects", "Side projects" or inside the summary),
    `additional-…` (the CV's "Additional Information" lines: nationality, references, driving

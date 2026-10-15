@@ -7,6 +7,9 @@
 // doors. Grouping is never an item to answer, so nothing here holds the footer button. Each skill is
 // an ordinary item: ⊖ removes it into the one tray at the end; a group with nothing left in it hides.
 // A skill in any other state (a suggestion to answer, #380) draws the screen's card in its group.
+// #394: while the review is still running, the skills it has not named yet (the wire's `unnamed`
+// group) show with no heading at all — a heading there read as a wrong grouping, not a pending one.
+// Once the run is over, a skill the model left unnamed sits under the heading the wire gives it.
 import { useEffect, useRef, useState } from "react";
 import type { ReviewLine, SkillGroup } from "../../../lib/api";
 import { Item, Tray, type ItemListProps } from "./Item";
@@ -27,7 +30,20 @@ export interface GroupActions {
   onMove: (id: string, group: string) => void;
 }
 
-export function SkillsBody({ lines, groups, list, actions }: { lines: ReviewLine[]; groups: SkillGroup[]; list: Omit<ItemListProps, "lines">; actions: GroupActions }) {
+export function SkillsBody({
+  lines,
+  groups,
+  running,
+  list,
+  actions,
+}: {
+  lines: ReviewLine[];
+  groups: SkillGroup[];
+  /** #394: the review is still going — its unnamed skills show with no heading yet. */
+  running: boolean;
+  list: Omit<ItemListProps, "lines">;
+  actions: GroupActions;
+}) {
   const { busy, bump, onRemove, onPutBack, onBumpEnd, onEdit, card } = list;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
@@ -61,7 +77,7 @@ export function SkillsBody({ lines, groups, list, actions }: { lines: ReviewLine
           if (shown.length === 0) return null;
           return (
             <div className="grp" key={g.name}>
-              {renaming === g.name ? (
+              {g.unnamed && running ? null : renaming === g.name ? (
                 <input
                   ref={nameRef}
                   className="gname"

@@ -87,13 +87,15 @@ try {
   await page.waitForTimeout(1500);
 
   // 1b. While the review is held, her unlabelled skills have no group yet: the screen shows them
-  // under the neutral label, never under a heading that repeats the section's name.
+  // with no group heading at all (#394 — a heading there read as a wrong grouping, not a pending
+  // one), under the line saying the check is still going.
   await qa.goto('/profile/check', 'check mode, while the review is still running');
   await assert(await walkTo(/^Skills/), 'walked to the Skills screen while the review runs');
   await qa.scrollThrough('reads the Skills screen before any group is named');
+  const pendingItems = await page.locator('main .groups .grp li.pt').count();
   const ungrouped = await headings.allTextContents();
-  await assert(ungrouped.length > 0 && !ungrouped.some(isSectionName), `no heading reads "Skills" before the review names a group — headings: ${JSON.stringify(ungrouped)}`);
-  await qa.expectText(headings.first(), 'Other', 'her unlabelled skills sit under the neutral label "Other"');
+  await assert(pendingItems > 0 && ungrouped.length === 0, `her skills show with no group heading while the review runs — ${pendingItems} skills, headings: ${JSON.stringify(ungrouped)}`);
+  await qa.expectVisible(page.locator('main .hint'), 'the screen says the check is still going');
   await assert((await hold(false)).status === 200, 'the review run is released');
 
   // The review names the skills the CV left ungrouped; wait for it to land (fake: milliseconds).

@@ -108,6 +108,13 @@ cache whose point is the bill one real run plus hit/miss counters.
 
 ## Testing traps
 
+### A route's response schema drops a wire field nothing names
+`GET /review` serialises through the zod response schema in `routes/review.ts`: the `unnamed` flag
+added to the groups builder (#394) passed its unit test and vanished on the wire, because the schema
+did not name it — and the HTTP test stayed green because its helper mapped groups to `{name, items}`.
+A new wire field needs the schema line *and* a wire-level assertion on the raw response; the mocked
+specs then pass for the fixture's reason, never the server's. The real-stack journey caught it.
+
 ### Route-mocked tiers cannot see a fixture/server divergence
 Every `apps/web/e2e/*.spec.ts` mocks at the route layer, so a mock encoding the *intended*
 behaviour stays green while the server does otherwise (#23's bubble). A gate that mocks the network

@@ -114,6 +114,14 @@ describe("#382 the import splits skills one per item, in named groups", () => {
     ]);
     // Not a skill, not grouped: every other section is as read.
     const state = (await get(app, cookie, "/review")).json() as ReviewState;
+    // #394: over the wire (past the route's response schema, which drops what it does not name) the
+    // fallback group alone is marked unnamed.
+    const wire = (state.sections.find((x) => x.tag === "skill") as Extract<Section, { lines: unknown }>).groups!;
+    expect(wire.map((g) => [g.name, g.unnamed])).toEqual([
+      ["Delivery and governance", undefined],
+      ["Applied AI", undefined],
+      [FALLBACK_GROUP, true],
+    ]);
     const edu = state.sections.find((s) => s.tag === "edu") as Extract<Section, { lines: unknown }>;
     expect(edu.lines.map((l) => l.text)).toEqual(["MSc Management Information Systems, University of Warsaw."]);
     expect(edu.groups).toBeUndefined();

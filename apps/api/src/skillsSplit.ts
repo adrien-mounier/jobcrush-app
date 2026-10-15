@@ -93,13 +93,15 @@ export function splitSkillText(text: string): { group: string | null; items: str
  *  (stored before #382, or added by a door that names none). */
 export const groupOf = (claim: { groupName: string | null }): string => claim.groupName ?? FALLBACK_GROUP;
 
-/** A section's skills as named groups, in the order each group first appears (CV order).
+/** A section's skills as named groups, in the order each group first appears (CV order). The
+ *  fallback group is marked `unnamed` (#394): the screen hides its heading while the review that
+ *  names it is still running, and never has to know the fallback word.
  *  ponytail: no stored group order — moving a group's first skill into another group can move that
  *  group up the list. A position column on the group lands when someone reorders groups. */
-export function skillGroups(claims: ReadonlyArray<{ id: string; groupName: string | null }>): Array<{ name: string; ids: string[] }> {
+export function skillGroups(claims: ReadonlyArray<{ id: string; groupName: string | null }>): Array<{ name: string; ids: string[]; unnamed?: true }> {
   const groups = new Map<string, string[]>();
   for (const c of claims) groups.set(groupOf(c), [...(groups.get(groupOf(c)) ?? []), c.id]);
-  return [...groups].map(([name, ids]) => ({ name, ids }));
+  return [...groups].map(([name, ids]) => (name === FALLBACK_GROUP ? { name, ids, unnamed: true } : { name, ids }));
 }
 
 /** One claim per skill in place of each `skill-` claim; every other claim passes through untouched. */
