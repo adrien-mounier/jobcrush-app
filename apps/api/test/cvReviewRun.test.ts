@@ -46,6 +46,7 @@ import type { Paper, ReviewLine, ReviewState } from "../src/cvReview.js";
 import { aboutIssues, keepAliveOverHttp, parseReviewAnswer, planTools, resolveAbout, reviewPrompt, type ReviewAnswer } from "../src/cvReviewRun.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { parseReviewPrompt, QA_SKILL_GROUP, qaReviewAnswer } from "../src/qaReviewAnswer.js";
+import { FALLBACK_GROUP } from "../src/skillsSplit.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 type Server = ReturnType<typeof buildServer>;
@@ -1122,12 +1123,34 @@ describe("#371 About you keeps only the sentences the brain allows", () => {
 // item #382's split cuts it into is a tool the model listed for it. Anything else stays where it is
 // (counted) and only the tools it names are copied, as for an achievement.
 describe("#383 a tool list leaves its job only when it is one", () => {
-  const rec = (id: string, text: string): ClaimRecord => ({ ...claim({ id, role: NRG, text }), decision: "confirmed", origin: "mined", lineState: "ticked", originalText: null, groupName: null });
-  const job = (toolLists: ReviewAnswer["jobs"][number]["toolLists"]): ReviewAnswer["jobs"][number] => ({
-    job: "nrg", family: null, fixes: [], judgements: [], mustHaves: [], drafted: [], endDateMissing: false, conflicts: [], toolLists, toolsUsed: [],
+  const rec = (id: string, text: string, groupName: string | null = null): ClaimRecord => ({ ...claim({ id, role: NRG, text }), decision: "confirmed", origin: "mined", lineState: "ticked", originalText: null, groupName });
+  const job = (toolLists: ReviewAnswer["jobs"][number]["toolLists"], extra: Partial<ReviewAnswer["jobs"][number]> = {}): ReviewAnswer["jobs"][number] => ({
+    job: "nrg", family: null, fixes: [], judgements: [], mustHaves: [], drafted: [], endDateMissing: false, conflicts: [], toolLists, toolsUsed: [], ...extra,
   });
   const LIST = rec("nrg-tools", "Tools: JIRA, Confluence, MS Project");
+  const BARE_LIST = rec("nrg-stack", "Salesforce CRM, Power BI");
   const ACHIEVEMENT = rec("nrg-aws", "Led the move to AWS, cutting hosting costs by 20%.");
+
+  // #393: a tool the job's call moves in lands in the group the answer names — never the fallback.
+  // The list's own label still wins; an existing group's spelling wins over the model's; an empty or
+  // over-long name, the section's own name, or none (an answer stored before the field), leaves the fallback.
+  it("the tools moved in take the group the answer names; a list's own label and an existing group's spelling win", () => {
+    const named = planTools(job([{ line: LIST.id, tools: ["JIRA", "Confluence", "MS Project"] }, { line: BARE_LIST.id, tools: ["Salesforce CRM", "Power BI"] }], { toolsUsed: [{ line: ACHIEVEMENT.id, tools: ["AWS"] }], toolsGroup: "tools and platforms" }), [LIST, BARE_LIST, ACHIEVEMENT], [rec("skill-x", "Figma", "Tools and platforms")]);
+    expect(named.add.map((a) => [a.claim.text, a.claim.groupName])).toEqual([
+      ["JIRA", "Tools"],
+      ["Confluence", "Tools"],
+      ["MS Project", "Tools"],
+      ["Salesforce CRM", "Tools and platforms"],
+      ["Power BI", "Tools and platforms"],
+      ["AWS", "Tools and platforms"],
+    ]);
+    const fresh = planTools(job([], { toolsUsed: [{ line: ACHIEVEMENT.id, tools: ["AWS"] }], toolsGroup: " Cloud " }), [ACHIEVEMENT], []);
+    expect(fresh.add.map((a) => a.claim.groupName)).toEqual(["Cloud"]);
+    for (const bad of [undefined, null, "", "   ", "x".repeat(61), "Skills", "skills"]) {
+      const plan = planTools(job([], { toolsUsed: [{ line: ACHIEVEMENT.id, tools: ["AWS"] }], toolsGroup: bad }), [ACHIEVEMENT], []);
+      expect(plan.add.map((a) => a.claim.groupName)).toEqual([FALLBACK_GROUP]);
+    }
+  });
 
   it("a real tool list moves, one item per tool", () => {
     const plan = planTools(job([{ line: LIST.id, tools: ["JIRA", "Confluence", "MS Project"] }]), [LIST, ACHIEVEMENT], []);
@@ -1635,14 +1658,15 @@ describe("#383 tools move to Skills", () => {
 
     // Miro is listed once — the CV's own item, untagged; the tool list's group name comes with it.
     // The CV's ungrouped list took the sections call's group name (#382); the copied tool, landed
-    // by the job's own call after that call read Skills, sits in the fallback for the person to move.
+    // by the job's own call after that call read Skills, takes the group that call names (#393) —
+    // never the fallback, and never a group named after the section.
     expect(skillsOf(state)).toEqual(EXPECTED_SKILLS);
     const skills = state.sections.find((s) => s.tag === "skill")!;
     expect("groups" in skills && skills.groups).toEqual([
       { name: QA_SKILL_GROUP, ids: ["skill-list-miro", "skill-list-figma"] },
-      { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence", "skill-nrg-tools-ms-project"] },
-      { name: "Skills", ids: ["skill-nrg-splunk-splunk"] },
+      { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence", "skill-nrg-tools-ms-project", "skill-nrg-splunk-splunk"] },
     ]);
+    expect(("groups" in skills && skills.groups!.map((g) => g.name.toLowerCase())) || []).not.toContain(skills.heading.toLowerCase());
     // No item's words were changed by a move: each moved or copied item reads exactly as its line wrote it.
     for (const s of EXPECTED_SKILLS.filter((s) => s.movedFrom)) expect((s.copied ? SPLUNK_LINE : TOOL_LIST).includes(s.text)).toBe(true);
   });
@@ -1691,7 +1715,7 @@ describe("#383 tools move to Skills", () => {
 
 // #382 (ADR-0018 clause 6: "grouped by the machine under the CV's group names or its own"): the
 // sections call names the skills the CV gave no group — zero extra calls. The CV's own labels
-// always win; the fallback "Skills" stays when the model names nothing; the person still renames.
+// always win; the fallback group stays when the model names nothing; the person still renames.
 describe("#382 the machine names the skills the CV left ungrouped", () => {
   const MINED_GROUPS = [
     ...MINED.filter((c) => c.id !== "skill-tools"),
@@ -1731,7 +1755,7 @@ describe("#382 the machine names the skills the CV left ungrouped", () => {
       return JSON.stringify(parsed);
     };
     const { app, cookie } = await withCv(silent, MINED_GROUPS);
-    expect(groupsOf(await reviewed(app, cookie))!.map((g) => g.name)).toEqual(["Applied AI", "Skills"]);
+    expect(groupsOf(await reviewed(app, cookie))!.map((g) => g.name)).toEqual(["Applied AI", FALLBACK_GROUP]);
   });
 });
 

@@ -17,9 +17,27 @@
 // FALLBACK_GROUP (cvReviewRun.ts resolveSkillGroups).
 import type { CandidateClaim } from "@jobcrush/contracts";
 import { slug } from "./discovery.js";
+import { SECTIONS } from "./rootcv.js";
 
-/** The group of a skill the CV gave no label to. */
-export const FALLBACK_GROUP = "Skills";
+/** The group of a skill the CV gave no label to. The screen prints it as a group heading, so it is a
+ *  plain neutral word and never a section's name (#393: "Skills" under Skills read as a placeholder);
+ *  the review prompt still shows these skills as NO_GROUP. The person renames it like any group.
+ *  ponytail: a CV whose own label is this word reads as ungrouped too (the model may regroup it; the
+ *  person renames). Storing null for "no group" and keeping the label in the view would end that. */
+export const FALLBACK_GROUP = "Other";
+
+/** The longest group name any door accepts (the rename door's input is capped the same). */
+export const GROUP_NAME_MAX = 60;
+const SKILLS_HEADING = SECTIONS.find(([tag]) => tag === "skill")![1];
+
+/** A group name as a door or the model offers it, trimmed — or null when no group may carry it: blank,
+ *  over GROUP_NAME_MAX, or the Skills section's own name (#393: "Skills" under Skills is a placeholder,
+ *  not a group — and the one gate that keeps claims.ts's backfill of the old fallback rows safe). */
+export function usableGroupName(name: string | null | undefined): string | null {
+  const trimmed = name?.trim() ?? "";
+  if (!trimmed || trimmed.length > GROUP_NAME_MAX || trimmed.toLowerCase() === SKILLS_HEADING.toLowerCase()) return null;
+  return trimmed;
+}
 
 export type SkillClaim = CandidateClaim & { groupName: string };
 

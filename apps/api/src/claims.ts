@@ -378,6 +378,7 @@ CREATE TABLE IF NOT EXISTS claims (
   PRIMARY KEY (session_id, id)
 )`;
 
+// Run in order on every boot: column additions, and (#393) the one idempotent data backfill at the end.
 const CLAIMS_ALTERS = [
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS decision_seq bigint",
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS semantic_key text",
@@ -410,6 +411,14 @@ const CLAIMS_ALTERS = [
   // #387 (ADR-0018 clause 9): the job a fact was added while tailoring for. add() names it (and
   // section) in the insert; the upsert keeps the first write, so a correction never re-stamps it.
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS added_for text",
+  // #393: the fallback group used to be stored as the Skills section's own name, which the screen
+  // then printed as a group called "Skills". It is "Other" now (skillsSplit.ts FALLBACK_GROUP); the
+  // rows written before follow. This runs on every boot like the rest of the list, and stays safe
+  // because no door writes that name any more (skillsSplit.ts usableGroupName refuses the section's
+  // own name on the rename and move doors and on the model's names): a row named 'Skills' is always
+  // the old fallback, or a rename to the placeholder made before this gate — never a group a person
+  // can still choose.
+  "UPDATE claims SET group_name = 'Other' WHERE group_name = 'Skills'",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,

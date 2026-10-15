@@ -409,6 +409,10 @@ export const COVERAGE = {
   // #387: the tailor write, then the profile and check mode reading it — every surface the joined
   // fact crosses (claims, graph's kind tag, cvReview's paper are in TAILOR/REVIEW already).
   "tailoring-fact-joins-profile-journey.mjs": union(CV_INTAKE, REVIEW, PROFILE, TAILOR, AUTH, DECK),
+  // #393: the Skills screen's group headings before and after the review names them, the two group
+  // doors (routes/cv.ts, in REVIEW) and the profile's group headings; the split and the fallback
+  // label live in skillsSplit.ts.
+  "qa-393-skills-groups-journey.mjs": union(CV_INTAKE, REVIEW, PROFILE, DISCOVERY, ["apps/api/src/skillsSplit.ts"]),
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),
   // #116: CV upload → discovery → the held deck; arms qa-main's readDelayMs for its own run.

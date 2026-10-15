@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-15 — #393 shipped: no skills group is named after its own section
+
+`/implement #393` (Fable 5.1, high). Root cause confirmed: the fallback bucket for a skill with no group was literally named "Skills", and a tool copied out of a job by its review call (#383 `moveTools`) always landed in it, after the sections call had already named the ungrouped skills. Fix: the fallback label is the neutral "Other" (renamable like any group); each job's review answer names the Skills group its tools belong in (`toolsGroup`, an existing group when one fits — a list's own label still wins); one gate (`usableGroupName`) refuses the section's own name on the rename and move doors and on the model's names, which also makes the boot-time backfill of old "Skills" rows safe to re-run. `/code-review`: no hard findings; its soft points (stale e2e fixtures on the old literal, a negative-only test, a shadowed name, the 60 cap in three places) were fixed before the gate; the Spec axis found the every-boot backfill would have renamed a person's own "Skills" group — closed by the gate above. Known ceiling: a CV whose own label is "Other" reads as ungrouped (ponytail note in skillsSplit.ts). QA GO on tree bd8169f: 6 new tests red on HEAD (the owner's defect reproduced over HTTP) and green on the fix, api 2099, typecheck 7/7, check-mode+profile specs 130/130 (one timing flake under the parallel run, 3/3 alone), the gate's journey 23/23 at 1280 and 390, the backfill proven on a throwaway Postgres. Tier 2 gains `qa-393-skills-groups-journey.mjs` (QA-gate-born). Residual: whether the real model fills `toolsGroup` is unproven locally (no key) — if it leaves it empty the tools sit under "Other", never "Skills".
+**Next:** owner re-runs the real CV on staging; `/implement 392` (Opus 5.5, medium); then Chat with JobCrush (#350).
+
 ## 2026-10-15 — #387 shipped: a fact added while tailoring joins the profile (eb977f1)
 
 `/implement #387` (ADR-0018 clause 9). The tailor screen's "Yes" already wrote a fact; it now carries the requirement's section and the job it was added for, so the profile lists it under Experience/Skills/Education/About you wearing "Added while tailoring for <title> at <company>" (row, chip, detail sheet). A "No" never shows; the next job's questions and draft use it like any fact. No screen approves a stretch today, so AC2 is proven only by "the draft writes nothing to the profile" (test guards it). `/code-review`: no hard findings; stale comments, a draft-level AC3 test and the detail-sheet line fixed. QA was NO-GO first: check mode invented a job headed "profile" for the joined Experience fact (D1) — fixed in readPaper (listed with About you; the profile page gives it no employer block). GO on tree 0737687: api 2096, typecheck 7/7, new journey 21/21, check-mode 80/80, full walk 126/126, profile+check-mode specs 130/130. Tier 2 gains `tailoring-fact-joins-profile-journey.mjs` (QA-gate-born). Edge cases the gate noted, not blockers: a summary-section "Yes" files under About you and an About you save would step it aside (Put back one tap away); a review run after tailoring would read the answer as CV summary text.
@@ -92,14 +97,3 @@ metrics, stakeholders). Grid 98/100/0 on minimax-m3; QA **GO** (2017 tests, live
 Found: the techmap plan is **100 calls/month**, not 1000 (81 left) → #366. Grid cases pm-01..04 + str-10 await owner
 arbitration. Old sessions keep their stored "no family": re-upload the CV to see Okoone reviewed.
 **Next:** owner re-runs the real CV on staging; #366; then #360 → #359.
-
-## 2026-10-09 — #362: a failed review is retried quietly; never reads as a clean check (e1ac06d)
-
-A failed review run is reopened by the next read of /review and retried for its unanswered jobs only,
-bounded at four paid attempts per job over its life (~USD 2/job worst case; owner to accept the
-doubled ceiling). Never once the review is confirmed. The read gains `unchecked` (a part has no answer,
-or no run): the counter then never reads "0 to check". Code review: no-run counted as unchecked too.
-QA gate **GO**: API 1958, review.spec 20/20, journeys cv-review 83/83 + new
-`review-unchecked-counter-journey.mjs` 10/10 (not in CI's tier2 lists yet), reopen on real PG17. CI
-green on a side branch before main was pushed. Old run `53729e1f…` will now retry on its next open.
-Open: heading "Your CV, reviewed" on an unchecked CV (owner's call). **Next:** #361 → #360 → #359.

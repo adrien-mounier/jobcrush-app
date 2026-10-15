@@ -29,6 +29,8 @@ import { splitSkillText } from "./skillsSplit.js";
 export const REVIEW_PROMPT_OPENING = "You review a candidate's CV, job by job";
 /** The group name the fake gives the skills the CV left ungrouped. */
 export const QA_SKILL_GROUP = "Software";
+/** #393: the Skills group the fake names for a job's tools. */
+export const QA_TOOLS_GROUP = "Tools";
 /** cvReviewRun.ts NO_GROUP — the input's heading for those skills (kept literal: this file is the
  *  model's side of the prompt, and must not read the caller's code to answer it). */
 const NO_GROUP_HEADING = "### (no group)";
@@ -228,7 +230,9 @@ export function qaReviewAnswer(prompt: string, opts: { bogus?: boolean; badDraft
           const last = [...drafted].reverse().find((d) => d.mustHave !== null);
           if (last) last.mustHave = "not-a-must-have";
         }
-        return { job: id, family: familyId, fixes, judgements, mustHaves, drafted, endDateMissing: false, conflicts: [], toolLists, toolsUsed };
+        // #393: the tools land in one group; a list's own label ("Tools: …") keeps its label anyway.
+        const toolsGroup = toolLists.length || toolsUsed.length ? QA_TOOLS_GROUP : null;
+        return { job: id, family: familyId, fixes, judgements, mustHaves, drafted, endDateMissing: false, conflicts: [], toolLists, toolsUsed, toolsGroup };
       }),
     refused: [],
   });

@@ -170,7 +170,7 @@ describe("#382 rename a group, move a skill — both persist", () => {
     expect(facts.find((f) => f.tag === "edu")?.text).toContain("University of Warsaw");
   });
 
-  it("refuses a group or line that is not the session's, a line that is not a skill, and an empty name", async () => {
+  it("refuses a group or line that is not the session's, a line that is not a skill, an empty name, and the section's own name", async () => {
     const { app, cookie } = await withCv("skills-refuse@example.com");
     const { lines } = await skillSection(app, cookie);
     const stranger = await anonSession(app);
@@ -180,6 +180,9 @@ describe("#382 rename a group, move a skill — both persist", () => {
     expect((await put(app, stranger, `/cv/lines/${lines[0]!.id}/group`, { group: "x" })).statusCode).toBe(404);
     expect((await put(app, cookie, "/cv/lines/nrg-led-checkout/group", { group: "x" })).statusCode).toBe(404);
     expect((await put(app, cookie, `/cv/lines/${lines[0]!.id}/group`, { group: "" })).statusCode).toBe(400);
+    // #393: a group is never named after its own section — on either door, whatever the case.
+    expect((await put(app, cookie, "/cv/skills/groups/Applied%20AI", { name: "Skills" })).statusCode).toBe(400);
+    expect((await put(app, cookie, `/cv/lines/${lines[0]!.id}/group`, { group: " skills " })).statusCode).toBe(400);
     expect((await app.inject({ method: "PUT", url: "/cv/skills/groups/Applied%20AI", payload: { name: "x" } })).statusCode).toBe(401);
     // Nothing moved.
     expect((await skillSection(app, cookie)).groups.map((g) => g.name)).toEqual(["Delivery and governance", "Applied AI", FALLBACK_GROUP]);

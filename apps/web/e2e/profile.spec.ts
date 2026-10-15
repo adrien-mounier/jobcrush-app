@@ -2191,7 +2191,7 @@ test("#383: moved and copied facts wear where they came from on the profile; a f
         facts: [
           PROFILE.domains[1]!.facts[0]!,
           { id: "skill-nrg-tools-jira", text: "JIRA", colour: "gold", source: "read", job: null, group: "Tools", movedFrom: "Nordic Retail Group" },
-          { id: "skill-nrg-splunk-splunk", text: "Splunk", colour: "gold", source: "read", job: null, group: "Skills", movedFrom: "Nordic Retail Group", copied: true },
+          { id: "skill-nrg-splunk-splunk", text: "Splunk", colour: "gold", source: "read", job: null, group: "Tools", movedFrom: "Nordic Retail Group", copied: true },
         ],
       },
       { tag: "lang", heading: "Languages", facts: [{ id: "sum-langs", text: "Fluent in French and English.", colour: "gold", source: "read", job: null, movedFrom: "your summary" }] },

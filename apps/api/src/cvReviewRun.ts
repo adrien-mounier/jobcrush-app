@@ -36,7 +36,7 @@ import { incrementCounter } from "./counters.js";
 import { readPaper, running, type Paper, type ReviewJob, type ReviewLine } from "./cvReview.js";
 import { slug } from "./discovery.js";
 import { kindTag } from "./graph.js";
-import { FALLBACK_GROUP, groupOf, splitSkillClaims, splitSkillText, type SkillClaim } from "./skillsSplit.js";
+import { FALLBACK_GROUP, groupOf, splitSkillClaims, splitSkillText, usableGroupName, type SkillClaim } from "./skillsSplit.js";
 import { SECTIONS } from "./rootcv.js";
 import { DRAFT_FLAGS, rerunUnit, SUGGESTION_KINDS, unitOf, type CvReviewStore, type DraftVague, type ResolvedDraft, type ResolvedFix, type ResolvedSuggestion, type ReviewUnit, type ReviewUnitResult, VAGUE_SOURCES } from "./cvReviewStore.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
@@ -91,6 +91,9 @@ const JobReview = z.object({
   // never moved.
   toolLists: z.array(z.union([z.string(), z.object({ line: z.string(), tools: z.array(z.string()) })])).nullish(),
   toolsUsed: z.array(z.object({ line: z.string(), tools: z.array(z.string()) })).nullish(),
+  // #393: the Skills group the tools above land in — one the CV already has when it fits. Nullish:
+  // the answers recorded before have none, and those tools sit in the fallback group.
+  toolsGroup: z.string().nullish(),
 });
 const SectionReview = z.object({ section: z.string(), fixes: z.array(Fix), judgements: z.array(Judgement) });
 export const ReviewAnswer = z.object({
@@ -445,16 +448,22 @@ const skillFrom = (line: ClaimRecord, id: string, semanticKey: string, text: str
  *  "Label:") is a tool it listed for that line. Any other line stays under its job, unchanged and
  *  counted, and the tools it names are copied like an achievement's.
  *  Duplicates: Skills never gets a second copy of a skill it already lists (in or removed) — the
- *  item already there wins and stays untagged; between two new ones, the first in CV order wins. */
+ *  item already there wins and stays untagged; between two new ones, the first in CV order wins.
+ *  Groups (#393): an item with no label of its own (a copied tool, a bare list) takes the group the
+ *  answer names — spelt as Skills already spells it when a group of that name exists; a list's own
+ *  label wins over the answer. No usable name (none, blank, over the rename door's 60): the fallback. */
 export function planTools(answer: ReviewAnswer["jobs"][number], lines: ClaimRecord[], skills: ClaimRecord[]): ToolPlan {
   const own = new Map(lines.map((c) => [c.id, c]));
   const listed = new Set(skills.map((c) => sameSkill(c.text)));
+  const namedGroup = usableGroupName(answer.toolsGroup);
+  const existing = namedGroup && skills.map(groupOf).find((g) => g.toLowerCase() === namedGroup.toLowerCase());
+  const group = existing || namedGroup || FALLBACK_GROUP;
   const plan: ToolPlan = { leave: [], add: [] };
   const drop = () => incrementCounter("cvReview.tool_dropped");
   const take = (claim: SkillClaim, copied: boolean) => {
     if (listed.has(sameSkill(claim.text))) return;
     listed.add(sameSkill(claim.text));
-    plan.add.push({ claim, copied });
+    plan.add.push({ claim: claim.groupName === FALLBACK_GROUP ? { ...claim, groupName: group } : claim, copied });
   };
   const used = [...(answer.toolsUsed ?? [])];
   for (const entry of answer.toolLists ?? []) {
@@ -496,16 +505,16 @@ const jobName = (job: ReviewJob): string => job.employer || job.title;
 
 /** #382 (ADR-0018 clause 6): the model's names for the skills the CV left ungrouped (the fallback
  *  group), resolved against the paper. The CV's own group names always win: a name for a skill in a
- *  named group, a line that is no skill, a second name for one skill, or an empty or over-long name
- *  (the rename door's 60) is dropped and counted. */
+ *  named group, a line that is no skill, a second name for one skill, or a name no group may carry
+ *  (usableGroupName: blank, over-long, the section's own) is dropped and counted. */
 export function resolveSkillGroups(answer: ReviewAnswer, paper: Paper): Array<{ line: string; group: string }> {
   const skills = paper.sections.find((s) => s.tag === "skill");
   const ungrouped = new Set(skills && "groups" in skills ? (skills.groups ?? []).filter((g) => g.name === FALLBACK_GROUP).flatMap((g) => g.ids) : []);
   const out: Array<{ line: string; group: string }> = [];
   for (const { name, lines } of answer.skillGroups ?? []) {
-    const group = name.trim();
+    const group = usableGroupName(name);
     for (const line of lines) {
-      if (!ungrouped.has(line) || !group || group.length > 60) {
+      if (!ungrouped.has(line) || !group) {
         incrementCounter("cvReview.skill_group_dropped");
         continue;
       }

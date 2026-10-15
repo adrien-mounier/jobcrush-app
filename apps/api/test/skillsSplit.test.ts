@@ -5,7 +5,8 @@
 // under test/eval/recordings are real miner output, so their shapes are rows here.
 import { describe, expect, it } from "vitest";
 import { CandidateClaim, type CandidateClaim as Claim } from "@jobcrush/contracts";
-import { FALLBACK_GROUP, splitSkillClaims, splitSkillText } from "../src/skillsSplit.js";
+import { FALLBACK_GROUP, GROUP_NAME_MAX, splitSkillClaims, splitSkillText, usableGroupName } from "../src/skillsSplit.js";
+import { SECTIONS } from "../src/rootcv.js";
 
 const claim = (over: Partial<Claim>): Claim =>
   CandidateClaim.parse({
@@ -104,5 +105,23 @@ describe("splitSkillClaims", () => {
     const out = splitSkillClaims([claim({ text: "C++, C#, ภาษาไทย, C" })]);
     expect(out.map((c) => c.id)).toEqual(["skill-tools-c", "skill-tools-c-2", "skill-tools-3", "skill-tools-c-4"]);
     expect(new Set(out.map((c) => c.semantic_key)).size).toBe(4);
+  });
+});
+
+// #393: the fallback bucket's label is what the screen prints over the skills the CV gave no group.
+// A group named after its own section reads as a placeholder, not a group — so the label is never
+// the Skills heading, nor any section's.
+describe("the fallback group is never named after a section", () => {
+  it("FALLBACK_GROUP matches no section heading, and is a name every door accepts", () => {
+    for (const [, heading] of SECTIONS) expect(FALLBACK_GROUP.toLowerCase()).not.toBe(heading.toLowerCase());
+    expect(usableGroupName(FALLBACK_GROUP)).toBe(FALLBACK_GROUP);
+  });
+
+  // The one gate the doors and the model's names pass: trimmed; blank, over-long or the Skills
+  // section's own name is no group name.
+  it("usableGroupName keeps a plain name trimmed and refuses blank, over-long and the section's own name", () => {
+    expect(usableGroupName("  Tools and platforms ")).toBe("Tools and platforms");
+    expect(usableGroupName("x".repeat(GROUP_NAME_MAX))).toBe("x".repeat(GROUP_NAME_MAX));
+    for (const bad of [undefined, null, "", "   ", "x".repeat(GROUP_NAME_MAX + 1), "Skills", " skills ", "SKILLS"]) expect(usableGroupName(bad)).toBeNull();
   });
 });

@@ -70,7 +70,7 @@ const REVIEW: ReviewState = {
         },
       ],
     },
-    { tag: "skill", heading: "Skills", lines: [line("s1", "Jira, MS Project.")], groups: [{ name: "Skills", ids: ["s1"] }] },
+    { tag: "skill", heading: "Skills", lines: [line("s1", "Jira, MS Project.")], groups: [{ name: "Other", ids: ["s1"] }] },
     { tag: "cert", heading: "Certifications", lines: [] },
     { tag: "edu", heading: "Education", lines: [line("e1", "MSc, University of Warsaw.")] },
     { tag: "lang", heading: "Languages", lines: [] },
@@ -1420,8 +1420,8 @@ test.describe("#383 tools moved and copied to Skills", () => {
                 line("skill-nrg-tools-confluence", "Confluence", { movedFrom: FROM }),
               ],
               groups: [
-                { name: "Skills", ids: ["s1", "skill-nrg-splunk-splunk"] },
-                { name: "Tools", ids: ["skill-nrg-tools-jira", "skill-nrg-tools-confluence"] },
+                { name: "Other", ids: ["s1"] },
+                { name: "Tools", ids: ["skill-nrg-splunk-splunk", "skill-nrg-tools-jira", "skill-nrg-tools-confluence"] },
               ],
             }
           : s,

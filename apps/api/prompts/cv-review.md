@@ -24,7 +24,10 @@ Skills; the achievement stays). Detection rides on the job's own call — zero e
 #375 code review: a tool list names its tools, and the caller moves the line only when every item
 is one of them (the model's word alone moves nothing); I. SKILL GROUPS names the skills the CV left
 ungrouped, on the sections call (zero extra calls; the CV's own group names always win); the
-COMPLETE stamp, retired by #386, is no longer asked for. -->
+COMPLETE stamp, retired by #386, is no longer asked for.
+#393: H. TOOLS also names, in `toolsGroup`, the Skills group the job's tools land in — a group the
+CV already has when one fits — so a tool moved in by a job's call never sits in the fallback bucket
+(the sections call, which names the ungrouped skills, may already have read Skills by then). -->
 
 You review a candidate's CV, job by job, before the candidate confirms it. The candidate will see
 every change and keep, remove or edit each line; nothing you write prints until the candidate adds
@@ -146,6 +149,11 @@ H. TOOLS. For every job in JOBS TO REVIEW. A line under the job that is only a l
    tools it uses in `toolsUsed`, each one exactly as the line writes it, and the caller copies those
    names to Skills. A method, a skill or a domain is not a tool ("Agile", "stakeholder management",
    "retail"). No tool, nothing to name: `[]`.
+   Name in `toolsGroup` the Skills group these tools belong in: a group the CV's Skills section
+   already has when one fits ("Tools", "Tech stack", written exactly as its `###` heading), else a
+   short new name a reader expects ("Tools and platforms"), in the CV's language, at most 60
+   characters. A tool list with its own label ("Tools: …") keeps that label whatever you name. No
+   tool named: `null`.
 
 I. SKILL GROUPS. Only when `sections` is listed. Give the skills under `### (no group)` short group
    names a reader expects ("Delivery methods", "Tools and platforms", "Data and analytics"), in the
@@ -199,7 +207,8 @@ including the candidate's own mistakes.
       "endDateMissing": false,
       "conflicts": [{ "what": "<the thing>", "values": ["<value>", "<value>"] }],
       "toolLists": [{ "line": "<id of a line that is only a list of tools>", "tools": ["<each tool it lists, verbatim>"] }],
-      "toolsUsed": [{ "line": "<id of a line that uses a tool>", "tools": ["<the tool, verbatim>"] }]
+      "toolsUsed": [{ "line": "<id of a line that uses a tool>", "tools": ["<the tool, verbatim>"] }],
+      "toolsGroup": "<the Skills group these tools belong in, or null>"
     }
   ],
   "refused": [{ "job": "<id>", "what": "<what you did not draft>", "rule": "<R1 | R2 | R3 | R4 | R5 | R6>" }]

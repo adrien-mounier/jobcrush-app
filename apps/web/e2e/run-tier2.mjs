@@ -285,6 +285,12 @@ export const JOURNEYS = [
   // invents no job for it. profile.spec.ts mocks the payload; this is the only flow that runs the
   // tailor write and both readers (profile, check mode) together. QA-gate-born, 2026-10-15.
   "tailoring-fact-joins-profile-journey.mjs",
+  // #393 (QA-gate-born, 2026-10-15): no skills group is ever named after its own section. The
+  // ONLY flow that reads the Skills screen and the profile off the real stack with the review held
+  // and then released (the neutral label before the model names a group, a real name after), and
+  // that presses the two group doors from the screen and over the wire with the refused name.
+  // check-mode.spec.ts mocks the groups it shows. Measured 2026-10-15: ~1 min at 1280, one paste.
+  "qa-393-skills-groups-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

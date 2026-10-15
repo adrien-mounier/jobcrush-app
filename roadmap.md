@@ -24,8 +24,10 @@ answered and every market's work rights set.
   and the About you follow-ups (#391); owner calls still open are commented on #389, re-upload edge cases
   are #388 · ~~#387~~ a fact added while tailoring joins the profile (eb977f1). A stretch still cannot
   join: no screen approves one yet, and the draft never writes to the profile (test-guarded).
-- **Owner acts next — launch one of the two staging-feedback tickets (2026-10-15):** #393 tools from a
-  job show under a fake "Skills" group (`/implement 393`, Fable 5.1, high) · #392 live job counter during
+- Shipped 2026-10-15: ~~#393~~ no skills group is named after its own section — the fallback label is
+  "Other", the section's name is refused on every door, and a tool moved in from a job lands in the
+  group the review names. **Owner acts next:** re-run the real CV on staging (an existing session shows
+  the old rows under "Other", a fresh run gets named groups) · launch #392 live job counter during
   loading (`/implement 392`, Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).

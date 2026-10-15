@@ -136,7 +136,10 @@ whatever separator the CV used, keeping the person's wording, and keeps a skill 
 belong to it whole ("Prompt engineering: structured prompting, Chain-of-Thought"). The group is the
 CV's own label when the line carries one, else the machine's: the review's sections call names the
 ungrouped skills (`cv-review.md` I, no extra call), never touching a group the CV named, and
-"Skills" stays when it names none. The person can rename a group or move a skill. So the tailor curates from single skills, each offered to it once, and still
+the neutral fallback label stays when it names none (`skillsSplit.ts` FALLBACK_GROUP — never the
+section's own name, which no door accepts either, #393). A tool a job's call moves or copies to
+Skills lands in the group that call names (`cv-review.md` H `toolsGroup`, an existing group when one
+fits); a tool list's own label wins. The person can rename a group or move a skill. So the tailor curates from single skills, each offered to it once, and still
 regroups them for the posting (preview-tailor rule 9); the master CV prints every skill once.
 
 Tools found under a job reach Skills too (#383, ADR-0018 clause 6), without asking and always

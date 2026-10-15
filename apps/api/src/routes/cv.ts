@@ -13,7 +13,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
 import type { ClaimStore } from "../claims.js";
 import { kindTag } from "../graph.js";
-import { groupOf } from "../skillsSplit.js";
+import { GROUP_NAME_MAX, groupOf, usableGroupName } from "../skillsSplit.js";
 import type { JobStore } from "../jobs.js";
 import { runOnboardingJob, type PipelineDeps } from "../pipeline.js";
 import { Refusal, refusal } from "./refusal.js";
@@ -90,7 +90,9 @@ export function cvRoutes(deps: CvDeps) {
       },
     );
 
-    const GroupName = z.string().trim().min(1).max(60);
+    // #393: a group is never named after its own section ("Skills" under Skills is the fallback's
+    // old placeholder, not a group) — the same gate the review's names pass.
+    const GroupName = z.string().trim().min(1).max(GROUP_NAME_MAX).refine((n) => usableGroupName(n) !== null, { message: "a group cannot carry its section's name" });
     const notFound = refusal({ code: "not_found", message: "unknown group or skill" });
 
     // #382 (ADR-0018 clause 6): rename a skills group — every skill of the session in it. A skill
