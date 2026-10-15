@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-15 (#387 shipped: a fact added while tailoring joins the profile)_
+_Last updated: 2026-10-15 (#393 shipped and live on staging: no skills group is named after its section)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -26,7 +26,7 @@ answered and every market's work rights set.
   join: no screen approves one yet, and the draft never writes to the profile (test-guarded).
 - Shipped 2026-10-15: ~~#393~~ no skills group is named after its own section — the fallback label is
   "Other", the section's name is refused on every door, and a tool moved in from a job lands in the
-  group the review names. **Owner acts next:** re-run the real CV on staging (an existing session shows
+  group the review names; live on staging (191bbcb, CI green 14:28 UTC). **Owner acts next:** re-run the real CV on staging (an existing session shows
   the old rows under "Other", a fresh run gets named groups) · launch #392 live job counter during
   loading (`/implement 392`, Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,

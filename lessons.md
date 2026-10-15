@@ -167,6 +167,9 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
   explanations (labelers landing late; years facts landing after placements) were wrong — the diagnostics in
   the report, not reasoning, found the cause.
 
+### A green test can be the bug
+- When a test's expected value is a fallback or placeholder literal (#383's test asserted a moved tool lands in the group named "Skills" — the owner's #393 defect, verbatim), the test documents a gap and cements it: every later fix goes red for the wrong reason. Before asserting a literal, ask what the person would see; a placeholder in an expectation is a ticket, not a spec.
+
 ### Read the gate's verdict, not its summary line
 - A journey that self-skips with a `qa.note` still prints "35 passed, 0 failed" — grep the report for skip notes.
 - Reports land relative to the CWD: today's are in `apps/web/qa-results/`; `apps/web/e2e/qa-results/` holds June's. Read the path the journey prints on its last line, never a glob.
@@ -238,6 +241,7 @@ absolute path in every shell command; never shorten it to a variable.
 - `paths-ignore` is an explicit allowlist of inert paths, never an extension pattern — `apps/api/prompts/*.md` and `research-data/**` are product. Check with `git ls-files` against the filter.
 - 0-second jobs with no logs = an account block (a $0 spending limit reads as "payments failed"), never a code fault. Read the run's annotation; the billable-minutes API reads 0 on free tier.
 - Count undeployed work by diffing `main` against the last green `deploy-staging` sha, not by scanning the run list.
+- A run takes 72–88 min (2026-10-09..15); the tier-2 journeys step is the long pole and every QA-gate-born journey adopted into tier 2 lengthens it (88 min after the 12th). Poll `gh run view` once, never background a watcher; say "about 80 minutes", not "an hour".
 - When Actions is unavailable, the hand-deploy recipe (same gates first, then two `flyctl deploy` with `BUILD_SHA`) is in the archive under "CI blocked ≠ deploy blocked".
 
 ### Staging ops
@@ -281,6 +285,9 @@ undici's headers timeout, which an `AbortSignal` cannot raise and which `undici`
 here) would be needed to configure. **Apply:** stream every call that may think for long — headers
 arrive at once and the step deadline becomes the only clock (both drivers in `llm.ts` stream now).
 A per-step timeout above five minutes on a non-streamed call is a setting nothing honours.
+
+### An every-boot backfill rewrites a value, so close the doors to that value first
+- `UPDATE … SET group_name = 'Other' WHERE group_name = 'Skills'` in the boot DDL runs on every start; left alone it would have renamed a person's own "Skills" group too, forever (#393, caught by `/code-review`'s Spec axis). A backfill of a literal is safe only once no door — model, HTTP, import — can write that literal again; put the gate in one shared function and point the backfill's comment at it.
 
 ### Widening to nullable disarms the checks you rely on
 A `!` strips `null` as readily as `undefined`, so widening `verifiedLiveAt` produced no compile error
