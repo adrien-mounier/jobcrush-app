@@ -46,6 +46,13 @@ export function exportGate(
       code: "not_approved",
       message: "this draft does not carry your approval — approve the draft on your screen",
     };
+  return conservationGate(stored, inputs);
+}
+
+/** The lint half of exportGate, on its own: the stored document re-checked against the inputs it
+ *  was built from. #390's Preview as CV downloads through this gate too — a preview has no
+ *  approval press, but a page stating a denial must no more reach a printer than an employer. */
+export function conservationGate(stored: TailorDraftRecord, inputs: DraftInputs): ExportRefusal | null {
   const fatal = conservationIssues(
     inputs.claimsDoc,
     stored.draft,

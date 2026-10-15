@@ -57,28 +57,51 @@ export function composeDraftInputs(
   adReq: AdRequirementsV1,
   headerText = "",
 ): DraftInputs {
+  const negativeIds = negativeRequirementIds(adReq, negatives);
+  return draftInputsFor(
+    confirmed,
+    negatives,
+    blocks,
+    posting,
+    headerText,
+    // The dimensions the advert gates on — the essential band, same reading the card's own
+    // essential/desirable split already makes.
+    adReq.requirements.filter((r) => r.band === "essential").map((r) => r.requirement),
+    // Open points: neither covered by a confirmed fact nor answered "No" — the unanswered gaps.
+    uncoveredRequirements(confirmed, adReq)
+      .filter((r) => !negativeIds.has(r.id))
+      .map((r) => r.requirement),
+  );
+}
+
+/** The engine's inputs with the advert already read into its tests and open points — shared with
+ *  the profile's Preview as CV (#390), whose "advert" is the person's own job and has no open
+ *  points to tell. */
+export function draftInputsFor(
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  blocks: JobBlockView[],
+  posting: Posting,
+  headerText: string,
+  advertTests: string[],
+  openPoints: string[] = [],
+): DraftInputs {
   const claimsDoc: CandidateClaims = {
     schemaVersion: "1",
     roles: [],
     claims: confirmed,
     parser_flags: [],
   };
-  const negativeIds = negativeRequirementIds(adReq, negatives);
   const opts: TailorInputOpts = {
     jobBlocks: blocks,
-    // The dimensions the advert gates on — the essential band, same reading the card's own
-    // essential/desirable split already makes.
-    advertTests: adReq.requirements.filter((r) => r.band === "essential").map((r) => r.requirement),
+    advertTests,
     // #311 (#287 c1/c2): EVERY unsuperseded denial in the session, in its own words — not only this
     // advert's — because the page must never state a denied capability whichever job asked about
     // it. Feeds the prompt's never-print block AND the mechanical page check (conservationIssues).
     // A denial a confirmed fact now covers (he grew) is superseded and drops out — the new fact
     // prints on its own merit. Eligibility declines are refusals, not denials, and never enter.
     negatives: deniedCapabilities(negatives, confirmed),
-    // Open points: neither covered by a confirmed fact nor answered "No" — the unanswered gaps.
-    openPoints: uncoveredRequirements(confirmed, adReq)
-      .filter((r) => !negativeIds.has(r.id))
-      .map((r) => r.requirement),
+    openPoints,
   };
   const input = buildTailorInput(claimsDoc, posting, headerText, opts);
   return { claimsDoc, opts, headerText, fingerprint: createHash("sha256").update(input).digest("hex") };

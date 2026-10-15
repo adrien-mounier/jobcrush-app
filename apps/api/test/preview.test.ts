@@ -991,7 +991,14 @@ describe("JC-17 pipeline end to end (fake LLMs)", () => {
   it("spec §8-3 AC: no export/share/download route exists server-side, and the old preview route is gone (#272)", async () => {
     const server = buildServer();
     await server.app.ready();
-    const routes = server.app.printRoutes({ commonPrefix: false });
+    // #390 (ADR-0019 clause 2): the one download door, /profile/cv-preview/pdf, is the named
+    // exception — it passes the approve press's own server-side gates (conservationGate, confirmed
+    // facts only), which cvPreview.test.ts proves refuse. Every other export-shaped word stays
+    // forbidden, so a second such door still trips this.
+    const table = server.app.printRoutes({ commonPrefix: false });
+    const gatedDoor = /\/cv-preview \(POST, GET, HEAD\)\n[│ ]*└── \/pdf \(GET, HEAD\)\n/;
+    expect(table).toMatch(gatedDoor);
+    const routes = table.replace(gatedDoor, "/cv-preview (POST, GET, HEAD)\n");
     for (const forbidden of ["export", "download", "pdf", "docx", "share", "previews"]) {
       expect(routes.toLowerCase()).not.toContain(forbidden);
     }

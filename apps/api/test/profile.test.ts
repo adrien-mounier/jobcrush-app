@@ -267,6 +267,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       contact: EMPTY_CONTACT,
       location: EMPTY_LOCATION,
       languagesQuestion: UNANSWERED_LANGUAGES_QUESTION,
+      cvPreviewHold: "Your profile has no job yet.", // #390: no job record on a profile with no CV
     });
   });
 
@@ -282,6 +283,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       contact: EMPTY_CONTACT,
       location: EMPTY_LOCATION,
       languagesQuestion: UNANSWERED_LANGUAGES_QUESTION,
+      cvPreviewHold: "Your profile has no job yet.", // #390: no job record on a profile with no CV
     });
   });
 

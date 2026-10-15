@@ -21,6 +21,8 @@ import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
 import { withFactFloor, type SearchAreaEntry, type SessionRecord, type SessionStore } from "./sessions.js";
 import { groupOf } from "./skillsSplit.js";
+import { cvPreviewHold } from "./cvPreview.js";
+import type { JobBlockStore } from "./jobBlockStore.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
 export interface ProfileFact {
@@ -129,6 +131,9 @@ export interface ProfileState {
   contact: ProfileContact;
   location: ProfileLocation;
   languagesQuestion: ProfileLanguagesQuestion;
+  /** #390 (ADR-0019 clause 3): why the Preview as CV door is held, in one line — null when it is
+   *  open. The screen greys the door and prints the line; it never composes a reason itself. */
+  cvPreviewHold: string | null;
 }
 
 export function profileSearch(role: string | null): ProfileSearch {
@@ -217,6 +222,7 @@ export interface ProfileDeps {
   contact: ContactStore;
   eligibility: EligibilityStore;
   reviews: CvReviewStore;
+  jobBlocks: Pick<JobBlockStore, "list">;
 }
 
 /** GET /profile: the reads behind the payload (moved out of routes/onboarding.ts by #384, which
@@ -234,6 +240,7 @@ export async function readProfile(deps: ProfileDeps, session: SessionRecord): Pr
     await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas),
     await resolveLanguagesQuestion(deps.eligibility, session.id),
     lineMarks(await deps.reviews.get(session.id)).fixes,
+    cvPreviewHold(session, await deps.jobBlocks.list(session.id)),
   );
 }
 
@@ -247,6 +254,7 @@ export function buildProfileState(
   location: ProfileLocation = EMPTY_PROFILE_LOCATION,
   languages: ProfileLanguagesQuestion = UNANSWERED_LANGUAGES_QUESTION,
   fixes: ReadonlyMap<string, ResolvedFix> = new Map(),
+  cvPreviewHold: string | null = null,
 ): ProfileState {
   const rootCv = renderRootCv(buildClaimGraph(facts.filter(prints)));
   const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
@@ -309,5 +317,6 @@ export function buildProfileState(
     contact: toProfileContact(contact),
     location,
     languagesQuestion: languages,
+    cvPreviewHold,
   };
 }

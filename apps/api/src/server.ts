@@ -23,6 +23,7 @@ import { jobBlocksRoutes } from "./routes/jobBlocks.js";
 import { InMemoryEligibilityStore, type EligibilityStore } from "./eligibility.js";
 import { CONTACT_FIELDS, InMemoryContactStore, type ContactStore } from "./contact.js";
 import { contactRoutes } from "./routes/contact.js";
+import { cvPreviewRoutes } from "./routes/cvPreview.js";
 import { reviewRoutes } from "./routes/review.js";
 import type { GrillPhraser } from "./grill.js";
 import type { CvAuditor } from "./audit.js";
@@ -615,6 +616,20 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps, claims }));
   app.register(contactRoutes({ contact }));
+  // #390 (ADR-0019): the profile's Preview as CV — the tailored draft's own engine, checkpoint
+  // store and gates, pointed at the person's own job instead of a job ad.
+  app.register(
+    cvPreviewRoutes({
+      claims,
+      jobBlocks,
+      productionFamilyFloors,
+      contact,
+      jobs: store,
+      tailorDrafts,
+      tailorLlm: opts.tailorLlm,
+      documentMaker: opts.documentMaker,
+    }),
+  );
   // #338: "Your CV, reviewed" — the screen between the last question and the jobs.
   app.register(
     reviewRoutes({ claims, sessions, jobBlocks, eligibility, contact, reviews: cvReviews, runner: reviewRunner, now: opts.reviewRun?.now }),
