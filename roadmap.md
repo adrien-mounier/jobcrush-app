@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-15 (#389 answered; #390, #391 ready)_
+_Last updated: 2026-10-15 (#389 built: #390 Preview as CV, #391 follow-ups shipped)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -20,10 +20,12 @@ shipped 2026-10-14 in 482ca57, all 15 sub-issues closed; real-CV evals passed). 
 mode replaced "Your CV, reviewed"; the jobs open once every screen is confirmed, every suggestion
 answered and every market's work rights set.
 
-- **Owner: launch `/implement-spec #389`** (Fable 5.1, high). #389's answers are recorded: #390 Preview as CV, a
-  CV tailored to your own job, downloadable ([ADR-0019](docs/adr/0019-the-master-cv-previews-as-a-cv-for-the-persons-own-job.md));
-  #391 old summary lines step aside, the quote label, the full walk in CI. Re-upload edge cases: #388.
-- Outside that build: #387 a fact added while tailoring joins the profile (tailoring spine).
+- ~~`/implement-spec #389`: #390 Preview as CV, a CV tailored to your own job, downloadable
+  ([ADR-0019](docs/adr/0019-the-master-cv-previews-as-a-cv-for-the-persons-own-job.md)); #391 old summary
+  lines step aside, the quote label, the full walk in CI~~ — **shipped 2026-10-15** (spec/389, GO at eda2363).
+  Owner-pending calls are commented on #389. Re-upload edge cases: #388.
+- **Next build: #387** a fact added while tailoring joins the profile (tailoring spine) — a lone ticket:
+  `/implement #387` (Fable 5.1, high).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 

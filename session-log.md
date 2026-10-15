@@ -2,6 +2,12 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-15 — Preview as CV + #389 follow-ups shipped: spec #389, tickets #390 and #391
+
+`/implement-spec #389` built #390 (Preview as CV, ADR-0019) and #391 (old summary lines step aside on About you save; summary quotes read "About you"; the full check-mode walk in tier 2) in two worktrees on `spec/389`. `/code-review` found one real bug (a failed job start left the preview's in-flight reservation stuck until restart), three standards gaps (no response schemas, a silent PDF refusal, a hold that still offered Try again) and spec drift (the family's scope sentence fed to the tailor); one fix agent took all of it (5209487). QA was NO-GO first on two looks: the new door glued to "Check your CV", and the preview page without its theme (its tokens lived only on `.jobdeck`). Fixed in eda2363, which also adopts the gate's `cv-preview-journey.mjs` into tier 2 (the only flow running the preview route, store and document maker for real). GO on tree 47980ca: api 2088, typecheck 7/7, guards 15/15, 10 tier-2 journeys green, full walk 126/126.
+Owner-pending calls recorded on #389: Put back for the moved About you lines lives in check mode, not on the profile page (ADR-0018 / #377); a job with an unknown end date is not "current"; the lines move on the first About you save only; the preview's language is English for now.
+**Next:** #387 (a tailoring fact joins the profile), then Chat with JobCrush (#350).
+
 ## 2026-10-14 — Check mode shipped: spec #375, 15 tickets (482ca57)
 
 `/implement-spec #375` built all 15 sub-issues on one branch, followed by `/code-review`, where one fix agent took the 3 standards breaches and 7 spec findings. QA was NO-GO first: an unanswered market did not hold the want, tailor and draft doors (fixed in 11b36ad). Then GO on tree 35bdff5 (full walk at 1280 and 390 px, 38/38 tier-2, 247 mocked, api 2072). Main went 0c6532b..482ca57, CI was green and staging was confirmed by /healthz.
@@ -110,13 +116,3 @@ listener accumulating per hold. QA gate **GO**: API 1952, review.spec 19/19, cv-
 migration proven on real Postgres 16. **Proven on staging (f389b5d, 2026-10-09):** a 12-min self-hold
 from the machine kept it up 14 min 44 s (23 holds in Fly's log, 25 s apart, no key logged); the proxy
 stopped it 2 min after the hold ended. A real review's own hold is still unobserved. **Next:** #364.
-
-## 2026-10-08 — First real-CV run on staging: miner hotfix (bef04fb) + six defects filed
-
-Repo made public (free Actions minutes; CLAUDE.md d6fa300). The owner's real CV failed upload: the miner
-returned null `semantic_key`; `repairClaims` now falls back to the claim id (QA GO, hand-deployed API).
-Second upload reviewed fine: BRED and SG placed as IT Project Manager, both COMPLETE ✓, 1 suggestion.
-Defects filed: #359 (any read failure blames a scan), #360 (letterhead swallows summary), #361
-(Product Owner unplaced → no must-haves), #362 (failed review shows "0 to check"), #363 (Fly
-auto-stop kills a running review, killed call burns an attempt), #364 (unit failure reason not
-kept; SG failed first attempt twice). ~USD 2.80 spent. **Next:** #361–#364 before #344.
