@@ -67,10 +67,13 @@ check("a non-gate e2e file is inert, and never selects everything", () => {
 });
 
 // AC2 — a narrow source change selects a narrow set, each with the rule that matched it.
+// #391: two journeys now, still narrow — the full check-mode walk saves Your details' title through
+// the contact route, so a contact.ts change can redden it too.
 check("a narrow source change selects a narrow set, with a reason for each", () => {
   const r = run(["apps/api/src/contact.ts"]);
-  assert.deepEqual(r.selected, ["contact-fact-journey.mjs"]);
+  assert.deepEqual([...r.selected].sort(), ["check-mode-full-walk-journey.mjs", "contact-fact-journey.mjs"]);
   assert.match(r.reasons.get("contact-fact-journey.mjs"), /apps\/api\/src\/contact\.ts matches /);
+  assert.match(r.reasons.get("check-mode-full-walk-journey.mjs"), /apps\/api\/src\/contact\.ts matches /);
 });
 
 check("a glob rule matches the whole directory beneath it", () => {

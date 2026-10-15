@@ -13,7 +13,7 @@
 // Additional information exists whenever there is a target market to answer "Where you can work" for.
 import { useState, type ReactNode } from "react";
 import type { ContactField, ReviewJob, ReviewLine, ReviewState, ReviewWorkRights, SkillGroup, WorkRightsAnswer } from "../../../lib/api";
-import { ItemList, RemoveCard, type ItemListProps } from "./Item";
+import { ItemList, RemoveCard, Tray, type ItemListProps } from "./Item";
 import { SkillsBody, type GroupActions } from "./Skills";
 import { DismissedRow, SuggestionCard } from "./SuggestionCard";
 import { ConflictCard, EndDateCard, LanguagesCard, WorkCard } from "./cards";
@@ -61,7 +61,8 @@ const LEAD_END = "When did this job end? Tell me if you know. Edit or remove any
 export type Screen =
   /** #386: `conflict` — the import conflict, asked here above the fields. */
   | { kind: "details"; key: "details"; title: string; sub: null; letterhead: ReviewState["letterhead"]; conflict: ReviewState["conflict"] }
-  | { kind: "about"; key: "about"; title: string; sub: null; about: NonNullable<ReviewState["about"]> }
+  /** #391: `lines` — the summary's own lines; the removed ones list in the tray under the text. */
+  | { kind: "about"; key: "about"; title: string; sub: null; about: NonNullable<ReviewState["about"]>; lines: ReviewLine[] }
   | { kind: "job"; key: string; title: string; sub: string; job: ReviewJob; lines: ReviewLine[] }
   | {
       kind: "section";
@@ -106,7 +107,7 @@ export function screensOf(state: ReviewState): Screen[] {
       // #371: About you replaces the summary's lines with the text written from the whole CV — even
       // for a CV with no summary. Until the review wrote one, the summary shows as read, below.
       // #385: it is not an item a re-upload brings, so check mode brought back skips it.
-      if (!fresh) out.push({ kind: "about", key: "about", title: TITLES.profile!, sub: null, about: state.about });
+      if (!fresh) out.push({ kind: "about", key: "about", title: TITLES.profile!, sub: null, about: state.about, lines: section.lines });
     } else {
       const lines = its(section.lines);
       const extra = sectionExtras(state, section.tag, lines, !!fresh);
@@ -224,7 +225,18 @@ export function ScreenBody({
   aboutDraft: AboutDraft;
   groups: GroupActions;
 }): ReactNode {
-  if (screen.kind === "about") return <AboutCard about={screen.about} {...aboutDraft} />;
+  if (screen.kind === "about") {
+    // #391 (ADR-0018 clause 2): the CV's own summary lines that stepped aside when About you was
+    // saved list under "N removed · Show", one tap from Put back; a line in is the text's source,
+    // not an item beside it.
+    const removed = screen.lines.filter((l) => l.state === "kept");
+    return (
+      <>
+        <AboutCard about={screen.about} {...aboutDraft} />
+        {removed.length > 0 && <Tray removed={removed} busy={list.busy} bump={list.bump} onPutBack={list.onPutBack} onBumpEnd={list.onBumpEnd} />}
+      </>
+    );
+  }
   if (screen.kind === "details") {
     // #381 (ADR-0018 clause 5): the person's own facts — a plain card of fields, no button of its
     // own; the footer button saves.

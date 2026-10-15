@@ -327,13 +327,15 @@ export function lineMarks(run: ReviewRunRecord | null) {
  *  (case and spacing aside), named by its job or its section. A draft is never its own source. The
  *  run records no place for a quote, so this reads the lines as stored; a quote reworded by the model
  *  or spanning two lines finds none, and the card then says only "From your CV". #386: nor is About
- *  you (written from the whole CV, so it repeats the jobs' own words) — it is not where the CV said it. */
+ *  you (written from the whole CV, so it repeats the jobs' own words) — it is not where the CV said it.
+ *  #391: a quote from the summary is named "About you", the screen's name for it (#368), not the
+ *  paper's "Professional Summary". */
 function quoteSources(paper: Paper, drafts: ReadonlyMap<string, ResolvedDraft>): (quote: string) => string | null {
   const flat = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
   const places = paper.sections.flatMap((section) =>
     "jobs" in section
       ? section.jobs.map((job) => ({ name: [job.employer, job.title].filter(Boolean).join(", "), lines: job.lines }))
-      : [{ name: section.heading, lines: section.lines }],
+      : [{ name: section.tag === "profile" ? ABOUT_YOU_HEADING : section.heading, lines: section.lines }],
   );
   const read = places.flatMap(({ name, lines }) =>
     lines.filter((l) => !drafts.has(l.id) && l.id !== ABOUT_YOU_ID).map((l) => ({ name, text: flat(l.text) })),
@@ -509,14 +511,23 @@ export async function tickDraft(deps: ReviewDeps, sessionId: string, lineId: str
 
 /** #371: the claim About you is saved as — one per session, filed under the summary (`profile`). */
 export const ABOUT_YOU_ID = "about-you";
+/** The summary section as the screens name it (#185; rootcv.ts's own "Professional Summary" still
+ *  prints on the paper). #391: a quote's source names it this way too. */
+export const ABOUT_YOU_HEADING = "About you";
 
 /** #371 (ADR-0018 clause 5): the person keeps About you (the text unchanged) or saves their own
  *  words — either way it becomes theirs: one confirmed, user-authored profile claim. The profile's
  *  About you shows it and the tailor reads it as one claim line among the rest: source material,
  *  never print-ready — whether a tailored CV prints a summary is preview-tailor.md rule 10's, per
- *  job. Saving again replaces the words; the CV's own summary lines are left exactly as they were
- *  (authored data is never removed behind the person's back). */
+ *  job. Saving again replaces the words.
+ *
+ *  #391 (owner, #371 option a): the FIRST save moves the CV's own summary lines to the section's
+ *  removed list — `kept`, so they print nowhere until put back, and never deleted or reworded
+ *  (ADR-0018 clause 2: the move shows under "N removed · Show", one tap from Put back). Only the
+ *  first save: after that the list is the person's, and a line they put back stays put. */
 export async function saveAbout(deps: Pick<ReviewDeps, "claims">, sessionId: string, text: string): Promise<{ text: string }> {
+  const before = await deps.claims.list(sessionId);
+  const first = !before.some((c) => c.id === ABOUT_YOU_ID);
   await deps.claims.add(sessionId, {
     id: ABOUT_YOU_ID,
     semantic_key: ABOUT_YOU_ID,
@@ -531,6 +542,9 @@ export async function saveAbout(deps: Pick<ReviewDeps, "claims">, sessionId: str
     needs_grill: false,
     grill_hint: null,
   });
+  if (first)
+    for (const c of before)
+      if (c.lineState === "ticked" && kindTag(c) === "profile") await deps.claims.setLineState(sessionId, c.id, "kept");
   return { text };
 }
 

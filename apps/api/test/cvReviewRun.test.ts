@@ -956,7 +956,7 @@ describe("#368 a drafted line's source names where its quote came from", () => {
       "Coordinated releases for 4 agile squads.": "Baltic Software House, Project Coordinator", // another job
       "Led the checkout replatform.": "Nordic Retail Group, IT Project Manager", // its own job, named too
       "has skills in jira": "Skills", // case and spacing do not matter
-      "Delivery-accountable project manager.": "Professional Summary",
+      "Delivery-accountable project manager.": "About you", // #391: the screen's name for the summary, not the paper's heading
       "Words the CV never says.": null,
     });
     expect(writer.calls).toHaveLength(2);
@@ -1010,7 +1010,7 @@ describe("#371 About you", () => {
     expect(linesOf(state, "profile")).toEqual([]);
   });
 
-  it("the footer keeps or saves it as one profile claim the profile and the tailor read as source material; the CV's own summary lines are left as they were; a reload reads the saved words; empty is refused", async () => {
+  it("the footer keeps or saves it as one profile claim the profile and the tailor read as source material; the CV's own summary lines step aside into the removed list, one tap from Put back; a reload reads the saved words; empty is refused", async () => {
     const prompts: string[] = [];
     const writer = fakeWriter();
     const { app, cookie, server, sessionId } = await withCv(writer, WITH_SUMMARY, { tailorLlm: echoingLlm(prompts) });
@@ -1027,25 +1027,36 @@ describe("#371 About you", () => {
     expect(state.about).toEqual({ text: mine, original: ORIGINAL });
     expect((await put(app, cookie, "/review/about", { text: "   " })).statusCode).toBe(400);
     expect((await review(app, cookie)).about!.text).toBe(mine);
-    // The migration rule: the CV's own summary lines are the person's authored data — saving About
-    // you neither deletes, removes nor rewords them (owner to decide if they should step aside).
-    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-pm")).toMatchObject({ lineState: "ticked", text: "Delivery-accountable project manager." });
+    // #391 (owner, #371 option a): the first save moves the CV's own summary lines to the section's
+    // removed list — held as `kept`, never deleted or reworded, and listed on the About you screen
+    // under "N removed · Show" (ADR-0018 clause 2). The line that already left the summary for
+    // Languages is not a summary line any more and stays in.
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-pm")).toMatchObject({ lineState: "kept", text: "Delivery-accountable project manager." });
     expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-langs")).toMatchObject({ lineState: "ticked", text: "Fluent in French and English." });
+    expect(linesOf(state, "profile").find((l) => l.id === "sum-pm")).toMatchObject({ state: "kept" }); // GET /review lists it removed
 
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "review-about@example.com");
     await answerDrafts(app, cookie); // #378: Finish waits until every suggestion is answered
     expect((await post(app, cookie, "/review/complete")).statusCode).toBe(200);
-    // The profile: About you holds the person's text as theirs; the moved fact sits under Languages.
+    // The profile: About you holds the person's text as theirs; the old summary line sits under it
+    // removed; the moved fact sits under Languages.
     const profile = (await get(app, cookie, "/profile")).json() as { domains: Array<{ tag: string; heading: string; facts: Array<{ id: string; text: string; source: string; colour: string; kept?: true }> }> };
     const about = profile.domains.find((d) => d.heading === "About you")!;
     expect(about.facts.find((f) => f.id === "about-you")).toMatchObject({ text: mine, source: "told", colour: "gold" });
-    expect(about.facts.find((f) => f.id === "sum-pm")).toMatchObject({ source: "read" });
+    expect(about.facts.find((f) => f.id === "sum-pm")).toMatchObject({ source: "read", kept: true });
     expect(profile.domains.find((d) => d.tag === "lang")!.facts.map((f) => f.id)).toEqual(["sum-langs"]);
-    // The master CV prints the saved text, and the moved fact under Languages.
+    // The master CV prints the saved text without the old summary line, and the moved fact under Languages.
     const markdown = (await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string;
     expect(markdown).toContain(mine);
+    expect(markdown).not.toContain("Delivery-accountable project manager.");
     expect(markdown.slice(markdown.indexOf("## Languages"))).toContain("Fluent in French and English.");
+    // Put back (the ordinary line door): the line prints again — and a later save of About you
+    // leaves the person's put-back alone (the lines step aside once, on the first save).
+    expect((await put(app, cookie, "/cv/lines/sum-pm", { state: "ticked" })).statusCode).toBe(200);
+    expect((await put(app, cookie, "/review/about", { text: mine })).statusCode).toBe(200);
+    expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-pm")).toMatchObject({ lineState: "ticked" });
+    expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string).toContain("Delivery-accountable project manager.");
     // The tailor reads About you as a claim line — source material under preview-tailor.md rule 10
     // (preview.test.ts "#159 tailor prompt": the summary prints only when it earns its place).
     await warmRetrieval(app, cookie);

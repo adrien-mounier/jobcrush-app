@@ -376,6 +376,23 @@ export const COVERAGE = {
     AUTH,
     DISCOVERY,
   ),
+  // #391: every check-mode screen walked for real, then the deck, the master CV (rootcv.ts, in
+  // CV_INTAKE), a re-upload and the work-rights rule — it can go red on the review and its screens,
+  // the intake and job records behind them, Your details' contact store, the work-rights store,
+  // the deck gate, the sign-in it mints and the profile it reads back.
+  "check-mode-full-walk-journey.mjs": union(
+    REVIEW,
+    CV_INTAKE,
+    JOB_BLOCKS,
+    DISCOVERY,
+    ELIGIBILITY,
+    ["apps/api/src/contact.ts", "apps/api/src/routes/contact.ts"],
+    DECK,
+    POSTINGS,
+    REVEAL_GATE,
+    AUTH,
+    PROFILE,
+  ),
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),
   // #116: CV upload → discovery → the held deck; arms qa-main's readDelayMs for its own run.
