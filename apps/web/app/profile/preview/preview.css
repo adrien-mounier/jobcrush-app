@@ -1,0 +1,88 @@
+/* #390 Preview as CV — a dark-room screen holding one sheet of paper (the server's render). The
+   wait and failure types mirror the tailor ending's draft block (tailor.css) at the same steps. */
+.cvpreview {
+  min-height: 100dvh;
+  padding: 10px 16px 32px;
+  color: var(--hud-ink);
+}
+.cvpreview .topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cvpreview .back {
+  padding: 8px 6px 8px 0;
+  font-size: 14px;
+  color: var(--hud-mute);
+  text-decoration: none;
+}
+.cvpreview .back:hover {
+  color: var(--hud-ink);
+}
+.cvpreview .title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.cvpreview .preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+.cvpreview .preview-for {
+  margin: 0;
+  font-size: 13px;
+  color: var(--hud-mute);
+}
+.cvpreview .preview-download {
+  align-self: flex-start;
+  padding: 9px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--hud-line);
+  background: var(--gold);
+  color: var(--hud-bg, #121417);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.cvpreview .preview-download:hover {
+  filter: brightness(1.06);
+}
+.cvpreview .preview-frame {
+  width: 100%;
+  height: 78vh;
+  border: 1px solid var(--hud-line);
+  border-radius: 12px;
+  background: #fff;
+}
+.cvpreview .preview-sub {
+  font-size: 12.5px;
+  color: var(--hud-mute);
+  margin: 0;
+  line-height: 1.45;
+}
+.cvpreview .preview-wait {
+  padding: 26px 4px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+.cvpreview .preview-wait-line,
+.cvpreview .preview-wait p[role="alert"] {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.cvpreview .preview-wait button {
+  margin-top: 10px;
+  padding: 9px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--hud-line);
+  background: none;
+  color: var(--hud-ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}

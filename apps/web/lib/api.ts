@@ -662,6 +662,29 @@ export interface ProfileState {
   contact: ProfileContact;
   location: ProfileLocation;
   languagesQuestion: ProfileLanguagesQuestion;
+  /** #390 (ADR-0019 clause 3): why the Preview as CV door is held, in one line — null when open. */
+  cvPreviewHold: string | null;
+}
+
+// --- #390: Preview as CV — the master CV tailored to the person's own job (ADR-0019) ---
+
+export interface CvPreviewView {
+  /** The PDF's own render, letterhead included — self-contained HTML for a sandboxed iframe. */
+  html: string;
+  draftedAt: string;
+  /** The job it was tailored for: the person's current job, else their most recent. */
+  job: { title: string; employer: string };
+}
+
+/** Makes (or joins) the preview. `ready` ⇒ the stored one still matches the profile and reading
+ *  it costs nothing; otherwise the job to watch over the same `/api/jobs/:id/events` stream. A
+ *  held door (no job, or check mode unfinished) answers 409 — the profile greys it before this. */
+export function requestCvPreview(): Promise<{ ready?: boolean; jobId?: string }> {
+  return jfetch("/api/profile/cv-preview", { method: "POST" });
+}
+
+export function getCvPreview(): Promise<CvPreviewView> {
+  return jfetch("/api/profile/cv-preview");
 }
 
 // Mirrors apps/api/src/contact.ts's ContactValue/ContactRecord — the PUT /contact response shape.

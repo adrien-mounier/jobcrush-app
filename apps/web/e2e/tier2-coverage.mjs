@@ -143,7 +143,14 @@ const AUTH = [
   "apps/web/app/auth/**",
   "apps/web/app/signup/**",
 ];
-const PROFILE = ["apps/api/src/profile.ts", "apps/web/app/profile/**", "apps/web/app/profile.css"];
+const PROFILE = [
+  "apps/api/src/profile.ts",
+  // #390: Preview as CV — the profile's own door, routes and screen (ADR-0019).
+  "apps/api/src/cvPreview.ts",
+  "apps/api/src/routes/cvPreview.ts",
+  "apps/web/app/profile/**",
+  "apps/web/app/profile.css",
+];
 const FACTBADGE = ["apps/web/app/factbadge.tsx", "apps/web/app/factbadge.css"];
 const YEARS = ["apps/api/src/yearsWorked.ts"];
 // #338: "Your CV, reviewed" - its module, its routes, its screen, and the line-state door it taps.

@@ -71,6 +71,7 @@ const P29 = "Every fact, as a list";
 // says which record looks doubtful, and inventing a doubt would be a "what you lack" list by
 // another name (the one thing this screen may never grow).
 const P30 = "Check your work history";
+const P31 = "Preview as CV"; // #390
 
 // #186 the list, style B — the grey-run captions (design-186-188.md §A5). #335 splits grey in two
 // (owner's call, 2026-10-04): a line not yet confirmed reads "Not on your CV yet"; a line the person
@@ -473,6 +474,26 @@ function WorkHistoryDoor() {
     <Link className="rdoor" href="/job-blocks">
       {P30}
     </Link>
+  );
+}
+
+// #390 (ADR-0019): the master CV as it would print. Held, it stays a real button in the tab order
+// (pastedoor.tsx's own reasoning: `aria-disabled`, never a bare span) with the server's one line
+// beside it — the screen never composes a reason of its own.
+function CvPreviewDoor({ hold }: { hold: string | null }) {
+  if (hold === null)
+    return (
+      <Link className="review-door" href="/profile/preview">
+        {P31}
+      </Link>
+    );
+  return (
+    <p className="review-door-held">
+      <button type="button" className="review-door" aria-disabled="true" aria-describedby="cvpreview-hold">
+        {P31}
+      </button>
+      <span id="cvpreview-hold">{hold}</span>
+    </p>
   );
 }
 
@@ -2180,6 +2201,7 @@ function ReadyScreen({
             <a className="review-door" href="/profile/check">
               {P16}
             </a>
+            <CvPreviewDoor hold={profile.cvPreviewHold} />
             <h1 className="pcount" tabIndex={-1} ref={headingRef}>
               <span className="n">{totalCount}</span>{" "}
               <span className="t">{totalCount === 1 ? "thing you've told me" : "things you've told me"}</span>

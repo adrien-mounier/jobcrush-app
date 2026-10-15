@@ -140,6 +140,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
     ],
     contact: { name: null, title: null, location: null, phone: null, email: null },
     location: { areas: [], workRights: [] },
+    cvPreviewHold: null,
     languagesQuestion: {
       questionId: "eligibility-languages",
       question: "Which languages do you speak? Start typing — I'll suggest as you go.",

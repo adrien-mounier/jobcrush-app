@@ -60,6 +60,7 @@ const PROFILE: ProfileState = {
   contact: { name: null, title: null, location: null, phone: null, email: null }, // #190's honest-absence default; populated fixtures below
   location: { areas: [], workRights: [] }, // #188's rail — types mirrored only, not this ticket's UI
   languagesQuestion: LANGUAGES_QUESTION,
+  cvPreviewHold: null, // #390: the Preview as CV door is open unless a fixture holds it
 };
 
 async function stubProfile(page: Page, state: ProfileState = PROFILE) {
@@ -2284,4 +2285,34 @@ test("#386 a fact's words are edited from the Constellation's sheet too, through
   await sheet.locator(".rbtns .rbtn").first().click();
   expect(sent).toEqual([{ url: "/api/cv/lines/e3/text", text: "Led SAP cutover planning for 3 plants." }]);
   await expect(star("Led SAP cutover planning for 3 plants.")).toHaveCount(1);
+});
+
+// --- #390 (ADR-0019): the Preview as CV door — open, or held with the server's one line ---------
+
+test("#390 the Preview as CV door opens the preview when the profile has a job", async ({ page }) => {
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const door = page.getByRole("link", { name: "Preview as CV" });
+  await expect(door).toBeVisible();
+  await expect(door).toHaveAttribute("href", "/profile/preview");
+  await expect(page.getByRole("button", { name: "Preview as CV" })).toHaveCount(0);
+});
+
+test("#390 with no job the door is held: greyed, reachable, goes nowhere, and says why in one line", async ({ page }) => {
+  await stubSession(page);
+  await stubProfile(page, { ...PROFILE, cvPreviewHold: "Your profile has no job yet." });
+  await page.goto("/profile");
+
+  const held = page.getByRole("button", { name: "Preview as CV" });
+  await expect(held).toBeVisible();
+  await expect(held).toHaveAttribute("aria-disabled", "true");
+  await expect(held).toHaveAccessibleDescription("Your profile has no job yet.");
+  await expect(page.getByText("Your profile has no job yet.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Preview as CV" })).toHaveCount(0);
+  // A keyboard user finds it; pressing it does nothing — the page stays the profile.
+  await held.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/profile$/);
 });
