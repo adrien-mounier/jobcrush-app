@@ -4,8 +4,8 @@ import type { CvPreviewView } from "../lib/api";
 // #390 (ADR-0019) — Preview as CV: the master CV tailored to the person's own job, as it prints.
 // Route-mocked to the pinned CvPreviewView shape, like tailor.spec.ts's draft tests: the wait is
 // narrated over the job stream, the page is the server's render (letterhead included) in a
-// sandboxed frame, it names the job it was tailored for, and Download PDF is a link to the
-// server's gated PDF door — the browser's own download, no script in between.
+// sandboxed frame, it names the job it was tailored for, and Download PDF fetches the server's
+// gated PDF door — the bytes saved on 200, the server's own line printed on a refusal.
 
 async function stubSession(page: Page) {
   await page.route("**/api/sessions/me", async (route) => {
@@ -53,9 +53,51 @@ test("#390 a fresh preview narrates its wait over the job stream, then the CV la
   await expect(frame).toHaveAttribute("srcdoc", /Maria Kowalski/);
 
   await expect(page.getByText("Tailored for IT Project Manager at Nordic Retail Group.")).toBeVisible();
-  const download = page.getByRole("link", { name: "Download PDF" });
-  await expect(download).toHaveAttribute("href", "/api/profile/cv-preview/pdf");
-  await expect(download).toHaveAttribute("download", "");
+  // Download PDF: the server's bytes, saved under the server's own filename.
+  await page.route("**/api/profile/cv-preview/pdf", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/pdf",
+      headers: { "content-disposition": 'attachment; filename="CV - Maria Kowalski.pdf"' },
+      body: Buffer.from("%PDF-1.4 stand-in document\n"),
+    });
+  });
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download PDF" }).click()]);
+  expect(download.suggestedFilename()).toBe("CV - Maria Kowalski.pdf");
+  await expect(page.locator(".preview p[role='alert']")).toHaveCount(0);
+});
+
+test("#390 a refused download prints the server's own line on the page — never a download that silently fails", async ({ page }) => {
+  await stubSession(page);
+  await page.route("**/api/profile/cv-preview", async (route) => {
+    if (route.request().method() === "POST") await route.fulfill({ json: { ready: true } });
+    else await route.fulfill({ json: PREVIEW });
+  });
+  await page.route("**/api/profile/cv-preview/pdf", async (route) => {
+    await route.fulfill({
+      status: 409,
+      json: { error: { code: "lint_failed", message: "this draft failed the conservation check and cannot be emailed — redraft it" } },
+    });
+  });
+
+  await page.goto("/profile/preview");
+  await expect(page.locator(".preview-frame")).toBeVisible();
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  await expect(page.locator(".preview p[role='alert']")).toHaveText("this draft failed the conservation check and cannot be emailed — redraft it");
+  // The CV itself stays on the page; the refusal is a line beside the button, not a dead end.
+  await expect(page.locator(".preview-frame")).toBeVisible();
+});
+
+test("#390 a held door prints the server's line with nothing to retry — no Try again, no re-done promise", async ({ page }) => {
+  await stubSession(page);
+  await page.route("**/api/profile/cv-preview", async (route) => {
+    await route.fulfill({ status: 409, json: { error: { code: "no_job", message: "Your profile has no job yet." } } });
+  });
+
+  await page.goto("/profile/preview");
+  await expect(page.locator(".preview-wait p[role='alert']")).toHaveText("Your profile has no job yet.");
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await expect(page.getByText("nothing already done is re-done", { exact: false })).toHaveCount(0);
 });
 
 test("#390 a preview that already matches the profile opens at once — no job stream to watch", async ({ page }) => {

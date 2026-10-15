@@ -3,13 +3,13 @@
 // #390 (ADR-0019) — Preview as CV: the master CV as it would print, tailored as though the person
 // were applying for their own job. The document is the server's render (the PDF's own), read-only
 // in a sandboxed iframe; the wait is narrated over the same `/api/jobs/:id/events` stream every
-// other wait uses (tailor/draft.tsx's own watch, ported); Download PDF is a plain link to the
-// server's gated PDF door, so the browser's own download handles it.
+// other wait uses (tailor/draft.tsx's own watch, ported); Download PDF fetches the server's gated
+// PDF door, saves the bytes on 200 and prints the server's own line on a refusal.
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import "../../deck.css";
 import "./preview.css";
-import { ensureSession, getCvPreview, requestCvPreview, type CvPreviewView, type JobSnapshot } from "../../../lib/api";
+import { downloadCvPreviewPdf, ensureSession, getCvPreview, requestCvPreview, type CvPreviewView, type JobSnapshot } from "../../../lib/api";
 
 const WAIT_CEILING_MS = 180_000;
 
@@ -22,14 +22,19 @@ const V6 = "Download PDF";
 const V7 = "‹ Back to your profile";
 const V8 = "your CV";
 const V9 = "It is a full-page CV — scroll inside to read it all.";
+const V10 = "We could not make the PDF.";
+
+/** The server's refusals for a held door (ADR-0019 clause 3): nothing ran, so nothing to retry. */
+const HOLD_CODES = new Set(["no_job", "check_mode_open"]);
 
 type Phase =
   | { kind: "writing" }
   | { kind: "ready"; view: CvPreviewView }
-  | { kind: "failed"; cameBack?: string; fix?: string };
+  | { kind: "failed"; cameBack?: string; fix?: string; held?: boolean };
 
 export default function CvPreviewPage() {
   const [phase, setPhase] = useState<Phase>({ kind: "writing" });
+  const [downloadLine, setDownloadLine] = useState<string | null>(null);
   const streamRef = useRef<EventSource | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -74,9 +79,22 @@ export default function CvPreviewPage() {
       };
     } catch (err) {
       // A held door (409) carries the server's own line; the profile greys the door before this.
-      settle({ kind: "failed", cameBack: err instanceof Error ? err.message : undefined });
+      const { message, code } = err as { message?: string; code?: string };
+      settle({ kind: "failed", cameBack: message, held: HOLD_CODES.has(code ?? "") });
     }
   }, [read, settle]);
+
+  const download = useCallback(async () => {
+    setDownloadLine(null);
+    try {
+      const { blob, filename } = await downloadCvPreviewPdf();
+      const url = URL.createObjectURL(blob);
+      Object.assign(document.createElement("a"), { href: url, download: filename }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setDownloadLine(err instanceof Error && err.message ? err.message : V10);
+    }
+  }, []);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -105,10 +123,14 @@ export default function CvPreviewPage() {
       {phase.kind === "failed" && (
         <div className="preview-wait">
           <p role="alert">{phase.cameBack ?? V3}</p>
-          <p className="preview-sub">{phase.fix ?? V4}</p>
-          <button type="button" onClick={() => void load()}>
-            {V5}
-          </button>
+          {!phase.held && (
+            <>
+              <p className="preview-sub">{phase.fix ?? V4}</p>
+              <button type="button" onClick={() => void load()}>
+                {V5}
+              </button>
+            </>
+          )}
         </div>
       )}
       {phase.kind === "ready" && (
@@ -116,9 +138,10 @@ export default function CvPreviewPage() {
           <p className="preview-for">
             Tailored for <strong>{phase.view.job.title}</strong> at {phase.view.job.employer}.
           </p>
-          <a className="preview-download" href="/api/profile/cv-preview/pdf" download>
+          <button type="button" className="preview-download" onClick={() => void download()}>
             {V6}
-          </a>
+          </button>
+          {downloadLine && <p role="alert">{downloadLine}</p>}
           <iframe className="preview-frame" sandbox="" srcDoc={phase.view.html} title="Your CV" />
           <p className="preview-sub">{V9}</p>
         </div>

@@ -1051,18 +1051,22 @@ describe("#371 About you", () => {
     expect(markdown).toContain(mine);
     expect(markdown).not.toContain("Delivery-accountable project manager.");
     expect(markdown.slice(markdown.indexOf("## Languages"))).toContain("Fluent in French and English.");
+    // #391 AC1: every new tailored draft prints About you without the old lines. The tailor reads
+    // About you as a claim line — source material under preview-tailor.md rule 10 (preview.test.ts
+    // "#159 tailor prompt": the summary prints only when it earns its place) — and the stepped-aside
+    // summary line is not among its inputs, while the line that moved to Languages still is.
+    await warmRetrieval(app, cookie);
+    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
+    await tailorDraft(app, cookie);
+    expect(prompts.at(-1)).toContain(`- about-you [profile] ${mine}`);
+    expect(prompts.at(-1)).toContain("Fluent in French and English.");
+    expect(prompts.at(-1)).not.toContain("Delivery-accountable project manager.");
     // Put back (the ordinary line door): the line prints again — and a later save of About you
     // leaves the person's put-back alone (the lines step aside once, on the first save).
     expect((await put(app, cookie, "/cv/lines/sum-pm", { state: "ticked" })).statusCode).toBe(200);
     expect((await put(app, cookie, "/review/about", { text: mine })).statusCode).toBe(200);
     expect((await server.claims.list(sessionId)).find((c) => c.id === "sum-pm")).toMatchObject({ lineState: "ticked" });
     expect((await post(app, cookie, "/onboarding/build")).json().rootCv.markdown as string).toContain("Delivery-accountable project manager.");
-    // The tailor reads About you as a claim line — source material under preview-tailor.md rule 10
-    // (preview.test.ts "#159 tailor prompt": the summary prints only when it earns its place).
-    await warmRetrieval(app, cookie);
-    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
-    await tailorDraft(app, cookie);
-    expect(prompts.at(-1)).toContain(`- about-you [profile] ${mine}`);
     expect(writer.calls.length).toBe(spent);
   });
 

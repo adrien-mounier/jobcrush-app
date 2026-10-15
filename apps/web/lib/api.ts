@@ -687,6 +687,19 @@ export function getCvPreview(): Promise<CvPreviewView> {
   return jfetch("/api/profile/cv-preview");
 }
 
+/** The gated PDF door: the bytes and the server's filename on 200. A refusal — no preview for the
+ *  profile as it is now, the conservation lint, the maker switched off — throws with the server's
+ *  own line, as jfetch does, so the screen can print it instead of a download that silently fails. */
+export async function downloadCvPreviewPdf(): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch("/api/profile/cv-preview/pdf");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new Error(body.error?.message ?? res.statusText);
+  }
+  const filename = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "CV.pdf";
+  return { blob: await res.blob(), filename };
+}
+
 // Mirrors apps/api/src/contact.ts's ContactValue/ContactRecord — the PUT /contact response shape.
 // The profile door never reads this response directly (same #183 pattern as the Job family door):
 // it saves, then re-fetches /api/profile so the screen always renders from one payload shape.

@@ -21,7 +21,7 @@ import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
 import { withFactFloor, type SearchAreaEntry, type SessionRecord, type SessionStore } from "./sessions.js";
 import { groupOf } from "./skillsSplit.js";
-import { cvPreviewHold } from "./cvPreview.js";
+import { cvPreviewDoor } from "./cvPreview.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
@@ -239,7 +239,7 @@ export async function readProfile(deps: ProfileDeps, session: SessionRecord): Pr
     await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas),
     await resolveLanguagesQuestion(deps.eligibility, session.id),
     lineMarks(await deps.reviews.get(session.id)).fixes,
-    cvPreviewHold(session, await deps.jobBlocks.list(session.id)),
+    cvPreviewDoor(session, await deps.jobBlocks.list(session.id)).hold?.message ?? null,
   );
 }
 

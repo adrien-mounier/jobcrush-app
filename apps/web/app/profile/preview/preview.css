@@ -44,9 +44,11 @@
   border: 1px solid var(--hud-line);
   background: var(--gold);
   color: var(--hud-bg, #121417);
+  font: inherit;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
 }
 .cvpreview .preview-download:hover {
   filter: brightness(1.06);
@@ -70,7 +72,7 @@
   margin: 0 auto;
 }
 .cvpreview .preview-wait-line,
-.cvpreview .preview-wait p[role="alert"] {
+.cvpreview p[role="alert"] {
   font-size: 14px;
   font-weight: 600;
   margin: 0 0 4px;

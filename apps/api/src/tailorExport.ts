@@ -69,6 +69,9 @@ export function conservationGate(stored: TailorDraftRecord, inputs: DraftInputs)
   return null;
 }
 
+/** Free text (an advert's title, the person's name) into a safe filename. */
+export const safeFilename = (text: string) => text.replace(/[\\/:*?"<>|]/g, " ").trim();
+
 /** One plain-words failure, job-record shaped like the draft door's (tailorDraft.ts): what came
  *  back, and the one thing he can act on. Pressing again re-spends no model call — the draft and
  *  his approval are both checkpointed. */
@@ -129,7 +132,7 @@ export async function runTailorExportJob(
       subject: `Your CV for ${input.posting.title} at ${input.posting.company}`,
       text: exportEmailText(input, printed.pages),
       // Title into a safe filename — a pasted advert's title is free text.
-      filename: `CV - ${input.posting.title.replace(/[\\/:*?"<>|]/g, " ").trim()}.pdf`,
+      filename: `CV - ${safeFilename(input.posting.title)}.pdf`,
       pdf: printed.pdf,
     });
     await deps.jobs.update(jobId, {

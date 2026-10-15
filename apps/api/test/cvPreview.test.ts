@@ -10,6 +10,7 @@ import { IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
 import { StandInDocumentMaker } from "../src/documentMaker.js";
+import { InMemoryJobStore, type JobStore } from "../src/jobs.js";
 import type { LlmClient } from "../src/llm.js";
 import { CV_PREVIEW_AD_ID, ownJob } from "../src/cvPreview.js";
 
@@ -126,11 +127,11 @@ async function makePreview(app: App, cookie: string) {
 }
 
 /** A session with facts and the given job records (no CV brought, so check mode never applies). */
-async function withJobs(blocks: MinedJobBlock[], placements: Record<string, typeof IT_PROJECT_DELIVERY_PLACEMENT> = {}) {
+async function withJobs(blocks: MinedJobBlock[], placements: Record<string, typeof IT_PROJECT_DELIVERY_PLACEMENT> = {}, store?: JobStore) {
   const fake = tailorFake();
   const jobBlocks = new InMemoryJobBlockStore();
   const tailorDrafts = new InMemoryTailorDraftStore();
-  const server = buildServer({ jobBlocks, tailorDrafts, tailorLlm: fake.llm, documentMaker: new StandInDocumentMaker() });
+  const server = buildServer({ store, jobBlocks, tailorDrafts, tailorLlm: fake.llm, documentMaker: new StandInDocumentMaker() });
   const { app, claims } = server;
   const cookie = await anonSession(app);
   const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
@@ -277,10 +278,31 @@ describe("#390 the preview is made once, kept, and remade only when its inputs c
     expect(s.prompts).toHaveLength(1);
   });
 
+  it("a job store that fails to open the run leaves the next ask free to try again — never a reservation that fails for ever", async () => {
+    const store = new InMemoryJobStore();
+    const create = store.create.bind(store);
+    let failOnce = true;
+    store.create = async (...args) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("the job store is away");
+      }
+      return create(...args);
+    };
+    const s = await withJobs([NRG], {}, store);
+    expect((await post(s.app, s.cookie, "/profile/cv-preview")).statusCode).toBe(500);
+    expect((await makePreview(s.app, s.cookie)).statusCode).toBe(202);
+    expect(s.prompts).toHaveLength(1);
+    expect((await post(s.app, s.cookie, "/profile/cv-preview")).json()).toEqual({ ready: true });
+  });
+
   it("the job's family must-haves are the advert tests; a job placed in no family is tailored to its title alone", async () => {
     const placed = await withJobs([NRG], { nrg: IT_PROJECT_DELIVERY_PLACEMENT });
     await makePreview(placed.app, placed.cookie);
     expect(placed.prompts[0]).toContain("===ADVERT-TESTS===");
+    // ADR-0019 clause 5: the must-haves ARE the requirements — the family's scope sentence is a
+    // labeler description, not a job ad, and never reaches the tailor as one.
+    expect(placed.prompts[0]).not.toContain("Running the delivery of technology work");
     const unplaced = await withJobs([NRG]);
     await makePreview(unplaced.app, unplaced.cookie);
     expect(unplaced.prompts[0]).not.toContain("===ADVERT-TESTS===");

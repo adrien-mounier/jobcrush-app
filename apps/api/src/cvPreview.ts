@@ -31,15 +31,23 @@ export function ownJob(blocks: JobBlockView[]): JobBlockView | null {
   return jobs.reduce<JobBlockView | null>((best, b) => (!best || endedAt(b) > endedAt(best) ? b : best), null);
 }
 
-/** ADR-0019 clause 3: why the door is held, in one line — or null when it is open. An unfinished
- *  check mode holds it first: until the person has checked the lines, there is no master CV to
- *  print. A session that brought no CV is never held by check mode (reviewOpensJobs). */
-export function cvPreviewHold(
+export interface CvPreviewHold {
+  code: "check_mode_open" | "no_job";
+  /** The one line the screen prints — it never composes a reason itself. */
+  message: string;
+}
+
+/** ADR-0019 clause 3: the door as held (why, in one line) or as open, with the person's own job
+ *  found once for every door behind it. An unfinished check mode holds it first: until the person
+ *  has checked the lines, there is no master CV to print. A session that brought no CV is never
+ *  held by check mode (reviewOpensJobs). */
+export function cvPreviewDoor(
   session: Pick<SessionRecord, "importProof" | "reviewCompletedAt">,
   blocks: JobBlockView[],
-): string | null {
-  if (!reviewOpensJobs(session)) return CHECK_MODE_OPEN_LINE;
-  return ownJob(blocks) ? null : NO_JOB_LINE;
+): { hold: CvPreviewHold; job?: undefined } | { hold: null; job: JobBlockView } {
+  if (!reviewOpensJobs(session)) return { hold: { code: "check_mode_open", message: CHECK_MODE_OPEN_LINE } };
+  const job = ownJob(blocks);
+  return job ? { hold: null, job } : { hold: { code: "no_job", message: NO_JOB_LINE } };
 }
 
 export interface OwnJobTarget {
@@ -49,8 +57,8 @@ export interface OwnJobTarget {
   mustHaves: string[];
 }
 
-/** The person's own job in the engine's job-ad shape. No ad, no market: the posting carries the
- *  job's own title and employer, and the family's scope sentence as the only excerpt. */
+/** The person's own job in the engine's job-ad shape. No ad, no market, no excerpt: the posting
+ *  carries the job's own title and employer, and the requirements are the must-haves alone. */
 export function ownJobTarget(
   block: JobBlockView,
   floors: Pick<ProductionFamilyFloorStore, "get" | "active">,
@@ -68,7 +76,10 @@ export function ownJobTarget(
       company: block.employer.value,
       location: "",
       keywords: [],
-      excerpt: floorsFound.map((f) => f.scope).join("\n"),
+      excerpt: "",
+      // ponytail: nothing stored says what language the CV is in — the tailor writes in the ad's
+      // language, and the person's own job has no ad. detectLanguage (language.ts) over the CV's
+      // claim text is the upgrade when a non-English CV reaches this door.
       language: "en",
     },
     mustHaves: floorsFound.flatMap((f) => f.essentialItems.map((item) => item.question.prompt)),
