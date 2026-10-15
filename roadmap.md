@@ -20,15 +20,13 @@ shipped 2026-10-14 in 482ca57, all 15 sub-issues closed; real-CV evals passed). 
 mode replaced "Your CV, reviewed"; the jobs open once every screen is confirmed, every suggestion
 answered and every market's work rights set.
 
-- ~~`/implement-spec #389`: #390 Preview as CV, a CV tailored to your own job, downloadable
-  ([ADR-0019](docs/adr/0019-the-master-cv-previews-as-a-cv-for-the-persons-own-job.md)); #391 old summary
-  lines step aside, the quote label, the full walk in CI~~ — **shipped 2026-10-15** (spec/389, GO at eda2363).
-  Owner-pending calls are commented on #389. Re-upload edge cases: #388.
-- **Owner staging feedback (2026-10-15):** #392 live job counter during loading (`/implement 392`, Opus 5.5, medium) ·
-  #393 tools from a job show under a fake "Skills" group (`/implement 393`, Fable 5.1, high).
-- ~~#387 a fact added while tailoring joins the profile (tailoring spine)~~ — **shipped 2026-10-15**
-  (eb977f1, GO on tree 0737687). A stretch still cannot join: no screen approves one yet, and the draft
-  never writes to the profile (test-guarded).
+- Shipped 2026-10-15: ~~#389~~ Preview as CV (#390, [ADR-0019](docs/adr/0019-the-master-cv-previews-as-a-cv-for-the-persons-own-job.md))
+  and the About you follow-ups (#391); owner calls still open are commented on #389, re-upload edge cases
+  are #388 · ~~#387~~ a fact added while tailoring joins the profile (eb977f1). A stretch still cannot
+  join: no screen approves one yet, and the draft never writes to the profile (test-guarded).
+- **Owner acts next — launch one of the two staging-feedback tickets (2026-10-15):** #393 tools from a
+  job show under a fake "Skills" group (`/implement 393`, Fable 5.1, high) · #392 live job counter during
+  loading (`/implement 392`, Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 

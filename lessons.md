@@ -123,7 +123,10 @@ journey sits in a tier or carries a filed ticket saying why not. When touching o
 tier, assume it is already broken and prove it against the live product.
 Adding one to the gate: a source file `tier2-coverage.mjs` never mapped selects EVERY journey, so
 naming it only in the new journey's entry NARROWS it (#358's `qaReviewAnswer.ts`). Put it in the
-shared area, then check `selectJourneys([file])` before and after.
+shared area, then check `selectJourneys([file])` before and after — from a scratch `.mjs` that imports
+`tier2-coverage.mjs` and `run-tier2.mjs` by `file:///C:/...` URL (a bare `C:/` path is refused by
+node's ESM loader). `run-tier2.mjs` has no dry-run flag: an unknown flag runs the whole gate against
+`:3000` and hangs (#387 close).
 
 ### The in-memory store hands out the object it stores
 `InMemorySessionStore` returns the stored record, so a background task writing back makes every read
@@ -221,6 +224,13 @@ A Python edit script using `open(p, 'w')` rewrites every LF file as CRLF on this
 warns ("CRLF will be replaced by LF"). `grep -c $'\r'` in Git Bash once reported 0 on such files, so a
 "normalise" loop built on it fixed nothing (#339). Edit with `newline=''` both ways, and check bytes:
 `python -c "print(open(p,'rb').read().count(b'\r'))"`.
+
+### The session scratchpad is not `$TMPDIR`
+The Write tool's scratchpad directory and the Bash tool's `$TMPDIR` are different folders. A commit
+message written to the scratchpad and then appended to via `$TMPDIR/...` produced a second file holding
+only the appended line, and `git commit -F` took that one: the commit landed as "Closes #387" with no
+subject (#387 close; fixed with a message-only amend before the push). Name the scratchpad by its full
+absolute path in every shell command; never shorten it to a variable.
 
 ## CI, deploy and ops
 
