@@ -24,6 +24,8 @@ answered and every market's work rights set.
   ([ADR-0019](docs/adr/0019-the-master-cv-previews-as-a-cv-for-the-persons-own-job.md)); #391 old summary
   lines step aside, the quote label, the full walk in CI~~ — **shipped 2026-10-15** (spec/389, GO at eda2363).
   Owner-pending calls are commented on #389. Re-upload edge cases: #388.
+- **Owner staging feedback (2026-10-15):** #392 live job counter during loading (`/implement 392`, Opus 5.5, medium) ·
+  #393 tools from a job show under a fake "Skills" group (`/implement 393`, Fable 5.1, high).
 - **Next build: #387** a fact added while tailoring joins the profile (tailoring spine) — a lone ticket:
   `/implement #387` (Fable 5.1, high).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,

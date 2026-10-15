@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-15 — Owner staging feedback filed: #392 job counter, #393 fake "Skills" group
+
+Owner uploaded the AI-transformation-lead CV on staging. Two remarks → tickets, no code. #392: the standalone "N new jobs are open" step goes; owner decision: the count becomes a live counter that climbs during the loading wait, and must count the same jobs the deck shows (the #246 trap) or not show. #393: Salesforce CRM and JIRA sat under a sub-group named "Skills" inside Skills. Probable cause: tools moved out of a job (#383 `moveTools`) keep the internal fallback group, and the group-naming step only covers skills ungrouped before the move.
+**Next:** `/implement 392` (Opus 5.5, medium) and `/implement 393` (Fable 5.1, high); then #387.
+
 ## 2026-10-15 — Preview as CV + #389 follow-ups shipped: spec #389, tickets #390 and #391
 
 `/implement-spec #389` built #390 (Preview as CV, ADR-0019) and #391 (old summary lines step aside on About you save; summary quotes read "About you"; the full check-mode walk in tier 2) in two worktrees on `spec/389`. `/code-review` found one real bug (a failed job start left the preview's in-flight reservation stuck until restart), three standards gaps (no response schemas, a silent PDF refusal, a hold that still offered Try again) and spec drift (the family's scope sentence fed to the tailor); one fix agent took all of it (5209487). QA was NO-GO first on two looks: the new door glued to "Check your CV", and the preview page without its theme (its tokens lived only on `.jobdeck`). Fixed in eda2363, which also adopts the gate's `cv-preview-journey.mjs` into tier 2 (the only flow running the preview route, store and document maker for real). GO on tree 47980ca: api 2088, typecheck 7/7, guards 15/15, 10 tier-2 journeys green, full walk 126/126.
@@ -104,15 +109,3 @@ settled it: every job answered first try with the keep-alive holding, so #365 cl
 Its "no fixes, no drafts" checked: no typos in the CV; BRED/SG complete by design; Okoone is #361.
 Old run `53729e1f…` still reads unfinished (opening it would pay ~2 Fable calls).
 **Next:** #362 (owner running it in another session), then #361 → #360 → #359.
-
-## 2026-10-08 — #363: a review holds the Fly machine up; a call cut by a stop costs no attempt (ed77ce0)
-
-Fly's auto-stop reads load, not traffic (lessons.md "Staging ops"): short polls hold nothing, a held
-request does. While a review runs, the API now keeps one request to its own public URL in flight
-back to back (`/ops/keep-alive`, key in a header, 25 s hold cap, Fly-only wiring). Units count
-attempts started and failures seen apart: a resume after a cut call asks the model once more; starts
-cap at four per job. Staging's units table gains `failures` on boot. Code review caught an abort
-listener accumulating per hold. QA gate **GO**: API 1952, review.spec 19/19, cv-review journey 83/83,
-migration proven on real Postgres 16. **Proven on staging (f389b5d, 2026-10-09):** a 12-min self-hold
-from the machine kept it up 14 min 44 s (23 holds in Fly's log, 25 s apart, no key logged); the proxy
-stopped it 2 min after the hold ended. A real review's own hold is still unobserved. **Next:** #364.
