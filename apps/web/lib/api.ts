@@ -89,11 +89,14 @@ export interface JobSnapshot {
     paste?: PasteProgress;
     /** #310: the tailored-draft build — `failure` carries the server's own plain words. */
     tailorDraft?: { ready?: boolean; failure?: { cameBack: string; fix: string } };
-    /** #313: the approve-is-send press, narrated — printing → sending → sent. */
+    /** #313: the approve-is-send press, narrated — printing → (tightening, #314) → sending → sent. */
     tailorExport?: {
-      step?: "printing" | "sending" | "sent";
+      step?: "printing" | "tightening" | "sending" | "sent";
       pages?: number;
       email?: string;
+      /** #314 ship-and-tell: the plain-words notices the email also carries (the page rule's
+       *  among them) — the screen says them at "sent". */
+      notices?: string[];
       failure?: { cameBack: string; fix: string };
     };
     [k: string]: unknown;

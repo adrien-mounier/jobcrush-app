@@ -356,6 +356,17 @@ export interface TailorInputOpts {
   /** #310 (#66): advert requirements still unanswered — neither covered nor denied. Told to the
    *  model so an open gap is left visibly open, never presented as satisfied. */
   openPoints?: string[];
+  /** #314: the tighten-once budget, set only on the re-tailor after our own PDF measured over two
+   *  pages (tailorExport.ts). A number carried into the input, never prose asking for brevity:
+   *  the experience-bullet count the whole CV may print, with the measurement that set it. */
+  bulletBudget?: BulletBudget;
+}
+
+/** #314: what the tighten-once re-tailor is told — the cap, and the measurement that set it. */
+export interface BulletBudget {
+  max: number;
+  measuredPages: number;
+  printedBullets: number;
 }
 
 export function buildTailorInput(
@@ -391,12 +402,21 @@ export function buildTailorInput(
     : "";
   const cardContext =
     negativeLines || openLines ? `===CARD-CONTEXT===\n${negativeLines}${openLines}\n` : "";
+  // #314: the page budget as a number. Absent → no block, byte-identical to the input without it.
+  const b = opts.bulletBudget;
+  const pageBudget = b
+    ? `===PAGE-BUDGET===\nThe previous draft from these same facts printed ${b.printedBullets} ` +
+      `experience bullets and ran to ${b.measuredPages} pages; the limit is two. Print at most ` +
+      `${b.max} experience bullets across all roles. Hold the rest back in "unprinted", the oldest ` +
+      `roles' bullets first, and never cut a figure or a result out of a bullet that stays.\n\n`
+    : "";
   return (
     `${tailorPrompt()}\n` +
     `===CANDIDATE-HEADER===\n${headerText.slice(0, 600) || "(none captured)"}\n\n` +
     `Roles:\n${roles}\n\nClaims:\n${claimLines}\n\n` +
     advertTests +
     cardContext +
+    pageBudget +
     `===JOB-POSTING===\n${posting.title} at ${posting.company} (${posting.location})\n\n${posting.excerpt}\n`
   );
 }

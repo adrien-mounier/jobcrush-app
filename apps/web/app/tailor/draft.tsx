@@ -38,6 +38,8 @@ const S5 = "Emailing it to you…";
 const S6 = "Done — your CV is made and the email is on its way.";
 const S7 = "We could not make and send this CV.";
 const S8 = "Press the button again — your draft and your approval are saved.";
+// #314: the PDF measured over two pages — one rewrite on a tighter budget, then it ships anyway.
+const S9 = "Your CV ran over two pages — shortening it to fit…";
 
 type Phase =
   | { kind: "writing" }
@@ -48,13 +50,16 @@ type Phase =
 // narration (progress.tailorExport.step) so the screen never says more than the server knows.
 type SendPhase =
   | { kind: "idle" }
-  | { kind: "sending"; step: "printing" | "sending" }
-  | { kind: "sent"; email?: string }
+  | { kind: "sending"; step: "printing" | "tightening" | "sending" }
+  | { kind: "sent"; email?: string; notices: string[] }
   | { kind: "sendFailed"; cameBack?: string; fix?: string };
 
+const SEND_LINE = { printing: S3, tightening: S9, sending: S5 } as const;
+
 /** The one press: approve this exact draft (named by its draftedAt), then watch the narrated
- *  print-and-mail over the same SSE stream the draft build used. */
-function SendBlock({ draftedAt }: { draftedAt: string }) {
+ *  print-and-mail over the same SSE stream the draft build used. `known` are the draft's own
+ *  notices already on the screen below — at "sent" only what is new is said here. */
+function SendBlock({ draftedAt, known }: { draftedAt: string; known: string[] }) {
   const [phase, setPhase] = useState<SendPhase>({ kind: "idle" });
   const streamRef = useRef<EventSource | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -89,9 +94,15 @@ function SendBlock({ draftedAt }: { draftedAt: string }) {
           return settle({ kind: "sendFailed" });
         }
         const exported = snapshot.progress.tailorExport;
-        if (snapshot.status === "completed") settle({ kind: "sent", email: exported?.email });
+        if (snapshot.status === "completed")
+          settle({
+            kind: "sent",
+            email: exported?.email,
+            notices: (exported?.notices ?? []).filter((n) => !known.includes(n)),
+          });
         else if (snapshot.status === "failed") settle({ kind: "sendFailed", ...exported?.failure });
-        else if (exported?.step === "sending") setPhase({ kind: "sending", step: "sending" });
+        else if (exported?.step === "tightening" || exported?.step === "sending")
+          setPhase({ kind: "sending", step: exported.step });
       };
       source.onerror = () => {
         if (source.readyState === EventSource.CLOSED) settle({ kind: "sendFailed" });
@@ -104,7 +115,7 @@ function SendBlock({ draftedAt }: { draftedAt: string }) {
   if (phase.kind === "sending") {
     return (
       <div className="draft-send" role="status">
-        <p className="draft-wait-line">{phase.step === "printing" ? S3 : S5}</p>
+        <p className="draft-wait-line">{SEND_LINE[phase.step]}</p>
         {phase.step === "printing" && <p className="draft-wait-sub">{S4}</p>}
       </div>
     );
@@ -114,6 +125,12 @@ function SendBlock({ draftedAt }: { draftedAt: string }) {
       <div className="draft-send" role="status">
         <p className="draft-wait-line">{S6}</p>
         {phase.email && <p className="draft-wait-sub">Sent to {phase.email}.</p>}
+        {/* #314 ship-and-tell: what the email also says — a document left with a known loss. */}
+        {phase.notices.map((n, i) => (
+          <p key={i} className="draft-notice">
+            {n}
+          </p>
+        ))}
       </div>
     );
   }
@@ -281,7 +298,7 @@ export function TailorDraft() {
       <iframe className="draft-frame" sandbox="" srcDoc={view.html} title="Your tailored CV" />
       <p className="draft-hint">{D6}</p>
       {/* keyed by draftedAt: a redraft is a new document, so the press state starts over */}
-      <SendBlock key={view.draftedAt} draftedAt={view.draftedAt} />
+      <SendBlock key={view.draftedAt} draftedAt={view.draftedAt} known={view.conservationNotices} />
       {view.disclosure.map((d) => (
         <DisclosureBlock key={`${d.employer}-${d.role}`} d={d} />
       ))}

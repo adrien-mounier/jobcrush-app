@@ -610,25 +610,28 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         const user = await deps.auth.getUserById(session.claimedByUserId!);
         if (!user) throw new Error("claimed session has no account");
         // The approval record, durable before anything slow starts (spec #301's store test).
-        await deps.tailorDrafts.put(session.id, posting.id, {
-          ...stored!,
-          approvedAt: new Date().toISOString(),
-        });
+        const approved = { ...stored!, approvedAt: new Date().toISOString() };
+        await deps.tailorDrafts.put(session.id, posting.id, approved);
         const contact = await deps.contact.getRecord(session.id);
-        const view = tailorDraftView(
-          stored!,
-          inputs.claimsDoc,
-          posting,
-          { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
-          // The approved document is not a draft: no watermark, no banner.
-          { watermark: false },
-        );
         const job = await deps.jobs.create("tailor-export", session.id);
         exportRuns.set(runKey, job.id);
         void runTailorExportJob(
-          { jobs: deps.jobs, documentMaker: deps.documentMaker, mailer: deps.mailer },
+          {
+            jobs: deps.jobs,
+            documentMaker: deps.documentMaker,
+            mailer: deps.mailer,
+            tailorLlm: deps.tailorLlm,
+            tailorDrafts: deps.tailorDrafts,
+          },
           job.id,
-          { html: view.html, notices: view.conservationNotices, posting, email: user.email },
+          {
+            sessionId: session.id,
+            record: approved,
+            inputs,
+            posting,
+            contact: { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
+            email: user.email,
+          },
         ).finally(() => exportRuns.delete(runKey));
         return reply.status(202).send({ jobId: job.id });
       },

@@ -705,6 +705,52 @@ test("#310 a failed draft says so in plain words, and Try again really retries",
   await expect(page.locator(".draft-frame")).toBeVisible();
 });
 
+test("#314 over two pages: the press narrates the shortening, then 'sent' says plainly what the email says", async ({
+  page,
+}) => {
+  await openTailor(page, STATE_ENDED);
+  await page.route("**/api/onboarding/tailor/approve", async (route) => {
+    await route.fulfill({ status: 202, json: { jobId: "export-job-314" } });
+  });
+  // The server's own words (tailorExport.ts's PAGE_NOTICES.tightened) ride in the job record — the
+  // screen renders THESE. The first stream serves the mid-run "tightening" snapshot and closes;
+  // the browser reconnects and the second serves the end, so the shortening line is assertable.
+  const pageNotice =
+    "Your approved draft ran to 3 pages, so we shortened it to fit two. " +
+    "The CV attached is shorter than the draft you approved: read it before you send it.";
+  let streams = 0;
+  await page.route("**/api/jobs/export-job-314/events", async (route) => {
+    const snapshot =
+      streams++ === 0
+        ? { id: "export-job-314", status: "running", error: null, progress: { tailorExport: { step: "tightening", pages: 3 } } }
+        : {
+            id: "export-job-314",
+            status: "completed",
+            error: null,
+            progress: {
+              tailorExport: {
+                step: "sent",
+                pages: 2,
+                email: "maria@example.com",
+                // The draft's own lint notice travels too, and is already on the screen below —
+                // only the page rule's words are new here.
+                notices: [...DRAFT_VIEW.conservationNotices, pageNotice],
+              },
+            },
+          };
+    await route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(snapshot)}\n\n` });
+  });
+
+  await page.getByRole("button", { name: "Approve and email me this CV" }).click();
+  await expect(page.getByText("Your CV ran over two pages — shortening it to fit…")).toBeVisible();
+  await expect(page.getByText("Done — your CV is made and the email is on its way.")).toBeVisible({ timeout: 15_000 });
+  const send = page.locator(".draft-send");
+  await expect(send).toContainText(pageNotice);
+  await expect(send.locator(".draft-notice")).toHaveCount(1);
+  // The draft's lint notice stays said once, in its own place.
+  await expect(page.getByText("Your languages could not be placed on this draft.", { exact: false })).toHaveCount(1);
+});
+
 // --- #311: a "No" never prints, and growing is one step --------------------------------------------
 
 const GROWN_CLAIM_ID = "tailor-ad-1-public-grew";

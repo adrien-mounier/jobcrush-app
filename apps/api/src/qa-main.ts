@@ -976,7 +976,9 @@ const { app } = buildServer({
   // #312: the stand-in stands where the browser goes — this stack runs in CI on every push, and
   // the one thing it must never do is download a 114MB browser to print a deterministic fixture.
   // The real browser making a real PDF is the release gate (scripts/print-gate.mjs), not a test.
-  documentMaker: new StandInDocumentMaker(),
+  // #314: QA_PDF_PAGES=3 makes every print measure over two pages, so the tighten-once-then-tell
+  // path can be driven live on this stack (the stand-in measures the same count after the retry).
+  documentMaker: new StandInDocumentMaker(Number(process.env.QA_PDF_PAGES ?? 2)),
   // #304: the narrated wait's second step, off the SAME canned table the industry labeler reads
   // (#282) — one fake employer answer on this entry, not two that could disagree. Paced only HERE,
   // where a person is watching a step go by; the labeler's own path runs at its old speed, so no

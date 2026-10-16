@@ -10,7 +10,7 @@ import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.j
 import type { Mailer } from "../src/mailer.js";
 import type { LlmClient } from "../src/llm.js";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
-import { exportGate, exportEmailText } from "../src/tailorExport.js";
+import { exportGate, exportEmailText, PAGE_NOTICES, tightenedBulletBudget } from "../src/tailorExport.js";
 import type { DraftInputs } from "../src/tailorDraft.js";
 import type { Draft } from "../src/preview.js";
 import type { CandidateClaim } from "@jobcrush/contracts";
@@ -443,5 +443,210 @@ describe("#313 exportGate — the lint refusal, pure", () => {
     );
     expect(text).toContain("Before you send it, check this:");
     expect(text).toContain("Your languages could not be placed on this draft.");
+  });
+});
+
+// #314 — over two pages: tighten once on a real budget, then ship and tell. Through the route and
+// the stand-in, with a maker that MEASURES what the fake model printed (the stand-in's declared
+// count is the measurement; a real PDF's page count comes from countPdfPages).
+describe("#314 over two pages: one re-tailor on a bullet budget, then ship and tell", () => {
+  /** A fake model that cites the prompt's claim ids, records every prompt it saw, and prints as
+   *  many bullets as the PAGE-BUDGET block allows (or 3 with no block). */
+  function budgetAwareLlm() {
+    const prompts: string[] = [];
+    const llm: LlmClient = {
+      model: "test-fake",
+      async complete(prompt: string): Promise<string> {
+        prompts.push(prompt);
+        const claimsBlock = prompt.split("Claims:\n")[1] ?? "";
+        const ids = [...claimsBlock.matchAll(/^- ([a-z0-9][a-z0-9-]*) \[/gm)].map((m) => m[1]!);
+        const cap = Number(/at most (\d+) experience bullets/.exec(prompt)?.[1] ?? 3);
+        // One distinct claim per bullet (the seeded facts give three), so the lint never fires
+        // and the only thing that changes between the two calls is the budget.
+        const bullets = Array.from({ length: cap }, (_, i) => ({
+          text: `Ran delivery, part ${i + 1}`,
+          claimIds: [ids[i % ids.length]!],
+          outcome: "",
+        }));
+        return JSON.stringify({
+          name: "Test Person",
+          headline: "IT Project Manager",
+          contact: "Hanoi",
+          summary: "",
+          experience: [
+            { role: "IT Project Manager", employer: "Endava", location: "", dates: "2021 - Present", bullets, unprinted: [] },
+          ],
+          skills: [{ label: "Delivery", items: ["Jira"] }],
+          certifications: [],
+          education: [],
+          additional: [],
+        });
+      },
+    };
+    return { llm, prompts };
+  }
+  /** A maker whose "measurement" is the bullet count it was handed: 3 bullets ⇒ 3 pages. */
+  const bulletCountingMaker = (): DocumentMaker => ({
+    async printCv(html) {
+      return { pdf: Buffer.from("%PDF-1.4 counted\n"), pages: (html.match(/<li>/g) ?? []).length };
+    },
+  });
+
+  it("re-tailors once on a numeric budget, prints again, ships the two-page CV and tells him — screen and email", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm, prompts } = budgetAwareLlm();
+    const tailorDrafts = new InMemoryTailorDraftStore();
+    const { app, sessions, claims } = buildServer({
+      tailorLlm: llm,
+      documentMaker: bulletCountingMaker(),
+      mailer,
+      tailorDrafts,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "export-tighten@example.com");
+    const view = await draftAndRead(app, cookie);
+    expect(prompts).toHaveLength(1);
+
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    const job = await awaitJob(app, cookie, res.json().jobId);
+    expect(job.status).toBe("completed");
+    // Exactly one re-tailor, and its input carries the budget as a number: 3 bullets over 3 pages
+    // scale to 2 for two pages.
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("===PAGE-BUDGET===");
+    expect(prompts[1]).toMatch(/at most 2 experience bullets/);
+    expect(job.progress.tailorExport.pages).toBe(2);
+    // Told plainly, on the screen's record and in the email both.
+    const notice = PAGE_NOTICES.tightened(3);
+    expect(job.progress.tailorExport.notices).toContain(notice);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain("2 pages");
+    expect(sent[0]!.text).toContain(notice);
+    // The tightened document is the checkpoint now: the screen's next read and a second press
+    // both see the two-page CV, and re-spend nothing.
+    const token = cookie.split("=")[1]!;
+    const session = (await sessions.getByToken(token))!;
+    const stored = (await tailorDrafts.get(session.id, VALID_AD_ID))!;
+    expect(stored.draft.experience[0]!.bullets).toHaveLength(2);
+    expect(stored.conservationNotices).toContain(notice);
+    expect(stored.draftedAt).toBe(view.draftedAt);
+    expect(stored.approvedAt).not.toBeNull();
+  });
+
+  it("still over after the one re-tailor: ships anyway, says so, never a third model call", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm, prompts } = budgetAwareLlm();
+    const { app, claims } = buildServer({
+      tailorLlm: llm,
+      documentMaker: new StandInDocumentMaker(3),
+      mailer,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "export-still-over@example.com");
+    const view = await draftAndRead(app, cookie);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    const job = await awaitJob(app, cookie, res.json().jobId);
+    expect(job.status).toBe("completed");
+    expect(prompts).toHaveLength(2);
+    const notice = PAGE_NOTICES.stillOver(3, 3);
+    expect(job.progress.tailorExport.notices).toContain(notice);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain("3 pages");
+    expect(sent[0]!.text).toContain(notice);
+  });
+
+  it("the re-tailor itself failing is not a hard failure: the measured document ships with its notice", async () => {
+    const { sent, mailer } = recordingMailer();
+    let calls = 0;
+    const base = draftingLlm();
+    const flakyLlm: LlmClient = {
+      model: "test-fake",
+      async complete(prompt) {
+        if (++calls > 1) return "not json at all";
+        return base.complete(prompt);
+      },
+    };
+    const { app, claims } = buildServer({
+      tailorLlm: flakyLlm,
+      documentMaker: new StandInDocumentMaker(4),
+      mailer,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "export-tighten-failed@example.com");
+    const view = await draftAndRead(app, cookie);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    const job = await awaitJob(app, cookie, res.json().jobId);
+    expect(job.status).toBe("completed");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain(PAGE_NOTICES.notTightened(4));
+  });
+
+  it("a print crash after the re-tailor: the second press ships the shortened CV WITH its sentence, no model call (QA D1)", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm, prompts } = budgetAwareLlm();
+    // Measures 3, then the browser dies on the shortened document, then measures 2.
+    const answers: (number | Error)[] = [3, new Error("browser died"), 2];
+    const maker: DocumentMaker = {
+      async printCv() {
+        const next = answers.shift()!;
+        if (next instanceof Error) throw next;
+        return { pdf: Buffer.from("%PDF-1.4 counted\n"), pages: next };
+      },
+    };
+    const { app, claims } = buildServer({ tailorLlm: llm, documentMaker: maker, mailer });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "export-crash-then-press@example.com");
+    const view = await draftAndRead(app, cookie);
+    const first = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, first.json().jobId)).status).toBe("failed");
+    expect(prompts).toHaveLength(2);
+    const second = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    const job = await awaitJob(app, cookie, second.json().jobId);
+    expect(job.status).toBe("completed");
+    expect(prompts).toHaveLength(2);
+    const notice = PAGE_NOTICES.tightened(3);
+    expect(job.progress.tailorExport.notices).toEqual([notice]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain(notice);
+  });
+
+  it("a second press after a failed send says the page sentence once, not twice (QA D2)", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { app, claims } = buildServer({
+      tailorLlm: draftingLlm(),
+      // No tailorLlm wired for the re-tailor would also do; here the model answers but the
+      // stand-in always measures 4, and the mailer fails the first time.
+      documentMaker: new StandInDocumentMaker(4),
+      mailer: {
+        ...mailer,
+        sendTailoredCv: (() => {
+          let calls = 0;
+          return async (email: string, doc: Parameters<Mailer["sendTailoredCv"]>[1]) => {
+            if (++calls === 1) throw new Error("mail down");
+            await mailer.sendTailoredCv(email, doc);
+          };
+        })(),
+      },
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "export-said-once@example.com");
+    const view = await draftAndRead(app, cookie);
+    const first = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, first.json().jobId)).status).toBe("failed");
+    const second = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    const job = await awaitJob(app, cookie, second.json().jobId);
+    expect(job.status).toBe("completed");
+    const pageSentences = (job.progress.tailorExport.notices as string[]).filter((n) => /pages/.test(n));
+    expect(pageSentences).toHaveLength(1);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text.split(pageSentences[0]!)).toHaveLength(2);
+  });
+
+  it("the budget is a number scaled from the measurement, always below what printed", () => {
+    const draftWith = (n: number) =>
+      ({ experience: [{ bullets: Array.from({ length: n }, () => ({})) }] }) as unknown as Draft;
+    expect(tightenedBulletBudget(draftWith(30), 3)).toEqual({ max: 20, printedBullets: 30, measuredPages: 3 });
+    expect(tightenedBulletBudget(draftWith(25), 3)).toEqual({ max: 16, printedBullets: 25, measuredPages: 3 });
+    expect(tightenedBulletBudget(draftWith(24), 4)).toEqual({ max: 12, printedBullets: 24, measuredPages: 4 });
   });
 });

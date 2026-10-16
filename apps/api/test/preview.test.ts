@@ -671,6 +671,26 @@ describe("#310 buildTailorInput carries the card's negatives and open points (#6
   });
 });
 
+describe("#314 buildTailorInput carries the tighten-once page budget as a number", () => {
+  it("emits a PAGE-BUDGET block naming the measured pages, the printed count and the new cap", async () => {
+    const claims = await recordedClaims();
+    const input = buildTailorInput(claims, matchPosting([]), "", {
+      bulletBudget: { max: 20, measuredPages: 3, printedBullets: 30 },
+    });
+    expect(input).toContain("===PAGE-BUDGET===");
+    const block = input.split("===PAGE-BUDGET===")[1]!.split("===JOB-POSTING===")[0]!;
+    expect(block).toMatch(/at most 20 experience bullets/);
+    expect(block).toContain("30 experience bullets");
+    expect(block).toContain("3 pages");
+  });
+
+  it("absent → no block (no fingerprint drift, no redraft for anyone)", async () => {
+    const claims = await recordedClaims();
+    const posting = matchPosting([]);
+    expect(buildTailorInput(claims, posting)).not.toContain("PAGE-BUDGET");
+  });
+});
+
 describe("Draft schema — bullet spend rail, no floor, claim provenance (#158)", () => {
   const bullet = (n: number, claimIds: string[] = [`claim-${n}`]) => ({
     text: `Delivered outcome number ${n} for the team`,
