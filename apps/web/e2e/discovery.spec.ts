@@ -169,6 +169,7 @@ test("prefers-reduced-motion: the role line still lands without the letter-by-le
   current = BEFORE_START;
   await stubDiscovery(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await recordShownCounts(page);
 
   await page.goto("/discovery"); // a direct load exercises ensureSession()'s own bootstrap too
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("nurse");
@@ -176,6 +177,39 @@ test("prefers-reduced-motion: the role line still lands without the letter-by-le
   // #339: the live region now announces the line alone (no countdown after it), so the CV's own
   // line is named directly.
   await expect(page.locator(".cv-role")).toHaveText("IT Project Manager");
+  // #392: the job count does not tick up under reduced motion — the only number ever shown is the count.
+  await expect(page.locator(".promise .n")).toHaveText("142");
+  expect(await page.evaluate(() => (window as unknown as { shownCounts: string[] }).shownCounts)).toEqual(["142"]);
+});
+
+// #392: every number the count slot ever shows, in order — recorded in the page, so the test never
+// races the ~0.9 s tick.
+async function recordShownCounts(page: Page) {
+  await page.addInitScript(() => {
+    const shown: string[] = ((window as unknown as { shownCounts: string[] }).shownCounts = []);
+    new MutationObserver(() => {
+      const text = document.querySelector(".promise .n")?.textContent;
+      if (text && /^\d+$/.test(text) && text !== shown.at(-1)) shown.push(text); // not the "···" wait
+    }).observe(document, { subtree: true, childList: true, characterData: true });
+  });
+}
+
+test("#392: the job count ticks up to the real number in the loading box; the old 'new jobs are open' line is gone", async ({ page }) => {
+  current = BEFORE_START;
+  await stubDiscovery(page);
+  await recordShownCounts(page);
+  await page.goto("/discovery");
+  await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
+  await page.getByRole("button", { name: "That's me" }).click();
+  const n = page.locator(".promise .n");
+  await expect(n).toHaveText("142");
+  const shown = (await page.evaluate(() => (window as unknown as { shownCounts: string[] }).shownCounts)).map(Number);
+  expect(shown[0]).toBe(0);
+  expect(shown.at(-1)).toBe(142);
+  expect(shown).toEqual([...shown].sort((a, b) => a - b)); // only ever climbs
+  await expect(page.locator(".promise")).toContainText("jobs like yours found.");
+  await expect(page.locator(".discovery")).not.toContainText("new jobs are open right now");
+  await expect(page.locator(".discovery")).not.toContainText("Keep going and I'll score them against you.");
 });
 
 
@@ -287,7 +321,7 @@ test("question 1 answered with no CV to check: Continue goes to the /deck reveal
   // does, once.
   const handoff = page.locator(".discovery .handoff");
   await expect(handoff.locator(".go")).toBeVisible();
-  await expect(page.locator(".discovery .sr-only")).not.toContainText("Your search is set.");
+  await expect(page.locator(".discovery > .sr-only")).not.toContainText("Your search is set.");
 
   // #376: the hand-off waits for the person; Continue takes them to the reveal — the single place
   // focus + the polite announce land.

@@ -136,9 +136,6 @@
   line-height: 1.4;
   color: var(--hud-ink);
 }
-.discovery .promise p span {
-  color: var(--hud-mute);
-}
 @keyframes disc-rise {
   from {
     opacity: 0;

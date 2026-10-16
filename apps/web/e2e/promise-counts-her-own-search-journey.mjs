@@ -65,10 +65,9 @@ const MAPPED_ROLE = 'IT project manager';
 const WORD_SEARCH_ROLE = 'sous vide pastry chef';
 const AREA = 'Hong Kong';
 
-// The sentence is allowed to say this and nothing more descriptive. "new" is the owner's word
-// (2026-08-20), kept after he was asked to reconsider whether the pipeline can back it — pinned
-// here so a later tidy-up cannot quietly drop it back to the shorter line.
-const PROMISE_TAIL = 'new jobs are open right now.';
+// The sentence is allowed to say this and nothing more descriptive. #392: the count now ends the
+// loading wait ("142 jobs like yours found.") instead of standing as "new jobs are open right now."
+const PROMISE_TAIL = 'like yours found.';
 
 // Nothing on the discovery screen may name the family we placed her into, the vocabulary that
 // placed her, or the research behind it (spec #233 decision 8). Lower-cased, swept over the whole
@@ -202,9 +201,15 @@ async function readPromise() {
   }
   const box = page.locator('.promise');
   if ((await box.count()) === 0) return { present: false, number: null, text: '' };
-  const text = (await box.first().innerText()).replace(/\s+/g, ' ').trim();
+  // #392: the number ticks up from 0 — read it once it has landed on the count the screen reader hears.
+  await page.waitForFunction(() => {
+    const b = document.querySelector('.promise');
+    return !b?.querySelector('.sr-only') || b.querySelector('.sr-only').textContent.startsWith(`${b.querySelector('.n')?.textContent} `);
+  });
   const nSlot = box.first().locator('.n');
   const raw = (await nSlot.count()) ? (await nSlot.first().innerText()).trim() : '';
+  const line = box.first().locator('p');
+  const text = `${raw} ${(await line.count()) ? await line.first().innerText() : ''}`.replace(/\s+/g, ' ').trim();
   const number = /^\d+$/.test(raw) ? Number(raw) : null;
   return { present: true, number, text };
 }

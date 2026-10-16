@@ -69,7 +69,7 @@ await qa.expectVisible(
 // #25 AC2: the discovery side must NOT announce the handoff — only /deck's entry effect announces,
 // once. If it regressed to double-announcing, this live region would carry the handoff copy.
 const discoveryAnnounced = await page
-  .locator(".discovery .sr-only")
+  .locator(".discovery > .sr-only")
   .textContent()
   .catch(() => "");
 qa.note(`#25 AC2 (no double-announce): discovery .sr-only after handoff = "${(discoveryAnnounced || "").trim()}" (must NOT contain the handoff copy)`);

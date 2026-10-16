@@ -1,6 +1,6 @@
 "use client";
 
-// #16 discovery (screen 1a): Q1 (free-text role) -> the promise -> the hand-off. Reuses the front
+// #16 discovery (screen 1a): Q1 (free-text role) -> the job count -> the hand-off. Reuses the front
 // door's typewriter/keepInView mechanics (page.tsx, first-question.prototype.html) against the
 // pinned DiscoveryState contract.
 //
@@ -47,7 +47,6 @@ const C4 = "e.g. IT project manager, mostly ERP, I use Jira and MS Project";
 const C5 = "That's me";
 const C6 = "same kind of job";
 const C7 = "Finding jobs like yours…";
-const C10 = "Keep going and I'll score them against you.";
 const C14 = "Answer the question below and this page starts writing itself.";
 // #386: the hand-off, after question 1. Nothing is asked here any more, so it no longer says "That's
 // all I need to ask." to someone asked one question: it says what comes next — check mode for a
@@ -63,9 +62,8 @@ const C_CONTINUE = "Continue";
 // never how many there are, and this says what that is worth.
 const C22 = "I scored the three closest — tell me more and I'll score them better";
 
-// C8/C9's tail — the count renders beside it in its own emphasized `.n` slot (matching
-// first-question.prototype.html, which the design spec builds against), so the two pieces read as
-// one sentence in DOM order and to a screen reader.
+// The count renders in its own emphasized `.n` slot (matching first-question.prototype.html, which
+// the design spec builds against).
 //
 // #246: the sentence names NO job family. It used to say "10 IT project delivery jobs are open right
 // now", which was our internal label rather than her word (#228 decision 7), and for a visitor the
@@ -76,12 +74,38 @@ const C22 = "I scored the three closest — tell me more and I'll score them bet
 // C11's old count-failed fallback went with it: the server now sends no promise at all when it
 // could not count, and design §4c already says to drop the line silently rather than print one.
 //
-// "new" is the owner's word, kept after he was asked to reconsider it (2026-08-20). The reservation
-// put to him: these adverts are verified LIVE within the provider's freshness window, which is not
-// the same as newly posted, so "new" claims a little more than the pipeline knows. He prefers it,
-// and it is his call. If a freshness signal ever reaches the posting record, this is the line that
-// should start earning the word rather than assuming it.
-const C8 = "new jobs are open right now.";
+// #392: the count is the end of the loading wait, not a statement of its own — the "new jobs are
+// open right now" sentence and its "Keep going" tail are gone, and the number ticks up from 0 as it
+// lands in the "Finding jobs like yours…" box. The tick is a show, not progress: the search returns
+// one number at once (one batched search, deduped and filtered before it is counted), so a
+// genuinely climbing count could only come from partial results that do not match the deck. Owner
+// decision 2026-10-16, taken against the ticket's "no fake animation" AC with that explained.
+const foundLine = (n: number) => (n === 1 ? "job like yours found." : "jobs like yours found.");
+const COUNT_UP_MS = 900;
+
+// Ticks 0 → `target` once, easing out; reduced motion shows the number straight away.
+function CountUp({ target }: { target: number }) {
+  // Decided before the first paint, so reduced motion never flashes a 0.
+  const [reduced] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [shown, setShown] = useState(reduced ? target : 0);
+  useEffect(() => {
+    if (reduced) {
+      setShown(target);
+      return;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / COUNT_UP_MS);
+      setShown(Math.round(target * (1 - (1 - t) ** 3)));
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+  return <>{shown}</>;
+}
+
 function highlightMatch(title: string, query: string): ReactNode {
   const idx = query ? title.toLowerCase().indexOf(query.toLowerCase()) : -1;
   if (idx < 0) return title;
@@ -359,14 +383,14 @@ function DiscoveryScreen() {
     // #246: no promise means her search found nothing to count, or could not run — drop the line
     // silently (design §4c) rather than make a claim with no number behind it.
     if (!p) return null;
+    // The ticking number is hidden from screen readers; they hear the final count once.
     return (
       <div className="promise" role="status">
-        <span className="n">{p.count}</span>
-        <p>
-          {C8}
-          <br />
-          <span>{C10}</span>
-        </p>
+        <span className="n" aria-hidden="true">
+          <CountUp target={p.count} />
+        </span>
+        <p aria-hidden="true">{foundLine(p.count)}</p>
+        <span className="sr-only">{`${p.count} ${foundLine(p.count)}`}</span>
       </div>
     );
   }
