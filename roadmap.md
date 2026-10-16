@@ -23,8 +23,10 @@ screen; source tags read "from BRED…". #392 and #396 went live **by hand, CI s
 request — the next normal push runs the full suite over them.
 
 - Owner checked both on staging after the deploy: "it looks ok now" (2026-10-16).
-- **Owner acts next:** decide #394 AC7 (per-item tags are built; one source line per group instead?) ·
-  the open calls on #389. Then the next build: Chat with JobCrush (below).
+- ~~#389~~ closed 2026-10-16: the four build calls kept as built; its "keep the Continue screen" was
+  replaced by #392. #394 AC7: the per-item "from X" tags stand (#396); a per-group source line is a
+  ticket only if the owner asks.
+- **Next build:** Chat with JobCrush (below).
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
