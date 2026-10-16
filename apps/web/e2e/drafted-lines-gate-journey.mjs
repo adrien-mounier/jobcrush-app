@@ -110,16 +110,17 @@ try {
   await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
 
   // -------------------------------------------------------------------------------------------
-  // 1. Reload while the run is held: no suggestion yet, the job still being checked.
+  // 1. Reload while the run is held: the reading screen (owner, 2026-10-16), no suggestion yet.
   // -------------------------------------------------------------------------------------------
-  await assert(await walkTo(/Nordic/), 'Next, to her Nordic job');
-  await qa.expectText(lead, 'still checking this job', 'the review is still running on it');
-  await reloadTo(/Nordic/, 'she reloads while it runs');
-  await qa.expectText(lead, 'still checking this job', 'still running after the reload');
-  await assert((await cards.count()) === 0, 'no suggestion card while her job is still being checked');
+  await qa.expectText('.check .reading h1', 'Reading your CV', 'the review is still running: she sees it being read');
+  await qa.goto('/profile/check', 'she reloads while it runs');
+  await qa.expectText('.check .reading h1', 'Reading your CV', 'still being read after the reload');
+  await assert((await cards.count()) === 0, 'no suggestion card while her CV is still being checked');
   await assert((await allLines()).every((l) => l.state !== 'drafted'), 'and the server holds no draft yet');
 
   await assert((await holdReview(false)).status === 200, 'the review run is let through');
+  await page.locator('.check .guide h1').waitFor({ timeout: 60_000 }); // the walk opens by itself
+  await assert(await walkTo(/Nordic/), 'Next, to her Nordic job');
   for (let i = 0; i < 40 && (await cards.count()) === 0; i += 1) await page.waitForTimeout(500);
   const calls = await reviewCalls();
   await qa.note(`the review writer was asked ${calls} time(s) for this run`);

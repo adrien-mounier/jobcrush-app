@@ -86,16 +86,11 @@ try {
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
   await page.waitForTimeout(1500);
 
-  // 1b. While the review is held, her unlabelled skills have no group yet: the screen shows them
-  // with no group heading at all (#394 — a heading there read as a wrong grouping, not a pending
-  // one), under the line saying the check is still going.
+  // 1b. While the review is held, check mode is the reading screen (owner, 2026-10-16): no Skills
+  // screen exists yet, so no group can be seen waiting for its name.
   await qa.goto('/profile/check', 'check mode, while the review is still running');
-  await assert(await walkTo(/^Skills/), 'walked to the Skills screen while the review runs');
-  await qa.scrollThrough('reads the Skills screen before any group is named');
-  const pendingItems = await page.locator('main .groups .grp li.pt').count();
-  const ungrouped = await headings.allTextContents();
-  await assert(pendingItems > 0 && ungrouped.length === 0, `her skills show with no group heading while the review runs — ${pendingItems} skills, headings: ${JSON.stringify(ungrouped)}`);
-  await qa.expectVisible(page.locator('main .hint'), 'the screen says the check is still going');
+  await qa.expectText('.check .reading h1', 'Reading your CV', 'the review is running: the reading screen, not the walk');
+  await assert((await page.locator('main .groups').count()) === 0, 'no Skills screen to read before the groups are named');
   await assert((await hold(false)).status === 200, 'the review run is released');
 
   // The review names the skills the CV left ungrouped; wait for it to land (fake: milliseconds).

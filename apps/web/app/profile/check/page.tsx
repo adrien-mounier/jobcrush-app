@@ -6,9 +6,9 @@
 // holds it, the three motion cues, the done screen. What each screen shows is screens.tsx; an
 // item and the removed tray are Item.tsx.
 //
-// The review (ADR-0016) keeps running in the background exactly as before; the walk reads its
-// paper (GET /review) and re-reads it while the run goes, so fixes and drafts fill in as they
-// land. Finish is POST /review/complete — the one server-side gate the jobs wait on — and it
+// The review (ADR-0016) runs in the background; while it goes the page is the reading lamp
+// (Reading.tsx) and re-reads the paper (GET /review) until the run is over — the walk opens only
+// then, or past READ_LIMIT_MS (owner, 2026-10-16). Finish is POST /review/complete — the one server-side gate the jobs wait on — and it
 // stands for every screen at once: no screen is confirmed on the server on its own (the
 // orchestrator's decision, #377). A removed item is the kept line state underneath (⊖ → kept,
 // Put back → ticked); the server's print gate already refuses it everywhere.
@@ -41,6 +41,7 @@ import {
   type ReviewState,
 } from "../../../lib/api";
 import { useReducedMotion } from "../../jobcard";
+import { Reading } from "./Reading";
 import { blockersOf, leadFor, proposalsToSave, ScreenBody, screensOf, type Screen } from "./screens";
 
 const C_BACK = "‹ Back";
@@ -59,10 +60,10 @@ const C_LOAD_FAILED = "Couldn't load your CV.";
 const C_RETRY = "Try again";
 const C_EMPTY = "Nothing was read from a CV yet.";
 const C_SAVE_FAILED = "Couldn't save that — try again.";
-const C_CHECKING = "Checking your CV…";
-const minutesCopy = (n: number) => `About ${n} ${n === 1 ? "minute" : "minutes"} left.`;
-/** How often the walk re-reads the paper while the run is going. */
+/** How often the reading screen re-reads the paper while the run is going. */
 const POLL_MS = 3000;
+/** The longest the reading screen holds her — twice the run's expected length. */
+const READ_LIMIT_MS = 10 * 60_000;
 /** #378: how long "No thanks. I won't suggest it again." stays, with its Undo (the prototype's 6 s). */
 const UNDO_MS = 6000;
 
@@ -115,8 +116,17 @@ export default function CheckPage() {
   }, [load]);
 
   // While the run is going, re-read on a recursive timeout chain (never setInterval — the deck's
-  // own rule): marks fill in as they land, and Finish unlocks when the run does.
-  const running = state?.progress !== null && state?.progress !== undefined;
+  // own rule): the reading screen's progress moves as units land, and the walk opens when the run is over.
+  // A run that never ends must not hold her on the reading screen: past READ_LIMIT_MS the walk opens
+  // anyway, the way a run that gave up already reads — like any other, nothing said (#362).
+  const [readingTooLong, setReadingTooLong] = useState(false);
+  const running = state?.progress !== null && state?.progress !== undefined && !readingTooLong;
+  const reading = state?.progress != null;
+  useEffect(() => {
+    if (!reading) return;
+    const t = setTimeout(() => setReadingTooLong(true), READ_LIMIT_MS);
+    return () => clearTimeout(t);
+  }, [reading]);
   useEffect(() => {
     if (!running) return;
     const t = setTimeout(async () => {
@@ -136,7 +146,7 @@ export default function CheckPage() {
   const screen: Screen | undefined = screens[k];
   const last = k === screens.length - 1;
   const blockers = screen ? blockersOf(screen) : [];
-  const canGo = blockers.length === 0 && !(last && running);
+  const canGo = blockers.length === 0;
 
   // The arm cue: the button turns gold on the screen it was held on.
   useEffect(() => {
@@ -148,7 +158,7 @@ export default function CheckPage() {
   // Each screen is a new place: focus lands on its heading (focus keyed to committed state).
   useEffect(() => {
     headingRef.current?.focus();
-  }, [stepKey, done, state === null]);
+  }, [stepKey, done, state === null, running]);
 
   /** A write, then a fresh read of the paper. A failed write is reported; a failed re-read is not
    *  a save failure (the profile's own rule) — the next tick or tap re-reads. */
@@ -286,6 +296,13 @@ export default function CheckPage() {
       </main>
     );
   }
+  if (running) {
+    return (
+      <main className="check">
+        <Reading state={state} headingRef={headingRef} />
+      </main>
+    );
+  }
   if (done) {
     const lines = allLines(state);
     const inCount = lines.filter((l) => l.state === "ticked").length;
@@ -358,7 +375,6 @@ export default function CheckPage() {
             onBumpEnd: () => setFx((f) => ({ ...f, bump: undefined })),
           }}
           groups={{ onRename: renameGroup, onMove: moveToGroup }}
-          running={running}
           drafts={drafts}
           details={{
             values: {
@@ -378,12 +394,6 @@ export default function CheckPage() {
             onConflict: (fieldId, value) => void write(() => settleReviewConflict(fieldId, value)),
           }}
         />
-        {/* #394: the Skills screen says the run is going while it still holds skills the review has not named */}
-        {(last || (screen.kind === "skills" && screen.groups.some((g) => g.unnamed))) && running && state.progress && (
-          <p className="hint" aria-live="polite">
-            {C_CHECKING} {minutesCopy(state.progress.minutesLeft)}
-          </p>
-        )}
         {error && (
           <p className="err" role="alert">
             {error}

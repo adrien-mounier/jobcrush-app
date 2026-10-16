@@ -2199,17 +2199,21 @@ test("#383: moved and copied facts wear where they came from on the profile; a f
   };
   await stubProfile(page, state);
   await page.goto("/profile");
-  await expect(page.locator(".fact", { hasText: "JIRA" }).locator(".tag.moved")).toHaveText("Moved from Nordic Retail Group");
-  await expect(page.locator(".fact", { hasText: "Splunk" }).locator(".tag.moved")).toHaveText("Taken from Nordic Retail Group");
-  await expect(page.locator(".fact", { hasText: "Fluent in French" }).locator(".tag.moved")).toHaveText("Moved from your summary");
+  // Owner, 2026-10-16: the tag shows "from <where>" (a long name cut to its first word); the full
+  // sentence is what a screen reader hears.
+  await expect(page.locator(".fact", { hasText: "JIRA" }).locator(".tag.moved [aria-hidden]")).toHaveText("from Nordic…");
+  await expect(page.locator(".fact", { hasText: "JIRA" }).locator(".tag.moved .sr-only")).toHaveText("Moved from Nordic Retail Group");
+  await expect(page.locator(".fact", { hasText: "Splunk" }).locator(".tag.moved .sr-only")).toHaveText("Taken from Nordic Retail Group");
+  await expect(page.locator(".fact", { hasText: "Fluent in French" }).locator(".tag.moved [aria-hidden]")).toHaveText("from your summary");
+  await expect(page.locator(".fact", { hasText: "Fluent in French" }).locator(".tag.moved .sr-only")).toHaveText("Moved from your summary");
   await expect(page.locator(".tag.moved")).toHaveCount(3);
   await expect(page.locator(".fact", { hasText: "SQL." }).locator(".tag")).toHaveCount(0);
   await expect(page.locator(".frow .tag")).toHaveCount(0);
 });
 
-// #394: a "Taken from <job>" tag with a long employer name wraps inside its chip; at 390 and 1280
-// no chip runs out of its Skills group.
-test("#394: a long Taken from tag wraps inside its chip on the profile at 390 and 1280", async ({ page }) => {
+// #394: a tag for a long employer name reads "from <first word>…" (owner, 2026-10-16); at 390 and
+// 1280 no chip runs out of its Skills group.
+test("#394: a long employer name stays short in its tag on the profile at 390 and 1280", async ({ page }) => {
   await stubSession(page);
   const FROM = "Nordic Retail Group (International Franchise Operations Division)";
   const state: ProfileState = {
@@ -2233,7 +2237,8 @@ test("#394: a long Taken from tag wraps inside its chip on the profile at 390 an
     await page.setViewportSize({ width, height: 900 });
     const chip = page.locator(".fact", { hasText: "Splunk" });
     const tag = chip.locator(".tag.moved");
-    await expect(tag).toHaveText(`Taken from ${FROM}`);
+    await expect(tag.locator("[aria-hidden]")).toHaveText("from Nordic…");
+    await expect(tag.locator(".sr-only")).toHaveText(`Taken from ${FROM}`);
     const group = page.locator(".sgrp", { has: chip });
     const [t, c, g] = [await tag.boundingBox(), await chip.boundingBox(), await group.boundingBox()];
     expect(t!.x + t!.width, `at ${width}px the tag stays inside its chip`).toBeLessThanOrEqual(c!.x + c!.width + ROUNDING);

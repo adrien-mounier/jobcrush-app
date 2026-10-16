@@ -335,9 +335,8 @@
   padding: 0 7px;
   margin-left: 8px;
   vertical-align: 1px;
-  /* #394: wraps inside its chip ("Taken from <a long employer name>"), each piece keeping the border */
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
+  /* never wraps: a "from" tag is cut short (check/Item.tsx shortFrom), replacing #394's wrapping */
+  white-space: nowrap;
 }
 .profile .fact.gold .tag {
   color: #1a1206;

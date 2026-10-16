@@ -5,10 +5,10 @@
 //   1. she pastes her CV on the front door and says what she is going for; nothing is asked after
 //      that (#376) — discovery moves her on by itself (#392) to check mode, not the jobs (AC1);
 //   2. #341/#362 — the review runs in the background, HELD on the QA stack (POST /qa/stack
-//      reviewHold) from before the paste: Your details shows her letterhead as read (AC2); her job
-//      screen says it is still being checked and offers nothing to answer; the last screen holds
-//      Finish while the run goes and the server refuses the finish too; nothing on the screen speaks
-//      of a failure; the wire says `unchecked: true`. Released, Finish unlocks and `unchecked` clears;
+//      reviewHold) from before the paste: check mode is the reading screen (#396) — her CV on the
+//      sheet, no walk, no button; the server refuses the finish too; nothing on the screen speaks of
+//      a failure; the wire says `unchecked: true`. Released, the walk opens by itself on Your details,
+//      her letterhead as read (AC2), and `unchecked` clears;
 //   3. #341/#384 — the fix: the budget line reads corrected, wears the Fixed tag, the tag opens
 //      original → corrected; Undo restores her words to the letter and survives a reload; the fix
 //      can be used again;
@@ -153,38 +153,26 @@ try {
   await assert(/\/profile\/check/.test(page.url()), `AC1 — after question 1 she lands on check mode, not the jobs (${new URL(page.url()).pathname})`);
 
   // -------------------------------------------------------------------------------------------
-  // 2. Your details as read (AC2); the check still running (#341/#362).
+  // 2. The check still running (#341/#362): the reading screen; then Your details as read (AC2).
   // -------------------------------------------------------------------------------------------
-  await qa.expectText(h1, 'Your details', 'the walk opens at her details');
-  await assert((await page.locator('input[name=name]').inputValue()).includes('Jane Doe'), 'her name, as read, at the top');
-  await assert((await page.locator('input[name=email]').inputValue()) === 'jane.doe.338@example.com', 'her email, as read');
+  // Owner, 2026-10-16: while the check runs, check mode is the reading screen — her own CV on the
+  // sheet, real progress — never a walk over screens still being filled in.
+  await qa.expectText('.check .reading h1', 'Reading your CV', 'while the check runs she sees the reading screen, not the walk');
+  await qa.expectText('.check .reading .sheet .name', 'Jane Doe', 'the sheet is her own CV');
+  await assert((await page.locator('.check .guide, .check .foot').count()) === 0, 'no screen to walk, no button to press while it runs');
   const before = (await json('/review')).body;
   await assert(before?.progress !== null && before?.unchecked === true, `the server says the check is going and part of her CV has no answer yet (unchecked: ${before?.unchecked})`);
-
-  await assert(await walkTo(/Nordic/), 'Next, screen by screen, to her Nordic job');
-  await qa.expectText(lead, 'still checking this job', 'her job says it is still being checked — never "nothing to answer"');
-  await assert((await addCards.count()) === 0 && (await removeCard.count()) === 0, 'no suggestion while the job has no answer');
-  await qa.expectVisible(item(JOB_LINE_AS_READ), 'her lines as read, meanwhile — the misspelling included');
-  await qa.scrollThrough('she reads her job while it is checked');
-
-  await walkTo(/^$/); // as far as the walk goes
-  const last = (await h1.textContent()) ?? '';
-  await qa.note(`the last screen: "${last}"`);
-  const pill = page.locator('.wrrow .pill').filter({ has: page.locator('input[value=eligible]') }).first();
-  if (await pill.count()) await qa.click(pill, 'where she can work: yes, she can work there');
-  await qa.expectText(primary, 'Finish my profile', 'the last screen offers the finish');
-  await assert(await primary.isDisabled(), 'the finish is held while the check runs');
-  await qa.expectText('main .hint', 'Checking your CV…', 'and says why');
   const refused = await json('/review/complete', { method: 'POST' });
   await assert(refused.status === 409 && refused.body?.error?.code === 'review_running', `the server refuses the finish too (${refused.status} ${refused.body?.error?.code})`);
   const mainText = (await page.locator('main').textContent()) ?? '';
   await assert(!/fail|error|try again|couldn't/i.test(mainText), 'nothing on the screen speaks of a failure');
+  await qa.scrollThrough('she watches her CV being read');
 
   await assert((await holdReview(false)).status === 200, 'the review run is let through');
-  await primary.waitFor({ state: 'visible' });
-  for (let i = 0; i < 40 && (await primary.isDisabled()); i += 1) await page.waitForTimeout(500);
-  await assert(await primary.isEnabled(), 'the finish unlocks when the check is finished');
-  await assert((await page.locator('main .hint').count()) === 0, 'and the "Checking your CV…" line goes');
+  await page.locator('.check .guide h1').waitFor({ timeout: 60_000 });
+  await qa.expectText(h1, 'Your details', 'the run over, the walk opens at her details by itself');
+  await assert((await page.locator('input[name=name]').inputValue()).includes('Jane Doe'), 'her name, as read, at the top');
+  await assert((await page.locator('input[name=email]').inputValue()) === 'jane.doe.338@example.com', 'her email, as read');
   const after = (await json('/review')).body;
   await assert(after?.progress === null && after?.unchecked === false, `every part of her CV has an answer (unchecked: ${after?.unchecked})`);
 
@@ -302,6 +290,9 @@ try {
   await page.waitForURL(/\/profile\/check/, { timeout: 15_000 });
   await assert(/\/profile\/check/.test(page.url()), 'the deck sends her back to check mode');
   await walkTo(/^$/);
+  // Where she can work: the last screen's one answer — Finish waits for it (#376).
+  const pill = page.locator('.wrrow .pill').filter({ has: page.locator('input[value=eligible]') }).first();
+  if (await pill.count()) await qa.click(pill, 'where she can work: yes, she can work there');
   await qa.expectText(primary, 'Finish my profile', 'the last screen');
   await qa.click(primary, 'Finish my profile');
   await qa.expectText(h1, 'Your profile is ready', 'the done screen');

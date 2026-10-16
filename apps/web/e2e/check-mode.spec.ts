@@ -375,24 +375,21 @@ test("the deck sends an unreviewed session here, and the old review address forw
   await expect(heading(page)).toHaveText("Your details");
 });
 
-/** The three cues: Next fills the finished segment (sweep), a removal makes the removed count glow
- *  (bump), the footer button pulses once when it turns gold (arm — here, when the running check
- *  finishes on the last screen and unlocks Finish). */
-async function driveTheCues(page: Page, box: { state: ReviewState }) {
+/** Two of the three cues: Next fills the finished segment (sweep), a removal makes the removed count
+ *  glow (bump). The third — the footer button pulsing once when it turns gold (arm) — is proven by the
+ *  drafts test, where answering the last suggestion releases it: the review run no longer holds
+ *  Finish, because the walk opens only once the run is over (owner, 2026-10-16). */
+async function driveTheCues(page: Page) {
   await page.goto("/profile/check");
   await primary(page).click(); // sweep
   await primary(page).click();
   await items(page).first().hover();
   await removeButton(items(page).first()).click(); // bump
   await expect(tray(page)).toHaveCount(1);
-  for (let i = 3; i < SCREENS.length; i++) await primary(page).click();
-  await expect(primary(page)).toBeDisabled(); // the check is still running
-  box.state = { ...box.state, progress: null }; // the next poll finds it finished
-  await expect(primary(page)).toBeEnabled({ timeout: 10_000 }); // arm
 }
 
-test("the three motion cues play once each", async ({ page }) => {
-  const { box } = await stubReview(page, { ...REVIEW, progress: { done: 1, total: 2, minutesLeft: 4 } });
+test("the sweep and bump cues play once each", async ({ page }) => {
+  await stubReview(page);
   await page.goto("/profile/check");
   await primary(page).click();
   await expect(page.locator(".prog i.sweep")).toHaveCount(1);
@@ -405,19 +402,11 @@ test("the three motion cues play once each", async ({ page }) => {
   await expect(page.locator(".tray.bump")).toHaveCount(1);
   await expect(page.locator(".tray.bump")).toHaveCount(0);
   await expect(tray(page)).toHaveCount(1);
-
-  for (let i = 3; i < SCREENS.length; i++) await primary(page).click();
-  await expect(primary(page)).toBeDisabled();
-  await expect(page.locator(".foot .primary.arm")).toHaveCount(0);
-  box.state = { ...box.state, progress: null };
-  await expect(page.locator(".foot .primary.arm")).toHaveCount(1, { timeout: 10_000 });
-  await expect(page.locator(".foot .primary.arm")).toHaveCount(0);
-  await expect(primary(page)).toBeEnabled();
 });
 
 test("under reduced motion none of the cues plays — the same walk, no animation class ever set", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  const { box } = await stubReview(page, { ...REVIEW, progress: { done: 1, total: 2, minutesLeft: 4 } });
+  await stubReview(page);
   const seen: string[] = [];
   await page.exposeFunction("cueSeen", (cls: string) => seen.push(cls));
   await page.addInitScript(() => {
@@ -430,7 +419,7 @@ test("under reduced motion none of the cues plays — the same walk, no animatio
       // The document itself, not documentElement: an init script runs before <html> exists.
     }).observe(document, { attributes: true, attributeFilter: ["class"], subtree: true });
   });
-  await driveTheCues(page, box);
+  await driveTheCues(page);
   await expect(cues(page)).toHaveCount(0);
   await expect(segments(page).first()).toHaveClass("done");
   expect(seen).toEqual([]);
@@ -690,13 +679,11 @@ test.describe("#381 Your details as editable fields", () => {
     await expect(field(page, "name")).toHaveValue("Jane Doe");
   });
 
-  test("typed text survives the walk's re-reads and Back, until the footer button saves it", async ({ page }) => {
-    // The run is going, so the walk re-reads the paper every few seconds — typing must outlive it.
-    const { calls, box } = await stubReview(page, { ...REVIEW, progress: { done: 1, total: 2, minutesLeft: 4 } });
+  test("typed text survives Back, until the footer button saves it", async ({ page }) => {
+    const { calls, box } = await stubReview(page);
     await page.goto("/profile/check");
     await expect(field(page, "name")).toHaveValue("Jane Doe");
     await field(page, "name").fill("Jane Doe-Martin");
-    await page.waitForResponse((r) => new URL(r.url()).pathname === "/api/review");
     await expect(field(page, "name")).toHaveValue("Jane Doe-Martin");
     expect(box.state.letterhead.name?.value).toBe("Jane Doe"); // not saved yet
 
@@ -893,7 +880,8 @@ test.describe("#371 About you", () => {
     await expect(heading(page)).toHaveText("Languages");
     const item = items(page).first();
     await expect(item.locator(".txt")).toContainText("Fluent in French and English.");
-    await expect(item.locator(".tag.moved")).toHaveText("Moved from your summary");
+    await expect(item.locator(".tag.moved [aria-hidden]")).toHaveText("from your summary"); // owner, 2026-10-16
+    await expect(item.locator(".tag.moved .sr-only")).toHaveText("Moved from your summary");
     // A line that never moved wears no tag.
     await back(page).click();
     await expect(items(page).first()).toBeVisible();
@@ -1428,6 +1416,10 @@ test.describe("#383 tools moved and copied to Skills", () => {
     ),
   };
   const tagOf = (page: Page, text: string) => page.locator(".groups li.pt", { hasText: text }).locator(".tag.moved");
+  // Owner, 2026-10-16: the tag shows just "from <job>", cut to its first word when long; the full
+  // "Moved/Taken from <job>" is what a screen reader hears and what the hover shows.
+  const shown = (page: Page, text: string) => tagOf(page, text).locator('[aria-hidden="true"]');
+  const said = (page: Page, text: string) => tagOf(page, text).locator(".sr-only");
   async function toScreen(page: Page, name: string) {
     for (let i = 0; i < 12 && (await heading(page).textContent()) !== name; i++) await primary(page).click();
     await expect(heading(page)).toHaveText(name);
@@ -1441,9 +1433,12 @@ test.describe("#383 tools moved and copied to Skills", () => {
     await expect(items(page).locator(".tag")).toHaveCount(0);
 
     await toScreen(page, "Skills");
-    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
-    await expect(tagOf(page, "Confluence")).toHaveText(`Moved from ${FROM}`);
-    await expect(tagOf(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
+    await expect(shown(page, "JIRA")).toHaveText("from Nordic…");
+    await expect(said(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(said(page, "Confluence")).toHaveText(`Moved from ${FROM}`);
+    await expect(shown(page, "Splunk")).toHaveText("from Nordic…");
+    await expect(said(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
+    await expect(tagOf(page, "Splunk")).toHaveAttribute("title", `Taken from ${FROM}`);
     await expect(tagOf(page, "Miro")).toHaveCount(0);
     await expect(page.locator(".groups .tag.moved")).toHaveCount(3);
   });
@@ -1461,21 +1456,20 @@ test.describe("#383 tools moved and copied to Skills", () => {
     await expect(tray(page).locator("s")).toHaveText("JIRA");
     await tray(page).locator("li button").click(); // Put back
     expect(calls.at(-1)).toEqual({ method: "PUT", url: "/api/cv/lines/skill-nrg-tools-jira", body: { state: "ticked" } });
-    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(said(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
 
     await page.reload();
     await toScreen(page, "Skills");
-    await expect(tagOf(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
-    await expect(tagOf(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
+    await expect(said(page, "JIRA")).toHaveText(`Moved from ${FROM}`);
+    await expect(said(page, "Splunk")).toHaveText(`Taken from ${FROM}`);
   });
 });
 
-// #394: while the review is still running, the skills it has not named yet (the wire's `unnamed`
-// group) show with no heading, under the screen's "Checking your CV…" line; once the run is over a
-// skill the model left unnamed sits under the heading the wire gives it. A named group keeps its
-// heading throughout. And a "Taken from <job>" tag wraps inside its item: a long employer name
-// overflows no skills column, on a phone or a wide screen.
-test.describe("#394 unnamed skills while the review runs; long tags wrap", () => {
+// #394: a skill the model left unnamed sits under the heading the wire gives it — the walk opens
+// only once the run is over (owner, 2026-10-16), so no group is ever shown waiting for its name. And
+// a long employer name overflows no skills column, on a phone or a wide screen: the tag reads
+// "from <first word>…".
+test.describe("#394 unnamed skills after the review; long tags stay short", () => {
   const PENDING: ReviewState = {
     ...REVIEW,
     progress: { done: 1, total: 2, minutesLeft: 4 },
@@ -1500,21 +1494,20 @@ test.describe("#394 unnamed skills while the review runs; long tags wrap", () =>
     await expect(heading(page)).toHaveText("Skills");
   }
 
-  test("the unnamed group has no heading while the run goes, and the screen says it is checking; once the run is over the heading the wire gives it shows", async ({ page }) => {
+  test("no walk while the run goes; once it is over, the unnamed group wears the heading the wire gives it", async ({ page }) => {
     const { box } = await stubReview(page, PENDING);
-    await toSkills(page);
-    await expect(groupBoxes(page)).toHaveCount(2);
-    await expect(groupBoxes(page).nth(0).locator(".gh")).toHaveCount(0);
+    await page.goto("/profile/check");
+    await expect(page.locator(".reading")).toBeVisible();
+    await expect(page.locator(".foot")).toHaveCount(0);
+    box.state = { ...box.state, progress: null }; // the run finished and left the two unnamed
+    await expect(heading(page)).toHaveText(SCREENS[0]!, { timeout: 10_000 });
+    for (let i = 0; i < 12 && (await heading(page).textContent()) !== "Skills"; i++) await primary(page).click();
+    await expect(groupBoxes(page).nth(0).locator(".gh")).toHaveText("Other");
     await expect(groupBoxes(page).nth(0).locator("li.pt .txt")).toHaveText(["Jira", "MS Project"]);
     await expect(groupBoxes(page).nth(1).locator(".gh")).toHaveText("Tools");
-    await expect(page.locator(".hint")).toHaveText("Checking your CV… About 4 minutes left.");
-
-    box.state = { ...box.state, progress: null }; // the run finished and left the two unnamed
-    await expect(groupBoxes(page).nth(0).locator(".gh")).toHaveText("Other", { timeout: 10_000 });
-    await expect(page.locator(".hint")).toHaveCount(0);
   });
 
-  test("a long Taken from tag wraps inside its item: no skills column overflows at 390 or 1280", async ({ page }) => {
+  test("a long employer name: the tag reads from its first word, and no skills column overflows at 390 or 1280", async ({ page }) => {
     const FROM = "Nordic Retail Group (International Franchise Operations Division)";
     const LONG: ReviewState = {
       ...PENDING,
@@ -1530,7 +1523,8 @@ test.describe("#394 unnamed skills while the review runs; long tags wrap", () =>
     for (const width of [390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       const tag = page.locator(".groups li.pt .tag.moved");
-      await expect(tag).toHaveText(`Taken from ${FROM}`);
+      await expect(tag.locator('[aria-hidden="true"]')).toHaveText("from Nordic…");
+      await expect(tag.locator(".sr-only")).toHaveText(`Taken from ${FROM}`);
       const item = page.locator(".groups li.pt", { has: page.locator(".tag.moved") });
       // The groups lay out in CSS columns: the group box (.grp) is the column, so the tag is
       // measured against it — a tag bleeding into the gutter widens neither .groups nor the page.
@@ -1862,18 +1856,17 @@ test("#386 no screen of the walk says ticked, kept or reviewed — a removed ite
   expect(seen.some((text) => /\bremoved\b/.test(text))).toBe(true);
 });
 
-// #386 — what the old review page proved about the check running in the background (#341) and
-// about a part it never answered (#362), on check mode: while a job has no answer yet its screen
-// says it is still being checked and never "nothing to answer"; the last screen holds Finish while
-// the run goes; the next read lands the suggestion, and the lead counts it. A job the run gave up
-// on reads like any other — nothing on the screen speaks of a failure — and the walk finishes.
+// #386 + owner, 2026-10-16 — while the check runs in the background (#341) the page is the reading
+// lamp, never a walk over half-filled screens: her own CV on the sheet, its lines inking in as the
+// run's units land, a segment per unit, the minutes left. The next read with the run over opens the
+// walk with the suggestion landed, and the lead counts it. A job the run gave up on (#362) reads like
+// any other — nothing on the screen speaks of a failure — and the walk finishes.
 test.describe("#386 while the check runs, and a part it never answered", () => {
   const lead = (page: Page) => page.locator(".lead");
   const RUNNING: ReviewState = {
     ...REVIEW,
     progress: { done: 1, total: 2, minutesLeft: 3 },
     unchecked: true,
-    sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, checking: true } : j)) } : s)),
   };
   const toNrg = async (page: Page) => {
     await primary(page).click();
@@ -1881,29 +1874,53 @@ test.describe("#386 while the check runs, and a part it never answered", () => {
     await expect(heading(page)).toHaveText("Nordic Retail Group");
   };
 
-  test("a job still being checked says so; Finish waits for the run; the next read lands the suggestion and the lead counts it", async ({ page }) => {
+  test("while the run goes the page is the reading lamp over her own CV, with real progress; the run over, the walk opens with the suggestion landed", async ({ page }) => {
     const { box, calls } = await stubReview(page, RUNNING);
     await page.goto("/profile/check");
-    await toNrg(page);
-    await expect(lead(page)).toHaveText("I'm still checking this job. Edit or remove anything that's wrong.");
-    await primary(page).click();
-    await expect(heading(page)).toHaveText("Baltic Software House");
-    await expect(lead(page)).not.toContainText("checking"); // its answer landed
-    while ((await primary(page).textContent()) !== "Finish my profile") await primary(page).click();
-    await expect(primary(page)).toBeDisabled();
-    await expect(page.locator(".hint")).toHaveText("Checking your CV… About 3 minutes left.");
+    const reading = page.locator(".reading");
+    await expect(reading.locator("h1")).toHaveText("Reading your CV");
+    await expect(reading.locator(".left")).toHaveText("About 3 minutes left.");
+    await expect(reading.locator(".readprog i")).toHaveCount(2); // one segment per unit of the run
+    await expect(reading.locator(".readprog i.done")).toHaveCount(1);
+    await expect(reading.locator(".sheet .name")).toHaveText("Jane Doe"); // her own CV, not a picture of one
+    const rows = await reading.locator(".sheet p").count();
+    await expect(reading.locator(".sheet p.inked")).toHaveCount(Math.round(rows / 2)); // half the run, half the page
+    await expect(page.locator(".foot, .guide")).toHaveCount(0); // nothing to walk yet
 
     const DRAFT = line("draft-nrg-1", "Ran the vendor steering meetings.", { state: "drafted", draft: { mustHave: "Runs governance", quote: null, source: null, flags: [], vague: [] } });
     box.state = {
       ...REVIEW,
       sections: REVIEW.sections.map((s) => ("jobs" in s ? { ...s, jobs: s.jobs.map((j) => (j.id === "nrg" ? { ...j, lines: [...j.lines, DRAFT] } : j)) } : s)),
     };
-    await expect(primary(page)).toBeEnabled({ timeout: 10_000 });
-    await expect(page.locator(".hint")).toHaveCount(0);
-    while ((await heading(page).textContent()) !== "Nordic Retail Group") await back(page).click();
+    await expect(heading(page)).toHaveText(SCREENS[0]!, { timeout: 10_000 });
+    await expect(heading(page)).toBeFocused();
+    await expect(reading).toHaveCount(0);
+    await toNrg(page);
     await expect(page.locator("li.sg")).toHaveCount(1);
     await expect(lead(page)).toHaveText("One suggestion below. Edit or remove anything else that's wrong.");
     expect(calls).toEqual([]);
+  });
+
+  test("a run that never ends cannot hold her: past ten minutes the walk opens anyway, and nothing speaks of a failure", async ({ page }) => {
+    await page.clock.install();
+    await stubReview(page, RUNNING); // the run never finishes
+    await page.goto("/profile/check");
+    await expect(page.locator(".reading h1")).toHaveText("Reading your CV");
+    await page.clock.fastForward("09:30");
+    await expect(page.locator(".reading")).toBeVisible(); // still within the limit
+    await page.clock.fastForward("00:40");
+    await expect(heading(page)).toHaveText(SCREENS[0]!);
+    await expect(page.locator("main")).not.toContainText(/fail|error|try again|could not|couldn't/i);
+  });
+
+  test("under reduced motion the lamp holds still where the run is", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await stubReview(page, RUNNING);
+    await page.goto("/profile/check");
+    const lamp = page.locator(".reading .lamp");
+    await expect(lamp).toBeAttached();
+    expect(await lamp.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+    expect(await lamp.evaluate((el) => getComputedStyle(el).transform)).not.toBe("none"); // parked at the run's share
   });
 
   test("a job the run gave up on reads like any other: nothing speaks of a failure, and the walk finishes", async ({ page }) => {

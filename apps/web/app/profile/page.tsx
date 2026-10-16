@@ -12,7 +12,7 @@ import "../profile.css";
 import { FactBadge } from "../factbadge";
 import { PasteDoor } from "../pastedoor";
 import { useReducedMotion } from "../jobcard";
-import { movedCopy } from "./check/Item";
+import { FromTag } from "./check/Item";
 import {
   answerDiscovery,
   answerDiscoveryMulti,
@@ -256,7 +256,7 @@ function FixedTag({ fact }: { fact: ProfileFact }) {
 }
 // #371/#383 — a fact the review moved, or a tool it copied, wears where it came from, as in check mode.
 function MovedTag({ fact }: { fact: ProfileFact }) {
-  return fact.movedFrom ? <span className="tag moved">{movedCopy(fact.movedFrom, fact.copied)}</span> : null;
+  return fact.movedFrom ? <FromTag from={fact.movedFrom} copied={fact.copied} /> : null;
 }
 // #387 (ADR-0018 clause 9) — a fact added while tailoring for a job wears that job: it joined the
 // profile from there, and the next application can use it like any other fact.

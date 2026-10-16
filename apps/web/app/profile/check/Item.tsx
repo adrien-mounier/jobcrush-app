@@ -24,6 +24,28 @@ const removedCopy = (n: number, open: boolean) => `${n} removed · ${open ? "Hid
 /** #371/#383: a line the review moved wears where it came from ("Moved from your summary"); a tool
  *  copied from an achievement that stays put wears "Taken from <job>". */
 export const movedCopy = (from: string, copied?: boolean) => `${copied ? "Taken" : "Moved"} from ${from}`;
+/** Owner, 2026-10-16: the tag reads just "from <where>". A name that fits stays whole ("Société
+ *  Générale"); a longer one is cut to its first word — "from BRED…" for BRED Banque Populaire — or its
+ *  first two when the first is an initial or a tiny word ("from J.P. Morgan…"), so a skills list
+ *  reads clean. ponytail: a generic first word ("Senior…" for an employer-less job's title) still
+ *  says little; a per-name short form would need the review to name it. */
+const SHORT_FROM = 16;
+export const shortFrom = (from: string) => {
+  if (from.length <= SHORT_FROM) return from;
+  const words = from.split(/\s+/);
+  const lead = words[0]!.length <= 2 || words[0]!.endsWith(".") ? words.slice(0, 2).join(" ") : words[0]!;
+  return `${lead.length <= SHORT_FROM ? lead : lead.slice(0, SHORT_FROM - 1)}…`;
+};
+/** The tag itself: the short words on screen, the full sentence on hover and for a screen reader. */
+export function FromTag({ from, copied }: { from: string; copied?: boolean }) {
+  const full = movedCopy(from, copied);
+  return (
+    <span className="tag moved" title={full}>
+      <span aria-hidden="true">from {shortFrom(from)}</span>
+      <span className="sr-only">{full}</span>
+    </span>
+  );
+}
 
 const PEN = (
   <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -174,7 +196,7 @@ export function Item({
       <span className="txt">
         {line.text}
         {line.draft && <span className="tag">{C_NEW}</span>}
-        {line.movedFrom && <span className="tag moved">{movedCopy(line.movedFrom, line.copied)}</span>}
+        {line.movedFrom && <FromTag from={line.movedFrom} copied={line.copied} />}
         {fix && (
           <button type="button" className="tag fixed" aria-expanded={fixOpen} onClick={() => setFixOpen((o) => !o)}>
             {fix.applied ? C_FIXED : C_FIX_UNDONE}

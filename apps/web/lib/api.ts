@@ -770,7 +770,7 @@ export interface ReviewJob {
   dates: { start: string; end: string | null } | null;
   endDateQuestion: string | null;
   /** #341: still being checked — the run is going and this job's answer has not landed. */
-  checking: boolean;
+  checking: boolean; // mirrors the wire; check mode no longer reads it (the reading screen covers the run)
   /** #342: the family the job was reviewed as, once its answer landed; null for a job in none. */
   family: string | null;
   lines: ReviewLine[];

@@ -53,9 +53,7 @@ const leadWorkAndSuggestions = (n: number) => `Tell me where you can work, and a
 const LEAD_NO_LANGUAGES = "Your CV lists no languages. Tell me the ones you speak.";
 // #380: "below", not "in gold below" — a removal suggestion is coral.
 const leadSuggestions = (n: number) => `${n === 1 ? "One suggestion" : `${n} suggestions`} below. Edit or remove anything else that's wrong.`;
-// #386: a job the review has not answered for yet (#362's rule: nothing reads as a finished check
-// while it runs), and a job whose end date is asked.
-const LEAD_CHECKING = "I'm still checking this job. Edit or remove anything that's wrong.";
+// #386: a job whose end date is asked.
 const LEAD_END = "When did this job end? Tell me if you know. Edit or remove anything that's wrong.";
 
 export type Screen =
@@ -186,7 +184,6 @@ export function leadFor(screen: Screen): string {
   if (screen.kind === "section" && screen.workRights) return n > 0 ? leadWorkAndSuggestions(n) : LEAD_WORK;
   if (screen.kind === "section" && screen.languages) return LEAD_NO_LANGUAGES;
   if (n > 0) return leadSuggestions(n);
-  if (screen.kind === "job" && screen.job.checking) return LEAD_CHECKING;
   if (screen.kind === "job" && screen.job.endDateQuestion) return LEAD_END;
   return LEAD_QUIET;
 }
@@ -216,7 +213,6 @@ export function ScreenBody({
   answers,
   aboutDraft,
   groups,
-  running,
 }: {
   screen: Screen;
   list: Omit<ItemListProps, "lines" | "card">;
@@ -225,8 +221,6 @@ export function ScreenBody({
   answers: CardAnswers;
   aboutDraft: AboutDraft;
   groups: GroupActions;
-  /** #394: the review run is still going (the Skills screen hides its unnamed group's heading). */
-  running: boolean;
 }): ReactNode {
   if (screen.kind === "about") {
     // #391 (ADR-0018 clause 2): the CV's own summary lines that stepped aside when About you was
@@ -292,7 +286,7 @@ export function ScreenBody({
   if (screen.kind === "skills") {
     return (
       <div className="card">
-        <SkillsBody lines={screen.lines} groups={screen.groups} running={running} list={{ ...list, card }} actions={groups} />
+        <SkillsBody lines={screen.lines} groups={screen.groups} list={{ ...list, card }} actions={groups} />
       </div>
     );
   }

@@ -71,6 +71,149 @@
   margin: 0;
 }
 
+/* the reading lamp (owner, 2026-10-16): while the review runs, her CV is a paper sheet under a band
+   of lamplight passing down it; its lines ink in as the run's units land (Reading.tsx). The paper
+   is the one physical object here, so it alone casts the paper-lift shadow. */
+.check .reading {
+  --paper: #f6f2ea;
+  --paper-edge: #e2dacb;
+  --paper-ink: #16150f;
+  --paper-muted: #6b6455;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  text-align: center;
+}
+.check .reading .sheet {
+  position: relative;
+  width: min(100%, 300px);
+  aspect-ratio: 640 / 905;
+  overflow: hidden;
+  padding: 26px 24px;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 6px;
+  box-shadow: 0 -12px 36px -10px rgba(0, 0, 0, 0.6);
+  text-align: left;
+  font: 11px/1.55 var(--serif);
+  color: var(--paper-muted);
+  animation: read-rise 700ms var(--ease) both;
+}
+.check .reading .sheet p {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.42;
+  transition:
+    opacity 900ms var(--ease),
+    color 900ms var(--ease);
+}
+.check .reading .sheet p.inked {
+  opacity: 1;
+  color: var(--paper-ink);
+}
+.check .reading .sheet .name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--paper-ink);
+}
+.check .reading .sheet .head {
+  margin-top: 9px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--paper-edge);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.check .reading .sheet .role {
+  font-style: italic;
+}
+/* the lamp: a soft pool of gold light with a fine reading edge, sweeping the page top to bottom */
+.check .reading .lamp {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30%;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(232, 163, 61, 0) 0%, rgba(232, 163, 61, 0.2) 62%, rgba(232, 163, 61, 0.34) 64%, rgba(232, 163, 61, 0) 100%);
+  mix-blend-mode: multiply;
+  animation: read-sweep 5.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.check .reading h1 {
+  margin: 34px 0 6px;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.check .reading h1:focus {
+  outline: none;
+}
+.check .reading .sub {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-wrap: balance;
+}
+.check .reading .readprog {
+  display: flex;
+  gap: 4px;
+  width: min(100%, 300px);
+  margin: 22px 0 10px;
+}
+.check .reading .readprog i {
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 600ms var(--ease);
+}
+.check .reading .readprog i.done {
+  background: var(--gold);
+}
+.check .reading .left {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted-r);
+}
+@keyframes read-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(340%);
+  }
+}
+@keyframes read-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+/* reduced motion: the lamp holds still where the run is; nothing rises or fades */
+@media (prefers-reduced-motion: reduce) {
+  .check .reading .sheet {
+    animation: none;
+  }
+  .check .reading .sheet p,
+  .check .reading .readprog i {
+    transition: none;
+  }
+  .check .reading .lamp {
+    animation: none;
+    /* the band is 30% of the sheet and its reading edge sits 64% down the band */
+    transform: translateY(calc(var(--at, 0) * 333% - 64%));
+  }
+}
+
 /* the walk */
 .check .guide {
   flex: 1;
@@ -118,11 +261,6 @@
   border-radius: 16px;
   padding: 12px;
   margin: 0;
-}
-.check .hint {
-  font-size: 12.5px;
-  color: var(--muted);
-  margin: 12px 0 0;
 }
 .check .err {
   color: var(--danger-soft);
@@ -588,8 +726,8 @@
   gap: 10px;
   align-items: center;
 }
-/* #394: a tag wraps inside its item — "Taken from <a long employer name>" is wider than a skills
-   column — and each wrapped piece keeps the pill's border. */
+/* A tag never wraps: a "from" tag is cut short in Item.tsx (owner, 2026-10-16), which replaced
+   #394's wrapping of "Taken from <a long employer name>". */
 .check .tag {
   font: 11px var(--sans);
   color: var(--gold-light);
@@ -598,8 +736,7 @@
   padding: 0 7px;
   margin-left: 8px;
   vertical-align: 1px;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
+  white-space: nowrap;
 }
 /* a vague phrase: dotted gold underline, tappable; a picked choice keeps a solid one */
 .check .ph {
