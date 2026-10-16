@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-15 (#394 shipped: a fresh upload's skills never read under "Other" while the review names them)_
+_Last updated: 2026-10-16 (#392 discovery wait, #396 reading lamp + short tags; both deployed by hand)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,28 +15,17 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: check mode is live** (V6b, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md);
-shipped 2026-10-14 in 482ca57, all 15 sub-issues closed; real-CV evals passed). The profile is the master CV's home; its check
-mode replaced "Your CV, reviewed"; the jobs open once every screen is confirmed, every suggestion
-answered and every market's work rights set.
+**Now: polishing the check-mode walk on the owner's staging feedback** (check mode itself shipped
+2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)). Shipped since:
+~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ (2026-10-15) and ~~#392~~ ~~#396~~ (2026-10-16): discovery is now only the
+job-count wait and moves on by itself; while the CV review runs, check mode is a reading-lamp loading
+screen; source tags read "from BRED…". #392 and #396 went live **by hand, CI skipped** at the owner's
+request — the next normal push runs the full suite over them.
 
-- Shipped 2026-10-15: ~~#389~~ Preview as CV (#390, [ADR-0019](docs/adr/0019-the-master-cv-previews-as-a-cv-for-the-persons-own-job.md))
-  and the About you follow-ups (#391); owner calls still open are commented on #389, re-upload edge cases
-  are #388 · ~~#387~~ a fact added while tailoring joins the profile (eb977f1). A stretch still cannot
-  join: no screen approves one yet, and the draft never writes to the profile (test-guarded).
-- Shipped 2026-10-15: ~~#393~~ no skills group is named after its own section — the fallback label is
-  "Other", the section's name is refused on every door, and a tool moved in from a job lands in the
-  group the review names; live on staging (191bbcb, CI green 14:28 UTC) · ~~#394~~ a fresh upload no
-  longer reads under "Other" while the review names the groups: the miner keeps the CV's own labels, the
-  pending group shows no heading under the "Checking your CV…" line, long "Taken from" tags wrap.
-  **Owner acts next:** re-run the real CV on staging after the deploy (#394 AC5: no "Other" or "Skills"
-  at any point of the walk; the long employer tag wraps) · decide #394 AC7 (per-item tags are built;
-  one source line per group instead?) · look at ~~#392~~ on staging: no discovery screen any more —
-  the count ticks up in the wait and the flow moves on by itself (ef915e5, 4f3b169; deployed by hand,
-  CI skipped at the owner's request). Broken journeys found on the way: #395.
-- Shipped 2026-10-16: ~~#396~~ check mode shows a reading-lamp loading screen while the CV review
-  runs, and source tags read "from BRED…" (84c995b, deployed by hand). **Owner:** watch one real
-  upload on staging (lines inking in is unproven against a real run).
+- Owner checked both on staging after the deploy: "it looks ok now" (2026-10-16).
+- **Owner acts next:** decide #394 AC7 (per-item tags are built; one source line per group instead?) ·
+  the open calls on #389. Then the next build: Chat with JobCrush (below).
+- **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 

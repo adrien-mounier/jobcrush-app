@@ -347,7 +347,12 @@ A shortcut past the match reveal would have dropped its live-region announce, it
 An undo placed in "the slot after you answer" never renders for the *last* question, because
 answering it is the transition away. A warning deleted because it became false must be re-homed if
 its risk moved. Hiding a state from one view means auditing every count that still includes it
-(badge 54, screen 47) — one `shown()` source of truth.
+(badge 54, screen 47) — one `shown()` source of truth. #392 again (2026-10-16): removing discovery's
+hand-off silently dropped #257's "We'll look for … in …" line, and the journey rewrite stopped
+checking it rather than noticing; the spec reviewer caught it.
+The other half: read "no standalone step/screen" as the **whole screen, its button included**. #392
+first shipped with only the count sentence changed and the screen and its Continue kept, and the
+owner had to come back with "I still see the discovery screen".
 
 ### Prototype and verify UI by driving it, at the owner's size
 - Prototype before `/to-spec`: one throwaway mock broke three of thirteen paper decisions.

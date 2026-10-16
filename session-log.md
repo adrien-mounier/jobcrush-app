@@ -5,7 +5,8 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 ## 2026-10-16 — #396 shipped: the reading lamp while the CV review runs; short "from X" tags (84c995b, deployed by hand)
 
 Owner via /impeccable: walking check mode while the review still filled it in felt wrong, and the skills tags were too long. While the run goes check mode is now the reading lamp — her CV on the paper sheet, a lamplight band sweeping it, lines inking in per landed unit, one segment per unit, minutes left; the walk opens by itself when the run ends (a run stuck past 10 min opens it anyway, nothing said). The old "still running" walk paths were removed. Tags read "from <where>" (over 16 chars → first word, or two after an initial: "from BRED…", "from J.P. Morgan…"), full sentence for hover/screen readers, in check mode and on the profile. QA NO-GO first (check-mode-journey lost its work-rights answer in the rewrite) → GO on tree 2c37de3 (135/135 specs, 14 journeys). Pushed [skip ci], web deployed with flyctl.
-**Next:** owner looks at a real upload on staging (lines inking in is unproven against a real run); the progress bars are faint at 0 — owner's call. Not covered: /profile still shows content mid-run.
+Owner, after the deploy: "it looks ok now". Not covered: /profile still shows content mid-run; the progress bars are faint at 0.
+**Next:** owner decides #394 AC7 and the #389 calls; then Chat with JobCrush (#350) — `/to-spec` (Opus 5.5).
 
 ## 2026-10-16 — #392 follow-up: the discovery screen goes; the count ends the wait (4f3b169, deployed by hand)
 
