@@ -141,7 +141,7 @@ const tailor = await api('/onboarding/tailor');
 await check(tailor.status >= 400, `the tailor refuses: ${tailor.status}`);
 
 // ---------------------------------------------------------------------------------------------
-// 2. Nothing asked after question 1 (#376): the hand-off, then check mode.
+// 2. Nothing asked after question 1 (#376): discovery moves on to check mode by itself (#392).
 // ---------------------------------------------------------------------------------------------
 const blocks = (await api('/job-blocks')).body?.blocks ?? [];
 const baltic = blocks.find((b) => /baltic/i.test(b.employer.value));
@@ -151,10 +151,9 @@ const balticRe = new RegExp(baltic.employer.value.replace(/[.*+?^${}()|[\]\\]/g,
 await postJson(`/job-blocks/${baltic.id}/correct`, { key: 'end', value: { state: 'unknown' } });
 
 await qa.goto('/discovery', 'discovery — nothing is left to ask');
-await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
-await qa.click('.discovery .handoff .go', 'Continue');
-await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
-await qa.expectText(h1, 'Your details', 'the hand-off lands on check mode');
+// #392: no hand-off — discovery shows the count and moves on by itself.
+await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
+await qa.expectText(h1, 'Your details', 'discovery moves on to check mode by itself');
 await qa.scrollThrough('she reads her details');
 // Her answers to the review's suggestions are check-mode.spec's and check-mode-journey's to walk; a
 // job's open suggestions hold its button, so here they are answered over the wire (No thanks) once

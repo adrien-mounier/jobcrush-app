@@ -55,10 +55,17 @@ async function walk(name, reduced) {
       const b = document.querySelector('.promise');
       return b && b.querySelector('.sr-only')?.textContent.startsWith(`${b.querySelector('.n')?.textContent} `);
     });
+    // The count holds ~1.2 s, then the screen moves on by itself: read everything off it with raw
+    // page calls first (every qa.* step pauses ~1 s), assert after it has left.
     const final = Number(await n.textContent());
     const shown = (await page.evaluate(() => window.shownCounts)).map(Number);
-    qa.note(`numbers shown in the count slot, in order: ${shown.join(' → ')}; screen-reader text: "${await sr.textContent()}"`);
-    await assert(qa, await page.evaluate(() => window.sawWaitBox), 'the wait box was on screen before the count landed');
+    const srText = await sr.textContent();
+    const sawWaitBox = await page.evaluate(() => window.sawWaitBox);
+    const promiseText = await page.locator('.promise').textContent();
+    const body = await page.locator('body').innerText();
+    await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
+    qa.note(`numbers shown in the count slot, in order: ${shown.join(' → ')}; screen-reader text: "${srText}"`);
+    await assert(qa, sawWaitBox, 'the wait box was on screen before the count landed');
     await assert(qa, final > 0 && shown.at(-1) === final, `the count lands on its real number (${final})`);
     if (reduced) {
       await assert(qa, shown.length === 1 && shown[0] === final, `reduced motion: only the final number is ever shown (${shown.join(',')})`);
@@ -66,12 +73,11 @@ async function walk(name, reduced) {
       await assert(qa, shown[0] === 0 && shown.length > 3, `the count ticks up from 0 (${shown.length} steps)`);
       await assert(qa, shown.every((v, i) => i === 0 || v >= shown[i - 1]), 'the count only ever climbs');
     }
-    await qa.expectText('.promise', 'like yours found.', 'the count reads "N jobs like yours found."');
-    const body = await page.locator('body').innerText();
+    await assert(qa, promiseText.includes('like yours found.'), `the count reads "N jobs like yours found." ("${promiseText.trim()}")`);
     await assert(qa, !body.includes('new jobs are open right now'), 'the old "new jobs are open right now." sentence is gone');
     await assert(qa, !body.includes('Keep going and I'), 'the old "Keep going…" tail is gone');
-    await qa.scrollThrough('read the screen with the count landed');
-    await qa.expectVisible('.discovery .handoff .go', 'the flow goes straight on to the hand-off, no count screen in between');
+    await assert(qa, !body.includes('Your search is set'), 'no hand-off screen: "Your search is set." never shows');
+    await assert(qa, /\/(deck|profile\/check)/.test(page.url()), `after the count the flow moves on by itself, no Continue to press (${new URL(page.url()).pathname})`);
   } catch (e) {
     await assert(qa, false, `run error: ${e.message}`);
   }

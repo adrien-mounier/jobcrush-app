@@ -3,7 +3,7 @@
 // review-unchecked-counter-journey.mjs (#362): every claim those two made, made on check mode.
 //
 //   1. she pastes her CV on the front door and says what she is going for; nothing is asked after
-//      that (#376) — discovery's hand-off sends her to check mode, not the jobs (AC1);
+//      that (#376) — discovery moves her on by itself (#392) to check mode, not the jobs (AC1);
 //   2. #341/#362 — the review runs in the background, HELD on the QA stack (POST /qa/stack
 //      reviewHold) from before the paste: Your details shows her letterhead as read (AC2); her job
 //      screen says it is still being checked and offers nothing to answer; the last screen holds
@@ -147,10 +147,9 @@ try {
   });
 
   await qa.goto('/discovery', 'discovery — nothing is left to ask');
-  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
+  // #392: no hand-off — the count shows, then discovery moves on by itself.
   await assert((await page.locator('.discovery .opts').count()) === 0, 'no question was put on screen');
-  await qa.click('.discovery .handoff .go', 'Continue');
-  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
+  await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
   await assert(/\/profile\/check/.test(page.url()), `AC1 — after question 1 she lands on check mode, not the jobs (${new URL(page.url()).pathname})`);
 
   // -------------------------------------------------------------------------------------------

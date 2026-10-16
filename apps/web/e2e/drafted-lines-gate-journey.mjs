@@ -106,9 +106,8 @@ try {
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
   await page.waitForTimeout(1500);
   await qa.goto('/discovery', 'discovery — nothing is left to ask');
-  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
-  await qa.click('.discovery .handoff .go', 'Continue');
-  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
+  // #392: no hand-off — discovery shows the count and moves on by itself.
+  await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
 
   // -------------------------------------------------------------------------------------------
   // 1. Reload while the run is held: no suggestion yet, the job still being checked.

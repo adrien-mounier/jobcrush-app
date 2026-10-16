@@ -81,33 +81,34 @@ await addPlace('Vietnam', 'put Vietnam back so the save carries all three');
 
 // AC2 — save; the checkpoint advances and the confirmation sentence pluralises with the CHIP LABELS
 // (Oxford-less join), which for a city chip is the city.
-await qa.click('button:has-text("Save and continue")', 'save and continue');
-// #257: the save advances the checkpoint AND walks her on to the discovery questions, where the
-// confirmation sentence now lives persistently (.intent-context).
+// #392: a raw click — discovery moves on by itself ~3 s after this save, and a qa.* step pauses
+// ~1 s and screenshots, so the paced click would miss the screen it is about to read.
+await page.click('button:has-text("Save and continue")');
+// #257: the save advances the checkpoint AND walks her on to discovery, whose wait shows the
+// confirmation sentence above the count (#392) before moving on by itself.
 await page.waitForURL(/\/discovery/);
+const sentence = await page.locator('.intent-context').textContent({ timeout: 10_000 }).catch(() => null);
+const askedHere = await page.locator('.discovery .opts').count();
+await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
+const intent = await page.evaluate(async () => (await (await fetch('/api/sessions/me/intent')).json()));
+const labels = intent?.intent?.searchAreas?.map((a) => a.label) ?? [];
+await qa.note(`stored intent: checkpoint=${intent?.checkpoint} areas=${JSON.stringify(labels)}`);
 await qa.expectText(
-  '.intent-context',
-  `We’ll look for ${ROLE} in Melbourne, Hong Kong and Vietnam.`,
-  'AC2: the checkpoint advances, and the confirmation pluralises over the chip labels, Oxford-less',
+  'body',
+  intent?.checkpoint === 'intent_known' && JSON.stringify(labels) === JSON.stringify(['Melbourne', 'Hong Kong', 'Vietnam']) ? '' : ' -IMPOSSIBLE-',
+  'AC2 + AC7: the checkpoint advances, and the stored entries resolve to the chip labels, in order — the city chip never as its country',
 );
-
-await qa.goto('/discovery', 'cold reload — the server re-resolves from what was stored');
 await qa.expectText(
-  '.intent-context',
-  `We’ll look for ${ROLE} in Melbourne, Hong Kong and Vietnam.`,
-  'AC7: the stored entries survive a reload and still resolve to the same labels',
-);
-await expectAbsent(
-  page.locator('.intent-context', { hasText: 'Australia' }),
-  '#124 amendment: the city chip is never confirmed back as its country',
+  'body',
+  sentence === `We’ll look for ${ROLE} in Melbourne, Hong Kong and Vietnam.` ? '' : ' -IMPOSSIBLE-',
+  `AC2: the confirmation pluralises over the chip labels, Oxford-less ("${sentence}")`,
 );
 
 // AC4 — work rights are asked once per selected MARKET (Melbourne and Vietnam are two different
 // markets; visas are national, so the Melbourne chip asks about Australia). #376 (ADR-0018 clause
 // 8): discovery asks nothing after question 1 — the question is a row on check mode's "Where you
 // can work" card, on its last screen.
-await qa.scrollThrough('read the discovery page the way a person would');
-await qa.expectVisible('.discovery .handoff .go', '#376: discovery asks nothing more — it holds the hand-off');
+await qa.expectText('body', askedHere === 0 ? '' : ' -IMPOSSIBLE-', `#376: discovery asked nothing more and moved on by itself to ${new URL(page.url()).pathname} (#392)`);
 await qa.goto('/profile/check', 'her profile in check mode, where work rights are asked now');
 const checkHeading = page.getByRole('heading', { level: 1 });
 for (let i = 0; i < 10 && (await checkHeading.innerText()) !== 'Additional information'; i += 1) {

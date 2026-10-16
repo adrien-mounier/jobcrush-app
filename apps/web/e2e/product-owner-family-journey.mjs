@@ -96,9 +96,10 @@ try {
   await qa.fill('#search-area', AREA, `where: ${AREA}`);
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
   await page.waitForTimeout(1500);
+  // #376: nothing is asked after question 1; #392: discovery shows the job count and moves on to
+  // check mode (#386) by itself — no hand-off, no Continue.
   await qa.goto('/discovery', 'the questions the CV cannot answer');
-  await page.waitForTimeout(2000);
-  await qa.scrollThrough('she reads the discovery screen');
+  await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
 
   const me = await wire('GET', '/sessions/me');
   await qa.expectVisible('#qa-wire', 'her own stored discovery record, verbatim');
@@ -112,11 +113,6 @@ try {
     `her job search runs on that family (${JSON.stringify(plan?.searchFamily)})`,
   );
   await clearWire();
-
-  // #376: nothing is asked after question 1 — the hand-off waits for Continue; #386: check mode.
-  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
-  await qa.click('.discovery .handoff .go', 'Continue');
-  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
 
   // ------------------------------------------------------------------------------------------
   // 2. Check mode: her IT project manager job still drafted against its own family.

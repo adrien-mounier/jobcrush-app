@@ -1,6 +1,6 @@
 "use client";
 
-// #16 discovery (screen 1a): Q1 (free-text role) -> the job count -> the hand-off. Reuses the front
+// #16 discovery (screen 1a): Q1 (free-text role) -> the job count -> on by itself (#392). Reuses the front
 // door's typewriter/keepInView mechanics (page.tsx, first-question.prototype.html) against the
 // pinned DiscoveryState contract.
 //
@@ -47,16 +47,13 @@ const C4 = "e.g. IT project manager, mostly ERP, I use Jira and MS Project";
 const C5 = "That's me";
 const C6 = "same kind of job";
 const C7 = "Finding jobs like yours…";
+const C_LOADING = "Loading your questions…";
 const C14 = "Answer the question below and this page starts writing itself.";
-// #386: the hand-off, after question 1. Nothing is asked here any more, so it no longer says "That's
-// all I need to ask." to someone asked one question: it says what comes next — check mode for a
-// brought CV (the jobs open when it is finished), the jobs themselves otherwise.
-const C19 = "Your search is set.";
-const C20 = "Now I'll line these jobs up against everything you told me.";
-const C20_CHECK = "Next, check how I read your CV. Your jobs open when you finish.";
-// #376: the hand-off waits for the person, so this screen is where they read the confirmation and
-// the count before moving on.
-const C_CONTINUE = "Continue";
+// #392 (owner, 2026-10-16): once question 1 is answered this screen is only the loading wait — the
+// count lands, stays readable for COUNT_HOLD_MS, and the flow moves on by itself (check mode for a
+// brought CV, the deck otherwise). This replaces #376's hand-off ("Your search is set." + Continue);
+// the next screen's own entry effect focuses its heading and gives the one polite announce.
+const COUNT_HOLD_MS = 1200;
 // #228 (spec #241 decision 13): the deck sends her back here when it runs out while question 1 is
 // still open (deck.ts hasOpenDiscoveryQuestions) — answering changes how her jobs SCORE and sort,
 // never how many there are, and this says what that is worth.
@@ -104,6 +101,17 @@ function CountUp({ target }: { target: number }) {
     return () => cancelAnimationFrame(frame);
   }, [target]);
   return <>{shown}</>;
+}
+
+// The wait before the count lands. #392: also what a front-door arrival sees while her search runs on
+// the discovery load, under the #257 confirmation of what she asked for.
+function FindingJobs() {
+  return (
+    <div className="promise blind">
+      <span className="n">···</span>
+      <p>{C7}</p>
+    </div>
+  );
 }
 
 function highlightMatch(title: string, query: string): ReactNode {
@@ -184,6 +192,8 @@ function DiscoveryScreen() {
   // sentence keeps a persistent home on this screen (owner decision 2026-08-20) — built by the
   // one shared sentence source (lib/intentCopy.ts), never a second copy of the template.
   const [intentLine, setIntentLine] = useState<string | null>(null);
+  // #392: the front door already took her job, so the discovery load IS her search — the wait says so.
+  const [roleKnown, setRoleKnown] = useState(false);
 
   const [roleText, setRoleText] = useState("");
   const [q1Busy, setQ1Busy] = useState(false);
@@ -213,7 +223,6 @@ function DiscoveryScreen() {
   const setFirstControl = (el: HTMLElement | null) => {
     firstControlRef.current = el;
   };
-  const handoffRef = useRef<HTMLParagraphElement>(null);
 
   const loadDiscovery = useCallback(async () => {
     setLoadError(null);
@@ -238,6 +247,7 @@ function DiscoveryScreen() {
     getIntent()
       .then((s) => {
         if (cancelled || s.checkpoint !== "intent_known" || !s.intent.targetRole) return;
+        setRoleKnown(true);
         const areas = s.intent.searchAreas.map((a) => a.label);
         if (areas.length === 0) return;
         setIntentLine(lookForSentence(s.intent.targetRole, areas));
@@ -259,14 +269,26 @@ function DiscoveryScreen() {
     };
   }, []);
 
-  // Focus follows the ask: the Q1 textarea on load. #25/#376: the hand-off moves on only when the
-  // person presses Continue, and does not focus or announce itself — the next screen's own entry
-  // effect focuses its heading and gives the one polite announce (AC2).
-  const askKey = !discovery ? null : discovery.role === null ? "q1" : "handoff";
-  const reviewPending = discovery?.reviewPending === true;
+  // Focus follows the ask: the Q1 textarea on load. #25/#392: the wait after it neither focuses nor
+  // announces itself — the next screen's own entry effect focuses its heading and gives the one
+  // polite announce (AC2).
+  const asksQ1 = discovery?.role === null;
   useEffect(() => {
-    if (askKey === "q1") firstControlRef.current?.focus();
-  }, [askKey]);
+    if (asksQ1) firstControlRef.current?.focus();
+  }, [asksQ1]);
+
+  // #392: question 1 answered (or taken at the front door) → the count ticks, holds, and we move on.
+  // `replace`, so Back never lands on a screen that would only send her forward again.
+  const nextPath =
+    !discovery || discovery.role === null || typingId ? null : discovery.reviewPending ? "/profile/check" : "/deck";
+  const promiseCount = discovery?.promise?.count ?? null;
+  useEffect(() => {
+    if (!nextPath) return;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const wait = promiseCount === null ? 0 : (reduced ? 0 : COUNT_UP_MS) + COUNT_HOLD_MS;
+    const t = setTimeout(() => router.replace(nextPath), wait);
+    return () => clearTimeout(t);
+  }, [nextPath, promiseCount, router]);
 
 
   // Fires the scroll+type sequence once the new (empty) line's span has actually mounted (it and
@@ -371,14 +393,7 @@ function DiscoveryScreen() {
   }
 
   function renderPromise(d: DiscoveryState) {
-    if (promiseLoading) {
-      return (
-        <div className="promise blind">
-          <span className="n">···</span>
-          <p>{C7}</p>
-        </div>
-      );
-    }
+    if (promiseLoading) return <FindingJobs />;
     const p = d.promise;
     // #246: no promise means her search found nothing to count, or could not run — drop the line
     // silently (design §4c) rather than make a claim with no number behind it.
@@ -419,24 +434,7 @@ function DiscoveryScreen() {
     return <p className="cv-role">{role.text}</p>;
   }
 
-  function renderAsk(d: DiscoveryState) {
-    // Question 1 answered: the hand-off. A brought CV is checked before any job is shown (#338,
-    // ADR-0016 clause 6) — the server says which with `reviewPending`; the deck refuses an unchecked
-    // session anyway. #377: the check is the profile's check mode (ADR-0018).
-    if (d.role !== null) {
-      return (
-        <div className="handoff">
-          <p className="q" tabIndex={-1} ref={handoffRef}>
-            {C19}
-          </p>
-          <p className="sub">{reviewPending ? C20_CHECK : C20}</p>
-          <button type="button" className="go" onClick={() => router.push(reviewPending ? "/profile/check" : "/deck")}>
-            {C_CONTINUE}
-          </button>
-        </div>
-      );
-    }
-
+  function renderAsk() {
     const query = roleText.trim();
     return (
       <>
@@ -510,7 +508,26 @@ function DiscoveryScreen() {
         {liveMessage}
       </div>
 
-      {!discovery && !loadError && <div className="loadstate">Loading your questions…</div>}
+      {!discovery && !loadError && (
+        <div className="loadstate">
+          {roleKnown ? (
+            <>
+              {intentLine && <p className="intent-context">{intentLine}</p>}
+              <FindingJobs />
+            </>
+          ) : (
+            C_LOADING
+          )}
+        </div>
+      )}
+      {/* #392: question 1 answered — this screen is only the wait; the effect above moves on. A
+          brought CV is checked before any job is shown (#338, ADR-0016 clause 6; #377 check mode). */}
+      {discovery?.role != null && (
+        <div className="loadstate">
+          {intentLine && <p className="intent-context">{intentLine}</p>}
+          {renderPromise(discovery) ?? <FindingJobs />}
+        </div>
+      )}
       {loadError && (
         <div className="loadstate">
           <p role="alert">{loadError}</p>
@@ -520,7 +537,7 @@ function DiscoveryScreen() {
         </div>
       )}
 
-      {discovery && (
+      {discovery && discovery.role === null && (
         <>
           <div className="topbar">
             <span className="wordmark">JobCrush</span>
@@ -556,8 +573,8 @@ function DiscoveryScreen() {
               </div>
 
               <div className="ask">
-                {loopbackFromDeck && discovery.role === null && <p className="notice">{C22}</p>}
-                {renderAsk(discovery)}
+                {loopbackFromDeck && <p className="notice">{C22}</p>}
+                {renderAsk()}
               </div>
             </div>
           </div>
@@ -575,7 +592,7 @@ export default function DiscoveryPage() {
     <Suspense
       fallback={
         <div className="discovery">
-          <div className="loadstate">Loading your questions…</div>
+          <div className="loadstate">{C_LOADING}</div>
         </div>
       }
     >

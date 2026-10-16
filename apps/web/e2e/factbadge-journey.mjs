@@ -92,15 +92,16 @@ await qa.note(
 
 // ---------------------------------------------------------------------------------------------
 // 3. #376/#386: nothing is asked after Q1 any more (work rights and languages moved into the
-//    profile's check mode) — discovery shows its hand-off, the badge stays unborn and no chip flies.
+//    profile's check mode) — #392: discovery shows the job count and moves on by itself; the badge
+//    stays unborn and no chip flies. (The chip observer survives the client-side move.)
 // ---------------------------------------------------------------------------------------------
 await resetChips();
-await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 15000 });
-await qa.expectVisible('.discovery .handoff', 'discovery hands off: no question after Q1');
-await page.waitForTimeout(1800);
+const askedAfterQ1 = await page.locator('.discovery .opts').count();
+await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
+const servedAfterQ1 = await page.evaluate(async () => (await (await fetch('/api/onboarding/discovery')).json())?.questions ?? []);
 await assert(
-  (await page.locator('.discovery .opts').count()) === 0 && (await page.locator('a.prof').count()) === 0 && (await chips()).length === 0,
-  `nothing asked, no fact minted — still no badge, no chip (chips=${(await chips()).length})`,
+  askedAfterQ1 === 0 && servedAfterQ1.length === 0 && (await chips()).length === 0,
+  `nothing asked, no fact minted — discovery moved on by itself to ${new URL(page.url()).pathname}, no chip (chips=${(await chips()).length})`,
 );
 
 // ---------------------------------------------------------------------------------------------
@@ -208,17 +209,17 @@ await qa.click(page.getByRole('button', { name: 'Back' }), 'Back returns to the 
 await page.waitForTimeout(1400);
 
 // ---------------------------------------------------------------------------------------------
-// 9. Both screens — the badge renders on discovery too, at the count tailor reached.
+// 9. A trip through discovery. #392: once the role is known discovery shows only the job count and
+//    moves on by itself — no topbar, so no badge there any more; the badge after the trip must not
+//    have fallen below the one read before it.
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/discovery', 'over to discovery');
-await page.waitForTimeout(1500);
-const bD = await badge();
-await assert(!!bD && bD.count >= afterReload.count, `the badge renders on discovery too, without falling (${afterReload.count} -> ${bD?.count})`);
+await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
 await qa.goto('/tailor', 'back to tailor');
 await watchChips();
 await page.waitForTimeout(1600);
 const bT = await badge();
-await assert(bT?.count >= (bD?.count ?? 0), `the count carried across discovery -> tailor without falling (${bD?.count} -> ${bT?.count})`);
+await assert(bT?.count >= afterReload.count, `the count carried across discovery -> tailor without falling (badge before the trip ${afterReload.count} -> ${bT?.count})`);
 await assert((await chips()).length === 0, 'arriving on /tailor replays no chip');
 await qa.expectVisible('a.prof', `the badge in the tailor topbar at ${bT?.count}`);
 

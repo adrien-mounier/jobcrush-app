@@ -182,11 +182,15 @@ try {
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
   await page.waitForTimeout(2000);
   await qa.note(`after question 1 she is on ${new URL(page.url()).pathname}`);
-  if (!/\/discovery/.test(page.url())) await qa.goto('/discovery', 'discovery');
-  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 30_000 });
-  await qa.expectVisible('.discovery .handoff', 'owner decision pending (#376 deviation 1): the discovery screen stays up with Continue');
-  await assert((await page.locator('.discovery .opts, .discovery textarea, .discovery input').count()) === 0, 'nothing is asked: no question, no field on the hand-off');
-  await qa.note(`hand-off reads: "${(await page.locator('.discovery .handoff').innerText()).replace(/\s+/g, ' ')}"`);
+  // #392: the hand-off is gone — discovery shows the job count, then moves on by itself.
+  let asked = 0;
+  if (!/\/profile\/check/.test(page.url())) {
+    if (!/\/discovery/.test(page.url())) await qa.goto('/discovery', 'discovery');
+    asked = await page.locator('.discovery .opts, .discovery textarea, .discovery input').count();
+  }
+  await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
+  await assert(asked === 0, 'nothing is asked: no question, no field before check mode');
+  await assert(/\/profile\/check/.test(page.url()), `discovery moves on to check mode by itself (${new URL(page.url()).pathname})`);
 
   // Signed in now (the master CV and the tailor need a user), over the dev magic link.
   const signed = await page.evaluate(async ({ email }) => {
@@ -199,9 +203,8 @@ try {
   }, { email: EMAIL });
   await assert(signed === 'ok', `she signs in (${signed})`);
 
-  await qa.click('.discovery .handoff .go', 'Continue');
-  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
-  await assert(/\/profile\/check/.test(page.url()), `Continue opens check mode (${new URL(page.url()).pathname})`);
+  // #392: sign-in now happens on check mode (no hand-off to wait on); reload so the page is hers.
+  await page.reload();
   const r0 = await waitForRun();
   await assert(r0?.progress === null && r0?.completed === false, 'the review run has landed; check mode is not finished');
 

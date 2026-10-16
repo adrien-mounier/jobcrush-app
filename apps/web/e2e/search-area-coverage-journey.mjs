@@ -44,9 +44,12 @@ async function openIntent(role) {
   await qa.fill('#target-role', role, `type the target role: "${role}"`);
 }
 
-async function submitArea(area) {
+async function submitArea(area, { raw = false } = {}) {
   await qa.fill('#search-area', area, `type the search area exactly as a person would: "${area}"`);
-  await qa.click('button:has-text("Save and continue")', 'save and continue');
+  // #392: `raw` when the save walks on to discovery, which moves on by itself ~3 s later — a paced
+  // qa.click (~1 s pause + screenshot) would miss the screen the caller reads next.
+  if (raw) await page.click('button:has-text("Save and continue")');
+  else await qa.click('button:has-text("Save and continue")', 'save and continue');
 }
 
 // ---------- AC1: an uncovered area is answered on the spot and never passes onward ----------
@@ -93,24 +96,26 @@ const VARIANTS = [
   ['Remote in Vietnam', 'Vietnam', 'AC2: a remote phrasing still resolves to its market (remote is not a location)'],
 ];
 
-// #257: a covered save now advances her to the discovery questions on its own, and the
-// confirmation sentence lives there persistently (.intent-context) — so the canonical-label
-// readback is asserted on that stable screen, live and after a cold reload of it.
+// #257: a covered save advances her to discovery on its own, whose wait (#392) shows the confirmation
+// sentence above the count before moving on by itself — read there with raw page calls; the stored
+// label (intent.searchAreas[].label) is also checked server-side, as the server re-resolves it.
+const savedAreas = () =>
+  page.evaluate(async () => (await (await fetch('/api/sessions/me/intent')).json())?.intent?.searchAreas?.map((a) => a.label) ?? []);
+const assertTrue = (cond, note) => qa.expectText('body', cond ? '' : ' -IMPOSSIBLE-', note);
 for (const [typed, label, why] of VARIANTS) {
   await freshVisitor();
   await openIntent('IT project manager');
-  await submitArea(typed);
+  await submitArea(typed, { raw: true });
   await page.waitForURL(/\/discovery/);
-  await qa.expectText(
-    '.intent-context',
-    `We’ll look for IT project manager in ${label}.`,
-    `${why} — confirmed back as "${label}" on the discovery screen she lands on`,
+  const shown = await page.locator('.intent-context').textContent({ timeout: 10_000 }).catch(() => null);
+  await assertTrue(
+    shown === `We’ll look for IT project manager in ${label}.`,
+    `${why} — confirmed back as "${label}" on the discovery wait ("${shown}")`,
   );
-  await qa.goto('/discovery', `cold reload after "${typed}"`);
-  await qa.expectText(
-    '.intent-context',
-    `We’ll look for IT project manager in ${label}.`,
-    `the canonical label "${label}" survives a reload, never the raw typed text`,
+  const areas = await savedAreas();
+  await assertTrue(
+    JSON.stringify(areas) === JSON.stringify([label]),
+    `${why} — stored and read back as "${label}", never the raw typed text (${JSON.stringify(areas)})`,
   );
 }
 
@@ -118,27 +123,30 @@ for (const [typed, label, why] of VARIANTS) {
 
 await freshVisitor();
 await openIntent('IT project manager in Paris'); // the role names a DIFFERENT city on purpose
-await submitArea('Hong Kong');
+await submitArea('Hong Kong', { raw: true });
 await page.waitForURL(/\/discovery/); // #257: the save itself walks her on into discovery
-await qa.expectText(
-  '.intent-context',
-  'in Hong Kong.',
-  'AC4 setup: the search area resolved to Hong Kong while the role text says Paris',
-);
 // #322: the front door already took the role, so discovery opens without question 1 (and, #376,
-// without any other question: it holds the hand-off).
-await qa.scrollThrough('read the page the way a person would');
+// without any other question). #392: it shows only the job count, then moves on by itself (~2 s) —
+// so the count is read with raw page calls before it goes, and the rest is asserted after.
+await page.locator('.promise:not(.blind) p').waitFor({ timeout: 20_000 });
+const countText = await page.locator('.promise').innerText();
+const askedHere = await page.locator('.discovery .opts').count();
+await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
+const areasAc4 = await savedAreas();
+await assertTrue(
+  JSON.stringify(areasAc4) === JSON.stringify(['Hong Kong']),
+  `AC4 setup: the search area resolved to Hong Kong while the role text says Paris (${JSON.stringify(areasAc4)})`,
+);
 // #214 owner decision: the promise sentence names NO place — with up to 3 selected places, naming
 // one was a half-truth. The location signal is proven by the work-rights question below instead.
-await qa.expectText('body', 'like yours found.', 'the discovery count names no place');
-await expectAbsent(
-  page.getByText('jobs are open in', { exact: false }),
-  'AC4 (#214): the promise never names one place while several can be selected',
+await assertTrue(
+  countText.includes('like yours found.') && !/hong kong|paris|jobs are open in/i.test(countText),
+  `AC4 (#214): the discovery count names no place ("${countText.replace(/\s+/g, ' ').trim()}")`,
 );
 
 // #376 (ADR-0018 clause 8): discovery asks nothing after question 1 — work rights are a row on
 // check mode's "Where you can work" card. The row is for the RESOLVED SEARCH AREA, never the role text.
-await qa.expectVisible('.discovery .handoff .go', '#376: discovery asks nothing more — it holds the hand-off');
+await assertTrue(askedHere === 0, `#376: discovery asked nothing more and moved on by itself to ${new URL(page.url()).pathname} (#392)`);
 await qa.goto('/profile/check', 'her profile in check mode, where work rights are asked now');
 const checkHeading = page.getByRole('heading', { level: 1 });
 for (let i = 0; i < 10 && (await checkHeading.innerText()) !== 'Additional information'; i += 1) {

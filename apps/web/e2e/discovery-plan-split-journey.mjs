@@ -131,17 +131,18 @@ await qa.note(
 await assertTrue(blocks.length === 3, 'three dated records landed, one of them education');
 
 await qa.goto('/discovery', 'into discovery — the sign-up questions');
-// #322: the front door already took the role, so discovery opens on the checklist - no question 1.
-await page.waitForTimeout(2500);
-await qa.scrollThrough('read the discovery screen the way a real visitor would');
+// #322: the front door already took the role, so discovery skips question 1; #392: it shows the job
+// count and moves on to the deck by itself (review done above) — no hand-off screen to read.
+const askedOnScreen = await page.locator('.discovery .opts').count();
+await page.waitForURL(/\/deck/, { timeout: 30_000 });
 
 // #339: no floor question, whatever family she was placed in; #376: and no eligibility question
 // either — work rights and languages moved into check mode, so after question 1 nothing is asked.
 const served = (await json('/onboarding/discovery'))?.questions ?? [];
 await qa.note(`the questions her screen puts to her, in order: ${served.map((q) => q.itemId).join(', ') || '(none)'}`);
 await assertTrue(
-  served.length === 0 && (await page.locator('.discovery .handoff').count()) === 1,
-  `#339/#376 — after question 1 she is asked nothing, never the family floor: the hand-off (${served.map((q) => q.itemId).join(', ')})`,
+  served.length === 0 && askedOnScreen === 0,
+  `#339/#376 — after question 1 she is asked nothing, never the family floor: discovery moved on by itself (${served.map((q) => q.itemId).join(', ')})`,
 );
 
 await qa.goto('/deck', 'the reveal');
@@ -347,11 +348,12 @@ await assertTrue(
   otherServed.status === 200,
   `AC4: an unmapped target role is SERVED, never refused (${otherServed.status} ${otherServed.json?.error?.code ?? ''})`,
 );
-// #339/#376: she is asked what every visitor is asked after question 1 — nothing; the hand-off.
+// #339/#376: she is asked what every visitor is asked after question 1 — nothing (#392: the screen
+// shows the count and moves on).
 const otherQuestions = otherServed.json?.questions ?? [];
 await assertTrue(
   otherQuestions.length === 0 && otherServed.json?.stage === 'deck',
-  `AC4/#339/#376: she gets a working interview - question 1, then the hand-off, no floor question (${otherQuestions.map((q) => q.itemId).join(', ')})`,
+  `AC4/#339/#376: she gets a working interview - question 1, then nothing more, no floor question (${otherQuestions.map((q) => q.itemId).join(', ')})`,
 );
 const otherRecord = (await asOther('GET', '/sessions/me')).json?.discovery;
 await qa.note(`her stored discovery record: ${JSON.stringify(otherRecord)}`);

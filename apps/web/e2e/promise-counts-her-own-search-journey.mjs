@@ -175,8 +175,10 @@ async function walkIntoDiscovery(role) {
   // #322: the save walks her on to discovery (#257), and that first open IS question 1 answered —
   // the moment the product goes and searches — so the clock runs from this press.
   const t0 = Date.now();
+  // #392: discovery may already have moved on by itself by the time a paced click returns, so this
+  // waits for any of the three screens; visitDiscovery() below reopens discovery to read the count.
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
-  await page.waitForURL(/\/discovery/);
+  await page.waitForURL(/\/(discovery|deck|profile\/check)/);
   await page.waitForTimeout(2500);
   const elapsedMs = Date.now() - t0;
   for (let i = 0; i < 60; i += 1) {
@@ -185,10 +187,19 @@ async function walkIntoDiscovery(role) {
     await page.waitForTimeout(500);
   }
 
-  await qa.goto('/discovery', 'into discovery, now her CV has landed');
-  await page.waitForTimeout(2500);
-  await qa.scrollThrough('read the discovery screen the way a real visitor would');
-  return elapsedMs;
+  await qa.note('into discovery, now her CV has landed');
+  return { elapsedMs, ...(await visitDiscovery()) };
+}
+
+/** #392: discovery shows the count, holds it ~1.2 s, then moves on by itself (at once when there is
+ *  no count). So a visit reads the promise and the rendered body with raw page calls — every qa.*
+ *  step pauses ~1 s — and only then waits for the screen to move on. */
+async function visitDiscovery() {
+  await page.goto(`${BASE}/discovery`);
+  const promise = await readPromise();
+  const body = await page.locator('body').innerText();
+  await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
+  return { ...promise, body };
 }
 
 /** The promise exactly as the screen renders it: the number, the sentence, and whether it is there
@@ -196,11 +207,10 @@ async function walkIntoDiscovery(role) {
 async function readPromise() {
   // Let the "Finding jobs like yours…" placeholder (`.promise.blind`) clear first, so a number is
   // never read as "···" and an absent promise is never confused with one still being searched for.
-  for (let i = 0; i < 40 && (await page.locator('.promise.blind').count()) > 0; i += 1) {
-    await page.waitForTimeout(250);
-  }
-  const box = page.locator('.promise');
-  if ((await box.count()) === 0) return { present: false, number: null, text: '' };
+  // #392: with no count the screen moves on at once — that is the "absent" answer.
+  await page.waitForFunction(() => document.querySelector('.promise:not(.blind)') || !location.pathname.startsWith('/discovery'));
+  const box = page.locator('.promise:not(.blind)');
+  if (!/\/discovery/.test(page.url()) || (await box.count()) === 0) return { present: false, number: null, text: '' };
   // #392: the number ticks up from 0 — read it once it has landed on the count the screen reader hears.
   await page.waitForFunction(() => {
     const b = document.querySelector('.promise');
@@ -217,8 +227,8 @@ async function readPromise() {
 /** Answer the work-rights questions her screens put to her, by pressing their own buttons. #376
  *  (ADR-0018 clause 8): discovery asks nothing after question 1 — work rights are the rows of check
  *  mode's "Where you can work" card, on its last screen. Each answer is still a fact that moves her
- *  search. She walks there, taps "Yes" on every row, and comes back to discovery, where the promise
- *  lives. */
+ *  search. She walks there and taps "Yes" on every row; the caller then reopens discovery, where the
+ *  promise lives. */
 async function answerWorkRightsOnScreen() {
   const asked = [];
   await qa.goto('/profile/check', 'she opens her profile, where work rights are asked now');
@@ -235,13 +245,12 @@ async function answerWorkRightsOnScreen() {
     await page.waitForTimeout(800);
     asked.push(market);
   }
-  await qa.goto('/discovery', 'back to discovery, where the promise lives');
   return asked;
 }
 
-/** The forbidden-word sweep, over the rendered screen and not the wire. */
-async function sweepScreenForLeaks(where) {
-  const body = (await page.locator('body').innerText()).toLowerCase();
+/** The forbidden-word sweep, over the rendered screen (read by visitDiscovery) and not the wire. */
+async function sweepScreenForLeaks(where, screenText) {
+  const body = screenText.toLowerCase();
   const leaked = FORBIDDEN.filter((word) => body.includes(word));
   await assertTrue(
     leaked.length === 0,
@@ -262,9 +271,8 @@ await qa.note(
   'visitor is told a job family before her deck, so hers changes too.',
 );
 await freshVisitor(`mapped — "${MAPPED_ROLE}"`);
-const mappedWaitMs = await walkIntoDiscovery(MAPPED_ROLE);
-await qa.expectVisible('.promise', 'her promise is on the screen');
-const mapped = await readPromise();
+const mapped = await walkIntoDiscovery(MAPPED_ROLE);
+const mappedWaitMs = mapped.elapsedMs;
 await qa.note(`the sentence she reads, verbatim: "${mapped.text}"  (question 1 took ${mappedWaitMs}ms end to end, screen included)`);
 await assertTrue(
   mapped.present && typeof mapped.number === 'number' && mapped.number > 0,
@@ -282,7 +290,7 @@ await assertTrue(
   !/hong kong|kowloon/i.test(mapped.text),
   `#214 — and it still names no place either, the half of this sentence the owner already cut: "${mapped.text}"`,
 );
-await sweepScreenForLeaks('the mapped visitor\'s discovery screen');
+await sweepScreenForLeaks('the mapped visitor\'s discovery screen', mapped.body);
 const mappedRecord = (await json('/sessions/me'))?.discovery;
 await assertTrue(
   mappedRecord?.searchFamily?.familyId === 'it-project-delivery',
@@ -299,9 +307,8 @@ await qa.note(
   'drawn from a search her deck would never run.',
 );
 await freshVisitor(`word search — "${WORD_SEARCH_ROLE}"`);
-const wordWaitMs = await walkIntoDiscovery(WORD_SEARCH_ROLE);
-await qa.expectVisible('.promise', 'her promise is on the screen too — she gets the same screen, not a thinner one');
-const first = await readPromise();
+const first = await walkIntoDiscovery(WORD_SEARCH_ROLE);
+const wordWaitMs = first.elapsedMs;
 await qa.note(`the sentence she reads, verbatim: "${first.text}"  (question 1 took ${wordWaitMs}ms end to end, screen included)`);
 await assertTrue(
   first.present && typeof first.number === 'number' && first.number > 0,
@@ -319,7 +326,7 @@ await assertTrue(
   !/hong kong|kowloon/i.test(first.text),
   `#214 — her promise names no place either: "${first.text}"`,
 );
-await sweepScreenForLeaks('the word-search visitor\'s discovery screen');
+await sweepScreenForLeaks('the word-search visitor\'s discovery screen', first.body);
 
 const record = (await json('/sessions/me'));
 await qa.note(`her stored discovery record: ${JSON.stringify(record?.discovery)}`);
@@ -337,22 +344,21 @@ await assertTrue(
 const asked = await answerWorkRightsOnScreen();
 await qa.note(`the questions her own screen put to her, in order: ${asked.join(', ') || '(none)'}`);
 await assertTrue(asked.length >= 1, `she answered on her own screen — ${asked.length} work-rights question(s), each a fact that moves her search`);
-const afterAnswers = await readPromise();
+await qa.note('back to discovery, where the promise lives');
+const afterAnswers = await visitDiscovery();
 await qa.note(`the promise after she answered everything: "${afterAnswers.text}"`);
 await assertTrue(
   afterAnswers.present && afterAnswers.number === first.number,
   `AC4 — the number did not vanish and did not move while she answered (${first.number} -> ${afterAnswers.number})`,
 );
 
-await qa.goto('/discovery', 'she reloads the page, the way anyone does');
-await page.waitForTimeout(1500);
-await qa.scrollThrough('read the reloaded screen');
-const afterReload = await readPromise();
+await qa.note('she opens discovery again, the way anyone reloads');
+const afterReload = await visitDiscovery();
 await assertTrue(
   afterReload.present && afterReload.number === first.number,
   `AC4 — the same number comes back on a reload, without paying for a second search (${first.number} -> ${afterReload.number})`,
 );
-await sweepScreenForLeaks('the reloaded discovery screen');
+await sweepScreenForLeaks('the reloaded discovery screen', afterReload.body);
 
 // Now the deck she is actually served, and the honest size of what is left between the two numbers.
 const link = await callAsVisitor('POST', '/auth/request-link', { email: `promise-${Date.now()}@example.com` });
@@ -407,20 +413,22 @@ await qa.note(
 );
 await armRetrieval('empty_pool');
 await freshVisitor('her search returns nothing');
-await walkIntoDiscovery(WORD_SEARCH_ROLE);
-const empty = await readPromise();
+const empty = await walkIntoDiscovery(WORD_SEARCH_ROLE);
 await qa.note(`what stands where the promise would be: ${empty.present ? `"${empty.text}"` : '(nothing at all)'}`);
 await assertTrue(
   !empty.present,
   `AC1 — no promise sentence is rendered at all when the search found nothing (present: ${empty.present})`,
 );
-const emptyBody = (await page.locator('body').innerText()).toLowerCase();
+const emptyBody = empty.body.toLowerCase();
 await assertTrue(
   !emptyBody.includes(PROMISE_TAIL) && !/\b0 jobs\b/.test(emptyBody),
   'AC1 — and no half-sentence and no zero leaked onto the screen in its place',
 );
-await qa.expectVisible('.discovery .handoff .go', 'the screen itself is untouched — the hand-off, with Continue (#376: nothing is asked after question 1)');
-await sweepScreenForLeaks('the empty-search discovery screen');
+await assertTrue(
+  /\/(deck|profile\/check)/.test(page.url()),
+  `and the flow moves on by itself (#392; #376: nothing is asked after question 1) — now on ${new URL(page.url()).pathname}`,
+);
+await sweepScreenForLeaks('the empty-search discovery screen', empty.body);
 
 // =================================================================================================
 // D. A SEARCH THAT COULD NOT RUN — the provider is down. She loses the number, never the screen.
@@ -431,20 +439,23 @@ await qa.note(
 );
 await armRetrieval('provider_unavailable');
 await freshVisitor('the provider is down when she arrives');
-const outageWaitMs = await walkIntoDiscovery(WORD_SEARCH_ROLE);
-const outage = await readPromise();
+const outage = await walkIntoDiscovery(WORD_SEARCH_ROLE);
+const outageWaitMs = outage.elapsedMs;
 await qa.note(`question 1 took ${outageWaitMs}ms with the provider down; what stands where the promise would be: ${outage.present ? `"${outage.text}"` : '(nothing at all)'}`);
 await assertTrue(
   !outage.present,
   `AC1 — a failed search costs her the number and nothing else: no sentence, no broken sentence (present: ${outage.present})`,
 );
-await qa.expectVisible('.discovery .handoff .go', 'she still gets a working screen — the hand-off with Continue, not an error screen');
-const outageBody = (await page.locator('body').innerText()).toLowerCase();
+await assertTrue(
+  /\/(deck|profile\/check)/.test(page.url()),
+  `she still gets a working flow — it moves on by itself (#392), not to an error screen (now on ${new URL(page.url()).pathname})`,
+);
+const outageBody = outage.body.toLowerCase();
 await assertTrue(
   !outageBody.includes("we couldn't look for jobs just now") && !outageBody.includes(PROMISE_TAIL),
   'no outage wording and no half-promise reach her at question 1 — the search failing is our problem, not her screen',
 );
-await sweepScreenForLeaks('the provider-outage discovery screen');
+await sweepScreenForLeaks('the provider-outage discovery screen', outage.body);
 
 await armRetrieval('relevant_postings');
 

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { DiscoveryState } from "../lib/api";
 
-// #16 discovery (screen 1a) end to end: front door -> discovery, Q1 -> the promise -> the hand-off.
+// #16 discovery (screen 1a) end to end: front door -> discovery, Q1 -> the job count -> on by itself (#392).
 // Every /api/onboarding/discovery* call is stubbed at the route layer to the pinned DiscoveryState
 // shape — deterministic and self-contained. Session bootstrap (/api/sessions/*) and the front door
 // itself hit the real API.
@@ -10,7 +10,8 @@ import type { DiscoveryState } from "../lib/api";
 // nothing after question 1 — work rights and languages are answered in the profile's check mode —
 // and #386 removed this screen's question UI with the tests that pinned it (the eligibility asks,
 // "Ask me later", their corrections, the languages multi-select): the server answers question 1
-// with the hand-off itself, which is the shape every test below drives.
+// with the hand-off itself, which is the shape every test below drives. #392: that hand-off is no
+// longer a screen — the count ticks up in the wait and the flow moves on by itself.
 
 const BEFORE_START: DiscoveryState = {
   stage: "discovery",
@@ -174,9 +175,9 @@ test("prefers-reduced-motion: the role line still lands without the letter-by-le
   await page.goto("/discovery"); // a direct load exercises ensureSession()'s own bootstrap too
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("nurse");
   await page.getByRole("button", { name: "That's me" }).click();
-  // #339: the live region now announces the line alone (no countdown after it), so the CV's own
-  // line is named directly.
-  await expect(page.locator(".cv-role")).toHaveText("IT Project Manager");
+  // #339: the live region announces the role line alone (no countdown after it). #392: the screen
+  // turns into the wait as soon as the line lands, so the announce is what is left to read.
+  await expect(page.locator(".discovery > .sr-only")).toHaveText("IT Project Manager");
   // #392: the job count does not tick up under reduced motion — the only number ever shown is the count.
   await expect(page.locator(".promise .n")).toHaveText("142");
   expect(await page.evaluate(() => (window as unknown as { shownCounts: string[] }).shownCounts)).toEqual(["142"]);
@@ -210,6 +211,27 @@ test("#392: the job count ticks up to the real number in the loading box; the ol
   await expect(page.locator(".promise")).toContainText("jobs like yours found.");
   await expect(page.locator(".discovery")).not.toContainText("new jobs are open right now");
   await expect(page.locator(".discovery")).not.toContainText("Keep going and I'll score them against you.");
+  // The count stays readable before the flow moves on by itself — no Continue, no "Your search is set."
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
+  await expect(page.locator(".discovery")).not.toContainText("Your search is set.");
+  await page.waitForURL("/deck");
+});
+
+test("#392: no count (her search found nothing or could not run) — no number, and the flow moves on at once", async ({ page }) => {
+  current = BEFORE_START;
+  await stubDiscovery(page);
+  await recordShownCounts(page);
+  await page.route("**/api/onboarding/discovery/start", async (route) => {
+    current = { ...AFTER_START, promise: null };
+    await route.fulfill({ json: current });
+  });
+  await page.goto("/discovery");
+  await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
+  const clicked = Date.now();
+  await page.getByRole("button", { name: "That's me" }).click();
+  await page.waitForURL("/deck");
+  expect(Date.now() - clicked).toBeLessThan(2500); // role line types (~0.8 s), but no count hold (0.9 s tick + 1.2 s)
+  expect(await page.evaluate(() => (window as unknown as { shownCounts: string[] }).shownCounts)).toEqual([]);
 });
 
 
@@ -224,7 +246,8 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
   ]) {
     await page.setViewportSize(viewport);
 
-    for (const state of [BEFORE_START, AFTER_START]) {
+    // #392: AFTER_START is no longer a screen of its own — it is the wait, and it moves on.
+    for (const state of [BEFORE_START]) {
       current = state;
       await page.goto("/discovery");
       await expect(page.locator(".discovery .ask")).toBeVisible();
@@ -247,7 +270,7 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
   }
 });
 
-// #339 AC: no countdown anywhere in the journey — from question 1 to the hand-off — and no section
+// #339 AC: no countdown anywhere in the journey — from question 1 to the job count — and no section
 // rail it used to sit on.
 test("no countdown and no progress rail appear anywhere in the journey", async ({ page }) => {
   current = BEFORE_START;
@@ -261,13 +284,13 @@ test("no countdown and no progress rail appear anywhere in the journey", async (
   await noCountdown();
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
   await page.getByRole("button", { name: "That's me" }).click();
-  await expect(page.locator(".discovery .handoff")).toBeVisible();
+  await expect(page.locator(".promise .n")).toBeVisible();
   await noCountdown();
 });
 
-// #386: the hand-off no longer says "That's all I need to ask." to someone asked one question; it
-// says the search is set and what comes next. No completion badge, no question.
-test("question 1 answered: the ask dock shows the hand-off and what comes next, not a completion badge", async ({ page }) => {
+// #386 + #392: question 1 answered — no hand-off copy, no Continue, no completion badge; the count
+// is the whole screen until the flow moves on.
+test("question 1 answered: no hand-off, no Continue, no completion badge — just the count", async ({ page }) => {
   current = BEFORE_START;
   await stubDiscovery(page);
 
@@ -275,17 +298,14 @@ test("question 1 answered: the ask dock shows the hand-off and what comes next, 
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
   await page.getByRole("button", { name: "That's me" }).click();
 
-  const handoff = page.locator(".discovery .handoff");
-  await expect(handoff.locator(".q")).toHaveText("Your search is set.");
-  await expect(handoff.locator(".sub")).toHaveText("Now I'll line these jobs up against everything you told me.");
-  await expect(handoff).not.toContainText("That's all I need to ask");
-  await expect(page.locator(".discovery .opts, .discovery .notice")).toHaveCount(0);
-  await expectDiscoveryFitsViewport(page);
-  await expect(page.getByText(/100%|done|complete/i)).toHaveCount(0);
+  await expect(page.locator(".promise .n")).toBeVisible();
+  await expect(page.locator(".discovery .handoff, .discovery .opts, .discovery .notice")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
+  await expect(page.getByText(/100%|done|complete|That's all I need to ask/i)).toHaveCount(0);
 });
 
 // #25: the gate hands off to the /deck reveal instead of dead-ending on the placeholder.
-test("question 1 answered with no CV to check: Continue goes to the /deck reveal, announcing once", async ({ page }) => {
+test("question 1 answered with no CV to check: the flow moves on to the /deck reveal by itself, announcing once", async ({ page }) => {
   current = BEFORE_START;
   await stubDiscovery(page);
   // Prior art: deck.spec.ts's GET /onboarding/cards shape — one card is enough to drive the reveal.
@@ -317,15 +337,10 @@ test("question 1 answered with no CV to check: Continue goes to the /deck reveal
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
   await page.getByRole("button", { name: "That's me" }).click();
 
-  // AC2: the discovery side never announces the hand-off itself — only /deck's own entry effect
-  // does, once.
-  const handoff = page.locator(".discovery .handoff");
-  await expect(handoff.locator(".go")).toBeVisible();
-  await expect(page.locator(".discovery > .sr-only")).not.toContainText("Your search is set.");
-
-  // #376: the hand-off waits for the person; Continue takes them to the reveal — the single place
-  // focus + the polite announce land.
-  await handoff.locator(".go").click();
+  // AC2: the discovery side never announces a hand-off itself — only /deck's own entry effect does,
+  // once. #392: no Continue — the count holds, then the reveal is where focus + the announce land.
+  await expect(page.locator(".promise .n")).toBeVisible();
+  await expect(page.locator(".discovery > .sr-only")).toHaveText("IT Project Manager");
   await page.waitForURL("/deck");
   const heading = page.getByRole("heading", { name: /matched you/ });
   await expect(heading).toBeVisible();
@@ -338,7 +353,7 @@ test("question 1 answered with no CV to check: Continue goes to the /deck reveal
 // the state, and the handoff lands on the review instead of the deck — since #377, the profile's
 // check mode (ADR-0018), opening at Your details. #376 (ADR-0018 clause 8): nothing is asked between
 // question 1 and check mode — the server answers question 1 with the hand-off itself.
-test("#376: after question 1 nothing is asked — the hand-off holds with the promise, and Continue goes to check mode", async ({ page }) => {
+test("#376/#392: after question 1 nothing is asked — the count holds, then the flow moves on to check mode by itself", async ({ page }) => {
   current = BEFORE_START;
   await stubDiscovery(page);
   // The server's real answer to question 1 now: the hand-off, no question.
@@ -369,18 +384,13 @@ test("#376: after question 1 nothing is asked — the hand-off holds with the pr
   await page.goto("/discovery");
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("IT project manager");
   await page.getByRole("button", { name: "That's me" }).click();
-  // The hand-off holds (tech-lead decision on #376): no question, and the promise stays readable —
-  // it no longer moves on by itself (the old bridge left after 0.8 s).
-  const handoff = page.locator(".discovery .handoff");
-  await expect(handoff.locator(".go")).toBeVisible();
+  // #392 (owner, 2026-10-16; supersedes the #376 tech-lead hold): no question, the count lands and
+  // stays readable while it ticks and holds, then the flow moves on — no Continue.
+  await expect(page.locator(".promise .n")).toHaveText("142");
+  const landed = Date.now();
   await expect(page.locator(".discovery .opts")).toHaveCount(0);
-  await expect(page.locator(".discovery")).toContainText("142");
-  await expect(handoff.locator(".sub")).toHaveText("Next, check how I read your CV. Your jobs open when you finish.");
-  await page.waitForTimeout(1500);
-  expect(new URL(page.url()).pathname).toBe("/discovery");
-
-  await handoff.locator(".go").click();
   await page.waitForURL("/profile/check");
+  expect(Date.now() - landed).toBeGreaterThan(800); // the final number held long enough to read
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your details");
   expect(answers).toEqual([]); // nothing was asked, so nothing was answered
 });

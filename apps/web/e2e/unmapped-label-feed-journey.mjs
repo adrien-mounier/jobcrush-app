@@ -115,9 +115,12 @@ await qa.fill('#target-role', UNMAPPED_ROLE, `types what she wants next: "${UNMA
 await qa.fill('#search-area', 'Singapore', 'types where she is looking');
 await qa.press('#search-area', 'Enter', 'places the search area chip');
 await qa.click('button:has-text("Save and continue")', 'saves what she wants next');
-// #257: acceptance now shows as the walk-on to discovery, where the confirmation line lives.
-await page.waitForURL(/\/discovery/);
-await qa.expectText('.intent-context', UNMAPPED_ROLE, 'the saved target role reads back to her');
+// #257: acceptance shows as the walk-on past the front door. #392: discovery then moves on by
+// itself, possibly before a paced click returns — so any of the three screens counts; the saved
+// role is read back off her intent.
+await page.waitForURL(/\/(discovery|deck|profile\/check)/);
+const savedRole = await page.evaluate(async () => (await (await fetch('/api/sessions/me/intent')).json())?.intent?.targetRole);
+await verdict(savedRole === UNMAPPED_ROLE, `the saved target role reads back: "${savedRole}"`);
 
 const visitorOneSession = await sessionId();
 const started = await callAsVisitor('POST', '/onboarding/discovery/start', { role: UNMAPPED_ROLE });

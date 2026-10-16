@@ -106,14 +106,17 @@ await qa.scrollThrough('read the front door top to bottom');
 await qa.goto('/discovery', 'into discovery');
 await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going for/ }), ROLE, 'Q1: type the role');
 await qa.click(page.getByRole('button', { name: "That's me" }), 'Q1: submit the role');
-await page.waitForTimeout(1800);
+// #392: discovery shows the job count, then moves on by itself (~2 s) — read the screen before it goes.
+const elig = await eligDim();
 
 // -------------------------------------------------------------------------------------------
 // 4. #376 (ADR-0018 clause 8): discovery asks nothing after question 1 — no work rights, no
-//    languages. It holds the hand-off; both are answered in her profile's check mode.
+//    languages; both are answered in her profile's check mode. #392: it moves on by itself.
 // -------------------------------------------------------------------------------------------
-await qa.expectVisible('.discovery .handoff .go', '#376: discovery asks nothing after question 1 — it holds the hand-off');
-await assert((await eligDim()) === null, `#376: no eligibility question on discovery any more (got "${await eligDim()}")`);
+await page.waitForURL(/\/(deck|profile\/check)/, { timeout: 30_000 });
+const served = await page.evaluate(async () => (await (await fetch('/api/onboarding/discovery')).json())?.questions ?? []);
+await assert(served.length === 0, `#376: discovery asks nothing after question 1 and moves on by itself to ${new URL(page.url()).pathname} (#392)`);
+await assert(elig === null, `#376: no eligibility question on discovery any more (got "${elig}")`);
 
 // -------------------------------------------------------------------------------------------
 // 5. THE LANGUAGES QUESTION — #165's type-ahead, now the card on check mode's Languages screen

@@ -107,9 +107,8 @@ try {
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
   await page.waitForTimeout(1500);
   await qa.goto('/discovery', 'discovery — nothing is left to ask');
-  await page.locator('.discovery .handoff .go').waitFor({ state: 'visible', timeout: 20_000 });
-  await qa.click('.discovery .handoff .go', 'Continue');
-  await page.waitForURL(/\/profile\/check/, { timeout: 20_000 });
+  // #392: no hand-off — discovery shows the count and moves on by itself.
+  await page.waitForURL(/\/profile\/check/, { timeout: 30_000 });
   for (let i = 0; i < 60 && (await json('/review')).body?.progress; i += 1) await page.waitForTimeout(500);
   await qa.goto('/profile/check', 'check mode, the review landed');
   await assert(await walkTo(/Nordic/), 'Next, to her Nordic job');
