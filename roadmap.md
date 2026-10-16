@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-16 (#392 discovery wait, #396 reading lamp + short tags; both deployed by hand)_
+_Last updated: 2026-10-17 (#314 over two pages shipped; #315 is the last open spine ticket)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -36,8 +36,8 @@ talk to improve the master CV; replaces #316/#317 *Add something new*. Its doors
 page to the profile (ADR-0018). `/to-spec` → `/to-tickets` → `/implement-spec`. Small and independent:
 [#348](https://github.com/adrien-mounier/jobcrush-app/issues/348) a sign-in door on the landing page.
 
-**Still open on the v1 spine** (spec #301): #314 over two pages, tighten once then ship and tell ·
-#315 the application report.
+**Still open on the v1 spine** (spec #301): #315 the application report (the last one; ~~#314~~ shipped
+2026-10-17, a39ee5e).
 **Finish line:** one real posting end to end, `/qa-gate` GO on the whole journey.
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
@@ -49,7 +49,7 @@ run); `/implement` is for a lone ticket. Never point `/implement` at a parent or
 ## Milestones
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
-- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 half done (#312, #313); #314–#317 open.
+- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314); #315 open; #316/#317 replaced by #350.
 - V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page was replaced by V6b.
 - V6b — the profile's check mode (ADR-0018, parent #375): **done** 2026-10-14 (482ca57).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.

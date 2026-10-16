@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-17 — #314 shipped: over two pages, tighten once on a numeric budget, then ship and tell (a39ee5e)
+
+`/implement 314` (Fable 5.1). The two-page rule is now enforced on the approve press, measured from our own PDF: over two pages, ONE re-tailor on a real budget — the printed bullet count scaled to two pages (30 over 3 → 20), carried into the draft input as a `PAGE-BUDGET` block — then the document ships regardless and he is told plainly, in the email and on the screen ("ran to 3 pages, shortened to fit two" / "still runs to N" / "could not shorten"). A missing model or a failed re-tailor ships the measured document with its sentence; never a hard failure. The shortened draft becomes the checkpoint (same draftedAt/approvedAt), so a re-press re-prints without a model call and the next read shows the notice. `/code-review`: moved the checkpoint before the second print (stages checkpoint rule), named the budget triple once, undid a type relocation. QA NO-GO first — that very checkpoint stored the shortened draft WITHOUT its sentence, so a print crash + re-press would have sent a silently shortened CV (D1), and a re-press after a failed send said the sentence twice (D2); both fixed with tests, then GO on tree e121b25: api 2110, typecheck 7/7, tailor.spec 23/23, new `over-two-pages-journey.mjs` 15/15 on the `QA_PDF_PAGES=3` stack (fails by design on the default stack; not in tier 2). Unproven locally: the real ~33 s browser print showing the "shortening" line, and the notice in a real inbox (DevMailer prints only the subject).
+**Next:** CI over a39ee5e; #315 the application report is the last open ticket on the v1 spine; then Chat with JobCrush (#350).
+
 ## 2026-10-16 — #396 shipped: the reading lamp while the CV review runs; short "from X" tags (84c995b, deployed by hand)
 
 Owner via /impeccable: walking check mode while the review still filled it in felt wrong, and the skills tags were too long. While the run goes check mode is now the reading lamp — her CV on the paper sheet, a lamplight band sweeping it, lines inking in per landed unit, one segment per unit, minutes left; the walk opens by itself when the run ends (a run stuck past 10 min opens it anyway, nothing said). The old "still running" walk paths were removed. Tags read "from <where>" (over 16 chars → first word, or two after an initial: "from BRED…", "from J.P. Morgan…"), full sentence for hover/screen readers, in check mode and on the profile. QA NO-GO first (check-mode-journey lost its work-rights answer in the rewrite) → GO on tree 2c37de3 (135/135 specs, 14 journeys). Pushed [skip ci], web deployed with flyctl.
@@ -50,16 +55,3 @@ Owner-pending calls recorded on #389: Put back for the moved About you lines liv
 Paid evals on staging: 2 calls, USD 2.34. On the real CV, no removal suggested (#380 PASS), and About you has no lint issues (#371). On the DOB fixture, exactly that one line was suggested as personal data. All 15 sub-issues and #375 are closed.
 The owner calls that remain are in **#389**. Re-upload edge cases are in #388 (filed). Retired journeys: eligibility-questions and cv-languages-preticked. New: check-mode-{journey,gate-doors,work-rights-journey}, plus the QA full walk, which is committed but not in tier-2 (#389 item 9). Cleanup: 17 worktrees and every build branch deleted.
 **Next:** the owner answers #389, then Chat with JobCrush (#350) or the V6 leftovers.
-
-## 2026-10-12 — ADR-0018 written; check mode broken into tickets #377–#387 (docs-only)
-
-ADR-0018: the profile is the master CV's home; check mode (prototype V2.1) replaces the review page; items
-are in or removed (no ticks); every suggestion must be answered before the jobs; edit and remove in place
-(amends ADR-0017's chat-only editing); a fact added at tailoring joins the profile, a stretch never does.
-`/to-tickets` from the ADR (no separate spec, parent #375): #377 walk (tracer) → #378–#384 in parallel,
-with #371, #373, #376 → #385 re-upload, #383 moves → #386 retire the review page. #387 tailoring fact →
-profile (outside this build). Owner: fixes show a quiet "Fixed" tag, never block. Closed as superseded:
-#370, #372, #344. Code map: the profile has no edit/remove today; "kept" ≈ removed; the jobs gate lacks
-work rights and unanswered drafts. No `/to-spec` was run: #375 + ADR-0018 serve as the spec, with its
-15 sub-issues wired (#387 outside). I first gave per-ticket `/implement` lines; the owner caught that
-`/implement-spec` was the rule (roadmap Build mode). **Next:** owner launches `/implement-spec #375` (Fable 5.1, high).

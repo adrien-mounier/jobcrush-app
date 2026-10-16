@@ -339,6 +339,8 @@ it that shouldn't and what should that can't reach it.
 - Two CSS rules at equal specificity: load order wins (`profile.css` after `deck.css` collapsed a screen to 0px).
 - A renderer mounted in two containers is styled off a class it emits itself, and rows are targeted by a `data-` attribute it writes, never by position.
 
+- **A checkpoint of a model output carries the words that go with it** (#314): the shortened draft was stored before the second print (so a crash would not re-spend the call) but without its "we shortened it" sentence — the re-press then measured two pages, skipped the rule and would have sent a silently shortened CV. A code review asked for the early checkpoint; only the QA gate's crash-then-press probe saw what it dropped. Store the notice with the thing it describes, and dedupe on the way out.
+
 ## UI and product
 
 ### Before bypassing or removing a screen, list what it alone carries
