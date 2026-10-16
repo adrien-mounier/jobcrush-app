@@ -31,8 +31,9 @@ answered and every market's work rights set.
   pending group shows no heading under the "Checking your CV…" line, long "Taken from" tags wrap.
   **Owner acts next:** re-run the real CV on staging after the deploy (#394 AC5: no "Other" or "Skills"
   at any point of the walk; the long employer tag wraps) · decide #394 AC7 (per-item tags are built;
-  one source line per group instead?) · launch #392 live job counter during loading (`/implement 392`,
-  Opus 5.5, medium).
+  one source line per group instead?) · look at ~~#392~~ on staging: the job count now ticks up 0 → N
+  in the "Finding jobs like yours…" box (owner chose the tick-up 2026-10-16; the old "new jobs are
+  open" line is gone) — ef915e5. Broken journey found on the way: #395.
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 

@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-16 — #392 shipped: the job count ticks up at the end of the loading wait (ef915e5)
+
+`/implement #392` (Opus 5.5). Traced first: the search behind the count is one batched call (stored pool + one paid page for HK/SG/VN/AU, then dedupe/freshness/language filters, then counted) — nothing arrives in pieces, so a truly climbing count would need partial numbers that can drop and would not match the deck (AC3). Put to the owner with four options; he chose the count-up animation, knowingly overriding AC2 (decision commented on #392). Built: "Finding jobs like yours…" while waiting, then the real count ticks 0 → N (~0.9 s) with "jobs like yours found."; reduced motion shows the number at first paint; screen readers hear the final count once; the old "new jobs are open right now" / "Keep going" lines are gone. Server unchanged (#246 count). `/code-review`: a reduced-motion 0 flash and a loose mid-tick assertion — fixed; the spec now records every number shown in-page, both new tests proven red. QA GO on tree bb599ac: api 2102 uncached, typecheck 7/7, discovery.spec 9/9, tier2 promise-counts 32/0, search-area-coverage 28/0; new `qa-392-count-up-journey.mjs` (not in tier 2). onboarding-reveal-wall.mjs was already broken by #376 → #395.
+**Next:** owner looks at the count on staging; Chat with JobCrush (#350).
+
 ## 2026-10-15 — #394 shipped: a fresh upload's skills no longer read under "Other" while the review names them
 
 `/implement #394` (Fable 5.1). Two causes behind the owner's staging report: the miner sometimes dropped the CV's own group labels (kept only in the claim id), and check mode printed the fallback label "Other" over skills the running review had not named yet — a pending state that read as a wrong grouping. Fix: miner rule 8 keeps the label in the claim text ("Tools: Jira, …"), so a labelled CV is grouped at import; the review wire marks the fallback group `unnamed` and the Skills screen hides that heading while the run goes, under the existing "Checking your CV…" line (the profile page keeps "Other"); a tag ("Taken from <long employer>") wraps inside its item and chip instead of running out of the column (AC7 built as the default — per-item, wrapped — the owner's call stays open). `/code-review`: no hard blocker; the verbatim prompt pin was loosened to its load-bearing words, and the overflow tests now measure the column, not the container. Found on the way: the route's response schema silently dropped the new wire field, and the HTTP test that mapped the groups could not see it (lesson under Testing traps). QA GO on tree 89c1dd2: api 2102, typecheck 7/7, mocked specs 133/133 (the #394 ones red on old code), qa-393 journey 23/23 at 1280 and 390, live walk at both widths. Gate observations, not defects: at 390 headless skills listed after a named group read as that group's tail; the move dropdown still lists "Other" mid-run.
@@ -79,15 +84,3 @@ stays dismissed for the same evidence, a tailor tick joins the profile, rebuild 
 is a private artifact, kept out of the public repo because it holds the owner's contact details. Paused #372/#368/#370.
 **Next:** owner tries #375; meanwhile #373 + #360, #374, #371, #369.
 
-## 2026-10-11 — Owner decisions on #332's open calls; #367, #368 filed (docs-only)
-
-Confirmed: the two #340 review rules (ADR-0016 clause 4 now says a missing must-have always earns its
-line, extras cap at 10, a fact from another job is OPTIONAL with its quote); the 4-attempt retry ceiling
-(root causes → #367, not v1-critical); "Your CV, reviewed" heading on a partly unchecked CV. Asked: a
-drafted line's source names its job → #368. Then: partial-run marks kept; a final failure is a log
-error for the owner only, and a no-family job shows a green "Reviewed" tag (#369). Extras stay beside
-COMPLETE, under one label, "Only if true", with a reason (#370, after #368). Flags stay internal.
-Roadmap: the CI-minutes risk is retired (repo public since 2026-10-08). The owner's re-upload (screenshots 7–9):
-the summary leaves the master CV (option C → #371, ADR first); import misfiles projects and nationality into
-the summary (#373); subtitle says "as it will print" for a master CV holding ~16 BRED lines (#372).
-**Next:** owner re-runs the real CV on staging; #366; then #360 → #359.
