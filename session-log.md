@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-16 — #396 shipped: the reading lamp while the CV review runs; short "from X" tags (84c995b, deployed by hand)
+
+Owner via /impeccable: walking check mode while the review still filled it in felt wrong, and the skills tags were too long. While the run goes check mode is now the reading lamp — her CV on the paper sheet, a lamplight band sweeping it, lines inking in per landed unit, one segment per unit, minutes left; the walk opens by itself when the run ends (a run stuck past 10 min opens it anyway, nothing said). The old "still running" walk paths were removed. Tags read "from <where>" (over 16 chars → first word, or two after an initial: "from BRED…", "from J.P. Morgan…"), full sentence for hover/screen readers, in check mode and on the profile. QA NO-GO first (check-mode-journey lost its work-rights answer in the rewrite) → GO on tree 2c37de3 (135/135 specs, 14 journeys). Pushed [skip ci], web deployed with flyctl.
+**Next:** owner looks at a real upload on staging (lines inking in is unproven against a real run); the progress bars are faint at 0 — owner's call. Not covered: /profile still shows content mid-run.
+
 ## 2026-10-16 — #392 follow-up: the discovery screen goes; the count ends the wait (4f3b169, deployed by hand)
 
 Owner on staging after ef915e5: "I still see the discovery screen" — AC1 ("no standalone step/screen … the flow goes straight on") had been read as the count sentence only. Now, once the role is known, discovery is only the wait: the #257 "We'll look for … in …" line over "Finding jobs like yours…", the count ticks and holds ~1.2 s, then it moves on by itself to check mode or the deck (router.replace, so Back skips it); no count → on at once. "Your search is set." + Continue are gone, which also settles #376 deviation 1. 17 journeys rewritten; QA was NO-GO first (six journeys pressed Save with the paced qa.click and missed the ~3 s screen — fixed with raw clicks, lesson filed), then GO on tree ac5b8d1 (23 tier-2 journeys, discovery.spec 10/10). Owner asked to skip CI for this one: pushed with [skip ci], web deployed to staging with flyctl from the local tree.
@@ -57,24 +62,3 @@ profile (outside this build). Owner: fixes show a quiet "Fixed" tag, never block
 work rights and unanswered drafts. No `/to-spec` was run: #375 + ADR-0018 serve as the spec, with its
 15 sub-issues wired (#387 outside). I first gave per-ticket `/implement` lines; the owner caught that
 `/implement-spec` was the rule (roadmap Build mode). **Next:** owner launches `/implement-spec #375` (Fable 5.1, high).
-
-## 2026-10-11 — Prototype #375 v3: one suggestion card, "About you"; #371 rewritten (docs-only)
-
-Owner grilling on the prototype's design. A tick means "applications may use this line" (legend: Ready to use /
-Set aside / Suggested), never "on your CV". Every question uses one dashed suggestion card: add ("Only if
-true") or remove (the line arrives unticked). The "untick a weak line" suggestion is dropped, because a weak line
-costs nothing in a profile. A misplaced line moves automatically with a tag; an achievement stays under its job
-and only its tool is copied to Skills. The summary becomes "About you": machine-written from the whole CV,
-follows the writing rules, approved or edited (no tick), original viewable. Print still applies "earns its
-place". Personal projects get a section. #371 rewritten (option C replaced); decisions on #375.
-v5: details open as fields; skills split one per line by the machine (any separator), in groups named by the CV or
-the machine, not an item to check; the removal card has a minus mark and strike-through, no box.
-v6: no tick boxes at all. The profile is the store (keep / add / remove, removed items one tap from returning);
-no "COMPLETE" stamp; V2 guided one screen per section; Languages back; work rights move into the profile and
-the start stops asking → #376 filed.
-v7 (V2): the footer button is the only confirm (no "These are right"); no "saved" words, motion instead;
-job suggestions inline as in V1. Own facts (details, About you, work rights) in plain cards, gold kept for
-suggestions; the removal has its own coral look; variants V2.1 (no step count) and V2.2 (named steps).
-**Approved: V2.1.** Copy without contact details in `docs/design/profile-check-mode-prototype.html`.
-ADR-0018 written (amends ADR-0016 cl. 1, 2, 3, 5, 6 and ADR-0017's edit rule); glossary: check mode,
-removed item (ticked/kept retired). **Next:** `/to-spec`.

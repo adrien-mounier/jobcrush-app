@@ -34,6 +34,9 @@ answered and every market's work rights set.
   one source line per group instead?) · look at ~~#392~~ on staging: no discovery screen any more —
   the count ticks up in the wait and the flow moves on by itself (ef915e5, 4f3b169; deployed by hand,
   CI skipped at the owner's request). Broken journeys found on the way: #395.
+- Shipped 2026-10-16: ~~#396~~ check mode shows a reading-lamp loading screen while the CV review
+  runs, and source tags read "from BRED…" (84c995b, deployed by hand). **Owner:** watch one real
+  upload on staging (lines inking in is unproven against a real run).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
