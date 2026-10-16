@@ -113,6 +113,12 @@ cache whose point is the bill one real run plus hit/miss counters.
 its own (#392's discovery wait, ~3 s) then `waitForURL`s it times out — the URL already came and went.
 Press the button that leads in with a raw `page.click`, read the screen with raw page calls, then
 `waitForURL` the destination; or wait for any of the screens if only the save matters.
+Second occurrence (2026-10-17): #392 rewrote 17 journeys, its gate ran 23 of the 42 in tier 2, and the
+commit went out `[skip ci]` — so `work-history-door-journey.mjs` broke unseen and failed the NEXT
+person's push (#314's CI run). `selectJourneys` fed #392's discovery files names 31 journeys, this one
+included — the gate ran a hand-picked 23 instead. Run what the selector names, never a list from
+memory; and after a `[skip ci]` code push the next push inherits its red CI — run the full tier 2
+against the fake stack first.
 
 ### A route's response schema drops a wire field nothing names
 `GET /review` serialises through the zod response schema in `routes/review.ts`: the `unnamed` flag

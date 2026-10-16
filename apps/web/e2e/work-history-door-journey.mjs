@@ -97,27 +97,25 @@ await assertTrue(mined.length >= 2, 'the CV produced dated job records for her t
 await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', 'IT project manager', 'the job she is going for');
 await qa.fill('#search-area', 'Hong Kong', 'where she wants to work');
-await qa.click('button:has-text("Save and continue")', 'Save and continue');
+// #392: a raw click — discovery moves on by itself ~2 s after this save, and a qa.* step pauses
+// ~1 s and screenshots, so the paced click would miss the screen it is about to wait for. With a
+// CV to check, the hand-off lands in check mode (ADR-0016 clause 6), never on the deck.
+await page.click('button:has-text("Save and continue")');
 await page.waitForURL(/\/discovery/, { timeout: 60000 });
-await qa.note(`the front door handed her on by itself — she is now at ${new URL(page.url()).pathname}`);
+await page.waitForURL(/\/profile\/check/, { timeout: 30000 });
+await qa.note(`the front door handed her on by itself, through discovery — she is now at ${new URL(page.url()).pathname}`);
 
 // ---------------------------------------------------------------------------------------------
-// 2. Discovery -> the profile. Clicked, never typed.
+// 2. The review, then her profile.
 // ---------------------------------------------------------------------------------------------
-// The pile of facts is the only visible way onto the profile, and #17 spec 6 renders it at 1 fact,
-// never at 0 — a CV read alone does not mint one. #339: discovery's own questions add no fact any
-// more (eligibility only), so what mints them is confirming "Your CV, reviewed" — done over the
-// wire here, as every CV-carrying journey but check mode's own does (check-mode-journey.mjs walks it).
-if (await page.locator('#q1-role').isVisible().catch(() => false)) {
-  await qa.fill('#q1-role', 'IT project manager', 'the kind of job she is going for');
-  await qa.click('button.go.wide', 'she answers the first question');
-  await page.waitForTimeout(2500);
-}
+// #339: discovery's own questions add no fact any more (eligibility only), so what mints them is
+// confirming "Your CV, reviewed" — done over the wire here, as every CV-carrying journey but check
+// mode's own does (check-mode-journey.mjs walks it). #392: discovery is a pass-through once the
+// role is known (no topbar, no pile-of-facts badge), so the profile is opened by address — this
+// journey's claim is the door INSIDE the profile, not the way onto it.
 await qa.completeReview();
-await qa.goto('/discovery', 'back on discovery with her reviewed CV — the lines it read are her facts now');
-await page.locator('a.prof').waitFor({ state: 'visible', timeout: 60000 });
-await qa.click('a.prof', 'she taps the pile of facts to see what the product now knows about her');
-await page.waitForURL(/\/profile/, { timeout: 30000 });
+await qa.goto('/profile', 'her profile, with her reviewed CV — the lines it read are her facts now');
+await page.waitForURL(/\/profile$/, { timeout: 30000 });
 await qa.expectVisible('.dom', 'her profile opens on what was read from her CV');
 await qa.scrollThrough('reads her profile top to bottom, looking for her work history');
 
