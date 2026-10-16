@@ -108,6 +108,12 @@ cache whose point is the bill one real run plus hit/miss counters.
 
 ## Testing traps
 
+### A screen that moves on by itself defeats the paced `qa.*` steps
+`qa.click`/`qa.goto` pause ~1 s and screenshot, so a journey that clicks into a screen which leaves on
+its own (#392's discovery wait, ~3 s) then `waitForURL`s it times out — the URL already came and went.
+Press the button that leads in with a raw `page.click`, read the screen with raw page calls, then
+`waitForURL` the destination; or wait for any of the screens if only the save matters.
+
 ### A route's response schema drops a wire field nothing names
 `GET /review` serialises through the zod response schema in `routes/review.ts`: the `unnamed` flag
 added to the groups builder (#394) passed its unit test and vanished on the wire, because the schema

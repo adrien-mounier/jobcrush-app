@@ -2,6 +2,11 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-16 — #392 follow-up: the discovery screen goes; the count ends the wait (4f3b169, deployed by hand)
+
+Owner on staging after ef915e5: "I still see the discovery screen" — AC1 ("no standalone step/screen … the flow goes straight on") had been read as the count sentence only. Now, once the role is known, discovery is only the wait: the #257 "We'll look for … in …" line over "Finding jobs like yours…", the count ticks and holds ~1.2 s, then it moves on by itself to check mode or the deck (router.replace, so Back skips it); no count → on at once. "Your search is set." + Continue are gone, which also settles #376 deviation 1. 17 journeys rewritten; QA was NO-GO first (six journeys pressed Save with the paced qa.click and missed the ~3 s screen — fixed with raw clicks, lesson filed), then GO on tree ac5b8d1 (23 tier-2 journeys, discovery.spec 10/10). Owner asked to skip CI for this one: pushed with [skip ci], web deployed to staging with flyctl from the local tree.
+**Next:** owner looks at the flow on staging; Chat with JobCrush (#350). The next normal push runs the full CI over this change.
+
 ## 2026-10-16 — #392 shipped: the job count ticks up at the end of the loading wait (ef915e5)
 
 `/implement #392` (Opus 5.5). Traced first: the search behind the count is one batched call (stored pool + one paid page for HK/SG/VN/AU, then dedupe/freshness/language filters, then counted) — nothing arrives in pieces, so a truly climbing count would need partial numbers that can drop and would not match the deck (AC3). Put to the owner with four options; he chose the count-up animation, knowingly overriding AC2 (decision commented on #392). Built: "Finding jobs like yours…" while waiting, then the real count ticks 0 → N (~0.9 s) with "jobs like yours found."; reduced motion shows the number at first paint; screen readers hear the final count once; the old "new jobs are open right now" / "Keep going" lines are gone. Server unchanged (#246 count). `/code-review`: a reduced-motion 0 flash and a loose mid-tick assertion — fixed; the spec now records every number shown in-page, both new tests proven red. QA GO on tree bb599ac: api 2102 uncached, typecheck 7/7, discovery.spec 9/9, tier2 promise-counts 32/0, search-area-coverage 28/0; new `qa-392-count-up-journey.mjs` (not in tier 2). onboarding-reveal-wall.mjs was already broken by #376 → #395.
@@ -73,14 +78,3 @@ suggestions; the removal has its own coral look; variants V2.1 (no step count) a
 **Approved: V2.1.** Copy without contact details in `docs/design/profile-check-mode-prototype.html`.
 ADR-0018 written (amends ADR-0016 cl. 1, 2, 3, 5, 6 and ADR-0017's edit rule); glossary: check mode,
 removed item (ticked/kept retired). **Next:** `/to-spec`.
-
-## 2026-10-11 — Direction: the profile may replace "Your CV, reviewed" — grilled, prototype #375
-
-From the stored review (staging, read-only): COMPLETE stamps are right, but the model refused extras for reasons
-the prompt doesn't hold (SG "nothing to accompany", Okoone R2/R5 misreads) → #374 (cap moves to print, 3 extras/job).
-The owner proposed the profile as the master CV's home. `/challenge-with-codex`: home yes, but upload review ≠ storage.
-Grilled: the profile in check mode, the gate = facts plus every proposal answered (changes ADR-0016 cl. 6), dismissed
-stays dismissed for the same evidence, a tailor tick joins the profile, rebuild before v1 if the prototype wins. Prototype V1/V2/V3
-is a private artifact, kept out of the public repo because it holds the owner's contact details. Paused #372/#368/#370.
-**Next:** owner tries #375; meanwhile #373 + #360, #374, #371, #369.
-
