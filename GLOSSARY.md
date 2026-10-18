@@ -45,6 +45,8 @@ with job requirements.
   - [Master CV](#master-cv)
   - [CV chat](#cv-chat)
   - [Chat proposal](#chat-proposal)
+  - [Application report](#application-report)
+  - [Unchecked requirement](#unchecked-requirement)
 
 ## Language
 
@@ -320,3 +322,20 @@ employer, a whole new job, a letterhead detail. It changes nothing until the per
 shows the words it came from. It is never a stretch — a stretch belongs to one advert (ADR-0005). A
 ticked proposed line is an ordinary **ticked line** (ADR-0017).
 _Avoid_: Drafted line (that is the review's, written for a family floor must-have), suggestion, edit
+
+**Application report**:
+The email that travels with the approved CV (#315, #293 verdict): five sections and nothing else —
+the job in short with the apply link on top · where you are strong · where you are not, each with a
+sentence to say · be ready to explain · salary, or plainly that the advert does not state one. Its
+content comes from three places only: the card (which requirement is met, open, denied or
+**unchecked**), one model call (the prose, the sentences, the bridges — never a fact, never a bridge
+where nothing adjacent exists), and the advert (salary, apply link). It refuses an unjudged card.
+_Avoid_: Interview prep, match summary, verification audit, report card
+
+**Unchecked requirement**:
+A requirement the person has never been asked about either way (#292 c15) — a years bar the card
+could not test, or a work-rights or language question still open on this advert. Beside *met*,
+*open* and *denied* it is the third state; the report names it and hands over **no prepared
+sentence**, because for an unknown there is no line, and scripting one is the machine deciding on
+the person's behalf. An unfamiliar market the advert does not ask about is named in prose, unscored.
+_Avoid_: Unknown gap, untested requirement (that is the card's `notTested` field, one of its sources)

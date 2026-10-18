@@ -21,7 +21,7 @@ import type { EligibilityFact, EligibilityStore } from "../eligibility.js";
 import type { JobBlockStore, JobBlockView } from "../jobBlockStore.js";
 import type { ProductionFamilyFloorStore } from "../familyFloors.js";
 import type { JudgeFn } from "../judge.js";
-import { isBrought, type BroughtJobsFn } from "../broughtJobs.js";
+import { isBrought, type BroughtJob, type BroughtJobsFn } from "../broughtJobs.js";
 import { currentDiscoveryFamily } from "../discoveryEngine.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
@@ -29,6 +29,7 @@ import { marketForLocationText, retrievalRequestForSession, retrievalFingerprint
 import {
   advertFamilyIdFor,
   advertYearsFamilyId,
+  buildJobCard,
   buildTailorState,
   partitionByFamilyFit,
   resolveAdRequirements,
@@ -48,6 +49,7 @@ import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView } from "../tailorDraft.js";
 import { exportGate, runTailorExportJob } from "../tailorExport.js";
+import { reportContext, reportGate } from "../applicationReport.js";
 import type { AuthStore } from "../auth.js";
 import type { Mailer } from "../mailer.js";
 import type { DocumentMaker } from "../documentMaker.js";
@@ -93,6 +95,9 @@ export interface TailorRouteDeps {
   contact: ContactStore;
   tailorDrafts: TailorDraftStore;
   tailorLlm?: LlmClient;
+  /** #315 — the application report's one model call. Same rule as tailorLlm: wired in main.ts
+   *  (metered) and qa-main's fake only; absent, the approve press answers 503. */
+  reportLlm?: LlmClient;
   /** #313 — the approve-is-send press's own deps. `auth` resolves the signed-in account's email
    *  (the document goes to HIM). `documentMaker` follows the readPastedAdvert rule: the real
    *  browser is wired in main.ts, the stand-in in qa-main/tests — absent, the press answers 503
@@ -137,6 +142,30 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // `skips` is the session's queue state (#308): profile questions skipped on THIS job, left out
     // of the rebuilt queue so a skip never re-fires on the same job. `broughtJob` (#309) switches
     // the years scope to the advert's own family (AC5) and adds the stays-anyway line (AC4).
+    // #315 split this head off composeTailorState: the approve press needs the same judged
+    // card the screen showed (reportGate) without rebuilding the queue and the ledger.
+    const judgeAndYears = async (
+      session: SessionRecord,
+      adReq: AdRequirementsV1,
+      confirmed: ClaimRecord[],
+      facts: EligibilityFact[],
+      blocks: JobBlockView[],
+      broughtJob: boolean,
+    ) => {
+      const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
+      // #107 (D5) / #222: the years shortfall at the bar's own scope — see applyYearsShortfall
+      // (judgedScore.ts) + resolveSessionYears (deck.ts). #162 AC6: null years means no readable
+      // work history, so this surface reports the years bar untested exactly as the deck card does.
+      // #309 AC5: a job he brought reads its years at ITS OWN advert family (advertYearsFamilyId),
+      // so a field his work history does not cover scores an honest zero, never the career total.
+      const years = resolveSessionYears(
+        facts,
+        blocks,
+        advertYearsFamilyId(adReq, broughtJob, await advertFamilyIdFor(session, deps.placeFamily)),
+      );
+      return { judgement: withYearsShortfall(rawJudgement, adReq, years), years };
+    };
+
     const composeTailorState = async (
       session: SessionRecord,
       posting: Posting,
@@ -149,18 +178,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       broughtJob: boolean,
     ) => {
       const role = session.targetTitles[0] ?? null;
-      const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
-      // #107 (D5) / #222: the years shortfall at the bar's own scope — see applyYearsShortfall
-      // (judgedScore.ts) + resolveSessionYears (deck.ts). #162 AC6: null years means no readable
-      // work history, so this surface reports the years bar untested exactly as the deck card does.
-      // #309 AC5: a job he brought reads its years at ITS OWN advert family (advertYearsFamilyId),
-      // so a field his work history does not cover scores an honest zero, never the career total.
-      const years = resolveSessionYears(
-        facts,
-        blocks,
-        advertYearsFamilyId(adReq, broughtJob, await advertFamilyIdFor(session, deps.placeFamily)),
-      );
-      const judgement = withYearsShortfall(rawJudgement, adReq, years);
+      const { judgement, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob);
       const family = role ? await currentFamily(session) : null;
       const state = buildTailorState(
         posting, adReq, confirmed, negatives, role, judgement, years,
@@ -469,6 +487,10 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       confirmed: ClaimRecord[];
       negatives: ClaimRecord[];
       blocks: JobBlockView[];
+      /** #315: the report's deterministic facts read these — the eligibility facts (unchecked,
+       *  the market to check) and the brought job (apply link, ageing line). */
+      facts: EligibilityFact[];
+      brought: BroughtJob[];
     }
     type DraftTargetResult =
       | { refused: { status: 404 | 409; code: string; message: string }; target?: undefined }
@@ -487,7 +509,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         await deps.sessions.clearTailorTarget(session.id);
         return { refused: NO_TARGET };
       }
-      return { target: { ...target, confirmed, negatives, blocks } };
+      return { target: { ...target, confirmed, negatives, blocks, facts, brought } };
     };
 
     // #310: one in-flight run per (session, advert, fact set) — a reload mid-write joins the run
@@ -593,7 +615,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           return reply.status(503).send({
             error: { code: "export_unavailable", message: "making the PDF is switched off on this deployment" },
           });
-        const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+        const { posting, adReq, confirmed, negatives, blocks, facts, brought } = resolved.target;
         const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
         const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
         const stored = await deps.tailorDrafts.get(session.id, posting.id);
@@ -602,6 +624,27 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         const refused = exportGate(stored, inputs, req.body.draftedAt);
         if (refused)
           return reply.status(refused.status).send({ error: { code: refused.code, message: refused.message } });
+        // #315, the readPastedAdvert rule again: no report model wired ⇒ no press, never an email
+        // without its report. Behind the draft gates, so a missing or unapproved draft still
+        // answers as itself.
+        if (!deps.reportLlm)
+          return reply.status(503).send({
+            error: { code: "report_unavailable", message: "writing the application report is switched off on this deployment" },
+          });
+        // #315 — the report's hard precondition, decided on the SAME judged card the screen shows
+        // (judgeAndYears is composeTailorState's own head): an unjudged card refuses the press
+        // before anything slow starts, and the states every section is built from are resolved
+        // here, from the verdicts and his own answers — never by the model.
+        const broughtJob = brought.find((job) => job.posting.id === posting.id);
+        const { judgement, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob !== undefined);
+        const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated",
+          years && { ...years, familyConfidence: null });
+        const unjudged = reportGate(card);
+        if (unjudged)
+          return reply.status(unjudged.status).send({ error: { code: unjudged.code, message: unjudged.message } });
+        const report = reportContext({
+          posting, adReq, card, verdicts: judgement!.verdicts, confirmed, negatives, facts, broughtJob,
+        });
         const runKey = JSON.stringify([session.id, posting.id]);
         const running = exportRuns.get(runKey);
         if (running) return reply.status(202).send({ jobId: running });
@@ -621,6 +664,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
             documentMaker: deps.documentMaker,
             mailer: deps.mailer,
             tailorLlm: deps.tailorLlm,
+            reportLlm: deps.reportLlm,
             tailorDrafts: deps.tailorDrafts,
           },
           job.id,
@@ -631,6 +675,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
             posting,
             contact: { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
             email: user.email,
+            report,
           },
         ).finally(() => exportRuns.delete(runKey));
         return reply.status(202).send({ jobId: job.id });

@@ -48,6 +48,7 @@ import type { ClaimRecord } from "../src/claims.js";
 import { parseReviewPrompt, QA_SKILL_GROUP, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { FALLBACK_GROUP } from "../src/skillsSplit.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
+import { fakeJudge, reportingLlm } from "./reportFakes.js";
 
 type Server = ReturnType<typeof buildServer>;
 type App = Server["app"];
@@ -241,6 +242,9 @@ async function withCv(writer: ReturnType<typeof fakeWriter>, mined: CandidateCla
     eligibility,
     reviewLlm: writer.llm,
     reviewRun: { retryDelayMs: 0, now: () => NOW },
+    // #315: the export press runs over a judged card and writes its report — both faked here.
+    judge: fakeJudge(),
+    reportLlm: reportingLlm().llm,
     ...opts,
   });
   const { app } = server;

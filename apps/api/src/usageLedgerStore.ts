@@ -45,7 +45,10 @@ export type LlmStage =
   // able to tell the paste door's own spend from the deck's.
   | "pasted-advert-reading"
   // #334: "Your CV, reviewed" — the per-job review of the imported CV (#332), on its own model.
-  | "review";
+  | "review"
+  // #315: the five-section application report emailed with the approved CV — one call per
+  // application, its own stage so the per-application cost can be read off by stage.
+  | "application-report";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

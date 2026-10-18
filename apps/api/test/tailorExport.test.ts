@@ -10,7 +10,9 @@ import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.j
 import type { Mailer } from "../src/mailer.js";
 import type { LlmClient } from "../src/llm.js";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
-import { exportGate, exportEmailText, PAGE_NOTICES, tightenedBulletBudget } from "../src/tailorExport.js";
+import { exportGate, PAGE_NOTICES, tightenedBulletBudget } from "../src/tailorExport.js";
+import { REPORT_LINES } from "../src/applicationReport.js";
+import { fakeJudge, reportingLlm } from "./reportFakes.js";
 import type { DraftInputs } from "../src/tailorDraft.js";
 import type { Draft } from "../src/preview.js";
 import type { CandidateClaim } from "@jobcrush/contracts";
@@ -108,6 +110,11 @@ function draftingLlm(additional: { label: string; value: string }[] = []): LlmCl
   };
 }
 
+type ServerOpts = NonNullable<Parameters<typeof buildServer>[0]>;
+/** The export tests' server: a judged card and a report model by default, overridable. */
+const exportServer = (opts: ServerOpts = {}) =>
+  buildServer({ judge: fakeJudge(), reportLlm: reportingLlm().llm, ...opts });
+
 interface SentMail {
   email: string;
   subject: string;
@@ -148,7 +155,7 @@ async function draftAndRead(app: App, cookie: string) {
 
 describe("#313 POST /onboarding/tailor/approve — guards", () => {
   it("503s honestly when no document maker is wired — never an invented PDF", async () => {
-    const { app, claims } = buildServer({ tailorLlm: draftingLlm() });
+    const { app, claims } = exportServer({ tailorLlm: draftingLlm() });
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "export-no-maker@example.com");
     const view = await draftAndRead(app, cookie);
@@ -160,7 +167,7 @@ describe("#313 POST /onboarding/tailor/approve — guards", () => {
   it("refuses an unapproved draft: a press naming a draft he never saw sends nothing", async () => {
     const { sent, mailer } = recordingMailer();
     const tailorDrafts = new InMemoryTailorDraftStore();
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: draftingLlm(),
       documentMaker: new StandInDocumentMaker(),
       mailer,
@@ -179,7 +186,7 @@ describe("#313 POST /onboarding/tailor/approve — guards", () => {
 
   it("404s when there is no draft for the current facts — nothing to approve", async () => {
     const { mailer } = recordingMailer();
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: draftingLlm(),
       documentMaker: new StandInDocumentMaker(),
       mailer,
@@ -204,7 +211,7 @@ describe("#313 one press: approve → lint → document → email, through the s
         return new StandInDocumentMaker().printCv(html);
       },
     };
-    const { app, sessions, claims } = buildServer({
+    const { app, sessions, claims } = exportServer({
       tailorLlm: draftingLlm(),
       documentMaker: capturingMaker,
       mailer,
@@ -247,7 +254,7 @@ describe("#313 one press: approve → lint → document → email, through the s
     // refuse it, which proves the route hands the gate the session's real denial list.
     const { sent, mailer } = recordingMailer();
     const tailorDrafts = new InMemoryTailorDraftStore();
-    const { app, sessions, claims } = buildServer({
+    const { app, sessions, claims } = exportServer({
       tailorLlm: draftingLlm(),
       documentMaker: new StandInDocumentMaker(),
       mailer,
@@ -291,7 +298,7 @@ describe("#313 one press: approve → lint → document → email, through the s
     // engine itself refuses to checkpoint it) and the same press is refused through the route.
     const { sent, mailer } = recordingMailer();
     const tailorDrafts = new InMemoryTailorDraftStore();
-    const { app, sessions, claims } = buildServer({
+    const { app, sessions, claims } = exportServer({
       tailorLlm: draftingLlm([{ label: "Spoken", value: "German (B1)" }]),
       documentMaker: new StandInDocumentMaker(),
       mailer,
@@ -338,7 +345,7 @@ describe("#313 one press: approve → lint → document → email, through the s
         return new StandInDocumentMaker().printCv(html);
       },
     };
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: draftingLlm(),
       documentMaker: slowMaker,
       mailer,
@@ -363,7 +370,7 @@ describe("#313 one press: approve → lint → document → email, through the s
         throw new Error("browser died");
       },
     };
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: draftingLlm(),
       documentMaker: brokenMaker,
       mailer,
@@ -430,20 +437,6 @@ describe("#313 exportGate — the lint refusal, pure", () => {
   it("the same draft with nothing denied passes the gate", async () => {
     expect(exportGate(record(), inputs([]), "2026-10-01T08:00:00.000Z")).toBeNull();
   });
-
-  it("ship-and-tell: the lossy draft's notices travel into the email text", () => {
-    const text = exportEmailText(
-      {
-        html: "",
-        notices: ["Your languages could not be placed on this draft."],
-        posting: { id: "x", title: "PM", company: "Acme", location: "", excerpt: "" },
-        email: "x@example.com",
-      },
-      2,
-    );
-    expect(text).toContain("Before you send it, check this:");
-    expect(text).toContain("Your languages could not be placed on this draft.");
-  });
 });
 
 // #314 — over two pages: tighten once on a real budget, then ship and tell. Through the route and
@@ -496,7 +489,7 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
     const { sent, mailer } = recordingMailer();
     const { llm, prompts } = budgetAwareLlm();
     const tailorDrafts = new InMemoryTailorDraftStore();
-    const { app, sessions, claims } = buildServer({
+    const { app, sessions, claims } = exportServer({
       tailorLlm: llm,
       documentMaker: bulletCountingMaker(),
       mailer,
@@ -521,7 +514,7 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
     expect(job.progress.tailorExport.notices).toContain(notice);
     expect(sent).toHaveLength(1);
     expect(sent[0]!.text).toContain("2 pages");
-    expect(sent[0]!.text).toContain(notice);
+    expect(sent[0]!.text).toContain(`${REPORT_LINES.checkBeforeSending}\n- ${notice}`);
     // The tightened document is the checkpoint now: the screen's next read and a second press
     // both see the two-page CV, and re-spend nothing.
     const token = cookie.split("=")[1]!;
@@ -536,7 +529,7 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
   it("still over after the one re-tailor: ships anyway, says so, never a third model call", async () => {
     const { sent, mailer } = recordingMailer();
     const { llm, prompts } = budgetAwareLlm();
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: llm,
       documentMaker: new StandInDocumentMaker(3),
       mailer,
@@ -566,7 +559,7 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
         return base.complete(prompt);
       },
     };
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: flakyLlm,
       documentMaker: new StandInDocumentMaker(4),
       mailer,
@@ -593,7 +586,7 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
         return { pdf: Buffer.from("%PDF-1.4 counted\n"), pages: next };
       },
     };
-    const { app, claims } = buildServer({ tailorLlm: llm, documentMaker: maker, mailer });
+    const { app, claims } = exportServer({ tailorLlm: llm, documentMaker: maker, mailer });
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "export-crash-then-press@example.com");
     const view = await draftAndRead(app, cookie);
@@ -612,7 +605,7 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
 
   it("a second press after a failed send says the page sentence once, not twice (QA D2)", async () => {
     const { sent, mailer } = recordingMailer();
-    const { app, claims } = buildServer({
+    const { app, claims } = exportServer({
       tailorLlm: draftingLlm(),
       // No tailorLlm wired for the re-tailor would also do; here the model answers but the
       // stand-in always measures 4, and the mailer fails the first time.
@@ -642,6 +635,28 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
     expect(sent[0]!.text.split(pageSentences[0]!)).toHaveLength(2);
   });
 
+  it("#315: over two pages, the report is written about the shortened document that ships", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm: reportLlm, prompts: reportPrompts } = reportingLlm();
+    const { llm, prompts } = budgetAwareLlm();
+    const { app, claims } = exportServer({
+      tailorLlm: llm,
+      documentMaker: bulletCountingMaker(),
+      mailer,
+      reportLlm,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "report-tightened@example.com");
+    const view = await draftAndRead(app, cookie);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    expect(prompts).toHaveLength(2);
+    expect(reportPrompts).toHaveLength(1);
+    expect(reportPrompts[0]).toContain("- Ran delivery, part 2\n");
+    expect(reportPrompts[0]).not.toContain("Ran delivery, part 3");
+    expect(sent[0]!.text).toContain(PAGE_NOTICES.tightened(3));
+  });
+
   it("the budget is a number scaled from the measurement, always below what printed", () => {
     const draftWith = (n: number) =>
       ({ experience: [{ bullets: Array.from({ length: n }, () => ({})) }] }) as unknown as Draft;
@@ -649,4 +664,153 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
     expect(tightenedBulletBudget(draftWith(25), 3)).toEqual({ max: 16, printedBullets: 25, measuredPages: 3 });
     expect(tightenedBulletBudget(draftWith(24), 4)).toEqual({ max: 12, printedBullets: 24, measuredPages: 4 });
   });
+});
+
+// #315 — the application report: the email IS the five-section report, written by one call over
+// the document that ships, refused on an unjudged card, checkpointed so a re-press re-spends
+// nothing. Through the route and the stand-in, like everything above.
+describe("#315 the application report", () => {
+  it("refuses the press on an unjudged card — nothing slow starts, nothing is sent", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm, prompts } = reportingLlm();
+    // No judge wired at all: the card the screen shows is "estimated", the keyword scorer's.
+    const { app, claims } = buildServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      reportLlm: llm,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "report-unjudged@example.com");
+    expect((await get(app, cookie, "/onboarding/tailor")).json().card.scored).toBe("estimated");
+    const view = await draftAndRead(app, cookie);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("card_unjudged");
+    expect(sent).toHaveLength(0);
+    expect(prompts).toHaveLength(0);
+  });
+
+  it("503s honestly when no report model is wired — never an email without its report", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { app, claims } = buildServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      judge: fakeJudge(),
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "report-no-model@example.com");
+    const view = await draftAndRead(app, cookie);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error.code).toBe("report_unavailable");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("the email is the five sections in order, from the judged card, the one call and the advert — and the report is checkpointed", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm, prompts } = reportingLlm();
+    const tailorDrafts = new InMemoryTailorDraftStore();
+    const { app, sessions, claims } = exportServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      tailorDrafts,
+      reportLlm: llm,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "report-happy@example.com");
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.card.scored).toBe("judged");
+    const view = await draftAndRead(app, cookie);
+
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(202);
+    const job = await awaitJob(app, cookie, res.json().jobId);
+    expect(job.status).toBe("completed");
+    expect(sent).toHaveLength(1);
+    const text = sent[0]!.text;
+
+    // One call, given the printed line with its source fact and every requirement with a state.
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("- Ran end-to-end delivery for the programme\n  from: Owned delivery from planning through completion.");
+    const requirements = loadAdRequirements(FIXTURE_AD_ID)!.requirements;
+    for (const r of requirements) expect(prompts[0]).toContain(`- id: ${r.id}\n  state: `);
+
+    // Five sections, in this order; the first opens on the apply line (a found job has none).
+    const order = [
+      "1. The job, in short",
+      REPORT_LINES.noLink,
+      "Senior Project Manager at Endava Vietnam, Ho Chi Minh City, Vietnam.",
+      "2. Where you are strong",
+      `${requirements[0]!.requirement} — say: "I have done ${requirements[0]!.id}."`,
+      "3. Where you are not, and what to say",
+      `${requirements[1]!.requirement} — say: "I have done the nearest thing to ${requirements[1]!.id}."`,
+      `${requirements[2]!.requirement} — ${REPORT_LINES.expectIt}`,
+      "4. Be ready to explain",
+      "The steering line carries two facts.",
+      // #292 r9: Vietnam is placeable, the advert does not ask about work rights, he holds no fact.
+      REPORT_LINES.market("Vietnam"),
+      "5. Salary",
+      REPORT_LINES.noSalary,
+    ];
+    const positions = order.map((line) => {
+      const i = text.indexOf(line);
+      expect(i, line).toBeGreaterThanOrEqual(0);
+      return i;
+    });
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(text).not.toMatch(/6\. |Verification|Checklist|Keyword coverage/);
+
+    // Checkpointed on the record, so a second press re-spends nothing.
+    const token = cookie.split("=")[1]!;
+    const session = (await sessions.getByToken(token))!;
+    const stored = (await tailorDrafts.get(session.id, VALID_AD_ID))!;
+    expect(stored.reportCheckpoint?.report.strong).toHaveLength(1);
+    const again = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, again.json().jobId)).status).toBe("completed");
+    expect(prompts).toHaveLength(1);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.text).toBe(text);
+  });
+
+  it("a denied requirement is a gap with a sentence; its years bars the card could not test are unchecked, with none", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm } = reportingLlm();
+    const { app, claims } = exportServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      reportLlm: llm,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "report-denied@example.com");
+    // The first requirement the answer door takes is denied — the card's own "You told me you
+    // don't have this" row, which the report must carry as a gap and never as a strength.
+    let denied: { id: string; requirement: string } | undefined;
+    for (const requirement of loadAdRequirements(FIXTURE_AD_ID)!.requirements) {
+      const answered = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: requirement.id, answer: "No" });
+      if (answered.statusCode === 200) {
+        denied = requirement;
+        break;
+      }
+    }
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.card.askedClosed).toHaveLength(1);
+    // No readable work history in this walk: the advert's two years bars are "not tested".
+    expect(state.card.notTested?.length).toBe(2);
+    const view = await draftAndRead(app, cookie);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    const text = sent[0]!.text;
+    const strong = text.split("2. Where you are strong")[1]!.split("3. Where you are not")[0]!;
+    expect(strong).not.toContain(denied!.requirement);
+    expect(text).toContain(`${denied!.requirement} — say: "I have done the nearest thing to ${denied!.id}."`);
+    for (const bar of state.card.notTested as { requirement: string }[]) {
+      expect(text).toContain(`- ${bar.requirement} — ${REPORT_LINES.unchecked}`);
+      expect(text).not.toContain(`${bar.requirement} — say:`);
+    }
+  });
+
 });

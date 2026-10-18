@@ -91,7 +91,7 @@ export interface JobSnapshot {
     tailorDraft?: { ready?: boolean; failure?: { cameBack: string; fix: string } };
     /** #313: the approve-is-send press, narrated — printing → (tightening, #314) → sending → sent. */
     tailorExport?: {
-      step?: "printing" | "tightening" | "sending" | "sent";
+      step?: "printing" | "tightening" | "reporting" | "sending" | "sent";
       pages?: number;
       email?: string;
       /** #314 ship-and-tell: the plain-words notices the email also carries (the page rule's

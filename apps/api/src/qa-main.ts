@@ -81,6 +81,7 @@ import { InMemoryEligibilityStore } from "./eligibility.js";
 import { InMemoryUnmappedLabelStore } from "./unmappedLabels.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
+import { REPORT_STATE_LINE } from "./applicationReport.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
 // DATABASE_URL and would write judgements to the real shared Postgres from a QA run.
 import { InMemoryJudgementStore } from "./judgementStore.js";
@@ -160,7 +161,7 @@ const DRAFT: Draft = {
   additional: [{ label: "Languages", value: "Polish (Native), English (Fluent), German (B1)" }],
 };
 
-const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, review: 0, unknown: 0 };
+const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, review: 0, report: 0, unknown: 0 };
 
 // A canned, contract-valid MinedJobBlocks doc (#161): three dated blocks exercising the shapes the
 // confirm deck cares about — a month-precision ended job, a year-precision ongoing job, and an
@@ -323,6 +324,24 @@ const fakeLlm: LlmClient = {
       seen.mine += 1;
       if (prompt.includes("REVIEWCHECK")) return MINED_REVIEWCHECK;
       return prompt.includes("DATESMISSING") ? MINED_UNDATED_ROLE : MINED;
+    }
+    // #315 — application-report.md's own opening line. One entry per met requirement in `strong`
+    // and one per open/denied requirement in `gaps`, read back out of the prompt's own
+    // "- id:" / "state:" pairs (buildReportInput's shape), so the coverage check always holds and
+    // an unchecked requirement gets no sentence — the fake obeys the same rule as the product.
+    // The salary is null: not one of the owner's real adverts states one (#293 finding 3).
+    if (prompt.includes("You are writing the application report for ONE job application")) {
+      seen.report += 1;
+      const requirements = [...prompt.matchAll(REPORT_STATE_LINE)].map((m) => ({ id: m[1]!.trim(), state: m[2]! }));
+      return JSON.stringify({
+        jobInShort: "A hands-on delivery role for a client-facing project manager.",
+        salary: null,
+        strong: requirements.filter((r) => r.state === "met").map((r) => ({ requirementId: r.id, say: `I have done this: ${r.id}.` })),
+        gaps: requirements
+          .filter((r) => r.state === "open" || r.state === "denied")
+          .map((r, i) => ({ requirementId: r.id, say: i === 0 ? `I have done the nearest thing to ${r.id}.` : null })),
+        explain: ["The steering-meeting line carries two facts; be ready to separate them."],
+      });
     }
     if (prompt.includes("===JOB-POSTING===")) {
       seen.tailor += 1;
@@ -969,6 +988,9 @@ const { app } = buildServer({
   // answers a conserving draft, so a browser journey can watch the CV brain's ending, free. The
   // checkpoint store stays buildServer's in-memory default, like every other QA store.
   tailorLlm: fakeLlm,
+  // #315: the application report over the SAME fake — its branch answers from the prompt's own
+  // requirement states, so a journey reads the five-section email the DevMailer logs, free.
+  reportLlm: fakeLlm,
   // #341: the CV review over the SAME stage-aware fake, started by the pipeline like production —
   // so a journey walks the real run, its checkpoints and its marks, free. Its checkpoint store stays
   // buildServer's in-memory default, like every other QA store.

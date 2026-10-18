@@ -40,6 +40,8 @@ const S7 = "We could not make and send this CV.";
 const S8 = "Press the button again — your draft and your approval are saved.";
 // #314: the PDF measured over two pages — one rewrite on a tighter budget, then it ships anyway.
 const S9 = "Your CV ran over two pages — shortening it to fit…";
+// #315: the five-section application report, written after the document is made.
+const S10 = "Writing your application report…";
 
 type Phase =
   | { kind: "writing" }
@@ -50,11 +52,11 @@ type Phase =
 // narration (progress.tailorExport.step) so the screen never says more than the server knows.
 type SendPhase =
   | { kind: "idle" }
-  | { kind: "sending"; step: "printing" | "tightening" | "sending" }
+  | { kind: "sending"; step: "printing" | "tightening" | "reporting" | "sending" }
   | { kind: "sent"; email?: string; notices: string[] }
   | { kind: "sendFailed"; cameBack?: string; fix?: string };
 
-const SEND_LINE = { printing: S3, tightening: S9, sending: S5 } as const;
+const SEND_LINE = { printing: S3, tightening: S9, reporting: S10, sending: S5 } as const;
 
 /** The one press: approve this exact draft (named by its draftedAt), then watch the narrated
  *  print-and-mail over the same SSE stream the draft build used. `known` are the draft's own
@@ -101,7 +103,7 @@ function SendBlock({ draftedAt, known }: { draftedAt: string; known: string[] })
             notices: (exported?.notices ?? []).filter((n) => !known.includes(n)),
           });
         else if (snapshot.status === "failed") settle({ kind: "sendFailed", ...exported?.failure });
-        else if (exported?.step === "tightening" || exported?.step === "sending")
+        else if (exported?.step === "tightening" || exported?.step === "reporting" || exported?.step === "sending")
           setPhase({ kind: "sending", step: exported.step });
       };
       source.onerror = () => {

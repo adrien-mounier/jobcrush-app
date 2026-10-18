@@ -191,6 +191,10 @@ export interface BuildOptions {
    *  rather than inventing a CV — the readPastedAdvert rule; main.ts wires the metered real client,
    *  qa-main.ts its stage-aware fake, tests their own. */
   tailorLlm?: LlmClient;
+  /** #315: the model client behind the application report's one call. Absent → the approve
+   *  press answers 503 (the readPastedAdvert rule) — main.ts wires the metered real client,
+   *  qa-main.ts its stage-aware fake, tests their own. */
+  reportLlm?: LlmClient;
   /** #312: makes the two-page PDF from the rendered draft — consumed by #313's approve route.
    *  Absent → that route answers 503 rather than inventing a document (the readPastedAdvert
    *  rule); main.ts wires the real browser (chrome-headless-shell in the API image), qa-main.ts
@@ -734,6 +738,7 @@ export function buildServer(opts: BuildOptions = {}) {
       contact,
       tailorDrafts,
       tailorLlm: opts.tailorLlm,
+      reportLlm: opts.reportLlm,
       // #313: the approve-is-send press — the account's email, the mail seam, and #312's
       // injected document maker (absent ⇒ the press answers 503, the readPastedAdvert rule).
       auth,

@@ -12,6 +12,19 @@
 // (buildTailorInput's PAGE-BUDGET block), never prose asking the model to be brief — then the
 // document ships anyway and he is told plainly, on the screen and in the email both. Never a hard
 // failure that leaves him with nothing.
+//
+// #315 — the email IS the application report (applicationReport.ts): five sections and nothing
+// else, written by one model call over the SHIPPED document — after the page rule, so a shortened
+// CV gets a report about the CV that left — and checkpointed on the draft record, so a re-press
+// after a failed send re-spends nothing. The route refuses the press on an unjudged card before
+// anything slow starts (reportGate).
+import {
+  reportEmailText,
+  reportFingerprint,
+  writeApplicationReport,
+  type ApplicationReport,
+  type ReportContext,
+} from "./applicationReport.js";
 import {
   conservationIssues,
   tailorDraft,
@@ -101,6 +114,8 @@ export interface TailorExportJobDeps {
   /** #314: the re-tailor's model. Absent (no model wired) ⇒ no tightening; the measured document
    *  ships with its notice rather than failing. */
   tailorLlm?: LlmClient;
+  /** #315: the report's one model call. The route refuses the press when it is not wired. */
+  reportLlm: LlmClient;
   tailorDrafts: TailorDraftStore;
 }
 
@@ -114,6 +129,9 @@ export interface TailorExportInput {
   contact: StoredContact;
   /** The signed-in account's address — the email goes to HIM, never to an employer. */
   email: string;
+  /** #315: what the report prints without a model and the state of every requirement, resolved
+   *  by the route from the judged card before the press started. */
+  report: ReportContext;
 }
 
 export const PAGE_LIMIT = 2;
@@ -164,21 +182,28 @@ async function tightenOnce(
   }
 }
 
-/** The email body. #315 grows this into the five-section application report; until then it is the
- *  attachment, named plainly, with the ship-and-tell notices when the draft shipped lossy. */
-export function exportEmailText(
-  input: { posting: Posting; notices: string[] },
-  pages: number,
-): string {
-  const notices =
-    input.notices.length > 0
-      ? `\n\nBefore you send it, check this:\n${input.notices.map((n) => `- ${n}`).join("\n")}`
-      : "";
-  return (
-    `Your CV for ${input.posting.title} at ${input.posting.company} is attached ` +
-    `(${pages} page${pages === 1 ? "" : "s"}, PDF). Read it, then send it yourself when you are ready.` +
-    notices
+/** #315: the report for the document that is leaving. The checkpoint on the record is reused only
+ *  when it was written from exactly this input (the fingerprint embeds the prompt, the states and
+ *  the shipped lines), so a shortened document (#314) writes a fresh one and a re-press on an
+ *  unchanged one spends nothing. Checkpointed BEFORE the mail goes, like the tightened draft. */
+async function reportFor(
+  deps: TailorExportJobDeps,
+  input: TailorExportInput,
+  record: TailorDraftRecord,
+): Promise<ApplicationReport> {
+  const { posting, inputs } = input;
+  const fingerprint = reportFingerprint(input.report, posting, record.draft, inputs.claimsDoc, inputs.opts);
+  if (record.reportCheckpoint?.fingerprint === fingerprint) return record.reportCheckpoint.report;
+  const report = await writeApplicationReport(
+    deps.reportLlm,
+    input.report,
+    posting,
+    record.draft,
+    inputs.claimsDoc,
+    inputs.opts,
   );
+  await deps.tailorDrafts.put(input.sessionId, posting.id, { ...record, reportCheckpoint: { fingerprint, report } });
+  return report;
 }
 
 /**
@@ -193,7 +218,7 @@ export async function runTailorExportJob(
   input: TailorExportInput,
 ): Promise<void> {
   // The narrated states the screen renders from — typed so a misspelled step cannot ship.
-  const push = (step: "printing" | "tightening" | "sending" | "sent", patch?: Record<string, unknown>) =>
+  const push = (step: "printing" | "tightening" | "reporting" | "sending" | "sent", patch?: Record<string, unknown>) =>
     deps.jobs.update(jobId, { progress: { tailorExport: { step, ...patch } } });
   // The approved document is not a draft: no watermark, no banner.
   const render = (record: TailorDraftRecord) =>
@@ -229,12 +254,15 @@ export async function runTailorExportJob(
       // notice, and a second press re-prints it without a model call. Said once: a re-press after
       // a failed send carries the stored sentence in, and must not add it again (QA D2).
       notices = [...new Set(notices)];
-      await deps.tailorDrafts.put(input.sessionId, input.posting.id, { ...record, conservationNotices: notices });
+      record = { ...record, conservationNotices: notices };
+      await deps.tailorDrafts.put(input.sessionId, input.posting.id, record);
     }
+    await push("reporting", { pages: printed.pages });
+    const report = await reportFor(deps, input, record);
     await push("sending", { pages: printed.pages });
     await deps.mailer.sendTailoredCv(input.email, {
       subject: `Your CV for ${input.posting.title} at ${input.posting.company}`,
-      text: exportEmailText({ posting: input.posting, notices }, printed.pages),
+      text: reportEmailText(report, input.posting, printed.pages, notices),
       // Title into a safe filename — a pasted advert's title is free text.
       filename: `CV - ${safeFilename(input.posting.title)}.pdf`,
       pdf: printed.pdf,

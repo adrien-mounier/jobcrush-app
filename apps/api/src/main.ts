@@ -266,6 +266,9 @@ const { app } = buildServer({
   // #310: the CV brain's draft call — bound at last (#272 unbound it). Same metering stage the old
   // upload-pipeline binding used, so /ops/spend keeps one name for the same work.
   tailorLlm: step("preview-tailor"),
+  // #315: the application report's one call, metered under its own stage so the per-application
+  // cost is readable on /ops/spend by stage — the measured number the release gate quotes.
+  reportLlm: step("application-report"),
   tailorDrafts,
   // #341: the CV review over the metered "review" step (Fable 5.1 at max reasoning, per
   // data/ai-steps.json) — one call per job, in the background, checkpointed in cvReviews.

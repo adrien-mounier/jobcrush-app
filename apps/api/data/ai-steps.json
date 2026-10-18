@@ -10,6 +10,7 @@
   "family-placement": { "provider": "fireworks", "model": "accounts/fireworks/models/minimax-m3", "maxTokens": 8000, "timeoutMs": 60000 },
   "industry-placement": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
   "pasted-advert-reading": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "application-report": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
   "review": {
     "provider": "anthropic",
     "model": "claude-fable-5-1",

@@ -13,6 +13,7 @@ import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
 import { InMemoryClaimStore } from "../src/claims.js";
 import { holdContradictingSentences } from "../src/heldSentences.js";
+import { fakeJudge, reportingLlm } from "./reportFakes.js";
 
 type Server = ReturnType<typeof buildServer>;
 type App = Server["app"];
@@ -229,7 +230,8 @@ function recordingMailer() {
 
 /** Discovery → sign in → read the CV → retrieval → want: tailorExport.test.ts's walk, plus a CV. */
 async function tailoringWithCv(email: string, opts: Parameters<typeof buildServer>[0]) {
-  const server = buildServer({ pipeline: fakePipeline(), ...opts });
+  // #315: the press runs over a judged card and writes its report — both faked here.
+  const server = buildServer({ pipeline: fakePipeline(), judge: fakeJudge(), reportLlm: reportingLlm().llm, ...opts });
   const { app } = server;
   const cookie = await anonSession(app);
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
