@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-18 (#315 the application report shipped; the v1 spine's tickets are all done)_
+_Last updated: 2026-10-19 (the finish line run live: NO-GO, two fixes shipped, four follow-ups filed)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -36,12 +36,15 @@ talk to improve the master CV; replaces #316/#317 *Add something new*. Its doors
 page to the profile (ADR-0018). `/to-spec` → `/to-tickets` → `/implement-spec`. Small and independent:
 [#348](https://github.com/adrien-mounier/jobcrush-app/issues/348) a sign-in door on the landing page.
 
-**The v1 spine** (spec #301): every ticket shipped — ~~#315~~ the application report (2026-10-18,
-1f72b12), ~~#314~~ (2026-10-17, a39ee5e). Open on #315, owner's call: a denied requirement's nearest-true
-sentence in section 3; the ship-and-tell notices at the end of section 4; no work-rights line for a
-market the lookup cannot place (Brussels, Paris). Release gate still to run on staging with a real key:
-the measured cost per application, and one real report read for invented facts or bridges.
-**Finish line:** one real posting end to end, `/qa-gate` GO on the whole journey.
+**The v1 spine** (spec #301): every ticket shipped (~~#315~~ 2026-10-18, ~~#314~~ 2026-10-17).
+**The finish line ran 2026-10-19** on staging with the real key, his real CV and a real posting: the
+journey held end to end, the report cost **$0.46 per application** (measured), but the gate said NO-GO on
+two defects, both fixed the same day (6c7991c the email talked about "printed" and "held-back" lines;
+d7af930 long skill ids could not be edited). Follow-ups: #400 a paste with no title line (owner's call),
+#397 two scores for one job, #398 check-mode reads on his CV, #399 draft nits. Still open on #315,
+owner's call: a denied requirement's nearest-true sentence; the notices at the end of section 4; no
+work-rights line for a market the lookup cannot place.
+**Finish line, what remains:** one more real report on staging under the new rule, then `/qa-gate` GO.
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
 every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
@@ -52,7 +55,7 @@ run); `/implement` is for a lone ticket. Never point `/implement` at a parent or
 ## Milestones
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
-- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line still to run.
+- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); the re-proof on staging is next.
 - V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page was replaced by V6b.
 - V6b — the profile's check mode (ADR-0018, parent #375): **done** 2026-10-14 (482ca57).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
