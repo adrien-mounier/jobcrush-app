@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdRequirementsV1, CandidateClaims, JobCardV1 } from "@jobcrush/contracts";
 import {
+  KITCHEN_WORDS,
   REPORT_LINES,
   ReportValidationError,
   buildReportInput,
@@ -263,6 +264,40 @@ describe("#315 the one call — input, validation, retry", () => {
     expect(prompts).toHaveLength(2);
     expect(prompts[1]).toContain("===RETRY===");
     expect(prompts[1]).toContain(`extra: ${ids[3]}`);
+  });
+
+  it("the kitchen tripwire: our phrases are caught, his work gets through (real inputs)", () => {
+    // The lines the first real report on staging leaked (qa-results/finish-line-20261019-132601),
+    // plus the next phrasings the same instruction invites.
+    const ours = [
+      "Be ready to mention your work translating business needs into specifications again if asked for more depth, since it also appears as a held-back fact from a different role.",
+      "You can bring up supporting work such as the PIN-code authentication rollout if asked for more examples, since these were not printed but are available to you.",
+      "When you describe owning the product vision and roadmap at Okoone, be ready to also state a concrete result, since the printed line covers vision, roadmap, and team leadership but does not state an outcome.",
+      "Be ready to mention the Splunk work; your CV does not show it.",
+      "This line is over-packed: separate the delivery from the communication.",
+    ];
+    // Lines about his work that use the same everyday words.
+    const his = [
+      "If asked about the app you shipped at Okoone, have the user numbers ready.",
+      "Be ready to explain how you print the weekly report for finance and who reads it.",
+      "Expect a question on the Splunk log-triage workflow: what it saved, in hours.",
+      "The draft budget you held at BRED was EUR 1.2M; be ready to say what was cut and why.",
+      "You have not run a Fixed-Price project; say so plainly if asked.",
+    ];
+    for (const line of ours) expect(line, line).toMatch(KITCHEN_WORDS);
+    for (const line of his) expect(line, line).not.toMatch(KITCHEN_WORDS);
+  });
+
+  it("an explain line about what the CV printed or held back is rejected — the kitchen stays out of the email", async () => {
+    const { llm, prompts } = reportingLlm((doc) => ({
+      ...doc,
+      explain: ["Be ready to mention the Splunk work, since these were not printed but are available to you."],
+    }));
+    await expect(writeApplicationReport(llm, context(), posting, draft, claimsDoc, opts)).rejects.toBeInstanceOf(ReportValidationError);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain("explain talks about the document");
+    const { llm: clean } = reportingLlm((doc) => ({ ...doc, explain: ["If asked for a result at Okoone, have the launch figures ready."] }));
+    expect((await writeApplicationReport(clean, context(), posting, draft, claimsDoc, opts)).explain).toHaveLength(1);
   });
 
   it("one bad answer is retried with the error; a good second answer ships", async () => {

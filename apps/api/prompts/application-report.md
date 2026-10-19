@@ -58,7 +58,7 @@ is emailed with it so the person reads the job once and walks into the interview
     { "requirementId": "<id of an open or denied requirement>", "say": "One sentence to say if it is raised — built only from an adjacent listed fact — or null when nothing adjacent exists." }
   ],
   "explain": [
-    "One line per thing to be ready to explain: a printed line that leans on several facts, a held-back fact that may be asked about, a bridge from `gaps` that needs a sentence of context. Plain words, in the second person."
+    "One line per thing an interviewer will probably probe: a claim that rests on several pieces of work, a piece of work the CV does not show that they may ask about, a gap from `gaps` that needs a sentence of context. Written to the person about their work, in the second person."
   ]
 }
 ```
@@ -74,7 +74,11 @@ is emailed with it so the person reads the job once and walks into the interview
 - `salary` is quoted, never estimated or inferred from the role or the market. Absent in the advert
   means `null`.
 - `explain` is a short list — three to six lines — of what an interviewer will probably probe.
-  Nothing about the report itself, nothing about what the app did.
+  Each line is about the person's work, never about the document: nothing about the report itself,
+  nothing about what the app did, and nothing about what the CV printed, held back, left out or
+  "does not state". The person reads these lines in an email; "printed line", "held-back fact",
+  "not printed" and "available to you" are the app's words, not theirs. Say what they may be asked
+  and what to have ready: *"If asked for a result at Okoone, have one figure ready."*
 - Plain international English, short sentences, no idioms.
 
 ===ADVERT===

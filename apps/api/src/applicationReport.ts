@@ -277,6 +277,22 @@ function verifyCoverage(
 
 export class ReportValidationError extends Error {}
 
+/** "Cut, and staying cut: what did not print and why, what was lost, how far each line leans" —
+ *  enforced, not only written. Section 4 is read in an email; an `explain` line that talks about
+ *  what the CV printed or held back is the app's kitchen showing (the first real report on staging
+ *  wrote "since these were not printed but are available to you" and "the printed line covers …
+ *  but does not state an outcome"). One such line fails the answer and burns the retry with the
+ *  words named. A tripwire for OUR phrases only — "the app you shipped", "print the weekly
+ *  report" are his work and must get through (the table in applicationReport.test.ts). */
+export const KITCHEN_WORDS =
+  /\b(printed lines?|not printed|unprinted|held[- ]back|over-?packed|lint findings?|available to you|(?:the|your) CV (?:does|did) not|(?:the|your) CV doesn't)\b/i;
+function verifyNoKitchen(explain: string[]): void {
+  for (const line of explain) {
+    const hit = KITCHEN_WORDS.exec(line);
+    if (hit) throw new Error(`explain talks about the document, not the person's work ("${hit[0]}"): "${line}"`);
+  }
+}
+
 /** "Salary … as the advert states it, never estimated" — enforced, not only written: a salary the
  *  advert's own text does not contain (whitespace aside) reads as the advert stating none. */
 export function quotedFromAdvert(salary: string | null, advert: string): string | null {
@@ -318,6 +334,7 @@ export async function writeApplicationReport(
     try {
       const doc = ReportResponseDoc.parse(extractJson(text));
       const { strong, gaps } = verifyCoverage(ctx.requirements, doc);
+      verifyNoKitchen(doc.explain);
       return {
         applicationUrl: ctx.applicationUrl,
         ageing: ctx.ageing,
