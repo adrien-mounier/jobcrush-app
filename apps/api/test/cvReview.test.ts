@@ -193,6 +193,13 @@ describe("#338 the paper", () => {
     expect(jobsOf(await review(app, cookie))[0]!.lines[1]).toMatchObject({ id: "nrg-managed-budget", state: "ticked" });
   });
 
+  it("a line id longer than Fastify's 100-char default still reaches the route (404, never 414)", async () => {
+    const { app, cookie } = await withCv();
+    const longId = `skill-${"ai-automation-".repeat(10)}x`;
+    expect(longId.length).toBeGreaterThan(100);
+    expect((await put(app, cookie, `/cv/lines/${longId}`, { state: "kept" })).statusCode).toBe(404);
+  });
+
   it("refuses the review to no session", async () => {
     const { app } = await withCv();
     expect((await app.inject({ method: "GET", url: "/review" })).statusCode).toBe(401);

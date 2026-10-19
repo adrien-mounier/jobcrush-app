@@ -264,7 +264,12 @@ export function buildServer(opts: BuildOptions = {}) {
   const pasteRecords = opts.pasteRecords ?? new InMemoryPasteRecordStore();
   const tailorDrafts = opts.tailorDrafts ?? new InMemoryTailorDraftStore();
   const cvReviews = opts.cvReviews ?? new InMemoryCvReviewStore();
-  const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
+  // maxParamLength: a line id is minted from the CV's own words (cvReviewRun's `skill-<key>-<suffix>`,
+  // slug() has no cap) and can pass Fastify's 100-char default; the owner's real profile had five
+  // such skills whose edit and remove then died with 414 (finish-line QA, 2026-10-19). 512 is a
+  // ceiling five times the longest id seen, not a guarantee — a cap at mint time would strand the
+  // long ids already stored.
+  const app = Fastify({ logger: process.env.NODE_ENV !== "test", maxParamLength: 512 }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
   jobBlocks.init().catch((err) => app.log.error(err, "job block store init failed"));
