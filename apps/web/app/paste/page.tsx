@@ -16,6 +16,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  confirmPasteTitle,
   ensureSession,
   linkInText,
   pasteJob,
@@ -54,6 +55,20 @@ const STEPS: Array<{ id: PasteStep; label: string }> = [
 const DONE_SR = "done";
 const NOW_SR = "in progress";
 
+// #400 — the text named no title line. He is asked BEFORE the title is used anywhere (ADR-0008: a
+// worked-out title is told apart from a read one and put to the person). Two openings, one field.
+const TITLE_H_SUGGESTED = "We think this job is called";
+const TITLE_H_SUGGESTED_ASK = "Is that right?";
+const TITLE_H_NONE = "We could not find the job title. What is the job called?";
+const TITLE_WHY = "The text has no title line, so we worked this one out from what it says. You can change it.";
+const TITLE_LABEL = "Job title";
+const TITLE_CONFIRM = "Use this title";
+const TITLE_GONE: PasteFailure = {
+  code: "paste_gone",
+  cameBack: "That read is no longer waiting for a title — it was lost while you were answering.",
+  fix: "Press Read it again — your text is still here, and nothing was lost.",
+};
+
 const FAIL_H = "That did not come back as a job";
 const FAIL_CAME = "What came back";
 const FAIL_FIX = "What usually fixes it";
@@ -79,6 +94,12 @@ export default function PasteScreen() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<PasteProgress | null>(null);
   const [failure, setFailure] = useState<PasteFailure | null>(null);
+  // #400: his answer to the title question. Pre-filled with the worked-out title when the
+  // question arrives; the job it answers is the one the stream is watching.
+  const [title, setTitle] = useState("");
+  const [sending, setSending] = useState(false);
+  const jobIdRef = useRef<string | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   // The pre-fill may only ever happen to a field he has not touched — once he types (or clears) it,
   // the answer is his. Tracked in a ref, not state: nothing renders differently because of it.
   const linkTouched = useRef(false);
@@ -104,6 +125,13 @@ export default function PasteScreen() {
   useEffect(() => {
     if (failure) failureRef.current?.focus();
   }, [failure]);
+
+  // #400: a question that replaced the step list is a question he has to be taken to — the same
+  // rule as the failure block above. Keyed to the committed state, never to the event.
+  const asking = progress?.step === "title";
+  useEffect(() => {
+    if (asking) titleRef.current?.focus();
+  }, [asking]);
 
   const onText = (value: string) => {
     setText(value);
@@ -131,6 +159,7 @@ export default function PasteScreen() {
     watchdogRef.current = setTimeout(() => failWith(FALLBACK_FAILURE), WAIT_CEILING_MS);
     try {
       const { jobId } = await pasteJob(text, link.trim() || null);
+      jobIdRef.current = jobId;
       // The front door's own stream, unchanged (apps/web/app/page.tsx): one event per update, the
       // current state replayed on connect, and closed by the server when the job is terminal — so
       // a read that finished before this attached still reports its outcome.
@@ -148,6 +177,9 @@ export default function PasteScreen() {
         }
         const paste = snapshot.progress.paste;
         if (paste) setProgress(paste);
+        // #400: the read paused on the title. The worked-out title goes into the field as the
+        // starting answer; nothing is stored until he answers, and the stream stays open for it.
+        if (paste?.step === "title") setTitle(paste.suggested ?? "");
         if (snapshot.status === "completed" && paste?.result) {
           source.close();
           clearTimeout(watchdogRef.current);
@@ -164,6 +196,22 @@ export default function PasteScreen() {
       };
     } catch (e) {
       failWith({ ...FALLBACK_FAILURE, cameBack: e instanceof Error ? e.message : FALLBACK_FAILURE.cameBack });
+    }
+  };
+
+  /** #400 — his answer. The same read resumes on the same job; the stream already open carries
+   *  the three steps from here, so nothing new is watched. A read that is gone (the API restarted
+   *  while he typed) gets the usual failed-read state, with his text kept. */
+  const answerTitle = async () => {
+    const jobId = jobIdRef.current;
+    if (!jobId || title.trim().length === 0) return;
+    setSending(true);
+    try {
+      await confirmPasteTitle(jobId, title.trim());
+    } catch {
+      failWith(TITLE_GONE);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -246,6 +294,41 @@ export default function PasteScreen() {
             <h2>{PANEL_H}</h2>
             {!progress ? (
               <p className="empty">{PANEL_EMPTY}</p>
+            ) : asking ? (
+              /* #400 — the question, in place of the step list. A form, so Enter answers it. */
+              <form
+                className="titleask"
+                data-testid="paste-title-ask"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void answerTitle();
+                }}
+              >
+                <h3>
+                  {progress.suggested ? (
+                    <>
+                      {TITLE_H_SUGGESTED} <q>{progress.suggested}</q>. {TITLE_H_SUGGESTED_ASK}
+                    </>
+                  ) : (
+                    TITLE_H_NONE
+                  )}
+                </h3>
+                {progress.suggested && <p className="why">{TITLE_WHY}</p>}
+                <div className="field">
+                  <label htmlFor="jobtitle">{TITLE_LABEL}</label>
+                  <input
+                    id="jobtitle"
+                    ref={titleRef}
+                    type="text"
+                    value={title}
+                    disabled={sending}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="go" disabled={sending || title.trim().length === 0}>
+                  {TITLE_CONFIRM}
+                </button>
+              </form>
             ) : (
               <>
                 <ol className="steps">

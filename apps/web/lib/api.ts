@@ -1118,17 +1118,22 @@ export interface PasteResult {
 
 /** #304 — the three named steps, in the order the server runs them. The labels the screen prints
  *  are the paste screen's own (this is the wire, not the copy). */
-export type PasteStep = "reading" | "employer" | "profile";
+export type PasteStep = "reading" | "employer" | "profile" | "title";
 
 /** What the paste screen watches while the advert is being read, off `progress.paste` of the same
  *  job/progress record the front door's CV read already streams. */
 export interface PasteProgress {
+  /** #400: `title` is a pause, not a step — the text named no title and the read waits for his
+   *  answer (`confirmPasteTitle`) before anything is stored. */
   step: PasteStep;
   /** The advert's own requirements, published the moment they are read — before anything is
    *  scored, which is the property this whole panel exists to make visible. */
   requirements: string[];
   /** What the employer lookup said, or null when it had nothing to add. */
   employer: string | null;
+  /** #400, with `step: "title"`: the title worked out from the text, to confirm or replace — or
+   *  null when none could be, and the field starts empty. */
+  suggested?: string | null;
   result?: PasteResult;
   failure?: PasteFailure;
 }
@@ -1150,6 +1155,15 @@ export function pasteJob(text: string, applicationUrl: string | null): Promise<{
   return jfetch("/api/onboarding/paste", {
     method: "POST",
     body: JSON.stringify({ text, applicationUrl }),
+  });
+}
+
+/** #400 — answers the title question; the same read resumes on the same job and the stream the
+ *  screen is already watching carries on. 404 (`paste_gone`) when nothing is waiting any more. */
+export function confirmPasteTitle(jobId: string, title: string): Promise<{ jobId: string }> {
+  return jfetch(`/api/onboarding/paste/${encodeURIComponent(jobId)}/title`, {
+    method: "POST",
+    body: JSON.stringify({ title }),
   });
 }
 

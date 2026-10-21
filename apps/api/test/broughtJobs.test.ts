@@ -67,6 +67,7 @@ interface ServerOpts {
 function broughtServer(opts: ServerOpts = {}) {
   const readPastedAdvert = vi.fn(async (text: string) => ({
     title: text.split("\n")[0]!.trim(),
+    titleSource: "stated" as const,
     company: "Gradion",
     location: "Hong Kong",
     closingDate: opts.closingDate ?? null,

@@ -376,6 +376,7 @@ function workRightsServer(extras: AdRequirementsV1["requirements"] = []) {
       // #307's brought arm pastes an advert; the header stub plays the model's part (#303's seam).
       readPastedAdvert: async () => ({
         title: "Regional PM",
+        titleSource: "stated" as const,
         company: "Pasted Co",
         location: HK_LOCATION,
         closingDate: null,
@@ -871,6 +872,7 @@ function honestZeroServer() {
         posting.company === "Pasted Co" ? marketingAd(posting.id) : null,
       readPastedAdvert: async () => ({
         title: "Field Marketing Lead",
+        titleSource: "stated" as const,
         company: "Pasted Co",
         location: HK_LOCATION,
         closingDate: null,

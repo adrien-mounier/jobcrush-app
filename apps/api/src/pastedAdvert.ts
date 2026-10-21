@@ -89,7 +89,13 @@ function pastedAdvertPrompt(): string {
  *  those, unchanged, off the posting this builds. */
 export const PastedAdvertHeader = z
   .object({
-    title: z.string().trim().min(1),
+    /** #400: null when the text names no title and none can be worked out from it. */
+    title: z.string().trim().min(1).nullable(),
+    /** #400 (ADR-0008): where the title came from — read off a title line, or worked out from the
+     *  duties and headings. A worked-out title is put to the person before it is used anywhere;
+     *  only a stated one is trusted on its own. Required, never defaulted: a model that does not
+     *  say which it did has not told us whether the title is a fact it read. */
+    titleSource: z.enum(["stated", "worked-out"]),
     company: z.string().trim().min(1),
     location: z.string().trim().min(1),
     // The prompt asks for YYYY-MM-DD. A model that answers something else has not given us a date
@@ -170,6 +176,10 @@ export interface PasteAdvertInput {
   text: string;
   /** What he typed in the link field — already pre-filled from the text by the paste screen. */
   applicationUrl?: string | null;
+  /** #400 — a resumed paste: the header already read (paid for once, before the title question
+   *  parked the read) and the title the person confirmed or typed. Both or neither. */
+  header?: PastedAdvertHeader;
+  confirmedTitle?: string;
 }
 
 export type PasteAdvertRefusal =
@@ -180,7 +190,11 @@ export type PasteAdvertRefusal =
 
 export type PasteAdvertOutcome =
   | { ok: true; adId: string; posting: Posting; reused: boolean; pastedAt: string }
-  | { ok: false; reason: PasteAdvertRefusal };
+  | { ok: false; reason: PasteAdvertRefusal }
+  /** #400 — the text names no title (ADR-0008: a title the reader worked out is not a title it
+   *  read). Nothing is stored yet — the title is part of the job's id — and the caller asks the
+   *  person, then calls again with `header` and `confirmedTitle`. */
+  | { ok: false; reason: "title_needed"; suggested: string | null; header: PastedAdvertHeader };
 
 /**
  * The whole paste path. Returns the canonical posting id he is then sent to (#291 ruling: the door
@@ -223,14 +237,22 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
     // by #306), and a silent backfill here would be a second, invisible way to set the same field.
     record = existing;
   } else {
-    if (!deps.readPastedAdvert) return { ok: false, reason: "reader_unavailable" };
-    const header = await deps.readPastedAdvert(text, now);
-    if (!header) return { ok: false, reason: "unreadable" };
+    let header = input.header;
+    if (!header) {
+      if (!deps.readPastedAdvert) return { ok: false, reason: "reader_unavailable" };
+      header = (await deps.readPastedAdvert(text, now)) ?? undefined;
+      if (!header) return { ok: false, reason: "unreadable" };
+    }
+    // #400: only a title READ off a title line is used unasked. A worked-out one, or none, is put
+    // to the person first — and nothing is stored until then, because the title is in the id.
+    const title =
+      input.confirmedTitle?.trim() || (header.titleSource === "stated" ? header.title : null);
+    if (!title) return { ok: false, reason: "title_needed", suggested: header.title, header };
     record = await deps.postings.upsert({
       schemaVersion: "4",
       providerId: PASTED_SOURCE_PROVIDER_ID,
       providerPostingId: fingerprint,
-      title: header.title,
+      title,
       company: header.company,
       location: header.location,
       sourceUrl: sourceMarkerFor(fingerprint),

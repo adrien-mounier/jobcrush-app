@@ -11,6 +11,10 @@ immediately after this one on the posting this answer builds.
 Kept deliberately small for that reason. Widening it would fork the reading of an advert into two
 prompts that each know a little about requirements, and the fetched and pasted paths would drift.
 
+#400 added `titleSource` (ADR-0008: a title READ off a title line and one WORKED OUT from the text are
+different arrivals; only the first is used unasked — the paste route puts a worked-out one to the
+person before anything is stored, since the title is part of the job's id).
+
 The one extra field is the closing date (#294 clause 4): an employer-stated "applications close on
 …" is the ONLY genuine liveness signal a pasted advert can ever carry — nobody can re-fetch it to
 check — and it is free in text this call already reads. It lands in the posting's existing
@@ -24,7 +28,8 @@ Answer with ONE JSON object and nothing else — no preamble, no code fence, no 
 
 ```
 {
-  "title": "the job title, as the advert words it",
+  "title": "the job title, as the advert words it — or null",
+  "titleSource": "stated" or "worked-out",
   "company": "the employer's name",
   "location": "where the job is, as the advert words it",
   "closingDate": "YYYY-MM-DD, or null"
@@ -41,8 +46,14 @@ Rules:
 - **Location.** Use the most specific place the advert states (city, or city and country). If it
   says the role is remote, say so in the advert's own words ("Remote", "Remote — Australia"). If
   the advert states no location at all, answer `"Location not stated"`.
-- **Title.** If the advert states no job title at all, answer `"Title not stated"`. Do not infer one
-  from the duties.
+- **Title, and where it came from.** When the advert carries a title line — a heading, a "Job
+  title:" line, "We are hiring a …" — copy it and answer `"titleSource": "stated"`. When it carries
+  none (a text copied from the body of a posting often starts at "About the role"), work the title
+  out from the text — a role heading, the duties, "the X will…", "as our X you will…" — give it as
+  the advert would have worded it, and answer `"titleSource": "worked-out"`. The person is shown a
+  worked-out title and asked to confirm it before it is used, so prefer a plain, likely title over
+  none. Only when nothing in the text says what the job is, answer `"title": null` with
+  `"titleSource": "worked-out"`. Never answer a placeholder in place of a title.
 - **closingDate is the date the EMPLOYER said applications close** — "applications close 15 October",
   "closing date: 2026-10-15", "apply by 15/10/2026". Convert it to `YYYY-MM-DD`.
   - A date with no year means the next occurrence of that date from today, {{TODAY}}.
@@ -50,8 +61,9 @@ Rules:
     is **not** a closing date. Answer `null`.
   - If there is no stated closing date, answer `null`. Never estimate one: this date is shown to the
     person as a fact the employer stated, and a guess would read as one.
-- Every one of the four keys must be present. Three are non-empty strings; `closingDate` is a string
-  or `null`.
+- Every one of the five keys must be present. `company` and `location` are non-empty strings;
+  `title` is a non-empty string or `null`; `titleSource` is exactly `"stated"` or `"worked-out"`;
+  `closingDate` is a string or `null`.
 
 The advert:
 
