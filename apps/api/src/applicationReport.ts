@@ -110,6 +110,10 @@ export interface ReportContext {
   /** #292 r9: a market he has no work-rights fact for, on an advert that does not ask — named as
    *  something to check, in prose, never scored. null when the market is known or unplaceable. */
   marketToCheck: string | null;
+  /** #401: the lookup could not place the job's location, so nothing about work rights was
+   *  checked — said plainly, unless the advert asks about work rights itself (then the requirement
+   *  row already says "check it"). */
+  locationUnplaced: boolean;
 }
 
 /**
@@ -158,6 +162,7 @@ export function reportContext(args: {
     ageing: args.broughtJob?.ageing ?? null,
     marketToCheck:
       market && !advertAsksWorkRights && !findWorkRightsFact(facts, posting.location) ? market : null,
+    locationUnplaced: market === null && !advertAsksWorkRights,
   };
 }
 
@@ -167,6 +172,8 @@ export interface ApplicationReport {
   applicationUrl: string | null;
   ageing: string | null;
   marketToCheck: string | null;
+  /** Absent on a report checkpointed before #401 — read as false; the next draft writes it. */
+  locationUnplaced?: boolean;
   jobInShort: string;
   salary: string | null;
   strong: { requirement: string; say: string }[];
@@ -339,6 +346,7 @@ export async function writeApplicationReport(
         applicationUrl: ctx.applicationUrl,
         ageing: ctx.ageing,
         marketToCheck: ctx.marketToCheck,
+        locationUnplaced: ctx.locationUnplaced,
         jobInShort: doc.jobInShort,
         salary: quotedFromAdvert(doc.salary, posting.excerpt),
         strong,
@@ -374,6 +382,7 @@ export const REPORT_LINES = {
   noSalary: "The advert does not state a salary.",
   market: (market: string) =>
     `This job is in ${market}. We have not checked whether you can work there — check it before you apply.`,
+  locationUnknown: "Job location unknown. We have not checked whether you can work there. Check it before you apply.",
   nothingStrong: "None of the advert's requirements is covered by your facts yet.",
   nothingOpen: "Every requirement the advert states is covered.",
   nothingToExplain: "Nothing more came up to prepare.",
@@ -382,7 +391,7 @@ export const REPORT_LINES = {
 
 /** The email body: five sections, in this order, and nothing else. The attachment is named in one
  *  opening line; the ship-and-tell notices (a document that left with a known loss, #313/#314)
- *  ride at the end of "Be ready to explain", in the email as well as on the screen. */
+ *  ride right under it, before section 1, so he reads them before he opens the PDF (#401). */
 export function reportEmailText(
   report: ApplicationReport,
   posting: Posting,
@@ -400,17 +409,21 @@ export function reportEmailText(
     ...report.gaps.map((g) => `${g.requirement} — ${g.say ? `say: "${g.say}"` : REPORT_LINES.expectIt}`),
     ...report.unchecked.map((u) => `${u} — ${REPORT_LINES.unchecked}`),
   ];
-  const explain = [...report.explain, ...(report.marketToCheck ? [REPORT_LINES.market(report.marketToCheck)] : [])];
+  const explain = [
+    ...report.explain,
+    ...(report.marketToCheck ? [REPORT_LINES.market(report.marketToCheck)] : []),
+    ...(report.locationUnplaced ? [REPORT_LINES.locationUnknown] : []),
+  ];
   const checks = notices.length
-    ? `\n\n${REPORT_LINES.checkBeforeSending}\n${notices.map((n) => `- ${n}`).join("\n")}`
+    ? `${REPORT_LINES.checkBeforeSending}\n${notices.map((n) => `- ${n}`).join("\n")}\n\n`
     : "";
   return (
     `Your CV for ${posting.title} at ${posting.company} is attached (${pages} page${pages === 1 ? "" : "s"}, PDF). ` +
-    `Read it, then send it yourself when you are ready.\n\n` +
+    `Read it, then send it yourself when you are ready.\n\n${checks}` +
     `1. The job, in short\n${job}\n\n` +
     `2. Where you are strong\n${bullets(report.strong.map((s) => `${s.requirement} — say: "${s.say}"`), REPORT_LINES.nothingStrong)}\n\n` +
     `3. Where you are not, and what to say\n${bullets(notYet, REPORT_LINES.nothingOpen)}\n\n` +
-    `4. Be ready to explain\n${bullets(explain, REPORT_LINES.nothingToExplain)}${checks}\n\n` +
+    `4. Be ready to explain\n${bullets(explain, REPORT_LINES.nothingToExplain)}\n\n` +
     `5. Salary\n${report.salary ?? REPORT_LINES.noSalary}\n`
   );
 }

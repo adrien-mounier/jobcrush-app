@@ -12,8 +12,9 @@
 //   5  (only when MAIL_LOG names the file the API's mail-recording wrapper writes) the email bodies:
 //      five numbered sections in order and nothing else; section 1 opens on the apply line — "No
 //      apply link was saved for this job." on the found job, "Apply here: <link>" on the pasted one —
-//      and the pasted one carries its ageing line. On a QA_PDF_PAGES=3 stack the shortening notice
-//      rides at the end of section 4 under "Check before you send the CV:".
+//      and the pasted one carries its ageing line; the pasted job is in Brussels, which the lookup
+//      cannot place, so section 4 says "Job location unknown" (#401). On a QA_PDF_PAGES=3 stack the
+//      shortening notice rides on top, under "Check before you send the CV:", before section 1 (#401).
 //
 // The DevMailer prints only the subject; MAIL_LOG is optional so this journey also runs in CI
 // against plain qa-main, where steps 1-4 still hold and step 5 is noted as skipped.
@@ -118,7 +119,7 @@ async function pressAndWait(note) {
 }
 
 /** The email body's five sections, checked in order and alone. */
-async function checkBody(text, label, { firstLine, ageing, pages }) {
+async function checkBody(text, label, { firstLine, ageing, pages, locationUnknown }) {
   const at = HEADINGS.map((h) => text.indexOf(h));
   await assert(at.every((i) => i >= 0), `${label}: all five section headings are in the email`);
   await assert([...at].sort((a, b) => a - b).join() === at.join(), `${label}: the five sections are in order`);
@@ -132,10 +133,19 @@ async function checkBody(text, label, { firstLine, ageing, pages }) {
   }
   const s5 = text.slice(at[4]);
   await assert(s5.includes('The advert does not state a salary.'), `${label}: section 5 says plainly the advert states no salary`);
+  const s4 = text.slice(at[3], at[4]);
+  const unknown = 'Job location unknown. We have not checked whether you can work there. Check it before you apply.';
+  // Pinned only where the journey knows the place: the found job is whichever card ranked first.
+  if (locationUnknown !== undefined)
+    await assert(s4.includes(unknown) === locationUnknown,
+      `${label}: section 4 ${locationUnknown ? 'says' : 'does not say'} "Job location unknown"`);
+  await assert(!s4.includes('Check before you send the CV:'), `${label}: section 4 carries no notice`);
+  const top = text.slice(0, at[0]);
   if (pages > 2) {
-    const s4 = text.slice(at[3], at[4]);
-    await assert(s4.includes('Check before you send the CV:') && /pages/.test(s4.split('Check before you send the CV:')[1] ?? ''),
-      `${label}: the page notice rides at the end of section 4 under "Check before you send the CV:"`);
+    await assert(top.includes('Check before you send the CV:') && /pages/.test(top.split('Check before you send the CV:')[1] ?? ''),
+      `${label}: the page notice rides on top under "Check before you send the CV:", before section 1`);
+  } else {
+    await assert(!text.includes('Check before you send the CV:'), `${label}: no notice, so no "Check before you send" heading`);
   }
 }
 
@@ -224,7 +234,7 @@ else {
   await qa.note(`found-job email:\n${sent[0].text}`);
   await checkBody(sent[0].text, 'found job', { firstLine: 'No apply link was saved for this job.', pages: found.pages });
   await qa.note(`pasted-job email:\n${sent[2].text}`);
-  await checkBody(sent[2].text, 'pasted job', { firstLine: `Apply here: ${LINK}`, ageing: true, pages: pasted.pages });
+  await checkBody(sent[2].text, 'pasted job', { firstLine: `Apply here: ${LINK}`, ageing: true, pages: pasted.pages, locationUnknown: true });
 }
 
 const ok = await qa.finish();
