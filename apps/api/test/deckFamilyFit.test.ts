@@ -154,14 +154,14 @@ describe("#243 partitionByFamilyFit / confidence ranking (unit)", () => {
   // card's own, untouched.
   it("a weak family-fit confidence sinks a card's rank without touching its score", () => {
     const ordered = orderCardsForReveal([
-      { card: { adId: "strong-but-unsure", matchPct: 80, scored: "judged" as const }, curated: false, familyConfidence: 0.5 },
-      { card: { adId: "weaker-but-sure", matchPct: 60, scored: "judged" as const }, curated: false, familyConfidence: 0.95 },
+      { card: { adId: "strong-but-unsure", matchPct: 80, scored: "judged" as const }, curated: false, rankWeight: 0.5 },
+      { card: { adId: "weaker-but-sure", matchPct: 60, scored: "judged" as const }, curated: false, rankWeight: 0.95 },
     ]);
     expect(ordered.map((card) => card.adId)).toEqual(["weaker-but-sure", "strong-but-unsure"]);
     expect(ordered.map((card) => card.matchPct)).toEqual([60, 80]); // ranking only — scores intact
   });
 
-  it("without familyConfidence (a word deck) the ordering is exactly the pre-#243 score sort", () => {
+  it("without rankWeight (a word deck) the ordering is exactly the pre-#243 score sort", () => {
     const ordered = orderCardsForReveal([
       { card: { adId: "second", matchPct: 60, scored: "judged" as const }, curated: false },
       { card: { adId: "first", matchPct: 80, scored: "judged" as const }, curated: false },

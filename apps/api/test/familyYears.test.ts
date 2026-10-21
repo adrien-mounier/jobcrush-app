@@ -14,6 +14,8 @@ import type { FamilyPlacement, MinedJobBlock, PlacementConfidence } from "@jobcr
 // reaches them. See fixtureDeck.ts.
 import { buildDeckServer as buildServer, injectSettled, liveIdFor } from "./fixtureDeck.js";
 import type { JudgeFn } from "../src/judge.js";
+import { orderCardsForReveal, rankAttenuation, type SessionYears } from "../src/deck.js";
+import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import { makeJobBlockLabeler } from "../src/familyLabeler.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
@@ -390,26 +392,94 @@ describe("#222 an advert's years bars are tested at their own scope (API surface
 
 // --- the confidence attenuation, on a real card score ------------------------------------------
 
-describe("#222 confidence attenuates the card's score (#231 AC6, owner weights x1.0/x0.9/x0.75)", () => {
+// #397 rewrote this block: the attenuation is a deck-ORDERING weight (rankAttenuation →
+// orderCardsForReveal), never the number printed on the card. Until #397 these tests pinned the
+// attenuated number on the deck card while the tailor screen printed the raw one — one job, two
+// scores (79% / 59% on staging). The displayed number is now asserted raw at every confidence, and
+// the owner's weights are asserted on the rank.
+describe("#222 confidence sinks the card's deck rank (#231 AC6, owner weights x1.0/x0.9/x0.75) — #397: never its displayed score", () => {
   const cardAt = async (confidence: PlacementConfidence) =>
     compoundCard(await seededDeck([block("b1", 2016, 2023)], { b1: placed([FAMILY], confidence) }));
 
-  it("likely scores lower than certain, and possible lower still — at exactly the owner's weights", async () => {
-    const certain = await cardAt("certain");
-    const likely = await cardAt("likely");
-    const possible = await cardAt("possible");
-    expect(certain?.matchPct).toBe(100); // 8y in family, judge found everything
-    expect(likely?.matchPct).toBe(90); // x0.9 — an 80% card would read 72%
-    expect(possible?.matchPct).toBe(75); // x0.75 — the owner's own worked case
+  it("#397 the number on the card is the raw judged tick at every confidence", async () => {
+    expect((await cardAt("certain"))?.matchPct).toBe(100); // 8y in family, judge found everything
+    expect((await cardAt("likely"))?.matchPct).toBe(100); // not 90
+    expect((await cardAt("possible"))?.matchPct).toBe(100); // not 75 — the owner's own worked case
   });
 
-  it("attenuation fires on the SHIPPED journey too — target-role placement alone, no pinned floor (QA finding 1)", async () => {
+  const familyBarAd = {
+    schemaVersion: "1",
+    adId: "ad",
+    language: "en",
+    familyFit: { family: FAMILY, confidence: 0.9 },
+    requirements: [
+      {
+        id: "r1",
+        band: "essential",
+        kind: "ordinary",
+        requirement: "5+ years as a project manager",
+        comparable: { op: ">=", value: 5 },
+        eligibilityDimension: "years-experience",
+        yearsScope: "family",
+        sourceSpan: "5+ years as a project manager",
+      },
+    ],
+  } as AdRequirementsV1;
+  const factYears = (familyConfidence: PlacementConfidence): SessionYears => ({
+    total: 8,
+    family: 8,
+    familySource: "fact",
+    familyConfidence,
+  });
+
+  it("likely ranks below certain, and possible lower still — at exactly the owner's weights", () => {
+    expect(rankAttenuation(familyBarAd, factYears("certain"))).toBe(1);
+    expect(rankAttenuation(familyBarAd, factYears("likely"))).toBe(0.9);
+    expect(rankAttenuation(familyBarAd, factYears("possible"))).toBe(0.75);
+    // On the deck: an 80% card we are only `possible` about (rank 60) sits below a 70% certain one.
+    const ordered = orderCardsForReveal([
+      {
+        card: { adId: "possible-80", matchPct: 80, scored: "judged" as const },
+        curated: false,
+        rankWeight: rankAttenuation(familyBarAd, factYears("possible")),
+      },
+      {
+        card: { adId: "certain-70", matchPct: 70, scored: "judged" as const },
+        curated: false,
+        rankWeight: rankAttenuation(familyBarAd, factYears("certain")),
+      },
+    ]);
+    expect(ordered.map((c) => c.adId)).toEqual(["certain-70", "possible-80"]);
+    expect(ordered.map((c) => c.matchPct)).toEqual([70, 80]); // ranking only — scores intact
+  });
+
+  it("an advert with no family-scope years bar leans on no placement — weight 1 whatever the confidence", () => {
+    const noBar = { ...familyBarAd, requirements: [] } as AdRequirementsV1;
+    expect(rankAttenuation(noBar, factYears("possible"))).toBe(1);
+  });
+
+  it("the raw number holds on the SHIPPED journey too — target-role placement alone, no pinned floor (QA finding 1)", async () => {
     const shipped = await seededDeck(
       [block("b1", 2016, 2023)],
       { b1: placed([FAMILY], "possible") },
       "placement",
     );
-    expect((await compoundCard(shipped))?.matchPct).toBe(75);
+    expect((await compoundCard(shipped))?.matchPct).toBe(100);
+  });
+
+  it("#397 one job, one number: the deck card and the tailor state carry the same matchPct", async () => {
+    const harness = await seededDeck([block("b1", 2016, 2023)], { b1: placed([FAMILY], "possible") });
+    const deckCard = await compoundCard(harness);
+    expect(deckCard?.scored).toBe("judged");
+    const { app, cookie } = harness;
+    const link = await app.inject({ method: "POST", url: "/auth/request-link", headers: { cookie }, payload: { email: "one-number@example.com" } });
+    const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
+    await app.inject({ method: "POST", url: "/auth/verify", headers: { cookie }, payload: { token } });
+    const want = await app.inject({ method: "POST", url: `/onboarding/cards/${COMPOUND_AD}/want`, headers: { cookie } });
+    expect(want.statusCode).toBe(200);
+    const tailor = await app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
+    expect(tailor.statusCode).toBe(200);
+    expect(tailor.json().card.matchPct).toBe(deckCard?.matchPct);
   });
 
   it("no card is withdrawn or filtered by confidence — a possible placement sinks a card, never removes it", async () => {
@@ -424,17 +494,11 @@ describe("#222 confidence attenuates the card's score (#231 AC6, owner weights x
     expect(res.payload).not.toMatch(/"confidence"|"possible"|"likely"|"certain"/);
   });
 
-  it("a zero or fallback family number rests on no placement — no attenuation applies", async () => {
-    // All jobs `possible` in the OTHER family: the advert's family number is a known zero derived
-    // from where the jobs are NOT, and no ordinal hedges that — the low score IS the message.
-    const knownZero = await seededDeck(
-      [block("b1", 2014, 2023)],
-      { b1: placed([OTHER], "possible") },
-    );
-    const certainZero = await seededDeck(
-      [block("b1", 2014, 2023)],
-      { b1: placed([OTHER], "certain") },
-    );
-    expect((await compoundCard(knownZero))?.matchPct).toBe((await compoundCard(certainZero))?.matchPct);
+  it("a zero or fallback family number rests on no placement — no attenuation applies", () => {
+    // A known zero is derived from where the jobs are NOT, and no ordinal hedges that — the low
+    // score IS the message; a fallback or unscoped number rests on no placement either.
+    for (const familySource of ["zero", "fallback", "unscoped"] as const) {
+      expect(rankAttenuation(familyBarAd, { total: 10, family: 0, familySource, familyConfidence: null })).toBe(1);
+    }
   });
 });

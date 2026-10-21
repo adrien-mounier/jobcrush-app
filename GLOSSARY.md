@@ -214,7 +214,8 @@ How sure the labeler is about a family placement — *certain / likely / possibl
 a number. It attenuates the **ranking** (a job we are less sure about sinks in the deck) and never
 the years fact, which stays a whole honest number. Nothing is ever filtered out by it. A person's
 own correction is always certain. Owner-decided weights: certain x1.0, likely x0.9, possible x0.75 —
-an 80% card reads 60% at *possible*, deliberately (ADR-0014 amendment 1 decision 5). Stored by #231,
+an 80% card ranks as 60 at *possible* while still reading 80% (ADR-0014 amendment 1 decision 5;
+#397: the weight orders the deck and never touches the printed number). Stored by #231,
 applied to a card's score by #222.
 _Avoid_: Confidence score, probability, match strength
 

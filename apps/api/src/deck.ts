@@ -163,14 +163,15 @@ const SCORE_TIER: Record<CardScoreProvenance, number> = { judged: 0, estimated: 
  *     ids. */
 export function orderCardsForReveal<T extends { matchPct: number | null; scored: CardScoreProvenance }>(
   // #243 decision 2's second half — confidence decides ORDER (identity already decided deletion,
-  // partitionByFamilyFit below). `familyConfidence` is the reader's own familyFit confidence,
-  // passed only when this deck HAS a family (a word-search deck ranks exactly as before): within a
-  // provenance tier a card ranks by matchPct × confidence, so an advert we are UNSURE belongs here
-  // is shown last rather than destroyed — the displayed matchPct itself is never touched.
-  entries: Array<{ card: T; curated: boolean; familyConfidence?: number }>,
+  // partitionByFamilyFit below). `rankWeight` is the reader's own familyFit confidence (passed only
+  // when this deck HAS a family — a word-search deck ranks exactly as before) times, since #397, the
+  // years-fact attenuation (rankAttenuation): within a provenance tier a card ranks by matchPct ×
+  // weight, so an advert we are UNSURE belongs here is shown last rather than destroyed — the
+  // displayed matchPct itself is never touched.
+  entries: Array<{ card: T; curated: boolean; rankWeight?: number }>,
 ): T[] {
-  const rank = (entry: { card: T; familyConfidence?: number }) =>
-    (entry.card.matchPct ?? 0) * (entry.familyConfidence ?? 1);
+  const rank = (entry: { card: T; rankWeight?: number }) =>
+    (entry.card.matchPct ?? 0) * (entry.rankWeight ?? 1);
   const scoreSorted = [...entries].sort((a, b) => {
     const tierDiff = SCORE_TIER[a.card.scored] - SCORE_TIER[b.card.scored];
     if (tierDiff !== 0) return tierDiff;
@@ -451,8 +452,8 @@ export function resolveUserYears(facts: readonly EligibilityFact[]): number | nu
  *  resolution of ADR-0014 amendment 1 decision 6, computed once per request and handed to every
  *  card. `familySource` says which rule produced `family`:
  *    - "fact":     the advert's family has a per-family years fact — placements back this number,
- *                  so their confidence (`familyConfidence`) may attenuate the CARD's score
- *                  (never the fact itself).
+ *                  so their confidence (`familyConfidence`) may sink the CARD's deck RANK
+ *                  (rankAttenuation — #397: never its displayed score, never the fact itself).
  *    - "zero":     every counting job is placed and none in the advert's family — a KNOWN zero,
  *                  scored as the real number it is, never softened to the career total.
  *    - "fallback": at least one counting job is unplaced/unmapped, so some years are genuinely
@@ -733,47 +734,14 @@ export function buildJobCard(
   const dontYet = (judgement ? judgedUncoveredRequirements(judgement.verdicts, adReq) : uncoveredRequirements(confirmed, adReq))
     .filter((r) => !negativeIds.has(r.id) && !notTestedIds.has(r.id))
     .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
-  // #222 / ADR-0014 amendment 1 decision 5 — the confidence attenuation's PRODUCTION CALLER (#231
-  // AC6's other half). When this card's score leaned on a per-family years FACT (a family-scope
-  // years bar tested against real placements), the weakest contributing placement's ordinal sinks
-  // the whole card's score at the owner's weights (x1.0 / x0.9 / x0.75): an 80% card reads 72% at
-  // `likely`, 60% at `possible`. Ranking only — the years fact is untouched, nothing is filtered,
-  // and no surface prints the level. A zero, fallback, or unscoped family number rests on no
-  // placement, so there is nothing for a confidence to hedge — left alone. Judged path only:
-  // family-scoped years never reach the deterministic estimated tick.
-  const leansOnFamilyFact =
-    years?.familySource === "fact" &&
-    years.familyConfidence !== null &&
-    adReq.requirements.some(isFamilyScopeYearsBar);
-  // #285 — the industry axis's own attenuation, same ranking-only rule: when an industry bar was
-  // answered by a per-industry FACT, closeness (near ×0.9) and that fact's weakest placement
-  // confidence (×1.0/×0.9/×0.75) compose by multiplication — a `possible` placement in a near
-  // industry reads ×0.675. A fallback, known-zero, or untestable bar rests on no placement, so
-  // nothing attenuates. The years fact itself is never touched, and nothing is ever filtered out.
-  // ponytail: across several industry bars the WEAKEST factor is taken once, mirroring the family
-  // rule's weakest-contributor shape; revisit if a real advert ever carries two industry bars.
-  let industryFactor = 1;
-  if (years?.industries) {
-    for (const req of adReq.requirements.filter(isIndustryScopeYearsBar)) {
-      const answer = answerIndustryBar(years, req);
-      if (answer.closeness === null) continue;
-      const weight =
-        CLOSENESS_WEIGHT[answer.closeness] * (answer.confidence ? CONFIDENCE_WEIGHT[answer.confidence] : 1);
-      industryFactor = Math.min(industryFactor, weight);
-    }
-  }
-  // Composed with the family attenuation and rounded ONCE, so the family-only path stays
-  // byte-identical to attenuateForConfidence's own rounding.
-  const attenuate = (pct: number): number =>
-    Math.round(
-      pct *
-        (leansOnFamilyFact && years?.familyConfidence ? CONFIDENCE_WEIGHT[years.familyConfidence] : 1) *
-        industryFactor,
-    );
+  // #397: the number on the card is the raw judged tick on EVERY surface (deck, job screen, paste
+  // result, tailor). The #222/#285 confidence and closeness attenuation moved out to rankAttenuation
+  // below — a deck-ordering weight only. Until #397 the deck card printed the attenuated number while
+  // the tailor screen printed the raw one: one job, two scores (79% there, 59% here).
   return {
     ...base,
     scored: judgement ? "judged" : "estimated",
-    matchPct: judgement ? attenuate(judgedMatchTick(judgement.verdicts, adReq)) : matchTick(confirmed, adReq),
+    matchPct: judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
     breakdown: judgement ? judgedBreakdown(judgement.verdicts, adReq) : matchBreakdown(confirmed, adReq),
     // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
     // so it can keep naming a requirement the visitor just declined. Take the open clause from the
@@ -784,6 +752,37 @@ export function buildJobCard(
     },
     dontYet,
   };
+}
+
+/** #222 / ADR-0014 amendment 1 decision 5 and #285 — the years-fact confidence and industry
+ *  closeness attenuation, as ONE deck-ordering weight (#397 moved it off the displayed number: the
+ *  card's matchPct is the raw judged tick everywhere, and this factor only feeds
+ *  orderCardsForReveal's rank). The family half: when the card leaned on a per-family years FACT (a
+ *  family-scope bar tested against real placements), the weakest contributing placement's ordinal
+ *  sinks the rank at the owner's weights (x1.0 / x0.9 / x0.75). The industry half: an industry bar
+ *  answered by a per-industry FACT composes closeness (near x0.9) with that fact's weakest placement
+ *  confidence by multiplication — a `possible` placement in a near industry weighs x0.675. A zero,
+ *  fallback, unscoped or untestable number rests on no placement, so nothing hedges it: factor 1.
+ *  The years fact itself is never touched, nothing is filtered, and no surface prints the level.
+ *  ponytail: across several industry bars the WEAKEST factor is taken once, mirroring the family
+ *  rule's weakest-contributor shape; revisit if a real advert ever carries two industry bars. */
+export function rankAttenuation(adReq: AdRequirementsV1, years: SessionYears | undefined): number {
+  const leansOnFamilyFact =
+    years?.familySource === "fact" &&
+    years.familyConfidence !== null &&
+    adReq.requirements.some(isFamilyScopeYearsBar);
+  const familyFactor = leansOnFamilyFact && years?.familyConfidence ? CONFIDENCE_WEIGHT[years.familyConfidence] : 1;
+  let industryFactor = 1;
+  if (years?.industries) {
+    for (const req of adReq.requirements.filter(isIndustryScopeYearsBar)) {
+      const answer = answerIndustryBar(years, req);
+      if (answer.closeness === null) continue;
+      const weight =
+        CLOSENESS_WEIGHT[answer.closeness] * (answer.confidence ? CONFIDENCE_WEIGHT[answer.confidence] : 1);
+      industryFactor = Math.min(industryFactor, weight);
+    }
+  }
+  return familyFactor * industryFactor;
 }
 
 /** #243 decision 1/2 — identity decides DELETION: an advert whose read-stamped familyFit names
@@ -937,13 +936,15 @@ export async function buildDeckCards(
           // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
           // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
           !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
-          years, // #162 AC6 untested-bar + #222 confidence attenuation, both in buildJobCard
+          years, // #162 AC6 untested-bar, in buildJobCard
         ),
         broughtById.get(entry.posting.id),
       ),
       curated: entry.adReq.curated,
       // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
-      ...(input.deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
+      // #397: the years-fact attenuation (#222/#285) rides on the same weight, never on the number.
+      rankWeight:
+        (input.deckFamilyId === null ? 1 : entry.adReq.familyFit.confidence) * rankAttenuation(entry.adReq, years),
     };
   });
   // #308: the deck card no longer asks the language ladder — the graded question moved into the
@@ -1272,10 +1273,6 @@ export function buildTailorState(
   // about a job he cannot legally take. Empty for every pre-#307 caller, whose state is unchanged.
   profileQuestions: TailorQuestion[] = [],
 ): TailorState {
-  // Deliberately the RAW judged tick — no family-confidence or industry-closeness attenuation
-  // (#222/#285): attenuation is a deck-RANKING device, not a per-job truth. Same rule the family
-  // floor comment at buildDeckCards states; restated here so nobody "fixes" the missing factor later.
-  const matchPct = judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq);
   const uncovered = judgement
     ? judgedUncoveredRequirements(judgement.verdicts, adReq)
     : uncoveredRequirements(confirmed, adReq);
@@ -1298,11 +1295,11 @@ export function buildTailorState(
   // card on demand with a full budget (resolveJudgement's default deadline above), so there is no
   // bound here to be excluded by; a failed/timed-out call still shows today's deterministic number,
   // now labelled rather than silent.
-  // Confidence deliberately STRIPPED here: attenuation is a deck-RANKING device (ADR-0014
-  // amendment 1 decision 5), and this surface shows one raw, honest number (#309 removed the
-  // monotonic floor that used to sit on top). One surface, one number.
-  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated",
-    years && { ...years, familyConfidence: null });
+  // #397: the same buildJobCard call the deck makes, on the same years — one job, one number. The
+  // attenuation (#222/#285) is a deck-RANKING weight (rankAttenuation) and never reaches a card's
+  // matchPct on any surface, so nothing needs stripping here any more (#309 removed the monotonic
+  // floor that used to sit on top).
+  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated", years);
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
   // the narrow slice of discoveryState's work this needs. Before Q1 (role null) discovery contributes
@@ -1311,7 +1308,7 @@ export function buildTailorState(
   const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
 
   return {
-    card: { ...card, matchPct },
+    card,
     questions,
     ledger,
     cvLines,

@@ -30,6 +30,8 @@ import {
   refreshWorkedYears,
 } from "../src/yearsWorked.js";
 import { answerIndustryBar, applyYearsShortfall, type YearsAtScopes } from "../src/judgedScore.js";
+import { rankAttenuation, type SessionYears } from "../src/deck.js";
+import type { AdRequirementsV1 } from "@jobcrush/contracts";
 
 const FAMILY = "it-project-delivery"; // the advert's family — kept satisfied so only the industry bar moves
 // The advert's industry bar (data/sample-ad-requirements.json): 8+ years in it-services.
@@ -364,6 +366,26 @@ describe("#285 answerIndustryBar", () => {
     });
   });
 
+  // #397: the ×0.9 / ×0.675 are deck-ORDERING weights (rankAttenuation → orderCardsForReveal), never
+  // the number printed on the card — asserted here on the weight, and below on the API surface as
+  // the untouched number.
+  it("#397 near sinks the card's deck rank ×0.9, and composes with placement confidence (possible × near = ×0.675)", () => {
+    const adReq = (req: ReturnType<typeof bar>) =>
+      ({ schemaVersion: "1", adId: "ad", language: "en", familyFit: { family: FAMILY, confidence: 0.9 }, requirements: [req] }) as AdRequirementsV1;
+    const sessionYears = (y: YearsAtScopes): SessionYears => ({ ...y, familySource: "fallback", familyConfidence: null });
+    expect(rankAttenuation(adReq(bar(EXACT)), sessionYears(years({ years: new Map([[EXACT, 8]]) })))).toBe(1);
+    expect(rankAttenuation(adReq(bar(EXACT)), sessionYears(years({ years: new Map([[NEAR, 8]]) })))).toBe(0.9);
+    expect(
+      rankAttenuation(
+        adReq(bar(EXACT)),
+        sessionYears(years({ years: new Map([[NEAR, 8]]), confidence: new Map([[NEAR, "possible"]]) })),
+      ),
+    ).toBeCloseTo(0.675, 10);
+    // far is a known zero and a fallback rests on no placement: nothing to hedge, weight 1.
+    expect(rankAttenuation(adReq(bar(EXACT)), sessionYears(years({ years: new Map([[FAR, 8]]) })))).toBe(1);
+    expect(rankAttenuation(adReq(bar(EXACT)), sessionYears(years({ years: new Map([[FAR, 8]]), hasUnplaced: true })))).toBe(1);
+  });
+
   it("an unmapped advert industry leaves every verdict completely untouched through applyYearsShortfall", () => {
     const verdicts = [{ requirementId: "r1", fit: 0.8, supportingFactId: null, reason: "t" }];
     const out = applyYearsShortfall(
@@ -386,11 +408,12 @@ describe("#285 the compound advert's industry bar is answered at its own scope (
     expect(card?.matchPct).toBe(100);
   });
 
-  it("NEAR: eight years in a same-group industry answer with the SAME whole number, and the card sinks ×0.9", async () => {
+  it("NEAR: eight years in a same-group industry answer with the SAME whole number — the card's NUMBER is untouched (#397)", async () => {
     const card = await compoundCard(await seededDeck(eightYears, { b1: placedIndustry([NEAR]) }));
     expect(card?.scored).toBe("judged");
-    // The years fact stayed whole (8 >= 8, no shortfall) — the ×0.9 is the card's ranking, not her years.
-    expect(card?.matchPct).toBe(90);
+    // The years fact stayed whole (8 >= 8, no shortfall) and the ×0.9 is the card's deck RANK
+    // (rankAttenuation, pinned above), never the displayed score — until #397 this read 90.
+    expect(card?.matchPct).toBe(100);
   });
 
   it("FAR: a career all in another group is a KNOWN zero — the bar fails, the card sinks but stays", async () => {
@@ -416,15 +439,15 @@ describe("#285 the compound advert's industry bar is answered at its own scope (
     expect(card?.matchPct).toBe(100); // total 8 >= 8; nothing attenuates a number resting on no placement
   });
 
-  it("closeness and placement confidence COMPOSE by multiplication: possible × near = ×0.675", async () => {
+  it("closeness and placement confidence never reach the displayed number either (#397 — the ×0.675 composition is a rank weight, pinned above)", async () => {
     const nearPossible = await compoundCard(
       await seededDeck(eightYears, { b1: placedIndustry([[NEAR, "possible"]]) }),
     );
     const exactPossible = await compoundCard(
       await seededDeck(eightYears, { b1: placedIndustry([[EXACT, "possible"]]) }),
     );
-    expect(exactPossible?.matchPct).toBe(75); // ×0.75 — confidence alone
-    expect(nearPossible?.matchPct).toBe(68); // ×0.675 — the spec's own worked case, rounded once
+    expect(exactPossible?.matchPct).toBe(100); // until #397: 75
+    expect(nearPossible?.matchPct).toBe(100); // until #397: 68
   });
 
   it("BOTH scopes at once: short in the family, full in the industry — the family bar is what fails", async () => {

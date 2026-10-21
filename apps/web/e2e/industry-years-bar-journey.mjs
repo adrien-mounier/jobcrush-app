@@ -4,23 +4,25 @@
 // A payload assertion does not prove a screen, so this drives the browser: paste a CV on the front
 // door -> the work-history check, where the industry is stated beside each employer -> read the
 // deck score -> correct ONE industry through the product's own picker -> read the deck again and
-// watch the card sink by exactly the owner's ×0.9, with her years number left whole.
+// check the card's NUMBER did not move, with her years number left whole.
 //
-// The headline proof is a BEFORE/AFTER on ONE session, because a score alone proves nothing:
+// #397 rewrote the headline: the near-industry ×0.9 is a deck-ORDERING weight (rankAttenuation,
+// pinned in apps/api/test/industryYears.test.ts) and never the number printed on the card — until
+// #397 the deck card printed the attenuated number while the tailor screen printed the raw one, so
+// one job showed two scores. So the BEFORE/AFTER on ONE session now proves:
 //   - BEFORE: her Baltic Systems job is honestly unplaced, so some years are genuinely unaccounted
-//     for and the generous career-total fallback answers the advert's "8+ years of IT" bar. A
-//     fallback rests on no placement, so nothing attenuates.
+//     for and the generous career-total fallback answers the advert's "8+ years of IT" bar.
 //   - She then corrects that job to `software` — a DIFFERENT industry in the SAME group as the
 //     advert's `it-services`. Her whole 11-year number now answers the bar (it never shrinks: the
-//     bar still passes, no shortfall either side), and the CARD is attenuated ×0.9 instead.
-//   - after === round(before × 0.9) is the only thing that can produce that number. Equal would
-//     mean the near-match attenuation never fired; anything else would mean the years fact moved.
+//     bar still passes, no shortfall either side), and the displayed score is unchanged.
+//   - after === before: anything else would mean the years fact moved, or the rank weight leaked
+//     back onto the displayed number.
 // Nothing else changes between the two reads: an industry correction touches no claim, so the
-// judge's cached verdicts are reused verbatim and the attenuation is the sole variable.
+// judge's cached verdicts are reused verbatim.
 //
 // Then a three-arm A/B over the wire — identical visitors, identical CV, identical corrections,
-// differing ONLY in the industry chosen — pins the rest of the table:
-//   exact (`it-services`) > near (`software`) > far (`banking`), near === round(exact × 0.9),
+// differing ONLY in the industry chosen — pins the rest of the table on the displayed number:
+//   exact (`it-services`) === near (`software`) > far (`banking`),
 //   and the FAR card is still in the deck: a card only ever sinks, it is never filtered out.
 //
 // Nothing is stubbed — real Fastify, real extraction, real miner parse, real job-block store, real
@@ -259,7 +261,7 @@ await qa.expectText('.jb-card .jb-industry', 'Industry: Software', 'ON THE SCREE
 await qa.scrollThrough('she reads the corrected card in full');
 
 // ================================================================================================
-// 5. THE HEADLINE — back to the deck, re-scored. Her years stayed whole; the CARD sank ×0.9.
+// 5. THE HEADLINE — back to the deck, re-scored. Her years stayed whole; the NUMBER did not move (#397).
 // ================================================================================================
 await qa.goto(`${BASE}/deck`, 'back to the deck to see what her correction did');
 const seeThem2 = page.getByRole('button', { name: 'See them' });
@@ -273,21 +275,22 @@ const after = await compoundCard();
 await qa.note(
   `AFTER — the same advert now scores ${after?.matchPct}% (was ${before?.matchPct}%). Every job she ` +
   `has is placed, none of them in the advert's "${EXACT}", but her "${NEAR}" job is in the SAME ` +
-  'group — so the bar is answered with her WHOLE years number and the card is attenuated ×0.9.',
+  'group — so the bar is answered with her WHOLE years number. The near-match ×0.9 is a deck-ORDERING ' +
+  'weight only (#397): the number on the card is the same on every screen.',
 );
 await verdict(
-  typeof after?.matchPct === 'number' && after.matchPct === Math.round(before.matchPct * 0.9),
-  `THE HEADLINE — the near-match card sank by exactly the owner's ×0.9: ` +
-  `${before?.matchPct}% -> ${after?.matchPct}% (= round(${before?.matchPct} × 0.9))`,
+  typeof after?.matchPct === 'number' && after.matchPct === before.matchPct,
+  `THE HEADLINE — the displayed number did not move: ` +
+  `${before?.matchPct}% -> ${after?.matchPct}% (#397: the ×0.9 orders the deck, it never touches the score)`,
 );
-await verdict(!!after, 'and the card is still in her deck — a near match SINKS, it is never withdrawn');
+await verdict(!!after, 'and the card is still in her deck — a near match SINKS in the order, it is never withdrawn');
 
 // Her years fact was never touched: the bar still passes whole. If the near match had shrunk her
-// years, the bar would have fallen short and the drop would be larger than a flat ×0.9 — which the
-// exact equality above already rules out. Stated here because it is the ticket's own promise.
+// years, the bar would have fallen short and the number would have dropped — which the exact
+// equality above already rules out. Stated here because it is the ticket's own promise.
 await qa.note(
   'her years number itself never moved: the bar passes in both readings (11 years >= 8), so the ' +
-  'ONLY difference between the two scores is the card attenuation — the fact stayed whole.',
+  'two scores are the same number — the fact stayed whole, and the ×0.9 lives only in the deck order.',
 );
 
 // ================================================================================================
@@ -378,30 +381,29 @@ await verdict(
   `the unattenuated fallback reading produced (${before?.matchPct}%), nothing shaved off`,
 );
 await verdict(
-  typeof pctNear === 'number' && typeof pctExact === 'number' && pctNear === Math.round(pctExact * 0.9),
+  typeof pctNear === 'number' && typeof pctExact === 'number' && pctNear === pctExact,
   `NEAR — a different industry in the same group is answered with the SAME whole years number and ` +
-  `the card sinks ×0.9: ${pctExact}% -> ${pctNear}%`,
+  `the displayed score is the same: ${pctExact}% -> ${pctNear}% (#397: the ×0.9 is a deck-ordering weight only)`,
 );
 await verdict(
   typeof pctFar === 'number' && typeof pctExact === 'number' && pctFar < pctExact,
   `FAR — a career in another group contributes NOTHING to this bar (a known zero), so the bar is ` +
   `scored against 0 and the card falls: ${pctExact}% -> ${pctFar}%`,
 );
-// Recorded, not asserted: a FAILED BAR and a CARD ATTENUATION are two independent mechanisms, and
+// Recorded, not asserted: a FAILED BAR and a RANK ATTENUATION are two independent mechanisms, and
 // neither is derived from the other. On this advert the industry bar sits in the lowest band
 // (`nice-to-have`, 1 of 8 requirements), so a known zero costs only that band's share (~3 points)
-// while the near match's ×0.9 costs the whole card (~5 points) — which puts the NEAR card BELOW the
-// FAR one. No acceptance criterion in #285 orders near against far, and the spec sets the ×0.9 as
-// the near penalty without reference to the far case, so this is behaviour-as-specified rather than
-// a defect. It is surfaced here because it is the ranking a person would actually see, and whether
-// a transferable career should ever rank under an unrelated one is the owner's call, not this
+// of the NUMBER, while the near match's ×0.9 costs the whole card's deck RANK (#397: never its
+// number) — which can still put the NEAR card BELOW the FAR one in the deck order. No acceptance
+// criterion in #285 orders near against far, and the spec sets the ×0.9 as the near penalty without
+// reference to the far case, so this is behaviour-as-specified rather than a defect. Whether a
+// transferable career should ever rank under an unrelated one is the owner's call, not this
 // flow's. If the weights are ever revisited, this note is where the evidence lives.
 await qa.note(
-  `ORDERING, for the record: exact ${pctExact}% > far ${pctFar}% > near ${pctNear}%. A known zero on ` +
-  `a nice-to-have bar costs less than a whole-card ×0.9, so on THIS advert the near-industry ` +
-  `candidate ranks just below the far-industry one. Every #285 criterion still holds — the bar was ` +
-  `zeroed for far, answered whole for near, and no card was withdrawn — but the relative order of ` +
-  `near and far is set by two independent mechanisms and is not something the spec pins down.`,
+  `NUMBERS, for the record: exact ${pctExact}% = near ${pctNear}% > far ${pctFar}%. The deck ORDER is ` +
+  `a different question (rankAttenuation, pinned in apps/api/test/industryYears.test.ts): a known ` +
+  `zero on a nice-to-have bar costs the number ~3 points, a near match costs the rank ×0.9, so on ` +
+  `THIS advert the near-industry candidate can order just below the far-industry one.`,
 );
 await verdict(
   !!armFar.card && armFar.deckSize > 0,

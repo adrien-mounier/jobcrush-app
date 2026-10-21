@@ -119,7 +119,10 @@ which is the failure #86 ranks worst.
 5. **Confidence rides on the ranking, never on the fact.** The labeler returns an ordinal level —
    *certain / likely / possible* — not a float. A float invites false precision, is badly calibrated
    coming from an LLM, drifts with every prompt edit, and cannot be tested by the grid. The level
-   **attenuates the card's score**, so a job we are less sure about sinks in the deck; it never
+   **attenuates the card's deck rank** (*2026-10-21, #397: the rank only — the number printed on
+   the card is the raw judged figure on every screen; until #397 the deck card printed the
+   attenuated number while the tailor screen printed the raw one, so one job showed two scores*),
+   so a job we are less sure about sinks in the deck; it never
    changes the years fact, which stays a whole honest number the product can print. This preserves
    the separation the codebase already keeps everywhere else: facts stay true, uncertainty lives in
    the ordering. Nothing is ever filtered out — the deck's own shipped rule.
@@ -234,8 +237,8 @@ advert bar that reads it in the same spec.
 ## Consequences
 
 `near` is scored, not filtered: a person's years in a near industry stay a whole honest number and
-the card's score is attenuated instead (×0.9, composing by multiplication with the placement
-confidence weights). The vocabulary's first publication is
+the card's deck rank is attenuated instead (×0.9, composing by multiplication with the placement
+confidence weights; #397: the rank, never the displayed score). The vocabulary's first publication is
 `apps/api/research/industry-vocabulary-v1.json`, read by `apps/api/src/industryVocabulary.ts`; the
 evidence and the owner's approval are recorded in
 `docs/vocabulary-proposals/industry-vocabulary-v1/summary.md`. Growth afterwards runs through the

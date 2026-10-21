@@ -84,8 +84,15 @@ function closedGapsLine(cg: { closed: number; asked: number }): string {
   return `You closed ${cg.closed} of the ${cg.asked} gaps this job asked about.`;
 }
 
+// #397: a job with no title (or a ledger with no line yet) leaves no empty slot behind — never
+// "“” is waiting" or "79% match. ." in the announcer.
 function savedLine(title: string, matchPct: number): string {
-  return `“${title}” is waiting for you at ${matchPct}%. Pick it up whenever you want.`;
+  const what = title ? `“${title}” is` : "This job is";
+  return `${what} waiting for you at ${matchPct}%. Pick it up whenever you want.`;
+}
+
+function sentences(...parts: Array<string | undefined | null>): string {
+  return parts.filter((p) => p).map((p) => `${p}.`).join(" ");
 }
 
 // Ported from discovery/page.tsx's own keepInView, with an explicit topPad (here: the sticky card
@@ -249,7 +256,7 @@ export default function TailorPage() {
     if (screen !== "flow" || !tailor || enteredRef.current) return;
     enteredRef.current = true;
     cardHeadingRef.current?.focus();
-    setLiveMessage(`Tailoring ${tailor.card.title}. ${tailor.card.matchPct}% match.`);
+    setLiveMessage(sentences(tailor.card.title && `Tailoring ${tailor.card.title}`, `${tailor.card.matchPct}% match`));
   }, [screen, tailor]);
 
   const showEnding = !!tailor && (tailor.done || tailor.questions.length === 0 || finishedEarly);
@@ -272,7 +279,7 @@ export default function TailorPage() {
       setLiveMessage(closedGapsLine(tailor.closedGaps));
     } else {
       firstControlRef.current?.focus();
-      setLiveMessage(`${tailor.card.matchPct}% match. ${tailor.ledger.at(-1)?.text ?? ""}.`);
+      setLiveMessage(sentences(`${tailor.card.matchPct}% match`, tailor.ledger.at(-1)?.text));
     }
   }, [askKey, tailor]);
 

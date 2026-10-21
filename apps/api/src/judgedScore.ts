@@ -100,7 +100,7 @@ export function judgedUncoveredRequirements(
  *
  *  #285 gave the "industry" scope (#284's third scope) its own number: an industry bar is answered
  *  by answerIndustryBar below — her years in the advert's exact industry, the SAME whole years
- *  number from a near industry (same group; the card's score attenuates ×0.9 in buildJobCard, the
+ *  number from a near industry (same group; the card's deck rank sinks ×0.9 in rankAttenuation, the
  *  fact stays whole), nothing from a far one (a known zero when everything is placed), the generous
  *  career total while any job's industry is genuinely unaccounted for, and UNTESTABLE — verdict
  *  untouched — when the advert's industry is not in our vocabulary (our gap, never charged to the
@@ -176,7 +176,7 @@ export interface IndustryBarAnswer {
 
 /** #285 — how an industry bar is answered (spec #279):
  *    exact industry match — her years in that industry, at full weight;
- *    near (same group)   — the SAME whole years number; the card attenuates ×0.9, the fact never;
+ *    near (same group)   — the SAME whole years number; the card's deck rank sinks ×0.9 (#397: the rank, never the displayed score), the fact never;
  *    far                 — those years do not answer this bar at all;
  *  a known zero when every job carries an industry and none is in the advert's industry or group;
  *  the generous career total while any job's industry is unaccounted for; and UNTESTABLE (null,

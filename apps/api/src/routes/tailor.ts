@@ -637,8 +637,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         // here, from the verdicts and his own answers — never by the model.
         const broughtJob = brought.find((job) => job.posting.id === posting.id);
         const { judgement, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob !== undefined);
-        const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated",
-          years && { ...years, familyConfidence: null });
+        const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated", years);
         const unjudged = reportGate(card);
         if (unjudged)
           return reply.status(unjudged.status).send({ error: { code: unjudged.code, message: unjudged.message } });

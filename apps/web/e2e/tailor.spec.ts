@@ -218,6 +218,25 @@ test("the first question already offers \"I'm done — use this CV\"", async ({ 
   await expect(page.getByRole("button", { name: "Drop this job" })).toBeVisible();
 });
 
+// #397: the announcer never prints an empty slot — no "Tailoring . 61% match." for a job with no
+// title, no "61% match. ." before the first ledger line lands.
+test("#397 the announcer omits a missing title and a missing ledger line instead of an empty slot", async ({ page }) => {
+  await openTailor(page, STATE_FIRST);
+  const live = page.locator('.tailor [aria-live="polite"]');
+  await expect(live).toHaveText("Tailoring Senior IT Project Manager. 61% match.");
+
+  // A ledger-less re-ask: the same first state answered into a second question with no line yet.
+  const noLedgerNext: TailorState = { ...STATE_FIRST, questions: STATE_FIRST.questions.slice(1) };
+  await stubAnswer(page, { "sap:Yes, ran a project on it": noLedgerNext });
+  await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
+  await expect(live).toHaveText("61% match.");
+});
+
+test("#397 a job with no title announces the number alone", async ({ page }) => {
+  await openTailor(page, { ...STATE_FIRST, card: { ...CARD_FIRST, title: "" } });
+  await expect(page.locator('.tailor [aria-live="polite"]')).toHaveText("61% match.");
+});
+
 test("answering a gap re-scores up, flips the ? to a check, rewrites the bubble, and lands a ledger line", async ({
   page,
 }) => {
