@@ -250,7 +250,9 @@ the ruling is wider.
     knows. The report gives the line she cannot produce under pressure: *"This job asks for SQL. You
     have told me you have never used it, so nothing about it printed. If they raise it, say …"* That
     is the whole value of #293's interview-prep section, and it costs one more item in a model call
-    the report already makes.
+    the report already makes. A denied requirement is handed a sentence exactly as an open gap is:
+    the nearest true thing she holds, built from her own facts (clause 3's adjacent fact), whenever
+    something near it exists — a "No" closes the capability, not the conversation about it.
 12. **The prepared sentence never invents a bridge.** Where nothing adjacent exists, the honest line is
     *"you have nothing close to this — expect it to come up"*, never a manufactured connection.
     Clause 2's ban applies to the report exactly as it applies to the page.

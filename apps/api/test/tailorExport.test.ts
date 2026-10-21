@@ -514,7 +514,9 @@ describe("#314 over two pages: one re-tailor on a bullet budget, then ship and t
     expect(job.progress.tailorExport.notices).toContain(notice);
     expect(sent).toHaveLength(1);
     expect(sent[0]!.text).toContain("2 pages");
-    expect(sent[0]!.text).toContain(`${REPORT_LINES.checkBeforeSending}\n- ${notice}`);
+    // #401: the notice rides on top, before section 1 — read before the PDF is opened.
+    expect(sent[0]!.text).toContain(`Read it, then send it yourself when you are ready.\n\n${REPORT_LINES.checkBeforeSending}\n- ${notice}\n\n1. The job, in short`);
+    expect(sent[0]!.text.split("4. Be ready to explain")[1]).not.toContain(REPORT_LINES.checkBeforeSending);
     // The tightened document is the checkpoint now: the screen's next read and a second press
     // both see the two-page CV, and re-spend nothing.
     const token = cookie.split("=")[1]!;
@@ -739,8 +741,10 @@ describe("#315 the application report", () => {
     for (const r of requirements) expect(prompts[0]).toContain(`- id: ${r.id}\n  state: `);
 
     // Five sections, in this order; the first opens on the apply line (a found job has none).
+    // No notice on this document, so no "Check before you send" heading anywhere (#401).
+    expect(text).not.toContain(REPORT_LINES.checkBeforeSending);
     const order = [
-      "1. The job, in short",
+      "Read it, then send it yourself when you are ready.\n\n1. The job, in short",
       REPORT_LINES.noLink,
       "Senior Project Manager at Endava Vietnam, Ho Chi Minh City, Vietnam.",
       "2. Where you are strong",
@@ -755,6 +759,7 @@ describe("#315 the application report", () => {
       "5. Salary",
       REPORT_LINES.noSalary,
     ];
+    expect(text).not.toContain(REPORT_LINES.locationUnknown);
     const positions = order.map((line) => {
       const i = text.indexOf(line);
       expect(i, line).toBeGreaterThanOrEqual(0);

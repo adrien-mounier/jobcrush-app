@@ -20,6 +20,7 @@ import {
 import { reportingLlm } from "./reportFakes.js";
 import { loadAdRequirements } from "../src/e5stub.js";
 import { buildJobCard } from "../src/deck.js";
+import { marketForLocationText } from "../src/postingRetrieval.js";
 import type { JudgeVerdict } from "../src/judge.js";
 import type { JudgementRecord } from "../src/judgementStore.js";
 import type { LlmClient } from "../src/llm.js";
@@ -97,6 +98,7 @@ const context = (overrides: Partial<ReportContext> = {}): ReportContext => ({
   applicationUrl: null,
   ageing: null,
   marketToCheck: null,
+  locationUnplaced: false,
   ...overrides,
 });
 
@@ -180,6 +182,18 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
     expect(state("lang-de")).toBe("met"); // answered — the verdict decides
     expect(state("lang-fr")).toBe("unchecked"); // the second language the queue never reached
     expect(ctx.marketToCheck).toBeNull(); // unplaceable: nothing to name
+    // #401: the advert asks, so the unchecked row already says to check it — no second line in section 4.
+    expect(ctx.locationUnplaced).toBe(false);
+  });
+
+  it("#401 a location the lookup cannot place, on an advert that does not ask about work rights, is flagged for section 4", () => {
+    const base = { adReq, verdicts: verdictsFor(), confirmed, negatives: [], facts: [], broughtJob: undefined };
+    const brussels = { ...posting, location: "Brussels, Belgium" };
+    expect(marketForLocationText(brussels.location)).toBeNull();
+    const ctx = reportContext({ ...base, posting: brussels, card: buildJobCard(brussels, adReq, confirmed, [], judgement(), "estimated") });
+    expect(ctx).toMatchObject({ marketToCheck: null, locationUnplaced: true });
+    // A placed market keeps today's line and is never "unknown".
+    expect(reportContext({ ...base, posting, card: judgedCard() })).toMatchObject({ marketToCheck: "Vietnam", locationUnplaced: false });
   });
 
   it("a years bar the card could not test is unchecked; a brought job carries its link and ageing line", () => {
@@ -254,6 +268,40 @@ describe("#315 the one call — input, validation, retry", () => {
     expect(report.salary).toBeNull();
   });
 
+  it("#401 a denied requirement is handed its nearby fact like an open one, and gets a say sentence built from it", async () => {
+    // ids[1]'s verdict names c-jira as the adjacent fact; he then denied the requirement.
+    const states = requirementStates(adReq, verdictsFor(), confirmed, new Set([ids[1]!]), new Set());
+    expect(states[1]).toMatchObject({ state: "denied", evidence: "Tracked delivery in Jira." });
+    const ctx = context({ requirements: states });
+    const input = buildReportInput(ctx, posting, draft, claimsDoc, opts);
+    expect(input).toContain(`- id: ${ids[1]}\n  state: denied\n  requirement: ${adReq.requirements[1]!.requirement}\n  fact: Tracked delivery in Jira.`);
+    // The prompt tells the model the denied row may carry an adjacent fact, as the open row does.
+    expect(input).toMatch(/`denied`:[^\n]*\n(?:[^\n]*\n)?[^\n]*adjacent fact may be given/);
+    const { llm } = reportingLlm();
+    const report = await writeApplicationReport(llm, ctx, posting, draft, claimsDoc, opts);
+    expect(report.gaps[0]).toEqual({ requirement: adReq.requirements[1]!.requirement, say: `I have done the nearest thing to ${ids[1]}.` });
+    expect(reportEmailText(report, posting, 1, [])).toContain(
+      `${adReq.requirements[1]!.requirement} — say: "I have done the nearest thing to ${ids[1]}."`,
+    );
+  });
+
+  it("#401 a denied requirement with nothing near it still reads expect-it, and the coverage check holds either way", async () => {
+    const ctx = context({ requirements: requirementStates(adReq, verdictsFor(), confirmed, new Set([ids[2]!]), new Set()) });
+    expect(ctx.requirements[2]).toMatchObject({ state: "denied", evidence: null });
+    const { llm, prompts } = reportingLlm();
+    const report = await writeApplicationReport(llm, ctx, posting, draft, claimsDoc, opts);
+    expect(prompts).toHaveLength(1); // no retry: the denied id is in `gaps`, once
+    expect(report.gaps[1]).toEqual({ requirement: adReq.requirements[2]!.requirement, say: null });
+    expect(reportEmailText(report, posting, 1, [])).toContain(`${adReq.requirements[2]!.requirement} — ${REPORT_LINES.expectIt}`);
+    // A denied id left out of `gaps` still fails the answer.
+    const { llm: silent, prompts: retried } = reportingLlm((doc) => ({
+      ...doc,
+      gaps: (doc.gaps as { requirementId: string }[]).filter((g) => g.requirementId !== ids[2]),
+    }));
+    await expect(writeApplicationReport(silent, ctx, posting, draft, claimsDoc, opts)).rejects.toBeInstanceOf(ReportValidationError);
+    expect(retried[1]).toContain(`missing: ${ids[2]}`);
+  });
+
   it("a sentence for an unchecked requirement is rejected — the machine does not decide on his behalf", async () => {
     const ctx = context({ requirements: requirementStates(adReq, verdictsFor(), confirmed, new Set(), new Set([ids[3]!])) });
     const { llm, prompts } = reportingLlm((doc) => ({
@@ -286,6 +334,9 @@ describe("#315 the one call — input, validation, retry", () => {
     ];
     for (const line of ours) expect(line, line).toMatch(KITCHEN_WORDS);
     for (const line of his) expect(line, line).not.toMatch(KITCHEN_WORDS);
+    // The email's own fixed lines (#401's "Job location unknown" among them) describe his job, never the app.
+    for (const line of Object.values(REPORT_LINES).map((l) => (typeof l === "function" ? l("Vietnam") : l)))
+      expect(line, line).not.toMatch(KITCHEN_WORDS);
   });
 
   it("an explain line about what the CV printed or held back is rejected — the kitchen stays out of the email", async () => {
@@ -320,6 +371,7 @@ describe("#315 reportEmailText — five sections, in order, and nothing else", (
     applicationUrl: "https://jobs.example/apply",
     ageing: "You pasted this 9 days ago. We cannot check whether it is still open.",
     marketToCheck: "Vietnam",
+    locationUnplaced: false,
     jobInShort: "A delivery role for a client-facing project manager.",
     salary: null,
     strong: [{ requirement: "Lead Agile delivery", say: "I ran the programme end to end." }],
@@ -337,8 +389,11 @@ describe("#315 reportEmailText — five sections, in order, and nothing else", (
     return i;
   };
 
-  it("the five headings, in this order, and the apply link on top of the first", () => {
+  it("the five headings, in this order, the notices on top (#401) and the apply link on top of the first", () => {
     const order = [
+      "Read it, then send it yourself when you are ready.",
+      REPORT_LINES.checkBeforeSending,
+      "- Your languages could not be placed on this draft.",
       "1. The job, in short",
       "Apply here: https://jobs.example/apply",
       "Senior Project Manager at Endava Vietnam, Ho Chi Minh City, Vietnam.",
@@ -353,14 +408,17 @@ describe("#315 reportEmailText — five sections, in order, and nothing else", (
       "4. Be ready to explain",
       "The steering line carries two facts.",
       REPORT_LINES.market("Vietnam"),
-      REPORT_LINES.checkBeforeSending,
-      "Your languages could not be placed on this draft.",
       "5. Salary",
       REPORT_LINES.noSalary,
     ];
     const positions = order.map(at);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(text.startsWith("Your CV for Senior Project Manager at Endava Vietnam is attached (2 pages, PDF).")).toBe(true);
+    // The notices ride once, before section 1; section 4 is only "Be ready to explain" and the market line.
+    expect(text.split(REPORT_LINES.checkBeforeSending)).toHaveLength(2);
+    expect(text.split("4. Be ready to explain")[1]!.split("5. Salary")[0]).toBe(
+      `\n- The steering line carries two facts.\n- ${REPORT_LINES.market("Vietnam")}\n\n`,
+    );
     // Nothing else: none of the cut sections, and the unchecked row carries no sentence.
     expect(text).not.toMatch(/6\. |Verification|Checklist|Keyword coverage|What did not print|What was lost/);
     expect(text.split(REPORT_LINES.unchecked)[0]!.split("\n").pop()).toBe("- Right to work in Vietnam — ");
@@ -378,7 +436,18 @@ describe("#315 reportEmailText — five sections, in order, and nothing else", (
     expect(plain).not.toContain("Apply here");
     expect(plain).toContain("(1 page, PDF)");
     expect(plain).not.toContain(REPORT_LINES.checkBeforeSending);
+    expect(plain).toContain("Read it, then send it yourself when you are ready.\n\n1. The job, in short\n");
     expect(plain).toContain("5. Salary\nVND 60–80 million per month\n");
     expect(plain).not.toContain(REPORT_LINES.noSalary);
+  });
+
+  it("#401 a job whose location could not be placed says so in section 4; a placed market keeps its own line", () => {
+    const unplaced = reportEmailText({ ...report, marketToCheck: null, locationUnplaced: true }, posting, 1, []);
+    expect(unplaced.split("4. Be ready to explain")[1]!.split("5. Salary")[0]).toBe(
+      `\n- The steering line carries two facts.\n- ${REPORT_LINES.locationUnknown}\n\n`,
+    );
+    expect(unplaced).not.toContain("We have not checked whether you can work there — check it");
+    expect(text).not.toContain(REPORT_LINES.locationUnknown);
+    expect(text).toContain(REPORT_LINES.market("Vietnam"));
   });
 });
