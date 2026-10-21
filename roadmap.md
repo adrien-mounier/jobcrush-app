@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-19 (the finish line run live: NO-GO, two fixes shipped, four follow-ups filed)_
+_Last updated: 2026-10-21 (v1 before the chat: #400/#401 decided, build order set)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -26,7 +26,8 @@ request — the next normal push runs the full suite over them.
 - ~~#389~~ closed 2026-10-16: the four build calls kept as built; its "keep the Continue screen" was
   replaced by #392. #394 AC7: the per-item "from X" tags stand (#396); a per-group source line is a
   ticket only if the owner asks.
-- **Next build:** Chat with JobCrush (below).
+- **Next build:** finish v1 first (owner, 2026-10-21) — see "Finish line, what remains" below; then
+  Chat with JobCrush.
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
@@ -41,10 +42,12 @@ page to the profile (ADR-0018). `/to-spec` → `/to-tickets` → `/implement-spe
 journey held end to end, the report cost **$0.46 per application** (measured), but the gate said NO-GO on
 two defects, both fixed the same day (6c7991c the email talked about "printed" and "held-back" lines;
 d7af930 long skill ids could not be edited). Follow-ups: #400 a paste with no title line (owner's call),
-#397 two scores for one job, #398 check-mode reads on his CV, #399 draft nits. Still open on #315,
-owner's call: a denied requirement's nearest-true sentence; the notices at the end of section 4; no
-work-rights line for a market the lookup cannot place.
-**Finish line, what remains:** one more real report on staging under the new rule, then `/qa-gate` GO.
+#397 two scores for one job, #398 check-mode reads on his CV, #399 draft nits. Owner calls made
+2026-10-21: #400 the app works out the title, says it guessed, and asks him to confirm; #401 a denied
+requirement gets a nearest-true sentence, an unplaced job says "Job location unknown", the
+"Check before you send" notices move to the top of the email.
+**Finish line, what remains (v1 before the chat):** `/implement-spec #301` (#397 #399 #400 #401,
+Fable 5.1, medium) → `/implement #398` (Opus 5.5, medium) → one more real report on staging → `/qa-gate` GO.
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
 every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.

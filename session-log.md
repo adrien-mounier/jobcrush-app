@@ -2,6 +2,18 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-21 — Owner: finish v1 before the chat; #400 and #401 decided
+
+No code. The owner moves Chat with JobCrush (#350) after v1. Decisions:
+- #400: the advert reader works the title out and the person confirms it or types their own (comment on #400).
+- #401 is filed under #301 and carries #315's three open calls:
+  - a denied requirement gets a nearest-true sentence;
+  - a market the lookup can't place gets "Job location unknown";
+  - the "Check before you send the CV:" notices move to the top of the email.
+
+#398 is not under #301, so it runs on its own.
+**Next:** `/implement-spec #301` (Fable 5.1, medium), then `/implement #398` (Opus 5.5, medium), then one real staging report → `/qa-gate` GO.
+
 ## 2026-10-19 — The v1 finish line run on staging: NO-GO, two fixes shipped (6c7991c, d7af930), four tickets
 
 CI green on 1f72b12 (run 39130226914), staging at 2e56452. Then the finish line itself: the qa-tester drove live staging with the real key — the owner's real CV (`root_cv/… CV 2026.pdf`), one real posting (GRADION, IT Project Manager, Ho Chi Minh City, from cv-factory), magic-link sign-in to his Gmail, approve, the report email read from the inbox. The journey worked end to end: 67 facts, a judged card (9 of 10 met), a two-page CV the tester would send with nothing invented, the five-section email in ~19 s, the re-press re-used the report (no second call). **Verdict NO-GO** on two defects: (D) section 4 said "since these were not printed but are available to you" and "the printed line covers … but does not state an outcome" — the app's kitchen in his email, cut by #315's own AC; (A) five skill lines minted ids over 100 chars, so edit/remove died with 414 for ever. Both fixed, reviewed and gated the same day: `KITCHEN_WORDS` tripwire + rewritten `explain` guidance (6c7991c; a table of real lines proves "the app you shipped" still passes), `maxParamLength: 512` (d7af930). Follow-ups filed as sub-issues: #400 "Title not stated" names the file and subject when the paste has no title line (owner's call: ask, or read it), #397 one job scored 59% PARTIAL and 79% STRONG on two screens, #398 check-mode reads on his real CV (Title = "- Mobile:", a bullet under Personal projects with no Move, an id in a Why, a silent English answer), #399 draft nits ("and is English (Fluent)", one fact printed twice). Evidence: `qa-results/finish-line-20261019-132601/` (email verbatim in `report-email-1.txt`), `qa-results/finish-line-fix-20261019-205548/`.
