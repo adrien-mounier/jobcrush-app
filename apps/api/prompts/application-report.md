@@ -38,7 +38,8 @@ is emailed with it so the person reads the job once and walks into the interview
   - `met`: the person's facts cover it. The supporting fact and the grader's reason are given.
   - `open`: the facts do not cover it. An adjacent fact may be given — that is the only material a
     bridge may be built from.
-  - `denied`: the person told us they have never done this. Nothing about it printed on the CV.
+  - `denied`: the person told us they have never done this. Nothing about it printed on the CV. As
+    for `open`, an adjacent fact may be given — the nearest true thing, the only material for `say`.
   - `unchecked`: nobody has asked the person about it either way. **Write nothing for these.**
 - `===PRINTED LINES===` — the CV as it ships: each line with the facts it was built from.
 - `===HELD BACK===` — facts the CV did not print for this job, in the person's own words.

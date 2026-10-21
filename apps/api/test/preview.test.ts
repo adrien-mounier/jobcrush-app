@@ -1313,3 +1313,43 @@ describe("#311 the page check covers role titles", () => {
     expect(issues.some((i) => i.fatal)).toBe(true);
   });
 });
+
+// #399: a language is woven into the summary as prose ("fluent in English"), never as the
+// Languages-line label pasted into a sentence ("... and is English (Fluent)"); and the summary
+// never repeats a fact that prints as a bullet under a role.
+describe("#399 lint + prompt — a language is prose in the summary, no fact printed twice", () => {
+  it("flags a summary that pastes the Languages label into a sentence", async () => {
+    const claims = await recordedClaims();
+    const pasted: Draft = {
+      ...sampleDraft,
+      summary: "Delivered the Ship24 integration on time and is English (Fluent).",
+    };
+    const issues = conservationIssues(claims, pasted);
+    const hit = issues.find((i) => i.message.includes("language pasted as a label"));
+    expect(hit).toBeDefined();
+    expect(hit?.fatal).toBeUndefined();
+    expect(hit?.visitor).toContain("English");
+    expect(hit?.visitor).not.toMatch(/lint|printed|held back/i);
+  });
+
+  it("accepts the same language written as prose, and lets prose satisfy the advert-tested promotion check", async () => {
+    const claims = await recordedClaims();
+    const prose: Draft = { ...sampleDraft, summary: "Delivered the Ship24 integration, fluent in Polish." };
+    expect(conservationIssues(claims, prose, [], ["Native Polish required"])).toEqual([]);
+  });
+
+  it("ignores an 'is <Word> (' that is not a language", async () => {
+    const claims = await recordedClaims();
+    const other: Draft = { ...sampleDraft, summary: "The platform is Hybrid (cloud and on-site)." };
+    expect(conservationIssues(claims, other).filter((i) => i.message.includes("pasted as a label"))).toEqual([]);
+  });
+
+  it("tells the tailor once: language as prose, and no fact in both the summary and a role bullet", async () => {
+    const prompt = await promptText();
+    const rule10 = prompt.slice(prompt.indexOf("10. **Summary prints"), prompt.indexOf("## Writing style"));
+    const flat = rule10.replace(/\s+/g, " ");
+    expect(flat).toContain("fluent in English");
+    expect(flat).toContain("never the Languages-line form");
+    expect(flat).toContain("never repeats a fact that prints as a bullet under a role");
+  });
+});

@@ -37,6 +37,7 @@ const PASTED = advert("Senior Project Manager");
 function linkServer() {
   const readPastedAdvert = vi.fn(async (text: string) => ({
     title: text.split("\n")[0]!.trim(),
+    titleSource: "stated" as const,
     company: "Gradion",
     location: "Hong Kong",
     closingDate: null,

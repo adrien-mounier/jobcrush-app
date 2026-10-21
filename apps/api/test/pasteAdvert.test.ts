@@ -15,11 +15,17 @@
 // apps/web/e2e/paste-wait-journey.mjs, because a payload assertion here passes while the screen
 // stays blank.
 import { describe, expect, it, vi } from "vitest";
-import { AdRequirementsV1 } from "@jobcrush/contracts";
+import { AdRequirementsV1, canonicalKeyOf } from "@jobcrush/contracts";
 import { buildDeckServer, injectSettled } from "./fixtureDeck.js";
 import { InMemoryJobStore, type JobRecord, type JobStore } from "../src/jobs.js";
 import type { PasteProgress } from "../src/routes/paste.js";
-import { advertFingerprint, linkInText, makePastedAdvertReader } from "../src/pastedAdvert.js";
+import {
+  advertFingerprint,
+  buildPastedAdvertInput,
+  linkInText,
+  makePastedAdvertReader,
+  type PastedAdvertHeader,
+} from "../src/pastedAdvert.js";
 import { PASTED_SOURCE_PROVIDER_ID } from "../src/postingRetrieval.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
 import { InMemoryPasteRecordStore } from "../src/pasteRecordStore.js";
@@ -43,6 +49,7 @@ const OTHER_ADVERT = ADVERT.replace("Senior Project Manager", "Delivery Manager"
 
 const HEADER = {
   title: "Senior Project Manager",
+  titleSource: "stated" as const,
   company: "Gradion",
   location: "Hong Kong",
   closingDate: "2026-10-15",
@@ -103,7 +110,7 @@ function recordingJobs(): { store: JobStore; writes: PasteProgress[] } {
 
 /** A server with the paste door wired: a stub advert reader (one call per unread advert, counted)
  *  and the deck's own reader answering for whatever it produces. */
-function pasteServer(header: typeof HEADER | null = HEADER) {
+function pasteServer(header: PastedAdvertHeader | null = HEADER) {
   const readPastedAdvert = vi.fn(async () => header);
   const readAd = vi.fn(async (posting: Posting) => requirementsFor(posting));
   const postings = new InMemoryPostingStore();
@@ -123,36 +130,71 @@ async function anonSession(app: ReturnType<typeof pasteServer>["app"]): Promise<
 }
 
 /** What a finished paste produced: the 202 (or whatever refusal came instead of one), the job as it
- *  ended, and the two outcomes the screen reads — one of which is always absent. */
+ *  ended, and the two outcomes the screen reads — one of which is always absent. #400 adds the third
+ *  resting state: the read PAUSED on the title question, with the job still running. */
 interface PasteRun {
   accepted: number;
+  jobId: string | null;
   job: JobRecord | null;
   result: NonNullable<PasteProgress["result"]> | null;
   failure: NonNullable<PasteProgress["failure"]> | null;
+  progress: PasteProgress | null;
 }
 
-/** Paste an advert and wait for the read behind it to finish.
+/** Wait for the read behind a paste to come to rest: finished, or parked on the title question.
  *
  *  setImmediate rather than a timer, for fixtureDeck.ts's own reason: nothing in this path sleeps,
  *  it settles on microtasks, so yielding a turn of the event loop is exactly the wait required. */
+async function drain(app: ReturnType<typeof pasteServer>["app"], cookie: string, jobId: string): Promise<PasteRun> {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const res = await app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } });
+    const job = res.json() as JobRecord;
+    const progress = (job.progress as { paste?: PasteProgress }).paste ?? null;
+    if (job.status === "completed" || job.status === "failed" || progress?.step === "title") {
+      return {
+        accepted: 202,
+        jobId,
+        job,
+        result: progress?.result ?? null,
+        failure: progress?.failure ?? null,
+        progress,
+      };
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error("the paste job never finished");
+}
+
+/** Paste an advert and wait for the read behind it to come to rest. */
 async function paste(
   app: ReturnType<typeof pasteServer>["app"],
   cookie: string,
   payload: { text: string; applicationUrl?: string | null },
 ): Promise<PasteRun> {
   const started = await app.inject({ method: "POST", url: "/onboarding/paste", headers: { cookie }, payload });
-  if (started.statusCode !== 202) return { accepted: started.statusCode, job: null, result: null, failure: null };
-  const { jobId } = started.json();
-  for (let attempt = 0; attempt < 500; attempt += 1) {
-    const res = await app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } });
-    const job = res.json() as JobRecord;
-    if (job.status === "completed" || job.status === "failed") {
-      const progress = (job.progress as { paste?: PasteProgress }).paste ?? null;
-      return { accepted: 202, job, result: progress?.result ?? null, failure: progress?.failure ?? null };
-    }
-    await new Promise((resolve) => setImmediate(resolve));
+  if (started.statusCode !== 202) {
+    return { accepted: started.statusCode, jobId: null, job: null, result: null, failure: null, progress: null };
   }
-  throw new Error("the paste job never finished");
+  return drain(app, cookie, started.json().jobId);
+}
+
+/** #400 — answer the title question and wait for the resumed read to finish. */
+async function confirmTitle(
+  app: ReturnType<typeof pasteServer>["app"],
+  cookie: string,
+  jobId: string,
+  title: string,
+): Promise<PasteRun> {
+  const res = await app.inject({
+    method: "POST",
+    url: `/onboarding/paste/${jobId}/title`,
+    headers: { cookie },
+    payload: { title },
+  });
+  if (res.statusCode !== 202) {
+    return { accepted: res.statusCode, jobId, job: null, result: null, failure: null, progress: null };
+  }
+  return drain(app, cookie, jobId);
 }
 
 describe("#303 POST /onboarding/paste", () => {
@@ -376,6 +418,138 @@ describe("#303 POST /onboarding/paste", () => {
     expect(after!.intent).toEqual(before!.intent);
     expect(after!.discovery).toEqual(before!.discovery);
     expect(after!.targetTitles).toEqual(before!.targetTitles);
+  });
+});
+
+describe("#400 a pasted job with no title line", () => {
+  // The same text with its title line gone: what a body copied out of the middle of a posting
+  // looks like. The company and the place are still in it; the title is not.
+  const NO_TITLE_ADVERT = ADVERT.replace("Senior Project Manager — Gradion\n", "Gradion\n");
+  const PLACEHOLDER = "Title not stated";
+  const expectedAdId = (title: string) => `posting:${canonicalKeyOf(HEADER.company, HEADER.location, title)}`;
+
+  it("a title read from a title line is never questioned", async () => {
+    const { app, writes } = pasteServer();
+    const cookie = await anonSession(app);
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(run.result!.card.title).toBe("Senior Project Manager");
+    expect(writes.some((write) => write.step === "title")).toBe(false);
+  });
+
+  it("a worked-out title is put to him first — the paste parks, nothing is stored, and his answer becomes the title", async () => {
+    const { app, postings, readPastedAdvert, writes } = pasteServer({
+      ...HEADER,
+      title: "Project Manager",
+      titleSource: "worked-out",
+    });
+    const cookie = await anonSession(app);
+
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    expect(parked.accepted).toBe(202);
+    // ADR-0008: a worked-out value is told apart from a read one, and the person is asked before
+    // it is used anywhere — so the job is still running, and the suggestion rides on the wire.
+    expect(parked.job!.status).toBe("running");
+    expect(parked.progress).toMatchObject({ step: "title", suggested: "Project Manager" });
+    expect(parked.result).toBeNull();
+    // The title is part of the job's id, so nothing may be stored before the title is settled.
+    expect(await postings.listByProvider(PASTED_SOURCE_PROVIDER_ID)).toHaveLength(0);
+
+    const done = await confirmTitle(app, cookie, parked.jobId!, "Senior Project Manager");
+    expect(done.accepted).toBe(202);
+    expect(done.job!.status).toBe("completed");
+    expect(done.result!.adId).toBe(expectedAdId("Senior Project Manager"));
+    expect(done.result!.card.title).toBe("Senior Project Manager");
+    const stored = await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(NO_TITLE_ADVERT));
+    expect(stored!.title).toBe("Senior Project Manager");
+    expect(stored!.company).toBe("Gradion");
+    // The header read is paid for once: the resumed read reuses it rather than asking the model again.
+    expect(readPastedAdvert).toHaveBeenCalledTimes(1);
+    // And the three named steps still run, in order, after the question.
+    const sequence = writes.map((write) => write.step).filter((step, i, all) => step !== all[i - 1]);
+    expect(sequence).toEqual(["reading", "title", "reading", "employer", "profile"]);
+  });
+
+  it("when no title can be worked out the question comes with an empty field, and his typed title is the title", async () => {
+    const { app, postings } = pasteServer({ ...HEADER, title: null, titleSource: "worked-out" });
+    const cookie = await anonSession(app);
+
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    expect(parked.progress).toMatchObject({ step: "title", suggested: null });
+
+    const done = await confirmTitle(app, cookie, parked.jobId!, "Delivery Lead");
+    expect(done.result!.adId).toBe(expectedAdId("Delivery Lead"));
+    const stored = await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(NO_TITLE_ADVERT));
+    expect(stored!.title).toBe("Delivery Lead");
+    // The placeholder the finish-line run saw in the email subject, the file name and the report
+    // (all three print the stored title) reaches none of them, because it reaches no record.
+    expect(JSON.stringify(stored)).not.toContain(PLACEHOLDER);
+    expect(JSON.stringify(done.result)).not.toContain(PLACEHOLDER);
+  });
+
+  it("the resumed read uses the confirmed title exactly as typed, trimmed", async () => {
+    const { app, postings } = pasteServer({ ...HEADER, title: null, titleSource: "worked-out" });
+    const cookie = await anonSession(app);
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    await confirmTitle(app, cookie, parked.jobId!, "  Head of Delivery  ");
+    const stored = await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(NO_TITLE_ADVERT));
+    expect(stored!.title).toBe("Head of Delivery");
+  });
+
+  it("an empty answer is refused at the boundary, and the question stays open", async () => {
+    const { app } = pasteServer({ ...HEADER, title: null, titleSource: "worked-out" });
+    const cookie = await anonSession(app);
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    const refused = await confirmTitle(app, cookie, parked.jobId!, "   ");
+    expect(refused.accepted).toBe(400);
+    const again = await confirmTitle(app, cookie, parked.jobId!, "Delivery Lead");
+    expect(again.job!.status).toBe("completed");
+  });
+
+  it("a parked paste that is gone, or somebody else's, is a 404 — never resumed", async () => {
+    const { app } = pasteServer({ ...HEADER, title: null, titleSource: "worked-out" });
+    const cookie = await anonSession(app);
+    const stranger = await anonSession(app);
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+
+    expect((await confirmTitle(app, stranger, parked.jobId!, "Delivery Lead")).accepted).toBe(404);
+    expect((await confirmTitle(app, cookie, "no-such-job", "Delivery Lead")).accepted).toBe(404);
+    // Answered once: a second answer finds nothing parked (first write wins, like the rest of paste).
+    await confirmTitle(app, cookie, parked.jobId!, "Delivery Lead");
+    expect((await confirmTitle(app, cookie, parked.jobId!, "Something Else")).accepted).toBe(404);
+  });
+
+  it("the same advert pasted again after the title was settled reuses it — no second question", async () => {
+    const { app, readPastedAdvert, writes } = pasteServer({ ...HEADER, title: null, titleSource: "worked-out" });
+    const cookie = await anonSession(app);
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    const first = await confirmTitle(app, cookie, parked.jobId!, "Delivery Lead");
+    writes.length = 0;
+
+    const second = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    expect(second.result!.adId).toBe(first.result!.adId);
+    expect(second.result!.reused).toBe(true);
+    expect(writes.some((write) => write.step === "title")).toBe(false);
+    expect(readPastedAdvert).toHaveBeenCalledTimes(1);
+  });
+
+  it("the reader says where the title came from, and the prompt no longer offers a placeholder", async () => {
+    const workedOut = { ...HEADER, title: "Project Manager", titleSource: "worked-out", closingDate: null };
+    const complete = vi.fn(async () => JSON.stringify(workedOut));
+    expect(await makePastedAdvertReader({ complete } as unknown as LlmClient)(NO_TITLE_ADVERT)).toEqual(workedOut);
+
+    const nothing = { ...workedOut, title: null };
+    const none = vi.fn(async () => JSON.stringify(nothing));
+    expect(await makePastedAdvertReader({ complete: none } as unknown as LlmClient)(NO_TITLE_ADVERT)).toEqual(nothing);
+
+    // A model that does not say which it did is not trusted to have read a title line (ADR-0008:
+    // read and worked out are different arrivals, and the producer states which).
+    const { titleSource: _dropped, ...unsaid } = workedOut;
+    const silent = vi.fn(async () => JSON.stringify(unsaid));
+    expect(await makePastedAdvertReader({ complete: silent } as unknown as LlmClient)(NO_TITLE_ADVERT)).toBeNull();
+
+    const prompt = buildPastedAdvertInput(NO_TITLE_ADVERT, new Date());
+    expect(prompt).not.toContain(PLACEHOLDER);
+    expect(prompt).toContain('"titleSource"');
   });
 });
 

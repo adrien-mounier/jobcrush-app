@@ -20,6 +20,8 @@
 //   AC8  an employer-stated closing date is read out of the text and stored
 //   AC9  pasting lands on /job/<adId>, not back on the deck
 //   AC10 the deck's own search intent is byte-identical before and after the paste
+//   #400 a text with no title line is put to him as a question — the worked-out title shown and
+//        confirmable — before the title is used anywhere, and the job carries what he confirmed
 //
 // Not this journey's business, and each one is a sibling ticket's: the narrated three-step wait and
 // the full failure screen are apps/web/e2e/paste-wait-journey.mjs (#304), the deck's pinned band and
@@ -615,7 +617,73 @@ await qa.note(`   after:  ${String(pick(intentAfter)).slice(0, 300)}`);
 await must(unchanged, "AC10 — pasting one job did not change what the deck looks for");
 
 // ---------------------------------------------------------------------------------------------
-// 10) The slot measurements, collected.
+// 10) #400 — a text with NO title line. The reader works the title out, the screen puts it to him
+//     BEFORE it is used anywhere, and the job he lands on carries the title he confirmed. The
+//     placeholder the finish-line run saw ("Title not stated") must be nowhere.
+// ---------------------------------------------------------------------------------------------
+// The fake stack's convention (qa-main.ts): "About the role at <company>" as the first line, the
+// place on the second, and a "Role: <title>" line is what it works the title out from. A real
+// reader works it out from the duties the same way; either way the question is what is proved.
+const NO_TITLE_ADVERT = `About the role at Helvara Group
+Antwerp, Belgium
+
+Role: Delivery Project Manager
+
+You will run the delivery of our warehouse management replacement across three sites in Belgium,
+own the plan, coordinate the integrator and our own IT team, and report to the programme board
+every fortnight.
+
+What we are looking for
+- At least five years delivering IT projects in logistics or retail.
+- Fluent English; Dutch is an advantage.
+- Experience of PRINCE2 or PMP governance.
+
+Applications close 2026-11-30.`;
+const WORKED_OUT_TITLE = "Delivery Project Manager";
+const PLACEHOLDER = "Title not stated";
+
+await qa.goto("/paste", "back to the paste screen with a text that has no title line");
+await settle(page.getByRole("heading", { name: "Paste a job you found" }), "the paste screen", DOOR_MS);
+await qa.fill(page.locator("#advert"), NO_TITLE_ADVERT, "paste a job text copied from the body of a posting — no title line");
+await qa.click(page.getByRole("button", { name: "Read it" }), "press 'Read it' — the reader has no title line to copy");
+const ask = page.locator('[data-testid="paste-title-ask"]');
+const asked = await ask.waitFor({ state: "visible", timeout: SETTLE_MS }).then(() => true, () => false);
+await must(asked, "#400 — a text with no title line is put to him as a question before the title is used anywhere");
+if (asked) {
+  await qa.scrollThrough("read the question the way he would — what we think the job is called, and the field to change it");
+  const askText = (await ask.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  const prefilled = await page.locator("#jobtitle").inputValue();
+  await qa.note(`the question, word for word: "${askText}" · the field is pre-filled with: "${prefilled}"`);
+  await must(
+    askText.includes("We think this job is called") && prefilled === WORKED_OUT_TITLE,
+    `#400 — he is told the title was worked out, and the field carries it ("${prefilled}")`,
+  );
+  await must(!askText.includes(PLACEHOLDER), "#400 — the question never shows the placeholder");
+  await qa.expectVisible(page.locator("#jobtitle"), "#400 — the title is his to confirm or change, in a field of its own");
+  await qa.click(page.getByRole("button", { name: "Use this title" }), "confirm the worked-out title — it is right");
+}
+await settle(page.locator(".jobscreen .jobcard h2"), "the job's own screen, after the title was confirmed", SETTLE_MS);
+const noTitleLanding = new URL(page.url()).pathname;
+await qa.note(`after confirming the title he is on ${noTitleLanding}`);
+await must(noTitleLanding.startsWith("/job/"), `#400 — confirming the title lands on that job's own screen (landed on ${noTitleLanding})`);
+const landedTitle = (await page.locator(".jobscreen .jobcard h2").innerText().catch(() => "")).trim();
+await qa.note(`the job screen's title reads: "${landedTitle}"`);
+await must(landedTitle === WORKED_OUT_TITLE, `#400 — the job carries the title he confirmed (expected "${WORKED_OUT_TITLE}", got "${landedTitle}")`);
+const jobScreenText = await page.evaluate(() => document.body.innerText);
+await must(!jobScreenText.includes(PLACEHOLDER), "#400 — the placeholder reaches nothing he can see");
+// …and what the API stored under this job, which is what the email subject, the file name and the
+// report are printed from (tailorExport.ts / applicationReport.ts read the posting's own title).
+const noTitleAdId = decodeURIComponent(noTitleLanding.replace(/^\/job\//, ""));
+const storedNoTitle = await pageCall(`/api/onboarding/jobs/${encodeURIComponent(noTitleAdId)}`);
+await qa.note(`GET /onboarding/jobs/${noTitleAdId} → HTTP ${storedNoTitle.status}, stored title "${storedNoTitle.body?.card?.title ?? "(no card)"}"`);
+await must(
+  storedNoTitle.body?.card?.title === WORKED_OUT_TITLE && !JSON.stringify(storedNoTitle.body ?? {}).includes(PLACEHOLDER),
+  "#400 — the stored job carries the confirmed title, so the email subject, the file name and the report print it",
+);
+await qa.scrollThrough("read the job's own screen for the job whose title he settled himself");
+
+// ---------------------------------------------------------------------------------------------
+// 11) The slot measurements, collected.
 // ---------------------------------------------------------------------------------------------
 for (const s of slots) await qa.note(`AC1 slot — ${s}`);
 

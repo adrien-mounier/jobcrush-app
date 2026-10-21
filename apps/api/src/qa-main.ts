@@ -669,8 +669,11 @@ const qaPostingsV1 = () => {
 // by a QA run against a keyed API.
 //
 // Convention the journeys write against: line 1 is "<title> — <company>", line 2 is the location,
-// and a line matching "applications close <date>" gives the closing date. An advert that does not
-// follow it reads as unreadable, which is what drives #304's failure screen.
+// and a line matching "applications close <date>" gives the closing date (titleSource "stated").
+// #400, the no-title-line case: line 1 is "About the role at <company>" instead, line 2 is still the
+// location, and a line "Role: <title>" is what the fake "works out" (titleSource "worked-out") —
+// without that line the title is null, and the paste screen asks with an empty field. An advert
+// that follows neither form reads as unreadable, which is what drives #304's failure screen.
 /** #304 — how long each faked step of a pasted read is made to take on this entry.
  *
  *  Deliberate, and the same reasoning `pending-unscored-card-journey` already runs on: a narrated
@@ -690,10 +693,22 @@ const qaReadPastedAdvert = async (text: string) => {
     .map((line) => line.trim())
     .filter(Boolean);
   const [heading, location] = lines;
+  const close = text.match(/applications?\s+close[^\r\n]*?(\d{4}-\d{2}-\d{2})/i);
+  const closingDate = close?.[1] ?? null;
+  const noTitleLine = (heading ?? "").match(/^About the role at (.+)$/i);
+  if (noTitleLine && location) {
+    const role = text.match(/^Role:\s*(.+)$/im);
+    return {
+      title: role?.[1]?.trim() || null,
+      titleSource: "worked-out" as const,
+      company: noTitleLine[1]!.trim(),
+      location,
+      closingDate,
+    };
+  }
   const [title, company] = (heading ?? "").split(/\s+[—-]\s+/);
   if (!title || !company || !location) return null;
-  const close = text.match(/applications?\s+close[^\r\n]*?(\d{4}-\d{2}-\d{2})/i);
-  return { title, company, location, closingDate: close?.[1] ?? null };
+  return { title, titleSource: "stated" as const, company, location, closingDate };
 };
 
 // #63 — which outcome the stand-in provider reports. `relevant_postings` is the default because

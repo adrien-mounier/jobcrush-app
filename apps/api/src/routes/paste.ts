@@ -40,6 +40,7 @@ import {
   pasteAdvert,
   type PasteAdvertDeps,
   type PasteAdvertRefusal,
+  type PastedAdvertHeader,
 } from "../pastedAdvert.js";
 import { makeBroughtJobs, type BroughtJob } from "../broughtJobs.js";
 
@@ -107,7 +108,15 @@ const LinkBody = z.object({
 //  that marks the wrong step as in progress, which only a rendered screen can see —
 //  apps/web/e2e/paste-wait-journey.mjs reads the order off the live DOM and goes red on it.
 const PASTE_STEPS = ["reading", "employer", "profile"] as const;
-export type PasteStep = (typeof PASTE_STEPS)[number];
+/** #400: `title` is not a fourth step but a PAUSE in the first — the text named no title, and the
+ *  read waits for the person's answer (`POST /onboarding/paste/:jobId/title`) before anything is
+ *  stored. The screen shows the question in place of the step list. */
+export type PasteStep = (typeof PASTE_STEPS)[number] | "title";
+
+/** #400 — what the title question is answered with. Trimmed and non-empty at the boundary: an
+ *  empty title would be the placeholder this ticket exists to remove, under another name. */
+const TitleBody = z.object({ title: z.string().trim().min(1).max(200) });
+const JobParams = z.object({ jobId: z.string().min(1) });
 
 export type PasteFailureCode = PasteAdvertRefusal | CardRefusal | "error";
 
@@ -157,6 +166,9 @@ export interface PasteProgress {
   requirements: string[];
   /** What the employer lookup said about the company, or null when it had nothing / is not wired. */
   employer: string | null;
+  /** #400, with `step: "title"`: the title the reader worked out from the text, for the person to
+   *  confirm or replace — or null when nothing could be worked out and the field starts empty. */
+  suggested?: string | null;
   /** #338: `card` is absent while the person's CV waits to be reviewed — the advert is stored and
    *  read, but nothing is scored against an unreviewed CV; the job's own screen builds the card
    *  once the review is complete. */
@@ -232,7 +244,18 @@ export function pasteRoutes(deps: PasteDeps) {
      *  screen before it is read). buildDeckCards then resolves the same requirements again, which
      *  is free: the real reader (adReader.ts) persists every read and answers the second call from
      *  its store. */
-    const runPaste = async (session: SessionRecord, jobId: string, body: z.infer<typeof Body>) => {
+    /** #400 — reads parked on the title question, by job id. In memory, like the job store the
+     *  question rides on: a restart loses both, and the screen's own ceiling turns that into the
+     *  usual failed-read state that keeps his text (#304). Taken out on the first answer, so a
+     *  second answer finds nothing — first write wins, like the rest of paste. */
+    const parked = new Map<string, { sessionId: string; body: z.infer<typeof Body>; header: PastedAdvertHeader }>();
+
+    const runPaste = async (
+      session: SessionRecord,
+      jobId: string,
+      body: z.infer<typeof Body>,
+      resume?: { header: PastedAdvertHeader; confirmedTitle: string },
+    ) => {
       const state: PasteProgress = { step: "reading", requirements: [], employer: null };
       const push = (patch?: { status?: JobStatus; error?: string }) =>
         deps.jobs.update(jobId, { ...patch, progress: { paste: { ...state } } });
@@ -247,7 +270,17 @@ export function pasteRoutes(deps: PasteDeps) {
           sessionId: session.id,
           text: body.text,
           applicationUrl: body.applicationUrl ?? null,
+          ...resume,
         });
+        // The text named no title. The header is kept so the resumed read pays for nothing twice,
+        // and the job stays `running` so the screen's stream stays open for the answer. Nothing is
+        // stored: the title is part of the job's id (ADR-0008 — a worked-out title is asked, not used).
+        if (!outcome.ok && outcome.reason === "title_needed") {
+          parked.set(jobId, { sessionId: session.id, body, header: outcome.header });
+          state.step = "title";
+          state.suggested = outcome.suggested;
+          return void (await push());
+        }
         if (!outcome.ok) return void (await fail(outcome.reason));
 
         const adReq = await resolveAdRequirements(outcome.posting.id, deps.readAd, outcome.posting);
@@ -314,6 +347,27 @@ export function pasteRoutes(deps: PasteDeps) {
       return reply.status(202).send({ jobId: job.id });
     });
 
+    /** #400 — the answer to the title question. Resumes the SAME read on the same job, with the
+     *  header already paid for and the confirmed title in place of the reader's, so the record is
+     *  stored once, with the title the person settled, and the three steps then run as they always
+     *  do. 404 when nothing is parked under this job for THIS session: the read is gone (a restart),
+     *  already answered, or somebody else's. */
+    app.post(
+      "/onboarding/paste/:jobId/title",
+      { schema: { params: JobParams, body: TitleBody } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const waiting = parked.get(req.params.jobId);
+        if (!waiting || waiting.sessionId !== session.id) return reply.status(404).send(PASTE_GONE);
+        parked.delete(req.params.jobId);
+        void runPaste(session, req.params.jobId, waiting.body, {
+          header: waiting.header,
+          confirmedTitle: req.body.title,
+        });
+        return reply.status(202).send({ jobId: req.params.jobId });
+      },
+    );
+
     /** #306 — he adds the link himself, on the job's own screen, when the advert he pasted carried
      *  none. This is the endpoint behind the apply row's empty state, and it is the ONLY way a link
      *  reaches an advert after its first paste: #294 clause 9 refused a silent backfill on a second
@@ -360,6 +414,8 @@ export function pasteRoutes(deps: PasteDeps) {
 }
 
 const UNKNOWN_CARD = { error: { code: "unknown_card", message: "no such job" } };
+// #400: the paste screen turns this into the usual failed-read state that keeps his text.
+const PASTE_GONE = { error: { code: "paste_gone", message: "that read is no longer waiting for a title" } };
 const REVIEW_PENDING = { code: "review_pending", message: "your CV is waiting to be reviewed" };
 
 // #306: the first link wins (pastedAdvert.ts's addPastedApplicationUrl), so a race with another person
