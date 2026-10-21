@@ -105,7 +105,11 @@ worse CV, whatever the posting says.
     belongs in it. Banned outright: the identity opener ("Senior Project Manager with 7+ years of
     experience..."), capability claims ("proven ability to", "expertise in", "strong in",
     "comfortable bridging", "results-driven"), and restating the title, employer, dates, or years
-    already visible elsewhere on the page. `headline` is one line (title-style, not a sentence)
+    already visible elsewhere on the page. The summary never repeats a fact that prints as a
+    bullet under a role — it compresses or points to it, never duplicates it. A language woven
+    into the summary is prose ("fluent in English", "working French"), never the Languages-line
+    form ("is English (Fluent)") — `Name (Level)` belongs only on the Languages line of
+    `additional`. `headline` is one line (title-style, not a sentence)
     and is always required, even when `summary` is empty.
 
 ## Writing style
