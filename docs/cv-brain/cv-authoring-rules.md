@@ -186,6 +186,10 @@ age-proxy stripping rule and its absence is a decision, not an oversight.
     are built entirely from these, and the literature is consistent that accomplishment statements
     beat capability claims.
   - **Restating anything already visible** — title, employer, dates, years.
+  - **Printing a fact twice** — a fact that stands as a bullet under a role is not repeated in the
+    summary; the summary compresses or points to it (#399).
+- **A language in the summary is prose, never the label.** "Fluent in English", "working French" —
+  never "is English (Fluent)". The `Name (Level)` form belongs only on the Languages line (#399).
 - **When there is no achievement to draw on**, the slot shows the hole visible and empty
   ([ADR-0002](../adr/0002-how-a-structured-fact-reaches-the-cv.md) clause 2) — `Led [which project?],
   [what result?]` — which does **not** print. **Never pad a thin CV with a generic paragraph:** the

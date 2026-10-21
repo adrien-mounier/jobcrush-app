@@ -561,6 +561,19 @@ export function conservationIssues(
     });
   }
 
+  // #399: a language woven into the summary is prose ("fluent in English"), never the Languages-line
+  // label pasted into a sentence ("... and is English (Fluent)"). Non-fatal: the retry fixes it; a
+  // draft that still ships says so.
+  for (const [, name] of draft.summary.matchAll(/\bis\s+([A-Z][a-z]+)\s*\(/g)) {
+    if (!isKnownLanguageName(name!)) continue;
+    issues.push({
+      message:
+        `language pasted as a label: the summary says "is ${name} (...)". In the summary a language is ` +
+        `prose ("fluent in ${name}", "working ${name}"); the "Name (Level)" form belongs only on the Languages line.`,
+      visitor: `The summary states your ${name} as a label, not as a sentence. Retry the draft or reword it when you review.`,
+    });
+  }
+
   // #163 / ADR-0002 clause 5: a corrected fact is a declared fact — the lint watches it too. The
   // corrected value must be what prints, and the value it superseded must be gone.
   for (const block of jobBlocks) {
@@ -614,6 +627,8 @@ export function conservationIssues(
     const summary = draft.summary.toLowerCase();
     for (const lang of claims.claims.filter(isLanguageClaim)) {
       for (const word of lang.text.match(/[A-Z][a-z]{3,}/g) ?? []) {
+        // #399: the level word is not the fact — "fluent in Polish" satisfies "Native Polish required".
+        if (/^(native|fluent|conversational|proficient|bilingual|basic)$/i.test(word)) continue;
         if (!testedText.includes(word.toLowerCase())) continue;
         if (summary.includes(word.toLowerCase())) continue;
         issues.push({
