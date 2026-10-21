@@ -43,6 +43,7 @@ import {
   type PastedAdvertHeader,
 } from "../pastedAdvert.js";
 import { makeBroughtJobs, type BroughtJob } from "../broughtJobs.js";
+import { Refusal } from "./refusal.js";
 
 export interface PasteDeps extends PasteAdvertDeps {
   claims: ClaimStore;
@@ -354,7 +355,13 @@ export function pasteRoutes(deps: PasteDeps) {
      *  already answered, or somebody else's. */
     app.post(
       "/onboarding/paste/:jobId/title",
-      { schema: { params: JobParams, body: TitleBody } },
+      {
+        schema: {
+          params: JobParams,
+          body: TitleBody,
+          response: { 202: z.object({ jobId: z.string() }), 400: Refusal, 404: Refusal },
+        },
+      },
       async (req, reply) => {
         const session = requireSession(req);
         const waiting = parked.get(req.params.jobId);
@@ -415,7 +422,7 @@ export function pasteRoutes(deps: PasteDeps) {
 
 const UNKNOWN_CARD = { error: { code: "unknown_card", message: "no such job" } };
 // #400: the paste screen turns this into the usual failed-read state that keeps his text.
-const PASTE_GONE = { error: { code: "paste_gone", message: "that read is no longer waiting for a title" } };
+const PASTE_GONE = { error: { code: "paste_gone", message: "we lost your answer while the job was being read" } };
 const REVIEW_PENDING = { code: "review_pending", message: "your CV is waiting to be reviewed" };
 
 // #306: the first link wins (pastedAdvert.ts's addPastedApplicationUrl), so a race with another person

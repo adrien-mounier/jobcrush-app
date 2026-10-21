@@ -6,7 +6,7 @@
 //   - scope reading asserted at the API surface: the deck route with a fake judge, real stores, a
 //     confirmed session family, and labeled job records — family bars vs total bars vs the known
 //     zero vs the unaccounted-years fallback, plus the confidence attenuation on a REAL card score
-//     (#231 AC6's other half; attenuateForConfidence's production caller is buildJobCard).
+//     (#231 AC6's other half; CONFIDENCE_WEIGHT's production caller is deck.ts's rankAttenuation).
 import { describe, expect, it } from "vitest";
 import type { FamilyPlacement, MinedJobBlock, PlacementConfidence } from "@jobcrush/contracts";
 // #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated

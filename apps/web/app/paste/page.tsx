@@ -65,7 +65,7 @@ const TITLE_LABEL = "Job title";
 const TITLE_CONFIRM = "Use this title";
 const TITLE_GONE: PasteFailure = {
   code: "paste_gone",
-  cameBack: "That read is no longer waiting for a title — it was lost while you were answering.",
+  cameBack: "We lost your answer while the job was being read.",
   fix: "Press Read it again — your text is still here, and nothing was lost.",
 };
 
@@ -147,16 +147,20 @@ export default function PasteScreen() {
     setBusy(false);
   };
 
+  // The ceiling on the whole wait, and it is the ONLY thing standing between him and a spinner
+  // that never ends. The server guards its own crashes, but nothing on the server can report an
+  // API that died mid-read or a stream the browser is still hopefully reconnecting to — and a
+  // narrated wait with no end is worse than any failure screen.
+  const armWatchdog = () => {
+    clearTimeout(watchdogRef.current);
+    watchdogRef.current = setTimeout(() => failWith(FALLBACK_FAILURE), WAIT_CEILING_MS);
+  };
+
   const read = async () => {
     setBusy(true);
     setFailure(null);
     setProgress(START);
-    // The ceiling on the whole wait, and it is the ONLY thing standing between him and a spinner
-    // that never ends. The server guards its own crashes, but nothing on the server can report an
-    // API that died mid-read or a stream the browser is still hopefully reconnecting to — and a
-    // narrated wait with no end is worse than any failure screen.
-    clearTimeout(watchdogRef.current);
-    watchdogRef.current = setTimeout(() => failWith(FALLBACK_FAILURE), WAIT_CEILING_MS);
+    armWatchdog();
     try {
       const { jobId } = await pasteJob(text, link.trim() || null);
       jobIdRef.current = jobId;
@@ -179,7 +183,12 @@ export default function PasteScreen() {
         if (paste) setProgress(paste);
         // #400: the read paused on the title. The worked-out title goes into the field as the
         // starting answer; nothing is stored until he answers, and the stream stays open for it.
-        if (paste?.step === "title") setTitle(paste.suggested ?? "");
+        // The ceiling is for work nobody reports on — a question waits for HIM, however long he
+        // takes to read it; it is armed again the moment he answers and the work resumes.
+        if (paste?.step === "title") {
+          setTitle(paste.suggested ?? "");
+          clearTimeout(watchdogRef.current);
+        }
         if (snapshot.status === "completed" && paste?.result) {
           source.close();
           clearTimeout(watchdogRef.current);
@@ -208,6 +217,7 @@ export default function PasteScreen() {
     setSending(true);
     try {
       await confirmPasteTitle(jobId, title.trim());
+      armWatchdog();
     } catch {
       failWith(TITLE_GONE);
     } finally {

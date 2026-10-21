@@ -7,7 +7,7 @@
 // #231 (ADR-0014 amendment 1) removed the third outcome. `needs_clarification` existed so a visitor
 // could break a two-family tie; nobody is asked any more, so a job that genuinely does two kinds of
 // work is ANSWERED with both. Doubt moved to the ordinal instead: it rides on the ranking, never on
-// the years fact (see attenuateForConfidence below).
+// the years fact (see CONFIDENCE_WEIGHT below).
 //
 // Same LLM-call idiom as adReader.ts: a version-controlled prompt file, extractJson, a zod gate,
 // one retry with the validation error appended. It differs in the last step, deliberately: adReader
@@ -173,10 +173,10 @@ function assemble(
  *  A finer curve would be inventing precision the ordinal does not carry, which is the same mistake
  *  decision 5 rejects a float for.
  *
- *  The production caller is buildJobCard (deck.ts, #222): when a card's score leaned on a
- *  per-family years fact, the weakest contributing placement's level sinks the card's matchPct.
- *  Both halves of #231 AC6 are now real and tested — the card sinks, and nothing about confidence
- *  ever reaches the years fact.
+ *  The production caller is rankAttenuation (deck.ts, #222/#397): when a card's score leaned on a
+ *  per-family years fact, the weakest contributing placement's level sinks the card's RANK in the
+ *  deck — never the number any screen prints (#397: one job, one score). Both halves of #231 AC6
+ *  are real and tested — the rank sinks, and nothing about confidence ever reaches the years fact.
  *
  *  THE WEIGHTS ARE THE OWNER'S (2026-08-15), not a default to tune away. Proposed here, then
  *  confirmed against the worked case: an 80% card reads 72% at `likely` and 60% at `possible`, which
@@ -189,10 +189,6 @@ export const CONFIDENCE_WEIGHT: Record<PlacementConfidence, number> = {
   likely: 0.9,
   possible: 0.75,
 };
-
-export function attenuateForConfidence(score: number, confidence: PlacementConfidence): number {
-  return Math.round(score * CONFIDENCE_WEIGHT[confidence]);
-}
 
 /**
  * Places one target role. Two attempts: a contract-violating answer is re-prompted once with its own

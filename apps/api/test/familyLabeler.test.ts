@@ -10,7 +10,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
 import type { LlmClient } from "../src/llm.js";
 import {
-  attenuateForConfidence,
   makeFamilyPlacer,
   placeJobTitle,
   placeTargetRole,
@@ -127,20 +126,6 @@ describe("#231 placing a past job in one OR MORE job families", () => {
       outcome: "unmapped",
     });
     expect(prompts).toHaveLength(2); // it was re-asked with its own error before giving up
-  });
-});
-
-// ADR-0014 amendment 1 decision 5 — doubt rides on the RANKING, never on the fact.
-describe("#231 confidence attenuates a score and nothing else", () => {
-  it("lowers a card's score as confidence drops, monotonically, and never below zero", () => {
-    expect(attenuateForConfidence(80, "certain")).toBe(80);
-    expect(attenuateForConfidence(80, "likely")).toBe(72);
-    expect(attenuateForConfidence(80, "possible")).toBe(60);
-    expect(attenuateForConfidence(0, "possible")).toBe(0);
-  });
-
-  it("never filters — the least confident placement still scores above nothing", () => {
-    expect(attenuateForConfidence(100, "possible")).toBeGreaterThan(0);
   });
 });
 

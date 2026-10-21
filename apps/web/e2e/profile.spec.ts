@@ -2157,6 +2157,45 @@ test("#303: the profile's top bar carries the paste door, named, on phone and on
   }
 });
 
+// #400: the paste screen's wait ceiling (180 s, then "We never heard back") is for work nobody
+// reports on. The title question waits for HIM — a slow reader must still find the question on
+// screen past the ceiling — and the ceiling is armed again once he answers and the read resumes.
+test("#400: the title question outlives the wait ceiling, and the ceiling is back once he answers", async ({ page }) => {
+  await page.clock.install();
+  await stubSession(page);
+  let answered = false;
+  await page.route("**/api/onboarding/paste", async (route) => {
+    await route.fulfill({ status: 202, json: { jobId: "paste-job-1" } });
+  });
+  await page.route("**/api/onboarding/paste/paste-job-1/title", async (route) => {
+    answered = true;
+    await route.fulfill({ status: 202, json: { jobId: "paste-job-1" } });
+  });
+  await page.route("**/api/jobs/paste-job-1/events", async (route) => {
+    const paste = answered
+      ? { step: "reading", requirements: [], employer: null }
+      : { step: "title", requirements: [], employer: null, suggested: "Delivery Project Manager" };
+    const snapshot = { id: "paste-job-1", status: "running", error: null, progress: { paste } };
+    await route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(snapshot)}\n\n` });
+  });
+
+  await page.goto("/paste");
+  await page.locator("#advert").fill("About the role at Helvara Group\nAntwerp\n\nRole: Delivery Project Manager\n\nRun the delivery.");
+  await page.getByRole("button", { name: "Read it" }).click();
+  const ask = page.locator('[data-testid="paste-title-ask"]');
+  await expect(ask).toBeVisible();
+  await expect(page.locator("#jobtitle")).toHaveValue("Delivery Project Manager");
+
+  await page.clock.fastForward("03:01");
+  await expect(ask).toBeVisible(); // past the ceiling: the question is still his to answer
+  await expect(page.locator('[data-testid="paste-failure"]')).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Use this title" }).click();
+  await expect(page.locator('[data-testid="paste-step-reading"]')).toHaveAttribute("data-state", "now");
+  await page.clock.fastForward("03:01");
+  await expect(page.locator('[data-testid="paste-failure"]')).toContainText("We never heard back about that read.");
+});
+
 // #384: a line the review fixed wears a quiet tag on the profile too — on a sentence row and on a
 // chip — and nothing else does.
 test("#384: a fixed fact wears the tag on the profile, as a row and as a chip; an unfixed fact wears none", async ({ page }) => {

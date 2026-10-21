@@ -532,6 +532,18 @@ describe("#400 a pasted job with no title line", () => {
     expect(readPastedAdvert).toHaveBeenCalledTimes(1);
   });
 
+  it("a model that ships the old placeholder as a stated title is treated as having read no title", async () => {
+    const { app, postings } = pasteServer({ ...HEADER, title: PLACEHOLDER, titleSource: "stated" });
+    const cookie = await anonSession(app);
+    const parked = await paste(app, cookie, { text: NO_TITLE_ADVERT });
+    // The question, with an empty field — never the placeholder as a suggestion, never as a title.
+    expect(parked.progress).toMatchObject({ step: "title", suggested: null });
+    const done = await confirmTitle(app, cookie, parked.jobId!, "Delivery Lead");
+    const stored = await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(NO_TITLE_ADVERT));
+    expect(stored!.title).toBe("Delivery Lead");
+    expect(JSON.stringify(done.result)).not.toContain(PLACEHOLDER);
+  });
+
   it("the reader says where the title came from, and the prompt no longer offers a placeholder", async () => {
     const workedOut = { ...HEADER, title: "Project Manager", titleSource: "worked-out", closingDate: null };
     const complete = vi.fn(async () => JSON.stringify(workedOut));

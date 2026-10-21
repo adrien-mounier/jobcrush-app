@@ -208,6 +208,9 @@ export type PasteAdvertOutcome =
  * always going to drop must be refused for free and by name, never read and then silently lost
  * behind a card that never appears.
  */
+/** #400: what pasted-advert.md answered for a missing title before the question existed. */
+const RETIRED_PLACEHOLDER = /^\s*title not stated\s*$/i;
+
 export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput): Promise<PasteAdvertOutcome> {
   const text = input.text.trim();
   if (text.length < MIN_ADVERT_CHARS) return { ok: false, reason: "too_short" };
@@ -245,9 +248,11 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
     }
     // #400: only a title READ off a title line is used unasked. A worked-out one, or none, is put
     // to the person first — and nothing is stored until then, because the title is in the id.
-    const title =
-      input.confirmedTitle?.trim() || (header.titleSource === "stated" ? header.title : null);
-    if (!title) return { ok: false, reason: "title_needed", suggested: header.title, header };
+    // The placeholder the prompt used to offer is a title nobody read: a model that still answers
+    // it has read none, whatever it says about the source — guarded here, where every reader lands.
+    const read = header.title && !RETIRED_PLACEHOLDER.test(header.title) ? header.title : null;
+    const title = input.confirmedTitle?.trim() || (header.titleSource === "stated" ? read : null);
+    if (!title) return { ok: false, reason: "title_needed", suggested: read, header };
     record = await deps.postings.upsert({
       schemaVersion: "4",
       providerId: PASTED_SOURCE_PROVIDER_ID,
