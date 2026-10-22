@@ -618,7 +618,7 @@ test("#229 accepting the widening clears the change-of-direction banner", async 
 test("#406 the advert in full keeps its blank lines and bullet lines", async ({ page }) => {
   const adExcerpt = ["Senior Project Manager", "", "What you will do:", "- hold the plan", "- run the steering committee"].join("\n");
   await openStubbedDeck(page, [{ ...CARD_BASE, adExcerpt }]);
-  await page.getByText("Read the ad in full").click();
+  await page.locator("details.ad summary").click();
   const advert = page.locator("details.ad p");
   await expect(advert).toHaveCSS("white-space", "pre-line");
   // Five source lines render as five rendered lines: the paragraph is taller than four line-heights.

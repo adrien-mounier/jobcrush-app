@@ -718,6 +718,8 @@ describe("JobCard v1", () => {
       // A URL scheme is case-insensitive, and so are both write boundaries — a contract that refused
       // this would reject links the product itself stores (QA gate on #306, finding D1).
       (card) => (card.applicationUrl = "HTTPS://example.com/apply"),
+      // #407: the scorer's reason on a fit row.
+      (card) => (card.fit[0].reason = "You have owned a budget of this size."),
     ];
     for (const mutate of present) {
       const card = fixture("job-card-v1.valid.json");
@@ -735,6 +737,8 @@ describe("JobCard v1", () => {
       (card) => (card.applicationUrl = "javascript:alert(1)"), // rendered as an anchor — scheme is safety
       (card) => (card.applicationUrl = "example.com/apply"),
       (card) => (card.applicationUrl = 42),
+      (card) => (card.fit[0].reason = 1),
+      (card) => (card.fit[0].reason = null),
     ];
     for (const mutate of malformed) {
       const card = fixture("job-card-v1.valid.json");

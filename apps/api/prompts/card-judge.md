@@ -78,7 +78,7 @@ Return **exactly one verdict per requirement id**, no more, no fewer, none inven
       "requirementId": "own-budget",
       "fit": 0.9,
       "supportingFactId": "fact-3",
-      "reason": "You have owned a $2M programme budget with vendor oversight — a close match."
+      "reason": "You have owned a $2M project budget with vendor oversight — a close match."
     }
   ]
 }
