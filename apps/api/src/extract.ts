@@ -184,8 +184,11 @@ const CITY_COUNTRY_RE = /^[^\d@,]{2,40},\s*[^\d@,]{2,30}$/;
 const isLocation = (part: string) => CITY_COUNTRY_RE.test(part) || marketForLocationText(part) !== null;
 const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
 /** #398/#402: the label a contact detail carries ("Mobile:", "Natel:", "Portable :") — one word and
- *  a colon once the value is taken out — is never a title. No per-language word list. */
-const BARE_LABEL_RE = /^\S+\s*:$/;
+ *  a colon with nothing after it once the value is taken out — is never a title. A run of them
+ *  ("Mobile:  Email:", two contacts on one line with no separator) goes the same way. Only a label
+ *  left dangling at the part's end is dropped: a colon inside a title ("Head of Delivery: EMEA") is
+ *  a word. No per-language word list. */
+const LABEL_TAIL_RE = /(?:^|\s)(?:\S+\s*:\s*)+$/;
 
 /** #381: name = the first line unless it carries contact details; location = the first part that
  *  reads as a place ("City, Country" or a known market); title = the first other part. Parts are
@@ -199,8 +202,8 @@ export function splitLetterhead(header: string): Pick<ContactExtraction, "name" 
   const name = first && !EMAIL_RE.test(first) && !PHONE_RE.test(first) ? read(first) : null;
   const parts = (name ? lines.slice(1) : lines)
     .flatMap((l) => l.split(PART_SEP))
-    .map((p) => p.replace(EMAIL_RE, "").replace(PHONE_RE, "").replace(PART_EDGE_RE, ""))
-    .filter((p) => /\p{L}/u.test(p) && !isLink(p) && !BARE_LABEL_RE.test(p));
+    .map((p) => p.replace(EMAIL_RE, "").replace(PHONE_RE, "").replace(LABEL_TAIL_RE, "").replace(PART_EDGE_RE, ""))
+    .filter((p) => /\p{L}/u.test(p) && !isLink(p));
   const location = parts.find(isLocation);
   const title = parts.find((p) => p !== location);
   return { name, title: title ? read(title) : null, location: location ? read(location) : null };

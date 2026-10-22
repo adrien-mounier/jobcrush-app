@@ -363,6 +363,19 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect(extractContact(segment("Jane Doe\nNatel: +41 79 000 00 00\n\nExperience\nPM at X")).title).toBeNull();
       expect(extractContact(segment("Jane Doe\nPortable : +33 6 00 00 00 00 | Courriel : jane@example.com\n\nExperience\nPM at X")).title).toBeNull();
     });
+
+    // #402 follow-up: two labelled contacts on one line with no separator between them leave a run
+    // of bare labels ("Mobile:  Email:") once the values are gone — still never a title.
+    it("a run of labels left behind on one unseparated line never yields a title", () => {
+      expect(extractContact(segment("Jane Doe\nMobile: +33 6 12 34 56 78 Email: a@b.com\n\nExperience\nPM at X")).title).toBeNull();
+      expect(extractContact(segment("Jane Doe\nNatel: +41 79 123 45 67 Courriel : a@b.com\n\nExperience\nPM at X")).title).toBeNull();
+    });
+
+    // Pinned: a colon INSIDE a title is a word, not a label. Only a label with nothing after it (its
+    // value was a removed email/phone) is dropped, so "Head of Delivery: EMEA" stays whole.
+    it("a title with a colon in the middle is kept whole", () => {
+      expect(extractContact(segment("Jane Doe\nHead of Delivery: EMEA\njane@example.com\n\nExperience\nPM at X")).title?.value).toBe("Head of Delivery: EMEA");
+    });
   });
 });
 
