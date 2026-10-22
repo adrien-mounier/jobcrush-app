@@ -841,6 +841,10 @@
   line-height: 1.55;
   color: #c3ccd5;
   margin: 11px 0 0;
+  /* #406: the advert is shown as it came — a pasted advert's own paragraphs and bullet lines survive
+     to this string byte-for-byte, and a plain <p> would run them into one block. Scoped to .jobdeck,
+     so the deck card, the job's own screen and the tailor's live card all keep them. */
+  white-space: pre-line;
 }
 
 .jobdeck .tailorhandoff p,

@@ -611,3 +611,18 @@ test("#229 accepting the widening clears the change-of-direction banner", async 
   await expect(page.getByRole("heading", { name: "Delivery Manager" })).toBeVisible();
   await expect(page.getByText(CHANGE_OF_DIRECTION)).toHaveCount(0);
 });
+
+// #406: a pasted advert keeps its own line breaks on screen. The text reaches the card byte-for-byte
+// (pasteAdvert.test.ts pins the stored excerpt), so the only place structure could vanish is the
+// paragraph that prints it — HTML collapses newlines unless the paragraph says otherwise.
+test("#406 the advert in full keeps its blank lines and bullet lines", async ({ page }) => {
+  const adExcerpt = ["Senior Project Manager", "", "What you will do:", "- hold the plan", "- run the steering committee"].join("\n");
+  await openStubbedDeck(page, [{ ...CARD_BASE, adExcerpt }]);
+  await page.getByText("Read the ad in full").click();
+  const advert = page.locator("details.ad p");
+  await expect(advert).toHaveCSS("white-space", "pre-line");
+  // Five source lines render as five rendered lines: the paragraph is taller than four line-heights.
+  const box = await advert.boundingBox();
+  const lineHeight = parseFloat(await advert.evaluate((el) => getComputedStyle(el).lineHeight));
+  expect(box!.height).toBeGreaterThan(lineHeight * 4);
+});
