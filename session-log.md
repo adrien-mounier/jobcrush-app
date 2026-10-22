@@ -6,7 +6,8 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 
 `/implement #398` (Opus 5.5, medium). (1) The letterhead reader drops contact labels ("Mobile:", "Email:") before picking the title — his CV now reads "SENIOR PROJECT MANAGER", not "- Mobile:". (2) Root cause of the BRED bullet under Personal projects, confirmed by a read-only staging query: the miner gave it the id `project-status-reporting-steering-committee` under the BRED role, and `kindTag` trusted the `project-` prefix. A `project-` id now counts only on a no-job (`profile`) claim — staging's 14 real personal projects all are; `edu-` lines carry their school as role, so the rule is not widened. Read-time, so his stored line moves back with no data step. No "Move to <job>" control was built. (3) A removal reason names a line by its words; an unknown bracketed id reads "another line". (4) The tailor screen says "Saving your answer…" while an answer posts. QA **GO**: api 2155, tailor.spec 26, check-mode.spec 65, full walk 126/130 at both widths, new `tailor-answer-saving-journey.mjs` 8/8; every new test red against the old code.
 **Follow-up:** #402 non-English labels ("Natel:" on a Swiss CV) still read as the title. Old removal reasons stored before this keep their ids until a re-run.
-**Next:** CI → staging; one real report on staging → `/qa-gate` GO on the whole journey; then Chat with JobCrush (#350).
+CI green on c5c867e (run 39718932472): live on staging. Owner asked for the test-account ticket (#345): not needed for the re-proof — any new email address (Gmail `+test1`) is a fresh, empty account; #345 stays for repeat runs and the old-data wipe.
+**Next:** owner signs in on staging as `adrien.mounier91+test1@gmail.com` (private window), uploads his CV, pastes a job, approves → `/qa-gate` GO on the whole journey; then Chat with JobCrush (#350).
 
 ## 2026-10-21 — Spec #301's last four shipped: #397 #399 #400 #401 (3fb5389, finishing commit on top)
 

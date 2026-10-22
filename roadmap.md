@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-21 (spec #301's last four shipped: #397 #399 #400 #401)_
+_Last updated: 2026-10-22 (#398 shipped and live on staging; the owner's re-proof is next)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,7 +15,8 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: polishing the check-mode walk on the owner's staging feedback** (check mode itself shipped
+**Now: the v1 finish line — the owner's re-proof on staging** (see "Finish line, what remains" below;
+every build ticket for it has shipped). Before that, the check-mode walk was polished (check mode itself shipped
 2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)). Shipped since:
 ~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ (2026-10-15) and ~~#392~~ ~~#396~~ (2026-10-16): discovery is now only the
 job-count wait and moves on by itself; while the CV review runs, check mode is a reading-lamp loading
@@ -28,7 +29,8 @@ request — the next normal push runs the full suite over them.
   ticket only if the owner asks.
 - **Next build:** finish v1 first (owner, 2026-10-21) — see "Finish line, what remains" below; then
   Chat with JobCrush.
-- **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium).
+- **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
+  #402 a non-English phone label ("Natel:") still read as the title (Opus 5.5, low).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
@@ -49,8 +51,9 @@ requirement gets a nearest-true sentence, an unplaced job says "Job location unk
 ~~`/implement-spec #301` (#397 #399 #400 #401)~~ shipped 2026-10-21 (3fb5389): the paste door asks
 for a title it had to work out, one job shows one score, the report hands a denied requirement a sentence and
 says when it cannot place the job, the notices open the email.
-**Finish line, what remains (v1 before the chat):** ~~`/implement #398`~~ shipped 2026-10-22 (a5d3568) → one more real
-report on staging → `/qa-gate` GO. (The old GRADION record that still read "Title not stated" was deleted
+**Finish line, what remains (v1 before the chat):** ~~`/implement #398`~~ shipped 2026-10-22 (a5d3568, live on staging) → **owner:** one more real
+report on staging, on a fresh account (sign in as `adrien.mounier91+test1@gmail.com` in a private
+window — any new address is a new, empty account; #345 is not needed for this) → **agent:** `/qa-gate` GO on the whole journey. (The old GRADION record that still read "Title not stated" was deleted
 from staging 2026-10-22, with its derived rows; the same text can be pasted again and will be asked its title.)
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
