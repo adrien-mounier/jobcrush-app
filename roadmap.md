@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-22 (#398 shipped and live on staging; the owner's re-proof is next)_
+_Last updated: 2026-10-22 (owner's staging run found six defects: #403 filed for one build run, #408 needs a grilling)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,8 +15,10 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: the v1 finish line — the owner's re-proof on staging** (see "Finish line, what remains" below;
-every build ticket for it has shipped). Before that, the check-mode walk was polished (check mode itself shipped
+**Now: the v1 finish line.** The owner's staging run (2026-10-22) found six defects. Five are small
+screen fixes under parent **#403** (#402 #404 #405 #406 #407), one `/implement-spec #403` run. The sixth
+is **#408**: the Tailor step asks every requirement yes/no, where he expects the CV written for him
+and only stretches proposed; grill it first (Opus 5.5), then its own spec. Re-proof after both. Before that, the check-mode walk was polished (check mode itself shipped
 2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)). Shipped since:
 ~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ (2026-10-15) and ~~#392~~ ~~#396~~ (2026-10-16): discovery is now only the
 job-count wait and moves on by itself; while the CV review runs, check mode is a reading-lamp loading
