@@ -341,6 +341,28 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect(contact.title?.value).toBe("SENIOR PROJECT MANAGER");
       expect(extractContact(segment("Jane Doe\nEmail: jane@example.com | Tel: +33 6 00 00 00 00\n\nExperience\nPM at X")).title).toBeNull();
     });
+
+    // #404: the owner's letterhead separates its parts with a spaced hyphen — the location used to
+    // keep the leftover dashes ("Bangkok, Thailand -  -"). An unspaced hyphen is part of a word.
+    it("a spaced hyphen or dash separates parts; an unspaced one does not", () => {
+      const spaced = extractContact(segment("Sam Okafor\nBangkok, Thailand - Mobile: +66 81 234 5678 - Email: a@b.com\n\nExperience\nPM at X"));
+      expect(spaced.location?.value).toBe("Bangkok, Thailand");
+      expect(spaced.title).toBeNull();
+      const dashes = extractContact(segment("Sam Okafor\nLyon, France – sam@example.com — +33 6 00 00 00 00\n\nExperience\nPM at X"));
+      expect(dashes.location?.value).toBe("Lyon, France");
+      expect(dashes.title).toBeNull();
+      const hyphenated = extractContact(segment("Jean-Pierre Dupont\nAix-en-Provence, France | jp@example.com\nChef de projet\n\nExperience\nPM at X"));
+      expect(hyphenated.name?.value).toBe("Jean-Pierre Dupont");
+      expect(hyphenated.location?.value).toBe("Aix-en-Provence, France");
+      expect(hyphenated.title?.value).toBe("Chef de projet");
+    });
+
+    // #402: a contact label the reader has no word list for ("Natel:", "Portable :") is one word
+    // and a colon once its value is gone — never a title.
+    it("a one-word label left behind by a removed phone or email never yields a title", () => {
+      expect(extractContact(segment("Jane Doe\nNatel: +41 79 000 00 00\n\nExperience\nPM at X")).title).toBeNull();
+      expect(extractContact(segment("Jane Doe\nPortable : +33 6 00 00 00 00 | Courriel : jane@example.com\n\nExperience\nPM at X")).title).toBeNull();
+    });
   });
 });
 
