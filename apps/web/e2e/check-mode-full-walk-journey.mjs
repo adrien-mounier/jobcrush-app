@@ -34,7 +34,8 @@ const AREA = 'Singapore';
 const cvText = (marker) =>
   [
     'Jane Doe',
-    `+33 6 00 00 00 00 | ${EMAIL}`,
+    // #398: labelled like the owner's real letterhead — the label is never read as her title.
+    `${EMAIL} - Mobile: +33 6 00 00 00 00`,
     'Warsaw, Poland',
     '',
     'EXPERIENCE',
@@ -242,6 +243,7 @@ try {
   await qa.note(`fields as read: ${JSON.stringify(values)}`);
   await assert(values.name.includes('Jane Doe') && values.email === EMAIL, 'name and email as read');
   await assert(values.title.length < 80, `the title is a title, not a summary (${values.title.length} chars)`);
+  await assert(values.title === '', `her CV has no title line, and the phone's label is not read as one (${JSON.stringify(values.title)})`);
   await assert((await page.locator('main .sg, main .hd').count()) === 0, 'no gold frame, no "Please check" header — a plain card');
   await qa.expectText(lead, 'Check how I read your details', 'one plain sentence says what to do');
   if (!values.location) await qa.expectVisible('input[name=location][placeholder="Not found in your CV"]', 'an empty location says so');

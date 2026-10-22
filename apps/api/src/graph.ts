@@ -47,7 +47,9 @@ export function kindTag(claim: CandidateClaim & { section?: string | null }): st
   const prefix = claim.id.split("-", 1)[0] ?? "";
   // The claim-miner prompt's rule-8 kind prefixes (#373 added project-/additional-: before them a
   // personal project or a nationality line, role "profile", fell into the summary).
-  if (KIND_PREFIXES.has(prefix)) return prefix;
+  // #398: "project" also opens a job's own bullet ("project-status-reporting-…" under BRED); a
+  // personal project belongs to no job, so the prefix counts only on a no-job (profile) claim.
+  if (KIND_PREFIXES.has(prefix) && !(prefix === "project" && claim.role !== "profile")) return prefix;
   return claim.role === "profile" ? "profile" : "experience";
 }
 

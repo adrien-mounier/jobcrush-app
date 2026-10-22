@@ -43,7 +43,7 @@ import type { LlmClient } from "../src/llm.js";
 import type { Mailer } from "../src/mailer.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { Paper, ReviewLine, ReviewState } from "../src/cvReview.js";
-import { aboutIssues, keepAliveOverHttp, parseReviewAnswer, planTools, resolveAbout, reviewPrompt, type ReviewAnswer } from "../src/cvReviewRun.js";
+import { aboutIssues, keepAliveOverHttp, parseReviewAnswer, planTools, resolveAbout, resolveSuggestions, reviewPrompt, type ReviewAnswer } from "../src/cvReviewRun.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { parseReviewPrompt, QA_SKILL_GROUP, qaReviewAnswer } from "../src/qaReviewAnswer.js";
 import { FALLBACK_GROUP } from "../src/skillsSplit.js";
@@ -1801,5 +1801,25 @@ describe("#385 a re-upload keeps what the review moved", () => {
     await finish(app, cookie);
     const after = await server.claims.list(sessionId);
     for (const id of [jenkins.id, copied.id]) expect(after.find((c) => c.id === id)).toMatchObject({ decision: "confirmed", lineState: "ticked" });
+  });
+});
+
+// #398: the prompt has the model name a duplicate's twin by its id; the person reads the line's
+// own words in the Why, never the id (never show the kitchen).
+describe("#398 a removal reason names a line by its words, never its id", () => {
+  it("swaps each named line id, bracketed or bare, for the line's words", () => {
+    const line = (id: string, text: string) => ({ id, text }) as ReviewLine;
+    const paper = {
+      sections: [{ tag: "skills", heading: "Skills", lines: [line("skill-ai", "AI"), line("skill-ai-automation-and-productivity", "Applied AI automation.")] }],
+    } as unknown as Paper;
+    const answer = {
+      jobs: [],
+      sections: [{ judgements: [{ line: "skill-ai", verdict: "remove", kind: "duplicate", reason: "Already said by [skill-ai-automation-and-productivity]." }] }],
+    } as unknown as ReviewAnswer;
+    expect(resolveSuggestions(answer, paper)).toEqual([{ line: "skill-ai", kind: "duplicate", reason: "Already said by “Applied AI automation”." }]);
+    const bare = { jobs: [], sections: [{ judgements: [{ line: "skill-ai", verdict: "remove", kind: "duplicate", reason: "Same as skill-ai-automation-and-productivity." }] }] } as unknown as ReviewAnswer;
+    expect(resolveSuggestions(bare, paper)[0]?.reason).toBe("Same as “Applied AI automation”.");
+    const unknown = { jobs: [], sections: [{ judgements: [{ line: "skill-ai", verdict: "remove", kind: "duplicate", reason: "Already said by [skill-ai-automation-…]." }] }] } as unknown as ReviewAnswer;
+    expect(resolveSuggestions(unknown, paper)[0]?.reason).toBe("Already said by another line.");
   });
 });

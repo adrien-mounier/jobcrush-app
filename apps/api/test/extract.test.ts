@@ -332,6 +332,15 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect(none.title).toBeNull();
       expect(none.location).toBeNull();
     });
+
+    // #398: the owner's real letterhead labels its phone ("email - Mobile: <number>") — with the
+    // number taken out, the bare label used to be read as the title.
+    it("a labelled contact line never yields its label as the title", () => {
+      const header = "Sam Okafor\nsam.okafor@example.com - Mobile: (+66) 80-000-0000\nSENIOR PROJECT MANAGER";
+      const contact = extractContact(segment(`${header}\n\nExperience\nPM at X`));
+      expect(contact.title?.value).toBe("SENIOR PROJECT MANAGER");
+      expect(extractContact(segment("Jane Doe\nEmail: jane@example.com | Tel: +33 6 00 00 00 00\n\nExperience\nPM at X")).title).toBeNull();
+    });
   });
 });
 

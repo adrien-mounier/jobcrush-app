@@ -534,7 +534,14 @@ export function resolveSuggestions(answer: ReviewAnswer, paper: Paper): Resolved
       incrementCounter("cvReview.judgement_dropped");
       continue;
     }
-    out.push({ line: j.line, kind: j.kind, reason: j.reason });
+    // #398: the prompt has the model name a line by its id; the person reads its words instead. A
+    // bracketed id naming no line (cut short, made up) is still an id: it reads "another line".
+    const reason = j.reason.replace(/\[([^\]\s]+)\]|[\w-]+/g, (token, bracketed?: string) => {
+      const named = lines.get(bracketed ?? token);
+      if (named) return `“${named.text.replace(/[.\s]+$/, "")}”`;
+      return bracketed ? "another line" : token;
+    });
+    out.push({ line: j.line, kind: j.kind, reason });
   }
   return out;
 }

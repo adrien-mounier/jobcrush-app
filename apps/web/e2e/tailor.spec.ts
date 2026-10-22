@@ -519,6 +519,25 @@ test("#308 the graded language question: why and cost before six rungs, the cost
   await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
 });
 
+// #398: the owner's English answer took ~8 s on staging and the screen sat still — he clicked again.
+// While an answer posts, the screen says it is saving; once it lands, the line goes.
+test("#398 a slow answer says it is saving until it lands", async ({ page }) => {
+  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q, ...STATE_FIRST.questions] });
+  let land!: () => void;
+  const landed = new Promise<void>((resolve) => (land = resolve));
+  await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
+    await landed;
+    await route.fulfill({ json: { changed: "Remembered for Mandarin: I can negotiate a contract in it.", state: STATE_FIRST } });
+  });
+
+  await page.getByRole("button", { name: "I can negotiate a contract in it" }).click();
+  await expect(page.locator(".tailor .ask").getByRole("status")).toHaveText("Saving your answer…");
+
+  land();
+  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
+  await expect(page.locator(".tailor .ask").getByRole("status")).toHaveCount(0);
+});
+
 // ---------------------------------------------------------------------------------------------
 // #309 — the score stops flattering: a fall renders with its cause, a withdrawal names its
 // reason on the gone screen, and a brought job that stays says why in one line.

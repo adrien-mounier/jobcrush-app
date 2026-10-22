@@ -552,6 +552,12 @@ export default function TailorPage() {
             {item.skip}
           </button>
         )}
+        {/* #398: an answer can take seconds to land — say so, or the person presses again. */}
+        {isAnswering && (
+          <p className="notice" role="status">
+            Saving your answer…
+          </p>
+        )}
         {askError && (
           <p className="err" role="alert">
             {askError}

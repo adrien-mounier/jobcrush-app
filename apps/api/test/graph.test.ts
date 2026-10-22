@@ -72,6 +72,15 @@ describe("JC-32 buildClaimGraph", () => {
     // A job's bullet that mentions a project is still the job's.
     expect(kindTag(claim({ id: "acme-project-alpha", role: "Acme — PM" }))).toBe("experience");
   });
+
+  // #398: the owner's BRED bullet was mined as `project-status-reporting-steering-committee` under
+  // the BRED role, and check mode filed it under Personal projects. A personal project belongs to
+  // no job; a project- id under a job's role is that job's line. An education line keeps its
+  // school as its role and stays Education.
+  it("#398: a project- id under a job's role is the job's line", () => {
+    expect(kindTag(claim({ id: "project-status-reporting-steering-committee", role: "BRED - Senior Project Manager" }))).toBe("experience");
+    expect(kindTag(claim({ id: "edu-esiea-masters", role: "ESIEA, Paris, France" }))).toBe("edu");
+  });
 });
 
 // #13 — persisted "no" answers become Negative nodes that must never render.
