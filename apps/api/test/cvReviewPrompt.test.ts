@@ -34,15 +34,25 @@ describe("cv-review prompt (#340)", () => {
     expect(prompt).toContain("seems off-topic for the job's family is `keep`");
   });
 
-  // #371: About you rides on the sections call, under the brain's Professional Summary rules
-  // (cv-authoring-rules.md): achievements first, no identity opener, no capability claim; a summary
-  // fact that belongs elsewhere is named as a move, never dropped or reworded.
-  it("writes About you from the whole CV under the summary rules, and names the summary facts that move", () => {
+  // #371: About you rides on the sections call; #405 makes it a third-person pitch, not the printed
+  // summary: it opens with who the person is (from the CV's own words), gives the two or three
+  // strongest results, and ends on no list of skills, languages or degrees. The strict summary rules
+  // stay with preview-tailor.md. A summary fact that belongs elsewhere is still named as a move.
+  it("writes About you as a third-person pitch from the whole CV, and names the summary facts that move", () => {
     expect(prompt).toContain('"about"');
-    expect(prompt).toContain("identity opener");
+    expect(prompt).toContain("Open with who the candidate is");
+    expect(prompt).toContain("two or three strongest results");
+    expect(prompt).toContain("no closing list of skills, languages or degrees");
+    expect(prompt).toContain("50–90 words");
+    expect(prompt).toContain("Nothing the CV does not state");
+    expect(prompt).toContain("No first-person pronouns");
     expect(prompt).toContain("proven ability to");
-    expect(prompt).toContain("achievement first");
     expect(prompt).toContain("no summary");
+    // The printed summary's own rules are not About you's: the prompt no longer bans the opener.
+    expect(prompt).not.toContain("No identity opener");
+    expect(prompt).not.toContain("The Professional Summary rules apply");
+    // Golden rule: the prompt names no job family in About you's rule.
+    expect(prompt).not.toMatch(/IT project manager|banking|Ship24/i);
     expect(prompt).toContain('"moves"');
     expect(prompt).toContain("skills | certifications | education | languages");
     expect(prompt).toContain("`about` is `null` when `sections` is not in JOBS TO REVIEW");
