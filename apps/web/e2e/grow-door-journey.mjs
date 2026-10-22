@@ -111,8 +111,10 @@ const year = new Date().getFullYear() - 1;
 await qa.click(page.getByRole('button', { name: '1-2 years ago' }), 'answer "1-2 years ago"');
 await page.waitForTimeout(1400);
 
-const fitRow = page.locator('.tailor .row.fit').filter({ hasText: `(since ${year})` });
-await qa.expectVisible(fitRow, `the dated fact lands in "Where you fit" — "(since ${year})", the conservative year`);
+// #407: a "Where you fit" row is the requirement met (with the scorer's reason under it), never the
+// dated CV line itself — the "(since <year>)" fact is on the CV, the row names the requirement.
+const fitRow = page.locator('.tailor .row.fit').filter({ hasText: grown });
+await qa.expectVisible(fitRow, `the grown requirement "${grown}" lands in "Where you fit"`);
 await assert((await deniedRow.count()) === 0, `the denial row for "${grown}" left the card (count: ${await deniedRow.count()})`);
 await qa.expectText('.tailor .ledger', '+', 'the grow earns its ledger line');
 const stateAfterGrow = await api('/api/onboarding/tailor');
@@ -127,7 +129,7 @@ await assert(
 
 await qa.goto('/tailor', 'reload — the grow is stored, not screen state');
 await page.waitForTimeout(900);
-await qa.expectVisible(page.locator('.tailor .row.fit').filter({ hasText: `(since ${year})` }), 'the dated fact survived the reload');
+await qa.expectVisible(page.locator('.tailor .row.fit').filter({ hasText: grown }), 'the grown requirement survived the reload');
 
 // ---------------------------------------------------------------------------------------------
 // 4. A second "No" that stays; "No change" leaves it standing.
