@@ -101,8 +101,8 @@ const readCard = (root) =>
       adLines: ad && lh ? Math.round(ad.getBoundingClientRect().height / lh) : 0,
       bubble: card.querySelector('.bubble')?.textContent.trim() ?? null,
       fit: [...card.querySelectorAll('.row.fit')].map((r) => ({
-        text: r.textContent.replace(r.querySelector('.why')?.textContent ?? '', '').replace('✓', '').trim(),
-        why: r.querySelector('.why')?.textContent.trim() ?? null,
+        text: r.textContent.replace(r.querySelector('.fit-why')?.textContent ?? '', '').replace('✓', '').trim(),
+        why: r.querySelector('.fit-why')?.textContent.trim() ?? null,
       })),
     };
   }, root);
@@ -148,7 +148,8 @@ await must(values.location === 'Bangkok, Thailand', `#404 the location is "Bangk
 await qa.expectVisible('input[name=title]', `the title field reads "${values.title}"`);
 await must(values.title === '', `#402/#404 no title from the contact line — "Natel:" is not a title (${JSON.stringify(values.title)})`);
 await must(values.name === 'Jane Doe' && values.email === EMAIL, `name and email as read (${values.name}, ${values.email})`);
-await qa.note(`phone as read: ${JSON.stringify(values.phone)}`);
+await qa.expectVisible('input[name=phone]', `the phone field reads "${values.phone}"`);
+await must(values.phone === '+41 79 123 45 67', `#404 the phone ends on its last digit, no trailing dash (${JSON.stringify(values.phone)})`);
 await qa.scrollThrough('Your details');
 
 // 3. Sign in and finish check mode over the wire (check-mode journeys walk it on screen).
@@ -179,7 +180,7 @@ const own = await checkCard('.onejob .jobcard', "the job's own screen", lines);
 // 4b. The same card lives on the tailor screen: the reason must read as a sentence there too, not
 //     pick up the tailor's own uppercase ".why" eyebrow style (found by this gate).
 await qa.click(page.getByRole('button', { name: 'Write the tailored CV' }), 'press "Write the tailored CV"');
-const tailorWhy = page.locator('.tailor .row.fit .why').first();
+const tailorWhy = page.locator('.tailor .row.fit .fit-why').first();
 await tailorWhy.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await qa.expectVisible(tailorWhy, 'the tailor screen: the reason under the Where you fit row');
 const tailorStyle = await tailorWhy.evaluate((el) => ({ t: getComputedStyle(el).textTransform, f: getComputedStyle(el).fontFamily })).catch(() => null);

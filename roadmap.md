@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-22 (owner's staging run found six defects: #403 filed for one build run, #408 needs a grilling)_
+_Last updated: 2026-10-22 (spec #403 shipped — five screen fixes; #408 needs a grilling, then the owner's re-proof)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,10 +15,13 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: the v1 finish line.** The owner's staging run (2026-10-22) found six defects. Five are small
-screen fixes under parent **#403** (#402 #404 #405 #406 #407), one `/implement-spec #403` run. The sixth
-is **#408**: the Tailor step asks every requirement yes/no, where he expects the CV written for him
-and only stretches proposed; grill it first (Opus 5.5), then its own spec. Re-proof after both. Before that, the check-mode walk was polished (check mode itself shipped
+**Now: the v1 finish line.** The owner's staging run (2026-10-22) found six defects. Five shipped the
+same day as ~~#403~~ (~~#402~~ ~~#404~~ ~~#405~~ ~~#406~~ ~~#407~~; QA GO, follow-ups #409 #410 filed):
+the letterhead reads cleanly, About you is a pitch, the advert keeps its line breaks, Where you fit
+names the requirements met with the reason. Three of its ACs are proven only on staging: About you on
+his real CV, his real judged card, a fresh-account upload. The sixth is **#408**: the Tailor step asks
+every requirement yes/no, where he expects the CV written for him and only stretches proposed; grill it
+first (Opus 5.5), then its own spec. Re-proof after both. Before that, the check-mode walk was polished (check mode itself shipped
 2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)). Shipped since:
 ~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ (2026-10-15) and ~~#392~~ ~~#396~~ (2026-10-16): discovery is now only the
 job-count wait and moves on by itself; while the CV review runs, check mode is a reading-lamp loading
@@ -32,7 +35,8 @@ request — the next normal push runs the full suite over them.
 - **Next build:** finish v1 first (owner, 2026-10-21) — see "Finish line, what remains" below; then
   Chat with JobCrush.
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
-  #402 a non-English phone label ("Natel:") still read as the title (Opus 5.5, low).
+  #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
+  Fable 5.1, low).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
