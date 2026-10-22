@@ -104,6 +104,8 @@ function validateFactArray(e, value, field) {
     if (!e.require(isObject(fact), `${at} must be an object`)) return;
     e.require(isString(fact.id), `${at}.id must be a string`);
     e.require(isString(fact.text), `${at}.text must be a string`);
+    // #407 — optional and additive: the scorer's reason on a judged card's fit row.
+    if (fact.reason !== undefined) e.require(isString(fact.reason), `${at}.reason must be a string`);
   });
 }
 

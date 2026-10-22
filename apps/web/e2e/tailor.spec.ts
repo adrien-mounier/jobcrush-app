@@ -25,7 +25,8 @@ const CARD_FIRST: ScoredJobCard = {
     hit: "Your budget and the ERP migration are the two things they lead with.",
     open: "The gap is their SAP version.",
   },
-  fit: [{ id: "budget", text: "€2M, across 4 teams" }],
+  // #407: a fit row is a requirement met, by its text — never a CV line.
+  fit: [{ id: "budget", text: "Own a €2M budget" }],
   dontYet: [
     { id: "sap", band: "essential", requirement: "Their SAP version" },
     { id: "public", band: "standard", requirement: "Public-sector delivery" },
@@ -56,9 +57,9 @@ const STATE_FIRST: TailorState = {
   factCount: 24,
 };
 
-// Real claim ids (apps/api/src/tailor.ts's tailorClaimId): `tailor-<slug(adId)>-<reqId>`, never the
-// bare requirementId — that's exactly what F1 got wrong (resolved the landed row by requirementId,
-// which no `fit`/`askedClosed` row is ever keyed by once answered) and what these fixtures now pin.
+// Real claim ids (apps/api/src/tailor.ts's tailorClaimId): `tailor-<slug(adId)>-<reqId>`. An
+// askedClosed row and a cvLine are keyed by the claim id, never the bare requirementId — what F1 got
+// wrong. #407: a fit row is keyed by the REQUIREMENT it covers, so the "sap" row flips in place.
 const SAP_CLAIM_ID = "tailor-ad-1-sap";
 const PUBLIC_CLAIM_ID = "tailor-ad-1-public";
 
@@ -73,7 +74,7 @@ const STATE_AFTER_SAP: TailorState = {
       desirable: { met: 0, total: 1 },
     },
     bubble: { hit: CARD_FIRST.bubble.hit, open: "The gap is public-sector delivery." },
-    fit: [...CARD_FIRST.fit, { id: SAP_CLAIM_ID, text: "Ran an S/4HANA project, through cutover" }],
+    fit: [...CARD_FIRST.fit, { id: "sap", text: "Their SAP version" }],
     dontYet: [{ id: "public", band: "standard", requirement: "Public-sector delivery" }],
   },
   questions: [
@@ -248,12 +249,11 @@ test("answering a gap re-scores up, flips the ? to a check, rewrites the bubble,
 
   await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
 
-  // F1: the row that landed is found by diffing card.fit against the previous card, not by reusing
-  // the bare requirementId ("sap") — which is never a row's `data-req` once answered (that id is the
-  // claim id, "tailor-ad-1-sap"). Checked BEFORE the tween-completion assertion below on purpose: the
-  // flash clears ~640ms after landing, shorter than the ~680ms score tween, so waiting for "70% match"
-  // first would race past it every time (both by design — "in the same glance", spec §4).
-  const flippedRow = page.locator(".row.fit").filter({ hasText: "Ran an S/4HANA project, through cutover" });
+  // F1: the row that landed is found by diffing card.fit against the previous card. Checked BEFORE
+  // the tween-completion assertion below on purpose: the flash clears ~640ms after landing, shorter
+  // than the ~680ms score tween, so waiting for "70% match" first would race past it every time
+  // (both by design — "in the same glance", spec §4). #407: the row names the requirement met.
+  const flippedRow = page.locator(".row.fit").filter({ hasText: "Their SAP version" });
   await expect(flippedRow).toHaveClass(/landed/);
   const breakdown = page.getByRole("region", { name: "Match breakdown" });
   await expect(breakdown.locator("dd")).toHaveText(["1/2", "1/1", "0/1", "Partial"]);
@@ -262,7 +262,7 @@ test("answering a gap re-scores up, flips the ? to a check, rewrites the bubble,
   await expect(breakdown.getByText("Strong", { exact: true })).toBeVisible();
   // AC2: the grey "?" is gone from "where you don't — yet" and its gold check is in "where you fit" —
   // the pinned contract's own words for the flip (the row moved between the server's three lists).
-  await expect(page.getByText("Their SAP version", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".row.open").filter({ hasText: "Their SAP version" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Where you fit" })).toBeVisible();
   await expect(flippedRow).toBeVisible();
   // F2: the tailored fact also joins the CV paper (cvLines), not just the card's own lists.
@@ -284,7 +284,7 @@ test("#309 a lower server tick really shows — no client clamp holds the % up",
 
   await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
 
-  await expect(page.locator(".flat").getByText("Ran an S/4HANA project, through cutover")).toBeVisible();
+  await expect(page.locator(".row.fit").filter({ hasText: "Their SAP version" })).toBeVisible();
   await expect(page.getByRole("img", { name: "50% match" })).toBeVisible();
   await expect(page.getByRole("img", { name: "61% match" })).toHaveCount(0);
   // The fall carries its cause: the drop's size, the requirement JUST answered (never another

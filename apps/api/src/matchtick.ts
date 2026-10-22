@@ -236,17 +236,14 @@ export function uncoveredRequirements(
   );
 }
 
-/** The strongest single fact toward the ad's top "essential" requirement (falls back to the top-ranked
- *  fact, then a generic line) — the deterministic, cheap "hit" half of the card's bubble. Clause
- *  *generation* is E5/S3 scope; picking among facts the visitor already gave is not. */
-export function pickHitClause(confirmedFacts: ScoredFact[], adRequirements: AdRequirementsV1): string {
-  const topEssential = adRequirements.requirements.find((r) => r.band === "essential");
-  if (topEssential) {
-    const reqTokens = tokenize(topEssential.requirement);
-    const match = confirmedFacts.find((f) => overlapCount(tokenize(f.text), reqTokens) > 0);
-    if (match) return match.text;
-  }
-  return confirmedFacts[0]?.text ?? "Let's find your strongest fit.";
+/** #407: the inverse of uncoveredRequirements — the ad's requirements the keyword tick fully covers,
+ *  in the ad's rank order — an estimated card's "Where you fit" list. */
+export function coveredRequirements(
+  confirmedFacts: ScoredFact[],
+  adRequirements: AdRequirementsV1,
+): AdRequirementV1[] {
+  const facts = factTokenSets(confirmedFacts);
+  return adRequirements.requirements.filter((requirement) => requirementFit(requirement, facts) === 1);
 }
 
 // Exported (not just used below): #23's tailor assembly reuses this exact fallback when it recomputes

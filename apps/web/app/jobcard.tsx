@@ -346,8 +346,11 @@ export function CardBody({
         <UnscoredBubble />
       ) : (
         <div className="bubble">
+          {/* #407: the first half is the scorer's one sentence on why the job fits — or nothing, when
+              there is no judged reason (an estimated card, or nothing met). Never a CV fact's text. */}
           <p>
-            {card.bubble.hit} <span className="gap">{card.bubble.open}</span>
+            {card.bubble.hit && <>{card.bubble.hit} </>}
+            <span className="gap">{card.bubble.open}</span>
           </p>
         </div>
       )}
@@ -355,7 +358,10 @@ export function CardBody({
       <div className="flat">
         {/* #117/#117b: omitted entirely on a pending or unscored card (design §1's render map) —
             not rendered even if the server ever populated `fit` before judging, since "where you
-            fit" reads as a claim the judgement hasn't made yet. */}
+            fit" reads as a claim the judgement hasn't made yet.
+            #407: a row is one of THIS job's requirements the scorer counts as met (`text`), with the
+            scorer's reason under it on a judged card (`reason`) — never a CV line. Keyed by the
+            requirement id, the same id the "don't — yet" row carried before it flipped. */}
         {isScored && card.fit.length > 0 && (
           <>
             <h3>{H1}</h3>
@@ -364,7 +370,10 @@ export function CardBody({
                 <span className="mk" aria-hidden="true">
                   ✓
                 </span>
-                <span>{f.text}</span>
+                <span>
+                  {f.text}
+                  {f.reason && <span className="why">{f.reason}</span>}
+                </span>
               </div>
             ))}
           </>

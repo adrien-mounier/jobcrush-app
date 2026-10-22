@@ -626,3 +626,30 @@ test("#406 the advert in full keeps its blank lines and bullet lines", async ({ 
   const lineHeight = parseFloat(await advert.evaluate((el) => getComputedStyle(el).lineHeight));
   expect(box!.height).toBeGreaterThan(lineHeight * 4);
 });
+
+// #407: "Where you fit" is the job's requirements the scorer counts as met, each with the scorer's
+// reason — and the bubble's first half is that reason too, or nothing. Never a CV line on either.
+test("#407 Where you fit rows name the requirement with its reason; the bubble quotes no CV fact", async ({ page }) => {
+  await openStubbedDeck(page, [
+    {
+      ...CARD_BASE,
+      bubble: { hit: "You have run programmes of this size before.", open: "The gap is SAP." },
+      fit: [
+        { id: "budget", text: "Own a €2M budget", reason: "You have owned a budget this size." },
+        { id: "stakeholders", text: "Coordinate business and technical stakeholders" },
+      ],
+    },
+  ]);
+  const rows = page.locator(".row.fit");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Own a €2M budget");
+  await expect(rows.nth(0).locator(".why")).toHaveText("You have owned a budget this size.");
+  await expect(rows.nth(1)).toHaveText(/Coordinate business and technical stakeholders/);
+  await expect(rows.nth(1).locator(".why")).toHaveCount(0);
+  await expect(page.locator(".bubble")).toHaveText("You have run programmes of this size before. The gap is SAP.");
+});
+
+test("#407 an empty first half drops out of the bubble — only the gap is said", async ({ page }) => {
+  await openStubbedDeck(page, [{ ...CARD_BASE, bubble: { hit: "", open: "The gap is SAP." } }]);
+  await expect(page.locator(".bubble")).toHaveText("The gap is SAP.");
+});

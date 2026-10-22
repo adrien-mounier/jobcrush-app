@@ -77,7 +77,7 @@ interface JobCard {
   scored: string;
   matchPct: number;
   bubble: { hit: string; open: string };
-  fit: Array<{ id: string; text: string }>;
+  fit: Array<{ id: string; text: string; reason?: string }>;
   dontYet: Array<{ id: string; band: string; requirement: string }>;
   askedClosed: Array<{ id: string; text: string }>;
   adExcerpt: string;
@@ -282,10 +282,18 @@ describe("#19 GET /onboarding/cards", () => {
       expect(body.cards[i]!.matchPct).toBeLessThanOrEqual(body.cards[i - 1]!.matchPct);
     }
 
-    // The two "yes" answers are confirmed positives → every card's fit list.
-    const fitIds = body.cards[0]!.fit.map((f) => f.id);
-    expect(fitIds).toContain(discoveryClaimId(END_TO_END));
-    expect(fitIds).toContain(discoveryClaimId(STAKEHOLDERS));
+    // #407: "Where you fit" names THIS ad's requirements the scorer counts as met — never a confirmed
+    // fact. Until #407 the two "yes" answers landed here as CV lines on every card; now a fit row is
+    // a requirement id, disjoint from the open list, and on this estimated deck carries no reason.
+    for (const card of body.cards) {
+      const fitIds = card.fit.map((f) => f.id);
+      expect(fitIds).not.toContain(discoveryClaimId(END_TO_END));
+      expect(fitIds).not.toContain(discoveryClaimId(STAKEHOLDERS));
+      expect(fitIds.filter((id) => card.dontYet.some((r) => r.id === id))).toEqual([]);
+      expect(card.fit.every((f) => f.reason === undefined)).toBe(true);
+      // #407: no judged reason on an estimated card, so the bubble's first half is dropped, never a CV line.
+      expect(card.bubble.hit).toBe("");
+    }
 
     // #311 (#287 c4): the recorded "no" is NOT recited on every card any more — a denial is named
     // only on a posting that asks for it in words the denial covers, with a two-shared-words floor

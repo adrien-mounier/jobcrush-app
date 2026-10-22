@@ -39,7 +39,7 @@ import {
   matchBreakdown,
   matchTick,
   uncoveredRequirements,
-  pickHitClause,
+  coveredRequirements,
   NOTHING_OPEN_CLAUSE,
 } from "./matchtick.js";
 import {
@@ -50,7 +50,8 @@ import {
   isIndustryScopeYearsBar,
   judgedBreakdown,
   judgedMatchTick,
-  judgedPickHitClause,
+  judgedFitRows,
+  judgedHitClause,
   judgedUncoveredRequirements,
   type IndustryYearsContext,
   type YearsAtScopes,
@@ -702,12 +703,12 @@ export function buildJobCard(
     place: posting.location,
     salary: null,
     pattern: null,
-    // #106 code-review D1 (2026-08-03, round 3): unfiltered, this put every eligibility DECLINE on
-    // EVERY card in the deck as if it were that ad's own "asked and closed" gap — an eligibility
-    // decline has nothing to do with any one ad's requirements. `fit` needs the same guard for
-    // symmetry even though nothing eligibility-related is ever in `confirmed` today (must-fix 1: a
-    // real eligibility answer never enters the claims store at all).
-    fit: excludingEligibility(confirmed).map((c) => ({ id: c.id, text: c.text })),
+    // #407: "Where you fit" is THIS job's requirements the scorer counts as met, each with its reason —
+    // never a CV line. Until #407 this was every confirmed fact unfiltered, so every card read the
+    // whole CV back. An estimated card names the requirements its keyword tick covered, by text.
+    fit: judgement
+      ? judgedFitRows(judgement.verdicts, adReq)
+      : coveredRequirements(confirmed, adReq).map((r) => ({ id: r.id, text: r.requirement })),
     // #311 (#287 c4): a denial is named only on a posting that actually asks for it, and only while
     // the ask is still open — his gaps are not recited at him on every card. Until this ticket every
     // recorded "no" in the session landed on every card, the same defect the eligibility declines
@@ -747,7 +748,9 @@ export function buildJobCard(
     // so it can keep naming a requirement the visitor just declined. Take the open clause from the
     // already-filtered dontYet instead — same fallback as pickOpenClause's own.
     bubble: {
-      hit: judgement ? judgedPickHitClause(judgement.verdicts, adReq, confirmed) : pickHitClause(confirmed, adReq),
+      // #407: one sentence from the scorer on why the job fits, or nothing — never a CV fact's text.
+      // The estimated path has no judged reason, so its first half is always dropped.
+      hit: judgement ? judgedHitClause(judgement.verdicts, adReq) : "",
       open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE,
     },
     dontYet,

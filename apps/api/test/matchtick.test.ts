@@ -6,7 +6,6 @@ import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import {
   matchBreakdown,
   matchTick,
-  pickHitClause,
   pickOpenClause,
   uncoveredRequirements,
   type ScoredFact,
@@ -325,14 +324,6 @@ describe("#19 uncoveredRequirements — the card's 'don't fit yet' list, rank or
 });
 
 describe("#19 bubble clauses — cheap, deterministic composition (no LLM)", () => {
-  it("pickHitClause picks the confirmed fact that matches the top 'must' requirement", () => {
-    expect(pickHitClause(ONE, AD)).toBe(budgetFact.text);
-  });
-
-  it("pickHitClause falls back to a generic line with no confirmed facts", () => {
-    expect(pickHitClause(NONE, AD)).toBe("Let's find your strongest fit.");
-  });
-
   it("pickOpenClause surfaces the top-ranked uncovered requirement's own text", () => {
     expect(pickOpenClause(NONE, AD)).toBe("Own a project budget with vendor oversight");
   });

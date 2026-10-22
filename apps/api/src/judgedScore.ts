@@ -4,9 +4,9 @@
 // and every route that doesn't wire a judge (every pre-#105 test, and slice 10's own re-baselining
 // work) keeps today's deterministic tick byte-for-byte. Same "no IO, no store, no LLM" shape as
 // matchtick.ts — these functions only ever read an already-resolved JudgementRecord.
-import type { AdRequirementV1, AdRequirementsV1, PlacementConfidence } from "@jobcrush/contracts";
-import { BAND_WEIGHT, pickHitClause, type MatchBreakdown } from "./matchtick.js";
-import { COVERAGE_THRESHOLD, type JudgeFact, type JudgeVerdict } from "./judge.js";
+import type { AdRequirementV1, AdRequirementsV1, CardFact, PlacementConfidence } from "@jobcrush/contracts";
+import { BAND_WEIGHT, type MatchBreakdown } from "./matchtick.js";
+import { COVERAGE_THRESHOLD, type JudgeVerdict } from "./judge.js";
 
 function verdictMap(verdicts: JudgeVerdict[]): Map<string, JudgeVerdict> {
   return new Map(verdicts.map((v) => [v.requirementId, v]));
@@ -243,26 +243,23 @@ export function applyYearsShortfall(
   });
 }
 
-/** pickHitClause's judged analogue: the top essential requirement's OWN verdict names the fact that
- *  actually supported it (supportingFactId), so the bubble quotes the fact the judge relied on rather
- *  than re-deriving a guess via token overlap. When that verdict names no fact (or it can't be found
- *  in this exact fact list) this does NOT jump straight to the first confirmed fact — #105 review: an
- *  unmet top essential requirement used to quote the user's first fact regardless of relevance. It
- *  falls back to pickHitClause's own token-overlap search across ALL facts instead, mirroring the
- *  original's full fallback chain (search all facts, then the first confirmed fact, then the generic
- *  line) rather than truncating it. */
-export function judgedPickHitClause(
-  verdicts: JudgeVerdict[],
-  adRequirements: AdRequirementsV1,
-  confirmedFacts: JudgeFact[],
-): string {
+/** #407 — the card's "Where you fit": this advert's requirements the scorer counts as met, in the
+ *  advert's own order, each with the scorer's one-sentence reason. Never a CV line: until #407 `fit`
+ *  was every confirmed fact unfiltered, and the owner read his whole CV back on every card. */
+export function judgedFitRows(verdicts: JudgeVerdict[], adRequirements: AdRequirementsV1): CardFact[] {
+  const byId = verdictMap(verdicts);
+  return adRequirements.requirements.flatMap((r) => {
+    const v = byId.get(r.id);
+    return v && v.fit >= COVERAGE_THRESHOLD ? [{ id: r.id, text: r.requirement, reason: v.reason }] : [];
+  });
+}
+
+/** #407 — the bubble's first half: one sentence on why the job fits, in the scorer's words. The top
+ *  essential requirement's reason when it is met, else the first met requirement's, else "" — the
+ *  half is dropped rather than filled with a CV fact (the pre-#407 behaviour: the supporting fact's
+ *  full text, which for a broad requirement was the About-you paragraph). The gap half is untouched. */
+export function judgedHitClause(verdicts: JudgeVerdict[], adRequirements: AdRequirementsV1): string {
+  const met = judgedFitRows(verdicts, adRequirements);
   const topEssential = adRequirements.requirements.find((r) => r.band === "essential");
-  if (topEssential) {
-    const verdict = verdictMap(verdicts).get(topEssential.id);
-    const fact = verdict?.supportingFactId
-      ? confirmedFacts.find((f) => f.id === verdict.supportingFactId)
-      : undefined;
-    if (fact) return fact.text;
-  }
-  return pickHitClause(confirmedFacts, adRequirements);
+  return (met.find((row) => row.id === topEssential?.id) ?? met[0])?.reason ?? "";
 }

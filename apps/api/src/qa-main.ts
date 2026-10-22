@@ -376,7 +376,8 @@ const fakeLlm: LlmClient = {
           // requirement and a "where you don't fit yet" list to render.
           fit: i === 0 ? 0.9 : 0.4,
           supportingFactId: null,
-          reason: i === 0 ? "The evidence covers this requirement." : "Only partly supported by the evidence.",
+          // #407: printed on the card's "Where you fit" rows, so written to the person like the real judge's.
+          reason: i === 0 ? "You have done this before." : "Only part of this shows in what you told me.",
         })),
       });
     }

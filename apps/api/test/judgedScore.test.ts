@@ -9,7 +9,8 @@ import {
   isFamilyScopeYearsBar,
   judgedBreakdown,
   judgedMatchTick,
-  judgedPickHitClause,
+  judgedFitRows,
+  judgedHitClause,
   judgedUncoveredRequirements,
 } from "../src/judgedScore.js";
 import { COVERAGE_THRESHOLD, type JudgeFact, type JudgeVerdict } from "../src/judge.js";
@@ -122,42 +123,45 @@ describe(`#105 judgedBreakdown / judgedUncoveredRequirements — the COVERAGE_TH
   });
 });
 
-describe("#105 judgedPickHitClause", () => {
-  const facts: JudgeFact[] = [
-    { id: "fact-1", text: "Owned a $2M budget with vendor oversight." },
-    { id: "fact-2", text: "Led a cross-functional team of 12." },
-  ];
+// #407: the card says WHY he fits in the scorer's own words, never by quoting a CV line — the owner
+// saw his whole About-you paragraph land under the advert. Both halves read the verdicts only.
+describe("#407 judgedFitRows", () => {
+  const reasoned = (id: string, fit: number, reason: string): JudgeVerdict => ({ ...verdict(id, fit), reason });
 
-  it("quotes the top essential requirement's own supporting fact", () => {
-    const verdicts = [verdict("own-budget", 1, "fact-1"), verdict("lead-team", 0), verdict("certification", 0)];
-    expect(judgedPickHitClause(verdicts, AD, facts)).toBe("Owned a $2M budget with vendor oversight.");
-  });
-
-  // #105 review: this used to jump straight to confirmedFacts[0] whenever the top essential verdict
-  // named no supporting fact — quoting the user's FIRST fact regardless of relevance. It must instead
-  // search across all facts (pickHitClause's own token-overlap search) the same way the deterministic
-  // tick's bubble always has.
-  it("searches across ALL facts for relevance, not just the first one, when no supporting fact is named", () => {
-    const irrelevantFirst: JudgeFact[] = [
-      { id: "fact-1", text: "Enjoys painting on weekends." }, // facts[0] — must NOT be quoted here
-      { id: "fact-2", text: "Owned a $2M project budget with vendor oversight." }, // actually relevant
+  it("lists the requirements the scorer counts as met, in the advert's own order, each with its reason", () => {
+    const verdicts = [
+      reasoned("certification", 0.9, "You hold the PMP."),
+      reasoned("lead-team", 0.85, "You led a team of twelve."),
+      reasoned("own-budget", 0.4, "A smaller budget than they ask for."),
     ];
-    const verdicts = [verdict("own-budget", 0, null), verdict("lead-team", 0), verdict("certification", 0)];
-    expect(judgedPickHitClause(verdicts, AD, irrelevantFirst)).toBe(irrelevantFirst[1]!.text);
+    expect(judgedFitRows(verdicts, AD)).toEqual([
+      { id: "lead-team", text: "Lead a cross-functional team", reason: "You led a team of twelve." },
+      { id: "certification", text: "Hold a PM certification", reason: "You hold the PMP." },
+    ]);
   });
 
-  it("falls back to the first confirmed fact when nothing overlaps the top essential requirement either", () => {
-    const noOverlap: JudgeFact[] = [
-      { id: "fact-1", text: "Enjoys painting on weekends." },
-      { id: "fact-2", text: "Also plays the guitar." },
-    ];
-    const verdicts = [verdict("own-budget", 0, null), verdict("lead-team", 0), verdict("certification", 0)];
-    expect(judgedPickHitClause(verdicts, AD, noOverlap)).toBe(noOverlap[0]!.text);
+  it("a requirement below the coverage bar never appears, however many facts support it", () => {
+    const verdicts = [verdict("own-budget", COVERAGE_THRESHOLD - 0.01, "fact-1"), verdict("lead-team", 0), verdict("certification", 0)];
+    expect(judgedFitRows(verdicts, AD)).toEqual([]);
+  });
+});
+
+describe("#407 judgedHitClause", () => {
+  const reasoned = (id: string, fit: number, reason: string): JudgeVerdict => ({ ...verdict(id, fit), reason });
+
+  it("is the top essential requirement's reason when the scorer counts it as met", () => {
+    const verdicts = [reasoned("own-budget", 0.9, "You have owned a budget of this size."), reasoned("lead-team", 0.9, "You led twelve."), verdict("certification", 0)];
+    expect(judgedHitClause(verdicts, AD)).toBe("You have owned a budget of this size.");
   });
 
-  it("falls back to the generic line with no facts at all", () => {
-    const verdicts = [verdict("own-budget", 0, null), verdict("lead-team", 0), verdict("certification", 0)];
-    expect(judgedPickHitClause(verdicts, AD, [])).toBe("Let's find your strongest fit.");
+  it("falls back to the first met requirement's reason when the top essential one is open", () => {
+    const verdicts = [reasoned("own-budget", 0.3, "Smaller budgets only."), reasoned("lead-team", 0.9, "You led twelve."), verdict("certification", 0)];
+    expect(judgedHitClause(verdicts, AD)).toBe("You led twelve.");
+  });
+
+  it("is empty — the first half of the bubble is dropped — when nothing is met", () => {
+    const verdicts = [reasoned("own-budget", 0.3, "Smaller budgets only."), verdict("lead-team", 0), verdict("certification", 0)];
+    expect(judgedHitClause(verdicts, AD)).toBe("");
   });
 });
 

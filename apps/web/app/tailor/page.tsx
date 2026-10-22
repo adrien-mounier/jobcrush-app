@@ -106,11 +106,11 @@ function keepInView(wrap: HTMLElement, el: HTMLElement, topPad: number, reduced:
   if (Math.abs(d) > 1) wrap.scrollBy({ top: d, behavior: reduced ? "auto" : "smooth" });
 }
 
-// The row that just changed, found by diffing card.fit/card.askedClosed against the previous card —
-// NOT by reusing requirementId. Those two lists carry claim ids (tailor-<slug(adId)>-<reqId>), not
-// requirement ids, so a requirement id never matches a `[data-req]` row once it's answered. A "yes"
-// lands a new fit entry; a "no" lands a new askedClosed entry (never a fit-list guess). No new entry
-// in either ⇒ nothing to scroll to (shouldn't happen, but scroll/flash are both no-ops on null).
+// The row that just changed, found by diffing card.fit/card.askedClosed against the previous card.
+// A "yes" lands a new fit entry (#407: keyed by the requirement it now covers); a "no" lands a new
+// askedClosed entry, keyed by its claim id (tailor-<slug(adId)>-<reqId>) — so the diff, not the
+// answered requirementId, is what finds the `[data-req]` row in either list. No new entry in either
+// ⇒ nothing to scroll to (shouldn't happen, but scroll/flash are both no-ops on null).
 function resolveLandedId(prevCard: JobCard, nextCard: JobCard): string | null {
   const prevFit = new Set(prevCard.fit.map((f) => f.id));
   const newFit = nextCard.fit.find((f) => !prevFit.has(f.id));

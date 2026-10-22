@@ -8,7 +8,10 @@ const BandBreakdown = z.object({ met: Count, total: Count }).superRefine((value,
   }
 });
 
-export const CardFact = z.object({ id: z.string(), text: z.string() });
+/** #407 — `reason` is optional and additive (like `notTested`, `ageing`, `applicationUrl`): on a judged
+ *  card's `fit` rows it carries the scorer's one-sentence reason why this requirement counts as met;
+ *  absent on an estimated card's rows and on every `askedClosed` row, so pre-#407 payloads are unchanged. */
+export const CardFact = z.object({ id: z.string(), text: z.string(), reason: z.string().optional() });
 export type CardFact = z.infer<typeof CardFact>;
 
 // band: the SAME RankBand used by AdRequirementV1.band and FloorItem.rankBand (#86 decision, #102) —

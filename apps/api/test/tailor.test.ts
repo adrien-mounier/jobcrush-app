@@ -1162,10 +1162,11 @@ describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
     expect(res.statusCode).toBe(200);
     state = res.json();
 
-    // The dated fact prints in fit and earns its ledger share; the row and its door are gone.
+    // The dated fact covers its requirement — which now prints in fit by requirement (#407: a fit row
+    // names the requirement met, never the fact's own text) — and earns its ledger share; the row and
+    // its door are gone. The dated fact itself is checked in the claims store below.
     const year = new Date().getFullYear() - 1;
-    const fitTexts = state.card.fit.map((f: { text: string }) => f.text);
-    expect(fitTexts.some((t: string) => t.includes(`(since ${year})`))).toBe(true);
+    expect(state.card.fit.map((f: { id: string }) => f.id)).toContain(reqId);
     expect(state.card.askedClosed.map((f: { id: string }) => f.id)).not.toContain(claimId);
     expect(state.doors.map((d: { claimId: string }) => d.claimId)).not.toContain(claimId);
     expect(state.ledger.find((l: { requirementId: string }) => l.requirementId === reqId)!.text).toMatch(/^\+\d+% · /);
@@ -1179,7 +1180,8 @@ describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
     expect(kept).toBeDefined();
     expect(kept!.text).toMatch(/^Not applicable — /);
     const confirmed = await claims.confirmed(sessionId);
-    expect(confirmed.some((c) => c.id === grownTailorClaimId(VALID_AD_ID, reqId))).toBe(true);
+    const grown = confirmed.find((c) => c.id === grownTailorClaimId(VALID_AD_ID, reqId));
+    expect(grown?.text).toContain(`(since ${year})`);
   });
 
   it("a grow for a requirement nothing denied maps to is refused (400), fail-closed like the door it lacks", async () => {
