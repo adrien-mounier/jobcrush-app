@@ -49,7 +49,7 @@ requirement gets a nearest-true sentence, an unplaced job says "Job location unk
 ~~`/implement-spec #301` (#397 #399 #400 #401)~~ shipped 2026-10-21 (3fb5389): the paste door asks
 for a title it had to work out, one job shows one score, the report hands a denied requirement a sentence and
 says when it cannot place the job, the notices open the email.
-**Finish line, what remains (v1 before the chat):** `/implement #398` (Opus 5.5, medium) → one more real
+**Finish line, what remains (v1 before the chat):** ~~`/implement #398`~~ shipped 2026-10-22 (a5d3568) → one more real
 report on staging → `/qa-gate` GO. (The old GRADION record that still read "Title not stated" was deleted
 from staging 2026-10-22, with its derived rows; the same text can be pasted again and will be asked its title.)
 
@@ -62,7 +62,7 @@ run); `/implement` is for a lone ticket. Never point `/implement` at a parent or
 ## Milestones
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
-- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); its four follow-ups under #301 **done** 2026-10-21; #398 and the re-proof on staging are next.
+- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); its four follow-ups under #301 **done** 2026-10-21; #398 **done** 2026-10-22; the re-proof on staging is next.
 - V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page was replaced by V6b.
 - V6b — the profile's check mode (ADR-0018, parent #375): **done** 2026-10-14 (482ca57).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
