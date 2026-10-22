@@ -49,9 +49,9 @@ requirement gets a nearest-true sentence, an unplaced job says "Job location unk
 ~~`/implement-spec #301` (#397 #399 #400 #401)~~ shipped 2026-10-21 (3fb5389): the paste door asks
 for a title it had to work out, one job shows one score, the report hands a denied requirement a sentence and
 says when it cannot place the job, the notices open the email.
-**Finish line, what remains (v1 before the chat):** `/implement #398` (Opus 5.5, medium) → delete or
-retitle the old GRADION record on staging (still "Title not stated"; a re-paste reuses it) → one more real
-report on staging → `/qa-gate` GO.
+**Finish line, what remains (v1 before the chat):** `/implement #398` (Opus 5.5, medium) → one more real
+report on staging → `/qa-gate` GO. (The old GRADION record that still read "Title not stated" was deleted
+from staging 2026-10-22, with its derived rows; the same text can be pasted again and will be asked its title.)
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
 every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
