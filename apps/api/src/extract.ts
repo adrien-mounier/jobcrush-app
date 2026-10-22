@@ -75,7 +75,9 @@ export const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/;
 // optional leading "(" (and "(+" for "(+852) …") without widening what counts as digits-and-
 // separators after it, so isContact's classifier truth value is unchanged (that span already
 // matched before; only the captured start position moves left to include the bracket).
-export const PHONE_RE = /\(?\+?\d[\d ()-]{7,}/;
+// QA #404: the match ends on a digit or ")" — never on a separator, so "+66 81 234 5678 - Email"
+// mines "+66 81 234 5678" and not "+66 81 234 5678 -". Same 8-character minimum as before.
+export const PHONE_RE = /\(?\+?\d[\d ()-]{6,}[\d)]/;
 const MONTH = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*";
 const DATE_RANGE_RE = new RegExp(
   `(?:\\b${MONTH}\\s+)?\\b(?:19|20)\\d{2}\\b\\s*(?:[-–—]|to)\\s*` +
@@ -175,8 +177,12 @@ export interface ContactExtraction {
   location: ContactFieldRead | null;
 }
 
-/** #404: a spaced hyphen/dash separates parts too; an unspaced one ("Jean-Pierre") is a word. */
-const PART_SEP = /\s*[|·•]\s*|\s+[-–—]\s+/;
+const PART_SEP = /\s*[|·•]\s*/;
+/** #404: on a line that carries an email or phone a spaced hyphen/dash separates parts too; an
+ *  unspaced one ("Jean-Pierre") is a word. On any other line it is a word as well: a title spelled
+ *  "Purchasing Manager - Ingredients & Packaging" is read whole. */
+const CONTACT_PART_SEP = /\s*[|·•]\s*|\s+[-–—]\s+/;
+const partSep = (line: string) => (EMAIL_RE.test(line) || PHONE_RE.test(line) ? CONTACT_PART_SEP : PART_SEP);
 /** Separator punctuation left at a part's ends once its contact details are taken out. */
 const PART_EDGE_RE = /^[\s|·•\-–—,]+|[\s|·•\-–—,]+$/g;
 /** "City, Country" — two comma-separated words-only parts. */
@@ -189,6 +195,16 @@ const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
  *  left dangling at the part's end is dropped: a colon inside a title ("Head of Delivery: EMEA") is
  *  a word. No per-language word list. */
 const LABEL_TAIL_RE = /(?:^|\s)(?:\S+\s*:\s*)+$/;
+/** QA #402: a label can hide behind a trailing comma ("E-mail: , Phone: " → "E-mail: ,"), so the
+ *  label strip and the edge trim run until nothing changes. */
+function cleanPart(part: string): string {
+  let p = part.replace(EMAIL_RE, "").replace(PHONE_RE, "");
+  for (let q = ""; q !== p; ) {
+    q = p;
+    p = p.replace(LABEL_TAIL_RE, "").replace(PART_EDGE_RE, "");
+  }
+  return p;
+}
 
 /** #381: name = the first line unless it carries contact details; location = the first part that
  *  reads as a place ("City, Country" or a known market); title = the first other part. Parts are
@@ -201,8 +217,8 @@ export function splitLetterhead(header: string): Pick<ContactExtraction, "name" 
   const first = lines[0];
   const name = first && !EMAIL_RE.test(first) && !PHONE_RE.test(first) ? read(first) : null;
   const parts = (name ? lines.slice(1) : lines)
-    .flatMap((l) => l.split(PART_SEP))
-    .map((p) => p.replace(EMAIL_RE, "").replace(PHONE_RE, "").replace(LABEL_TAIL_RE, "").replace(PART_EDGE_RE, ""))
+    .flatMap((l) => l.split(partSep(l)))
+    .map(cleanPart)
     .filter((p) => /\p{L}/u.test(p) && !isLink(p));
   const location = parts.find(isLocation);
   const title = parts.find((p) => p !== location);

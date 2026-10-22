@@ -376,6 +376,29 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
     it("a title with a colon in the middle is kept whole", () => {
       expect(extractContact(segment("Jane Doe\nHead of Delivery: EMEA\njane@example.com\n\nExperience\nPM at X")).title?.value).toBe("Head of Delivery: EMEA");
     });
+
+    // QA on #404: the phone regex swallowed the spaced separator after the number, so Your details
+    // read "+66 81 234 5678 -". A phone ends on a digit or a closing bracket, never on a separator.
+    it("a phone followed by a spaced separator ends on its last digit", () => {
+      expect(extractContact(segment("Sam Okafor\nBangkok, Thailand - Mobile: +66 81 234 5678 - Email: a@b.com\n\nExperience\nPM at X")).phone?.value).toBe("+66 81 234 5678");
+      expect(extractContact(segment("Jane Doe\nNatel: +41 79 123 45 67 - Email: a@b.com\n\nExperience\nPM at X")).phone?.value).toBe("+41 79 123 45 67");
+      expect(extractContact(segment("Jane Doe\n(852) 1234 5678 - a@b.com\n\nExperience\nPM at X")).phone?.value).toBe("(852) 1234 5678");
+    });
+
+    // QA on #404 (a real CV): a spaced dash inside a title-only line is punctuation, not a part
+    // separator — "Purchasing Manager - Ingredients & Packaging" was cut to "Purchasing Manager".
+    // Only a line that carries an email or phone (the contact line) is split on a spaced dash.
+    it("a spaced dash on a line with no contact details does not split a title", () => {
+      const c = extractContact(segment("Giuliana Delre\nPurchasing Manager - Ingredients & Packaging\ng@example.com | +41 79 000 00 00\n\nExperience\nPM at X"));
+      expect(c.title?.value).toBe("Purchasing Manager - Ingredients & Packaging");
+      expect(c.location).toBeNull();
+    });
+
+    // QA on #402: with the labels stripped before the edge trim, "E-mail: x, Phone: +33…" left
+    // "E-mail:" as the title — the trailing comma hid the first label. Strip and trim until stable.
+    it("a label hidden behind a trailing comma is still never a title", () => {
+      expect(extractContact(segment("Jane Doe\nE-mail: x@y.com, Phone: +33 6 12 34 56 78\n\nExperience\nPM at X")).title).toBeNull();
+    });
   });
 });
 
