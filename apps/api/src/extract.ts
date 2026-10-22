@@ -175,18 +175,21 @@ export interface ContactExtraction {
   location: ContactFieldRead | null;
 }
 
-const PART_SEP = /\s*[|·•]\s*/;
+/** #404: a spaced hyphen/dash separates parts too; an unspaced one ("Jean-Pierre") is a word. */
+const PART_SEP = /\s*[|·•]\s*|\s+[-–—]\s+/;
+/** Separator punctuation left at a part's ends once its contact details are taken out. */
+const PART_EDGE_RE = /^[\s|·•\-–—,]+|[\s|·•\-–—,]+$/g;
 /** "City, Country" — two comma-separated words-only parts. */
 const CITY_COUNTRY_RE = /^[^\d@,]{2,40},\s*[^\d@,]{2,30}$/;
 const isLocation = (part: string) => CITY_COUNTRY_RE.test(part) || marketForLocationText(part) !== null;
 const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
-/** #398: the label a contact detail carries ("Mobile:", "Email:") — left behind once the value is
- *  taken out, it is never a title. */
-const CONTACT_LABEL_RE = /\b(?:mobile|cell|phone|tel(?:ephone)?|e-?mail|whatsapp)\s*:/gi;
+/** #398/#402: the label a contact detail carries ("Mobile:", "Natel:", "Portable :") — one word and
+ *  a colon once the value is taken out — is never a title. No per-language word list. */
+const BARE_LABEL_RE = /^\S+\s*:$/;
 
 /** #381: name = the first line unless it carries contact details; location = the first part that
  *  reads as a place ("City, Country" or a known market); title = the first other part. Parts are
- *  the letterhead's lines split on `|`, `·`, `•`, with email/phone/links taken out.
+ *  the letterhead's lines split on `|`, `·`, `•` or a spaced dash, with email/phone/links taken out.
  *  ponytail: a title spelled "Director, Operations" reads as a location — widen isLocation with a
  *  place vocabulary if that shows up. */
 export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
@@ -196,8 +199,8 @@ export function splitLetterhead(header: string): Pick<ContactExtraction, "name" 
   const name = first && !EMAIL_RE.test(first) && !PHONE_RE.test(first) ? read(first) : null;
   const parts = (name ? lines.slice(1) : lines)
     .flatMap((l) => l.split(PART_SEP))
-    .map((p) => p.replace(EMAIL_RE, "").replace(PHONE_RE, "").replace(CONTACT_LABEL_RE, "").trim())
-    .filter((p) => /\p{L}/u.test(p) && !isLink(p));
+    .map((p) => p.replace(EMAIL_RE, "").replace(PHONE_RE, "").replace(PART_EDGE_RE, ""))
+    .filter((p) => /\p{L}/u.test(p) && !isLink(p) && !BARE_LABEL_RE.test(p));
   const location = parts.find(isLocation);
   const title = parts.find((p) => p !== location);
   return { name, title: title ? read(title) : null, location: location ? read(location) : null };

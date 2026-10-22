@@ -1,4 +1,4 @@
-<!-- cv-review prompt v2 (#340; #371 adds F. ABOUT YOU and the summary moves, ADR-0018 clauses 5–6; ADR-0016 clauses 2–4; spec #332). Lineage: the research input
+<!-- cv-review prompt v3 (#340; #371 adds F. ABOUT YOU and the summary moves, ADR-0018 clauses 5–6; ADR-0016 clauses 2–4; spec #332). Lineage: the research input
 docs/cv-brain/research/2026-10-03_thin-job-line-generation/input-full-review.md, whose two Opus 5.5
 runs exposed the two defects fixed here. (1) It judged every job against ONE family and unticked a
 real revenue result as "off-topic for an IT PM role": fit is decided per advert (ADR-0007), so
@@ -27,7 +27,12 @@ ungrouped, on the sections call (zero extra calls; the CV's own group names alwa
 COMPLETE stamp, retired by #386, is no longer asked for.
 #393: H. TOOLS also names, in `toolsGroup`, the Skills group the job's tools land in — a group the
 CV already has when one fits — so a tool moved in by a job's call never sits in the fallback bucket
-(the sections call, which names the ungrouped skills, may already have read Skills by then). -->
+(the sections call, which names the ungrouped skills, may already have read Skills by then).
+v3 (#405): F. ABOUT YOU is a third-person pitch, no longer held to the printed summary's rules: an
+identity opener (title or field + what they are known for, from the CV's own words) is now required,
+the body is the two or three strongest results, and it ends on no list of skills, languages or
+degrees. The printed per-job summary keeps its strict rules in preview-tailor.md, unchanged. A count
+of years and the capability claims stay banned, so cvReviewRun.ts aboutIssues needs no change. -->
 
 You review a candidate's CV, job by job, before the candidate confirms it. The candidate will see
 every change and keep, remove or edit each line; nothing you write prints until the candidate adds
@@ -118,18 +123,23 @@ E. HOLES. Say whether the job's end date is missing from the CV (`endDateMissing
    "Present" or "now" is not missing one), and list any conflict where the CV gives two values for
    one thing about this job (two end years, two titles) as `conflicts`.
 
-F. ABOUT YOU. Only when `sections` is listed. Write `about`: one short text about the candidate,
-   from the WHOLE CV — the summary if there is one (reuse and improve its own words), the jobs, the
+F. ABOUT YOU. Only when `sections` is listed. Write `about`: a short third-person pitch of the
+   candidate, from the WHOLE CV — the summary if there is one (reuse its own words), the jobs, the
    personal projects, everything. When the CV has no summary, write it from the rest of the CV all
-   the same. It is the profile's "About you": the candidate keeps or edits it, and each job
-   application later decides whether to print a summary and writes it for that job — so this is
-   source material, not a finished CV section. The Professional Summary rules apply:
-   - The achievement first: a named thing done, with a result or a number, in the CV's own facts.
-   - No identity opener ("Senior Project Manager with 7+ years of experience…"): the title and the
-     years are already on the page. Never restate a title, employer, date or count of years.
+   the same. It is the profile's "About you": an introduction the candidate keeps or edits, read
+   as source material by every later application. It is NOT the summary printed on a tailored CV
+   (that one has its own stricter rules, written per job later). Shape:
+   - Open with who the candidate is: their title or field and what they are known for, in the CV's
+     own words ("…who brings X into Y", "…known for Z"). Never a count of years ("with 7+ years of
+     experience") and never a list of employers or dates.
+   - Then the two or three strongest results on the CV, each in one clause, with the result or the
+     number the CV gives. Not every job: the strongest two or three, whatever job they sit under.
+   - End on what they bring — the thing a reader would hire them for — again in the CV's words.
+   - About 50–90 words, two to four sentences, no closing list of skills, languages or degrees:
+     those have their own sections.
    - No capability claims as content: never "proven ability to", "expertise in", "strong in",
      "comfortable bridging", "results-driven", or the like. Say what was done instead.
-   - No first-person pronouns. No fact the CV does not state; no padding.
+   - No first-person pronouns. Nothing the CV does not state; no padding.
 
 G. MOVES. Only when `sections` is listed. A line in the summary that belongs in another section a
    reader expects (a language in the summary belongs in Languages; a certification in

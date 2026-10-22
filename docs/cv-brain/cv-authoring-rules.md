@@ -201,15 +201,22 @@ age-proxy stripping rule and its absence is a decision, not an oversight.
   first person. [ADR-0007](../adr/0007-what-prints-is-decided-per-application.md) clause 2 already
   rules that a country page is a strip-list, never a market style guide.
 
-**The profile's "About you" (#371, ADR-0018 clause 5) is written under these same rules, and is
-source material, never print-ready text.** The review's sections call (`apps/api/prompts/cv-review.md`
-F) writes it from the whole CV, reusing and improving the CV's own summary, and writes one even
-when the CV has none. The person keeps or edits it; the saved text is one `profile` claim
-(`about-you`) that the tailor reads among the others. **Whether a tailored CV prints a summary, and
-what it says, is still decided per application by the tailor's rule 10 above.** The banned shapes
-(identity opener, capability claims, first person) are counted on every generated text
-(`aboutIssues`, counter `cvReview.about_issue`), and a sentence with an identity opener or a
-capability claim is **dropped** before About you is stored (counter
+**The profile's "About you" and the printed summary are two different things with two rule sets
+(#371, ADR-0018 clause 5; #405).** The rules above are the *printed per-job summary's*, written by
+the tailor (`apps/api/prompts/preview-tailor.md` rule 10) and unchanged. **About you** is the
+profile's introduction: a third-person pitch the review's sections call
+(`apps/api/prompts/cv-review.md` F) writes from the whole CV — reusing the CV's own summary when
+there is one, and writing one even when there is none. Its own rules: it **opens with who the
+person is** (title or field + what they are known for, in the CV's own words — the opener the
+printed summary bans is required here), gives the **two or three strongest results** each in one
+clause, ends on what they bring, runs about 50–90 words, and carries **no closing list of skills,
+languages or degrees** (those have their own sections). Shared with the summary: no count of years,
+no capability claims, no first person, nothing the CV does not state. The person keeps or edits it;
+the saved text is one `profile` claim (`about-you`) that the tailor reads among the others as
+source material, never print-ready text. **Whether a tailored CV prints a summary, and what it
+says, is still decided per application by the tailor's rule 10 above.** The lint on every generated
+About you (`aboutIssues`, counter `cvReview.about_issue`) still drops a sentence that counts the
+years or makes a capability claim before the text is stored (counter
 `cvReview.about_sentence_dropped`); with nothing left, no About you is stored and the person edits
 the CV's own summary. First person is counted only. A summary fact that belongs
 elsewhere (a language, a degree, a certification, a tool list) moves to that section with a visible
