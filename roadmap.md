@@ -18,15 +18,13 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 **Now: the v1 finish line.** The owner's staging run (2026-10-22) found six defects. Five shipped the
 same day as ~~#403~~ (~~#402~~ ~~#404~~ ~~#405~~ ~~#406~~ ~~#407~~; QA GO, follow-ups #409 #410 filed):
 the letterhead reads cleanly, About you is a pitch, the advert keeps its line breaks, Where you fit
-names the requirements met with the reason. Three of its ACs are proven only on staging: About you on
-his real CV, his real judged card, a fresh-account upload. The sixth is **#408**: the Tailor step asks
-every requirement yes/no, where he expects the CV written for him and only stretches proposed; grill it
-first (Opus 5.5), then its own spec. Re-proof after both. Before that, the check-mode walk was polished (check mode itself shipped
-2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md)). Shipped since:
-~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ (2026-10-15) and ~~#392~~ ~~#396~~ (2026-10-16): discovery is now only the
-job-count wait and moves on by itself; while the CV review runs, check mode is a reading-lamp loading
-screen; source tags read "from BRED…". #392 and #396 went live **by hand, CI skipped** at the owner's
-request — the next normal push runs the full suite over them.
+names the requirements met with the reason. The owner re-checked all five on staging the same day:
+OK. **What is left of v1 is #408** (owner decision, then a build): the Tailor step asks every
+requirement yes/no, where he expects the CV written for him and only stretches proposed. **Next
+action, agent: grill #408 (Opus 5.5)**, then `/to-spec` → `/to-tickets` → `/implement-spec`; the
+owner re-proofs the whole journey after it ships. Before that, the check-mode walk was polished (check
+mode itself shipped 2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md));
+~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ ~~#392~~ ~~#396~~ shipped 2026-10-15/16 and the full suite has run over them since.
 
 - Owner checked both on staging after the deploy: "it looks ok now" (2026-10-16).
 - ~~#389~~ closed 2026-10-16: the four build calls kept as built; its "keep the Continue screen" was
@@ -57,7 +55,7 @@ requirement gets a nearest-true sentence, an unplaced job says "Job location unk
 ~~`/implement-spec #301` (#397 #399 #400 #401)~~ shipped 2026-10-21 (3fb5389): the paste door asks
 for a title it had to work out, one job shows one score, the report hands a denied requirement a sentence and
 says when it cannot place the job, the notices open the email.
-**Finish line, what remains (v1 before the chat):** ~~`/implement #398`~~ shipped 2026-10-22 (a5d3568, live on staging) → **owner:** one more real
+**Finish line, what remains (v1 before the chat):** ~~`/implement #398`~~ shipped 2026-10-22 (a5d3568) → ~~owner's staging run~~ done 2026-10-22 (found #403 + #408) → ~~`/implement-spec #403`~~ shipped and owner-checked 2026-10-22 (efa4696) → **agent:** grill #408 (Opus 5.5), spec, build → **owner:** one more real
 report on staging, on a fresh account (sign in as `adrien.mounier91+test1@gmail.com` in a private
 window — any new address is a new, empty account; #345 is not needed for this) → **agent:** `/qa-gate` GO on the whole journey. (The old GRADION record that still read "Title not stated" was deleted
 from staging 2026-10-22, with its derived rows; the same text can be pasted again and will be asked its title.)
@@ -71,7 +69,7 @@ run); `/implement` is for a lone ticket. Never point `/implement` at a parent or
 ## Milestones
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
-- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); its four follow-ups under #301 **done** 2026-10-21; #398 **done** 2026-10-22; the re-proof on staging is next.
+- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); its four follow-ups under #301 **done** 2026-10-21; #398 and #403 **done** 2026-10-22 and owner-checked on staging; **#408 is the last v1 call** before the final whole-journey re-proof.
 - V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page was replaced by V6b.
 - V6b — the profile's check mode (ADR-0018, parent #375): **done** 2026-10-14 (482ca57).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.

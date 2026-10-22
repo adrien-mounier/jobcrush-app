@@ -345,6 +345,7 @@ it that shouldn't and what should that can't reach it.
 - A *value* import from `@jobcrush/contracts` drags `node:crypto` into the browser (`UnhandledSchemeError`); `import type` is fine, sharing runtime helpers needs a subpath export.
 - Two CSS rules at equal specificity: load order wins (`profile.css` after `deck.css` collapsed a screen to 0px).
 - A renderer mounted in two containers is styled off a class it emits itself, and rows are targeted by a `data-` attribute it writes, never by position.
+- A new class on the shared card is grepped across every stylesheet and e2e file before it is named: `.why` was already the tailor screen's eyebrow idiom, so #407's reason rendered as an uppercase label there and broke `tailor-journey`. Diff review passed it; only the live tailor drive caught it (deck.css's §12 note names the trap). Give the newcomer the new name.
 
 - **A checkpoint of a model output carries the words that go with it** (#314): the shortened draft was stored before the second print (so a crash would not re-spend the call) but without its "we shortened it" sentence — the re-press then measured two pages, skipped the rule and would have sent a silently shortened CV. A code review asked for the early checkpoint; only the QA gate's crash-then-press probe saw what it dropped. Store the notice with the thing it describes, and dedupe on the way out.
 
