@@ -219,6 +219,21 @@ test("the first question already offers \"I'm done — use this CV\"", async ({ 
   await expect(page.getByRole("button", { name: "Drop this job" })).toBeVisible();
 });
 
+// QA on #407: the reason under a "Where you fit" row shared its class name with the tailor's own
+// uppercase mono eyebrow (`.tailor .why`), so on this screen it read "YOU HAVE DONE THIS BEFORE."
+// It is a sentence, in the body face, on the deck and here alike.
+test("#407 the reason under a Where you fit row reads as a sentence on the tailor screen", async ({ page }) => {
+  await openTailor(page, {
+    ...STATE_FIRST,
+    card: { ...CARD_FIRST, fit: [{ id: "budget", text: "Own a €2M budget", reason: "You have owned a budget this size." }] },
+  });
+  const why = page.locator(".tailor .row.fit .fit-why");
+  await expect(why).toHaveText("You have owned a budget this size.");
+  await expect(why).toHaveCSS("text-transform", "none");
+  const eyebrowFont = await page.locator(".tailor p.why").evaluate((el) => getComputedStyle(el).fontFamily);
+  expect(await why.evaluate((el) => getComputedStyle(el).fontFamily)).not.toBe(eyebrowFont);
+});
+
 // #397: the announcer never prints an empty slot — no "Tailoring . 61% match." for a job with no
 // title, no "61% match. ." before the first ledger line lands.
 test("#397 the announcer omits a missing title and a missing ledger line instead of an empty slot", async ({ page }) => {

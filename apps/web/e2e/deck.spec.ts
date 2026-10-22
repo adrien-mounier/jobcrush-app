@@ -643,9 +643,9 @@ test("#407 Where you fit rows name the requirement with its reason; the bubble q
   const rows = page.locator(".row.fit");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("Own a €2M budget");
-  await expect(rows.nth(0).locator(".why")).toHaveText("You have owned a budget this size.");
+  await expect(rows.nth(0).locator(".fit-why")).toHaveText("You have owned a budget this size.");
   await expect(rows.nth(1)).toHaveText(/Coordinate business and technical stakeholders/);
-  await expect(rows.nth(1).locator(".why")).toHaveCount(0);
+  await expect(rows.nth(1).locator(".fit-why")).toHaveCount(0);
   await expect(page.locator(".bubble")).toHaveText("You have run programmes of this size before. The gap is SAP.");
 });
 

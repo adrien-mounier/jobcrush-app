@@ -372,7 +372,7 @@ export function CardBody({
                 </span>
                 <span>
                   {f.text}
-                  {f.reason && <span className="why">{f.reason}</span>}
+                  {f.reason && <span className="fit-why">{f.reason}</span>}
                 </span>
               </div>
             ))}

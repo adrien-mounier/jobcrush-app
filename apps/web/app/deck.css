@@ -703,8 +703,10 @@
   color: var(--settled);
   border: 1px solid rgba(77, 88, 101, 0.5);
 }
-/* #407: the scorer's one-sentence reason under a "Where you fit" row — quieter than the requirement. */
-.jobdeck .row .why {
+/* #407: the scorer's one-sentence reason under a "Where you fit" row — quieter than the requirement.
+   Its own class name: `.why` is the tailor's uppercase mono eyebrow (tailor.css), and this card
+   renders inside `.tailor` too — the §12 note above on names with no `.tailor` counterpart. */
+.jobdeck .row .fit-why {
   display: block;
   font-size: 12.5px;
   line-height: 1.4;
