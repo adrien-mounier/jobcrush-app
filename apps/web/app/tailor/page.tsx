@@ -19,7 +19,7 @@ import { FactBadge } from "../factbadge";
 import { CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
-import { StretchCards, nextPending, pendingOf, type StretchRailView } from "./stretch";
+import { STRETCH_COPY, StretchCards, nextPending, pendingOf, type StretchRailView } from "./stretch";
 import {
   answerStretch,
   answerTailorProfile,
@@ -77,6 +77,10 @@ const SCORE_BUMP_MS = 470;
 // #418 (the approved prototype's beat): a gold mote flies to the number, then it rolls up and glows.
 const MOTE_MS = 720;
 const GLOW_MS = 1100;
+// #419: the "It's true" confirmation — where the line was kept, with an Undo (the prototype's toast).
+const T31 = (under?: string) => (under ? `${STRETCH_COPY.K21}, under ${under}.` : `${STRETCH_COPY.K21}.`);
+const T32 = "Undo";
+const TOAST_MS = 5000;
 
 // #309: the score may fall, and the fall is shown with its cause. When the new server number sits
 // below the last server number, the answer's own server-composed line is prefixed with the size of
@@ -157,6 +161,9 @@ export default function TailorPage() {
   const bumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const glowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
+  // #419: the "It's true" toast — the suggestion it answered (its Undo's target) and what it says.
+  const [toast, setToast] = useState<{ id: string; text: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     setScreen("loading");
@@ -199,6 +206,7 @@ export default function TailorPage() {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
       if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       document.querySelectorAll(".mote").forEach((m) => m.remove());
     };
   }, []);
@@ -299,14 +307,17 @@ export default function TailorPage() {
   // card; this screen re-reads the state and moves the number with the reward beat — a gold mote
   // from the card to the ring (720ms), then the roll-up, the bump and a brief glow. No "+N%" is
   // ever written: the number is the statement. Reduced motion swaps the number at once.
-  async function answerStretchUse(id: string) {
+  // #419: "It's true" lands the same way, and confirms with a toast that says where the line was
+  // kept on the master CV and carries an Undo — a permanent change is never one silent tap.
+  async function approveStretch(id: string, answer: "use" | "true") {
     if (stretchAnswering) return;
     setStretchAnswering(true);
     const from = stretchHeadingRef.current?.getBoundingClientRect();
     try {
-      const { stretch: next } = await answerStretch(id, "use");
+      const { stretch: next, keptUnder } = await answerStretch(id, answer);
       setStretch(next);
       openSuggestion(nextPending(next, id));
+      if (answer === "true") showToast({ id, text: T31(keptUnder) });
       const state = await getTailor();
       setTailor(state);
       await moveScore(state.card.matchPct, from);
@@ -322,6 +333,7 @@ export default function TailorPage() {
   async function undoStretch(id: string) {
     if (stretchAnswering) return;
     setStretchAnswering(true);
+    if (toast?.id === id) showToast(null);
     try {
       const { stretch: next } = await answerStretch(id, "undo");
       setStretch(next);
@@ -335,6 +347,12 @@ export default function TailorPage() {
     } finally {
       setStretchAnswering(false);
     }
+  }
+
+  function showToast(next: { id: string; text: string } | null) {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(next);
+    if (next) toastTimerRef.current = setTimeout(() => setToast(null), TOAST_MS);
   }
 
   /** The reward beat, then the number. `from` is where the mote starts (the open card's heading). */
@@ -378,7 +396,7 @@ export default function TailorPage() {
 
   // #417: J/K move between suggestions, N answers No, Esc closes the card — only on the draft
   // screen, never while a dialog is up or the focus is in a field (the prototype's wiring).
-  // #418: U answers Use.
+  // #418: U answers Use. #419: T answers It's true.
   const showDraftNow = !!tailor && tailor.questions.length === 0 && screen === "flow";
   useEffect(() => {
     if (!showDraftNow || sheetOpen || dropConfirming) return;
@@ -394,7 +412,8 @@ export default function TailorPage() {
       if (key === "j") openSuggestion(nextPending(stretch, openStretch, 1));
       else if (key === "k") openSuggestion(nextPending(stretch, openStretch, -1));
       else if (key === "n" && openStretch) void answerStretchNo(openStretch);
-      else if (key === "u" && openStretch) void answerStretchUse(openStretch);
+      else if (key === "u" && openStretch) void approveStretch(openStretch, "use");
+      else if (key === "t" && openStretch) void approveStretch(openStretch, "true");
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -705,7 +724,7 @@ export default function TailorPage() {
               requirements={state.requirements}
               openId={openStretch}
               onOpen={openSuggestion}
-              onAnswer={(id, answer) => void (answer === "use" ? answerStretchUse(id) : answerStretchNo(id))}
+              onAnswer={(id, answer) => void (answer === "no" ? answerStretchNo(id) : approveStretch(id, answer))}
               onUndo={(id) => void undoStretch(id)}
               onSkipRest={() => openSuggestion(null)}
               onLookAgain={() => setLookAgain((n) => n + 1)}
@@ -794,6 +813,14 @@ export default function TailorPage() {
       <div aria-live="polite" className="sr-only">
         {liveMessage}
       </div>
+      {toast && (
+        <div className="toast" role="status">
+          <span>{toast.text}</span>
+          <button type="button" className="link" onClick={() => void undoStretch(toast.id)}>
+            {T32}
+          </button>
+        </div>
+      )}
 
       {screen === "loading" && <div className="loadstate">{T1}</div>}
 

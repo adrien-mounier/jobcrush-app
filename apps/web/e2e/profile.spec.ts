@@ -2318,6 +2318,45 @@ test("#387: a fact added while tailoring wears the job it was added for; other f
   await expect(page.locator(".frow", { hasText: "Managed a team of six" }).locator(".tag")).toHaveCount(0);
 });
 
+// #419 (ADR-0020 clause 4, second row): "It's true" on a stretch suggestion puts the line on the
+// master CV under the job it was suggested for — the job's own block, its employer heading the
+// block — wearing the job it was added while tailoring for. The job's line it pushed out on that
+// CV stays beside it. The payload shape is the API's (stretchSuggestions.test.ts #419).
+test("#419: a line kept as true sits under its job's employer, tagged with the job it was added for; the job's other lines stay", async ({ page }) => {
+  await stubSession(page);
+  const JOB = "Endava Vietnam — IT Project Manager";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        ...PROFILE.domains[0]!,
+        facts: [
+          ...PROFILE.domains[0]!.facts,
+          { id: "coordinated-three-vendor-teams", text: "Coordinated three vendor teams on the payments release.", colour: "gold", source: "read", job: JOB },
+          {
+            id: "tailor-stretch-ad-1-sap",
+            text: "Led the checkout replatforming on SAP S/4HANA, delivered 2 months early",
+            colour: "gold",
+            source: "told",
+            job: JOB,
+            addedFor: "Senior Project Manager at Endava Vietnam",
+          },
+        ],
+      },
+      PROFILE.domains[1]!,
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  const block = page.locator(".jblk", { has: page.locator(".jhead", { hasText: JOB }) });
+  await expect(block.locator(".jhead")).toHaveText(JOB);
+  const row = block.locator(".frow", { hasText: "Led the checkout replatforming on SAP S/4HANA" });
+  await expect(row).toBeVisible();
+  await expect(row.locator(".tag.added")).toHaveText("Added while tailoring for Senior Project Manager at Endava Vietnam");
+  await expect(block.locator(".frow", { hasText: "Coordinated three vendor teams" })).toBeVisible();
+  await expect(block.locator(".frow", { hasText: "Coordinated three vendor teams" }).locator(".tag.added")).toHaveCount(0);
+});
+
 // #379 (ADR-0018 clause 2): after check mode, an item's words are edited in place from its detail —
 // the same door check mode's ✎ uses. Save sends the trimmed words and the profile re-reads them;
 // Cancel sends nothing; empty words are never sent. Selected by structure, not copy.

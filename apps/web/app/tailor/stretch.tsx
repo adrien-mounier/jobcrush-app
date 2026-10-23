@@ -8,10 +8,11 @@
 // clip of the swap itself, the answers stack, and "Skip the rest" closes the run. Closed (Esc, Skip
 // the rest, every one answered) the rail shows the list with each one's result.
 //
-// Answers: "No" (this job only, #417) and "Use for this job" (#418: the gold primary, key U) are
-// built here; "It's true" (#419) and "Edit wording" (#420) land in `.acts` below — the layout
-// leaves them their rows. Closed, the rail is the "Ready to send" summary: each answer with its
-// own Undo, and "Be ready to explain" with each used line and what to say (the prototype's words).
+// Answers: "No" (this job only, #417), "Use for this job" (#418: the gold primary, key U) and
+// "It's true: keep it on my CV for every job" (#419: its own row, key T — never beside Use, ADR-0005
+// clause 5) are built here; "Edit wording" (#420) lands in `.acts` below. Closed, the rail is the
+// "Ready to send" summary: each answer with its own Undo, and "Be ready to explain" with each line
+// used for this job and what to say (the prototype's words) — a line kept as true needs none.
 // Every value is server-composed (the suggestion records beside the draft); nothing is re-derived.
 import type { RefObject } from "react";
 import type { StretchSuggestion, StretchView, TailorRequirement } from "../../lib/api";
@@ -42,24 +43,30 @@ const K18 = "No suggestions used.";
 // The draft is written; one more step looks for stretches beside it (shown in the rail, the draft
 // already on the page — ADR-0020: the draft is the first thing the person sees).
 const K19 = "Your CV is written. Looking for ways to stretch it for this job…";
+// #419: the person states it as their fact — the master CV, for every job.
+const K20 = "It's true: keep it on my CV for every job";
+const K21 = "Kept on your CV for every job";
 // A failed step is told as what it is — never as "nothing to suggest", and naming nothing of ours.
 const F1 = "We could not look for ways to stretch this CV just now. Your CV is complete without them.";
 const F2 = "Look again";
 
-export const STRETCH_COPY = { K2, K3, F1, F2, K19 };
+export const STRETCH_COPY = { K2, K3, F1, F2, K19, K21 };
 
 const RESULT: Record<StretchSuggestion["state"], string> = {
   pending: K10,
   declined: K11,
-  approved: K14, // #419's every-job approval names its own scope
+  approved: K14,
 };
+/** #419: an approval names its own scope — used for this job, or kept on the CV for every job. */
+const kept = (s: StretchSuggestion) => s.state === "approved" && s.scope === "every-job";
+const resultOf = (s: StretchSuggestion) => (kept(s) ? K21 : RESULT[s.state]);
 
 export interface StretchCardsProps {
   view: StretchRailView;
   requirements: TailorRequirement[];
   openId: string | null;
   onOpen: (id: string) => void;
-  onAnswer: (id: string, answer: "no" | "use") => void;
+  onAnswer: (id: string, answer: "no" | "use" | "true") => void;
   /** #418: withdraws an answer from the summary — the suggestion is pending again and reopens. */
   onUndo: (id: string) => void;
   onSkipRest: () => void;
@@ -140,10 +147,13 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onU
           {open.interviewNarrative}
         </div>
         <div className="acts">
-          {/* The gold primary (ADR-0020 clause 4: this job only). #419's "It's true" takes the row
-              between — never the same row as Use; #420's "Edit wording" sits beside No. */}
+          {/* The gold primary (ADR-0020 clause 4: this job only), then "It's true" on its own row —
+              never the same row as Use (ADR-0005 clause 5); #420's "Edit wording" sits beside No. */}
           <button type="button" className="b gold" disabled={answering} onClick={() => onAnswer(open.id, "use")}>
             {K13} <kbd aria-hidden="true">U</kbd>
+          </button>
+          <button type="button" className="b" disabled={answering} onClick={() => onAnswer(open.id, "true")}>
+            {K20} <kbd aria-hidden="true">T</kbd>
           </button>
           <button type="button" className="b quiet" disabled={answering} onClick={() => onAnswer(open.id, "no")}>
             {K5} <kbd aria-hidden="true">N</kbd>
@@ -167,9 +177,15 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onU
   // Closed: "Ready to send" — each suggestion with its answer and its own Undo (an unanswered one
   // with the way back in), then what to be ready to explain for every used line.
   const pending = pendingOf(view).length;
-  const used = all.filter((s) => s.state === "approved");
+  const used = all.filter((s) => s.state === "approved" && !kept(s));
+  const keptCount = all.filter(kept).length;
   const declined = all.filter((s) => s.state === "declined").length;
-  const parts = [used.length > 0 && `${used.length} used for this job`, declined > 0 && `${declined} not for this job`, pending > 0 && `${pending} left out`].filter(Boolean);
+  const parts = [
+    used.length > 0 && `${used.length} used for this job`,
+    keptCount > 0 && `${keptCount} kept on your CV for every job`,
+    declined > 0 && `${declined} not for this job`,
+    pending > 0 && `${pending} left out`,
+  ].filter(Boolean);
   return (
     <section className="stretch" aria-label={K9}>
       <h2 className="h">{K9}</h2>
@@ -178,8 +194,8 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onU
         {all.map((s) => (
           <li key={s.id}>
             <span className="t">{text(s)}</span>
-            <span className={`result${s.state === "approved" ? " r-use" : ""}`}>
-              <span className="s">{RESULT[s.state]}</span>
+            <span className={`result${kept(s) ? " r-true" : s.state === "approved" ? " r-use" : ""}`}>
+              <span className="s">{resultOf(s)}</span>
               {s.state === "pending" ? (
                 <button type="button" className="link" disabled={answering} onClick={() => onOpen(s.id)}>
                   {K16}

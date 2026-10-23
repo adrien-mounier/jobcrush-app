@@ -552,13 +552,15 @@ export interface StretchSuggestion {
 
 export type StretchView = { status: "ran"; suggestions: StretchSuggestion[] } | { status: "failed" } | null;
 
-/** The answers a suggestion takes (routes/tailor.ts): "no" and "use" are this job only; "undo"
- *  withdraws an answer (back to pending). #419 adds "true". */
-export type StretchAnswer = "no" | "use" | "undo";
+/** The answers a suggestion takes (routes/tailor.ts): "no" and "use" are this job only; "true"
+ *  (#419) keeps the line on the master CV for every job; "undo" withdraws an answer (back to
+ *  pending). */
+export type StretchAnswer = "no" | "use" | "true" | "undo";
 
 /** One answer on one suggestion of the current draft. Spends nothing; returns the suggestions as
- *  the next read would show them. */
-export function answerStretch(id: string, answer: StretchAnswer): Promise<{ stretch: StretchView }> {
+ *  the next read would show them. #419: after "true", `keptUnder` names the heading the line was
+ *  kept under on the master CV (the job, "Skills", "About you"). */
+export function answerStretch(id: string, answer: StretchAnswer): Promise<{ stretch: StretchView; keptUnder?: string }> {
   return jfetch(`/api/onboarding/tailor/suggestions/${encodeURIComponent(id)}`, {
     method: "POST",
     body: JSON.stringify({ answer }),

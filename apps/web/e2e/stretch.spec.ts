@@ -83,6 +83,16 @@ const USED_STATE: TailorState = {
   requirements: STATE.requirements.map((r) => (r.id === "sap" ? { ...r, state: "stretched" } : r)),
 };
 
+/** #419: the state after "It's true" on S1 — the number up as for Use, but the requirement plainly
+ *  met (the person's own fact now), the fit row unflagged. */
+const TRUE_STATE: TailorState = {
+  ...USED_STATE,
+  card: { ...USED_STATE.card, fit: [...CARD.fit, { id: "sap", text: "Their SAP version" }] },
+  requirements: STATE.requirements.map((r) => (r.id === "sap" ? { ...r, state: "met" } : r)),
+};
+/** #419: where the server says it kept the line — the job's own heading on the master CV. */
+const KEPT_UNDER = "Atos — Senior IT Project Manager";
+
 /** The server's render, mirrored for one `?open=` id: the open one struck + marked, the others
  *  numbered (stretchSuggestions.test.ts pins the real thing). #418: a used bullet prints its line in
  *  in place of the line out (applyUsedStretches). */
@@ -136,12 +146,18 @@ async function openTailor(page: Page, state: { stretch: StretchView; tailor?: Ta
             ? s
             : answer === "undo"
               ? { ...s, state: "pending", decidedAt: null, scope: null }
-              : { ...s, state: answer === "use" ? "approved" : "declined", decidedAt: "2026-10-23T09:05:00.000Z", scope: "this-job" },
+              : {
+                  ...s,
+                  state: answer === "no" ? "declined" : "approved",
+                  decidedAt: "2026-10-23T09:05:00.000Z",
+                  scope: answer === "true" ? "every-job" : "this-job",
+                },
         ),
       };
     if (id === S1.id && answer === "use") state.tailor = USED_STATE;
+    if (id === S1.id && answer === "true") state.tailor = TRUE_STATE;
     if (id === S1.id && answer === "undo") state.tailor = STATE;
-    await route.fulfill({ json: { stretch: state.stretch } });
+    await route.fulfill({ json: { stretch: state.stretch, ...(answer === "true" ? { keptUnder: KEPT_UNDER } : {}) } });
   });
   await page.goto("/tailor");
   await expect(page.locator(".draft-frame")).toBeVisible();
@@ -358,4 +374,86 @@ test("#418 (ADR-0020): while the stretch step runs the finished draft is already
   const rail = page.locator(".tailor .rail");
   await expect(rail.getByRole("status")).toContainText("Looking for ways to stretch it for this job");
   await expect(page.locator(".draft-wait-line")).toHaveCount(0); // the wait screen is gone
+});
+
+// ---------------------------------------------------------------------------------------------
+// #419 — "It's true: keep it on my CV for every job": its own row, never beside Use (ADR-0005
+// clause 5: a permanent change behind one tap must not feel incidental); key T; a toast with Undo.
+// ---------------------------------------------------------------------------------------------
+
+const TRUE_LABEL = /^It's true: keep it on my CV for every job/;
+
+test("#419 computer: It's true sits on its own row, between Use and No (key T); the toast says where the line was kept, and its Undo takes it back", async ({ page }) => {
+  const posts = await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  const use = (await card.getByRole("button", { name: /^Use for this job/ }).boundingBox())!;
+  const trueButton = card.getByRole("button", { name: TRUE_LABEL });
+  const yes = (await trueButton.boundingBox())!;
+  const no = (await card.getByRole("button", { name: /^No/ }).boundingBox())!;
+  expect(yes.y).toBeGreaterThan(use.y + use.height - 1); // never on Use's row
+  expect(no.y).toBeGreaterThan(yes.y + yes.height - 1);
+  await expect(trueButton).not.toHaveClass(/gold/);
+  await expect(trueButton.locator("kbd")).toHaveText("T");
+  const ring = page.locator(".dbar .score");
+  await expect(ring).toHaveAttribute("aria-label", "61% match");
+
+  await page.keyboard.press("t");
+  expect(posts.answers).toEqual([{ id: S1.id, answer: "true" }]);
+  const toast = page.locator(".tailor .toast");
+  await expect(toast).toHaveAttribute("role", "status");
+  await expect(toast).toContainText(`Kept on your CV for every job, under ${KEPT_UNDER}.`);
+  // The line prints on this CV, the number rises, and the next suggestion opens.
+  await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
+  await expect(page.locator(".draft-frame")).toHaveAttribute("srcdoc", new RegExp(`<li>${S1.claimText}</li>`));
+  await expect(ring).toHaveAttribute("aria-label", "71% match", { timeout: 10_000 });
+
+  await toast.getByRole("button", { name: "Undo" }).click();
+  expect(posts.answers).toEqual([
+    { id: S1.id, answer: "true" },
+    { id: S1.id, answer: "undo" },
+  ]);
+  await expect(toast).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible(); // pending again
+  await expect(page.locator(".draft-frame")).toHaveAttribute("srcdoc", new RegExp(`<del>${LINE_OUT}</del>`));
+  await expect(ring).toHaveAttribute("aria-label", "61% match", { timeout: 10_000 });
+});
+
+test("#419 the requirement reads met, not met by a stretch; the summary says it was kept on your CV for every job, with Undo, and asks nothing to be ready to explain", async ({ page }) => {
+  await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  await page.getByRole("region", { name: "Suggestion 1 of 2" }).getByRole("button", { name: TRUE_LABEL }).click();
+  await expect(page.locator(".dbar .score")).toHaveAttribute("aria-label", "71% match", { timeout: 10_000 });
+
+  await page.getByRole("button", { name: /Where you fit · 2 of 3/ }).click();
+  const sheet = page.getByRole("dialog", { name: /Where you fit/ });
+  const row = sheet.locator(".marks li", { hasText: "Their SAP version" });
+  await expect(row).toHaveAttribute("data-state", "met");
+  await expect(row.locator(".s")).toHaveText("met");
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("Escape");
+  const summary = page.getByRole("region", { name: "Ready to send" });
+  await expect(summary).toContainText("1 kept on your CV for every job · 1 left out");
+  const kept = summary.getByRole("listitem").filter({ hasText: "Their SAP version" });
+  await expect(kept).toContainText("Kept on your CV for every job");
+  await expect(kept.getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(summary).not.toContainText("Be ready to explain");
+  await expect(summary).not.toContainText(S1.interviewNarrative);
+  await expect(page.locator(".tailor")).not.toContainText("met by a stretch");
+});
+
+test("#419 phone (390px): It's true is its own full-width row, between Use and No; its toast carries Undo", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTailor(page, { stretch: RAN });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  const use = (await card.getByRole("button", { name: /^Use for this job/ }).boundingBox())!;
+  const yes = (await card.getByRole("button", { name: TRUE_LABEL }).boundingBox())!;
+  const no = (await card.getByRole("button", { name: /^No/ }).boundingBox())!;
+  expect(yes.y).toBeGreaterThan(use.y + use.height - 1);
+  expect(no.y).toBeGreaterThan(yes.y + yes.height - 1);
+  expect(yes.width).toBeGreaterThan(200);
+  await card.getByRole("button", { name: TRUE_LABEL }).click();
+  const toast = page.locator(".tailor .toast");
+  await expect(toast).toContainText(`Kept on your CV for every job, under ${KEPT_UNDER}.`);
+  await expect(toast.getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(toast).toBeInViewport();
 });
