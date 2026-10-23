@@ -6,6 +6,7 @@
 // join purge.ts's sweep of unclaimed anonymous sessions, because a draft is CV content.
 import type { Pool } from "pg";
 import type { ApplicationReport } from "./applicationReport.js";
+import type { StretchCheckpoint } from "./stretchSuggestions.js";
 import { Draft } from "./preview.js";
 import { getPool } from "./db.js";
 
@@ -25,6 +26,11 @@ export interface TailorDraftRecord {
    *  written from, so a re-press after a failed send re-spends nothing while a shortened document
    *  (#314) writes a fresh one. Absent until the press writes it; a redraft starts without one. */
   reportCheckpoint?: { fingerprint: string; report: ApplicationReport };
+  /** #417 — the stretch suggestions beside this draft (ADR-0005 clause 2: beside, never a claim),
+   *  checkpointed with the fingerprint of the exact input they were made from. Absent until the
+   *  step runs; `failed` is a step that did not finish, told apart from "ran, found none". A
+   *  redraft writes a fresh record, so answers to suggestions that no longer exist drop with it. */
+  stretch?: StretchCheckpoint;
 }
 
 export interface TailorDraftStore {
@@ -67,6 +73,7 @@ CREATE TABLE IF NOT EXISTS tailor_drafts (
   drafted_at        timestamptz NOT NULL,
   approved_at       timestamptz,
   report            jsonb,
+  stretch           jsonb,
   PRIMARY KEY (session_id, ad_id)
 )`;
 
@@ -89,11 +96,13 @@ export class PgTailorDraftStore implements TailorDraftStore {
       .catch(() => {});
     // #315, the same shape: the checkpointed application report.
     await this.pool.query(`ALTER TABLE tailor_drafts ADD COLUMN IF NOT EXISTS report jsonb`).catch(() => {});
+    // #417, the same shape: the stretch suggestions beside the draft.
+    await this.pool.query(`ALTER TABLE tailor_drafts ADD COLUMN IF NOT EXISTS stretch jsonb`).catch(() => {});
   }
 
   async get(sessionId: string, adId: string): Promise<TailorDraftRecord | null> {
     const { rows } = await this.pool.query(
-      `SELECT draft, notices, input_fingerprint, drafted_at, approved_at, report FROM tailor_drafts
+      `SELECT draft, notices, input_fingerprint, drafted_at, approved_at, report, stretch FROM tailor_drafts
        WHERE session_id = $1 AND ad_id = $2`,
       [sessionId, adId],
     );
@@ -107,17 +116,18 @@ export class PgTailorDraftStore implements TailorDraftStore {
       ...(rows[0].report
         ? { reportCheckpoint: parseJsonbColumn<NonNullable<TailorDraftRecord["reportCheckpoint"]>>(rows[0].report) }
         : {}),
+      ...(rows[0].stretch ? { stretch: parseJsonbColumn<StretchCheckpoint>(rows[0].stretch) } : {}),
     });
   }
 
   async put(sessionId: string, adId: string, record: TailorDraftRecord): Promise<void> {
     await this.pool.query(
-      `INSERT INTO tailor_drafts (session_id, ad_id, draft, notices, input_fingerprint, drafted_at, approved_at, report)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO tailor_drafts (session_id, ad_id, draft, notices, input_fingerprint, drafted_at, approved_at, report, stretch)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (session_id, ad_id) DO UPDATE SET
          draft = EXCLUDED.draft, notices = EXCLUDED.notices,
          input_fingerprint = EXCLUDED.input_fingerprint, drafted_at = EXCLUDED.drafted_at,
-         approved_at = EXCLUDED.approved_at, report = EXCLUDED.report`,
+         approved_at = EXCLUDED.approved_at, report = EXCLUDED.report, stretch = EXCLUDED.stretch`,
       [
         sessionId,
         adId,
@@ -127,6 +137,7 @@ export class PgTailorDraftStore implements TailorDraftStore {
         record.draftedAt,
         record.approvedAt,
         record.reportCheckpoint ? JSON.stringify(record.reportCheckpoint) : null,
+        record.stretch ? JSON.stringify(record.stretch) : null,
       ],
     );
   }

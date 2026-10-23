@@ -18,12 +18,22 @@ import type { LlmClient } from "./llm.js";
 import { uncoveredRequirements } from "./matchtick.js";
 import { deniedCapabilities, negativeRequirementIds } from "./tailor.js";
 import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js";
+import type { TailorRequirement } from "./deck.js";
+import {
+  stretchFingerprint,
+  stretchInputFor,
+  stretchView,
+  suggestStretches,
+  type StretchCheckpoint,
+  type StretchView,
+} from "./stretchSuggestions.js";
 import {
   applyStoredContact,
   buildTailorInput,
   draftDisclosure,
   renderPreviewHtml,
   tailorDraft,
+  type Draft,
   type JobDisclosure,
   type Posting,
   type StoredContact,
@@ -111,6 +121,15 @@ export interface TailorDraftJobDeps {
   jobs: JobStore;
   tailorDrafts: TailorDraftStore;
   tailorLlm: LlmClient;
+  /** #417: the stretch suggestion step's client. Absent ⇒ the step does not run and the record
+   *  carries no `stretch` field (told apart from "ran, found none"). */
+  stretchLlm?: LlmClient;
+}
+
+/** #417: what the stretch step needs beyond the draft's own inputs — the job's requirements with
+ *  the card's verdicts (routes/tailor.ts composes them the way the screen's list is composed). */
+export interface StretchContext {
+  requirements: TailorRequirement[];
 }
 
 /** One plain-words failure, job-record shaped like the paste door's: what came back, and the one
@@ -134,26 +153,41 @@ export async function runTailorDraftJob(
   jobId: string,
   posting: Posting,
   inputs: DraftInputs,
+  // #417: the stretch step runs after the draft when a context is given. `existing` is the stored
+  // draft that already matches the facts — only the suggestions are (re)made then.
+  stretch?: StretchContext,
+  existing?: TailorDraftRecord,
 ): Promise<void> {
   try {
     await deps.jobs.update(jobId, { status: "running" });
-    const { draft, conservationNotices } = await tailorDraft(
-      inputs.claimsDoc,
-      posting,
-      deps.tailorLlm,
-      inputs.headerText,
-      inputs.opts,
-    );
-    const record: TailorDraftRecord = {
-      draft,
-      conservationNotices,
-      inputFingerprint: inputs.fingerprint,
-      draftedAt: new Date().toISOString(),
-      // #313: a fresh draft is a fresh document — approval never carries over to words he has
-      // not seen. The approve press stamps this.
-      approvedAt: null,
-    };
-    await deps.tailorDrafts.put(sessionId, posting.id, record);
+    let record = existing;
+    if (!record) {
+      const { draft, conservationNotices } = await tailorDraft(
+        inputs.claimsDoc,
+        posting,
+        deps.tailorLlm,
+        inputs.headerText,
+        inputs.opts,
+      );
+      record = {
+        draft,
+        conservationNotices,
+        inputFingerprint: inputs.fingerprint,
+        draftedAt: new Date().toISOString(),
+        // #313: a fresh draft is a fresh document — approval never carries over to words he has
+        // not seen. The approve press stamps this.
+        approvedAt: null,
+      };
+      // Checkpointed BEFORE the suggestion step: a failure there never costs the draft.
+      await deps.tailorDrafts.put(sessionId, posting.id, record);
+    }
+    if (stretch && deps.stretchLlm) {
+      await deps.jobs.update(jobId, { progress: { tailorDraft: { step: "suggesting" } } });
+      await deps.tailorDrafts.put(sessionId, posting.id, {
+        ...record,
+        stretch: await stretchStep(deps.stretchLlm, posting, stretch, record.draft, inputs),
+      });
+    }
     await deps.jobs.update(jobId, { status: "completed", progress: { tailorDraft: { ready: true } } });
   } catch (err) {
     console.error(`[ops] tailor draft failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -165,12 +199,38 @@ export async function runTailorDraftJob(
   }
 }
 
+/** #417: the one call, checkpointed by its input. A step that does not finish is stored as
+ *  `failed` — told apart from "ran, found none" (ADR-0005's negative-test warning) — and the next
+ *  POST /draft looks again; the draft itself is already safe. */
+async function stretchStep(
+  llm: LlmClient,
+  posting: Posting,
+  stretch: StretchContext,
+  draft: Draft,
+  inputs: DraftInputs,
+): Promise<StretchCheckpoint> {
+  const input = stretchInputFor(posting, stretch.requirements, draft, inputs);
+  const fingerprint = stretchFingerprint(input);
+  try {
+    const denied = inputs.opts.negatives ?? [];
+    const suggestions = await suggestStretches(llm, input, draft, stretch.requirements, denied, posting.id);
+    return { fingerprint, status: "ran", suggestions };
+  } catch (err) {
+    console.error(`[ops] stretch suggestions failed: ${err instanceof Error ? err.message : String(err)}`);
+    return { fingerprint, status: "failed" };
+  }
+}
+
 export interface TailorDraftView {
   html: string;
   /** #154, re-homed onto the Tailor step's ending: what the draft held back and why. */
   disclosure: JobDisclosure[];
   conservationNotices: string[];
   draftedAt: string;
+  /** #417: the stretch suggestions beside this draft, with their answers — `ran` (possibly with
+   *  none), `failed`, or null when the step never ran. The screen never reads null or failed as
+   *  "nothing to suggest". */
+  stretch: StretchView;
 }
 
 /** What the ending renders. Disclosure is derived at read time from the same claims the draft was
@@ -201,5 +261,6 @@ export function tailorDraftView(
     // shaping only: the stored record keeps every notice.
     conservationNotices: [...new Set(record.conservationNotices)],
     draftedAt: record.draftedAt,
+    stretch: stretchView(record.stretch),
   };
 }

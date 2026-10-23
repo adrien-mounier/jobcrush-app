@@ -82,6 +82,7 @@ import { InMemoryUnmappedLabelStore } from "./unmappedLabels.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
 import { REPORT_STATE_LINE } from "./applicationReport.js";
+import { STRETCH_PROMPT_HEADING, STRETCH_REQUIREMENT_LINE } from "./stretchSuggestions.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
 // DATABASE_URL and would write judgements to the real shared Postgres from a QA run.
 import { InMemoryJudgementStore } from "./judgementStore.js";
@@ -161,7 +162,7 @@ const DRAFT: Draft = {
   additional: [{ label: "Languages", value: "Polish (Native), English (Fluent), German (B1)" }],
 };
 
-const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, review: 0, report: 0, unknown: 0 };
+const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, review: 0, report: 0, stretch: 0, unknown: 0 };
 
 // A canned, contract-valid MinedJobBlocks doc (#161): three dated blocks exercising the shapes the
 // confirm deck cares about — a month-precision ended job, a year-precision ongoing job, and an
@@ -330,6 +331,38 @@ const fakeLlm: LlmClient = {
     // "- id:" / "state:" pairs (buildReportInput's shape), so the coverage check always holds and
     // an unchecked requirement gets no sentence — the fake obeys the same rule as the product.
     // The salary is null: not one of the owner's real adverts states one (#293 finding 3).
+    // #417: the stretch suggestion step — matched on the prompt's own heading (never its opening
+    // sentence), the requirement states read back off the product-owned line shape. One bullet
+    // swap for the first unmet requirement (the first bullet of the first role, so the journey's
+    // struck-out line is a line the canned draft really prints) and one skill for the second.
+    if (prompt.includes(STRETCH_PROMPT_HEADING)) {
+      seen.stretch += 1;
+      const unmet = [...prompt.matchAll(STRETCH_REQUIREMENT_LINE)].filter((m) => m[2] !== "met").map((m) => m[1]!.trim());
+      const suggestions = unmet.slice(0, 2).map((id, i) =>
+        i === 0
+          ? {
+              requirementId: id,
+              slot: { kind: "bullet", role: 0, bullet: 0 },
+              lineIn: "Led the checkout replatforming end to end, from vendor selection to go-live, two months early",
+              why: "The job asks for this. Your CV shows the checkout replatforming, without naming it.",
+              say: "I ran the replatforming from the vendor choice to go-live; the two months early is on the record.",
+              intendedClass: "Partially-Supported",
+              comparison: "The line out states the delivery; the line in says what this job tests about it.",
+              better: true,
+            }
+          : {
+              requirementId: id,
+              slot: { kind: "skill", group: 0 },
+              lineIn: "Vendor governance",
+              why: "The job asks for this. Your skills line does not name it.",
+              say: "I ran three vendor teams against one budget, so vendor governance was my daily work.",
+              intendedClass: "Unsupported-but-Plausible",
+              comparison: "A skill joins the line; nothing leaves your CV.",
+              better: true,
+            },
+      );
+      return JSON.stringify({ suggestions });
+    }
     if (prompt.includes("You are writing the application report for ONE job application")) {
       seen.report += 1;
       const requirements = [...prompt.matchAll(REPORT_STATE_LINE)].map((m) => ({ id: m[1]!.trim(), state: m[2]! }));
@@ -1009,6 +1042,7 @@ const { app } = buildServer({
   // #315: the application report over the SAME fake — its branch answers from the prompt's own
   // requirement states, so a journey reads the five-section email the DevMailer logs, free.
   reportLlm: fakeLlm,
+  stretchLlm: fakeLlm,
   // #341: the CV review over the SAME stage-aware fake, started by the pipeline like production —
   // so a journey walks the real run, its checkpoints and its marks, free. Its checkpoint store stays
   // buildServer's in-memory default, like every other QA store.

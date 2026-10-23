@@ -271,6 +271,8 @@ const { app } = buildServer({
   // #315: the application report's one call, metered under its own stage so the per-application
   // cost is readable on /ops/spend by stage — the measured number the release gate quotes.
   reportLlm: step("application-report"),
+  // #417: the stretch suggestions beside the finished draft, metered under their own stage.
+  stretchLlm: step("stretch-suggestions"),
   tailorDrafts,
   // #341: the CV review over the metered "review" step (Fable 5.1 at max reasoning, per
   // data/ai-steps.json) — one call per job, in the background, checkpointed in cvReviews.

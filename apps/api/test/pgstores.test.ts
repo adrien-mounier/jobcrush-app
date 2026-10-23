@@ -1807,6 +1807,38 @@ for (const [name, make] of tailorDraftDrivers) {
       expect((await store.get("session-1", "ad-1"))?.approvedAt).toBeNull();
     });
 
+    it("#417: the stretch suggestions beside the draft round-trip, and a redraft without them clears them", async () => {
+      const stretch = {
+        fingerprint: "stretch-fp-1",
+        status: "ran" as const,
+        suggestions: [
+          {
+            schemaVersion: "2" as const,
+            id: "stretch-ad-1-vendor-tenders",
+            adId: "ad-1",
+            requirementId: "vendor-tenders",
+            why: "The job asks for tenders. Your CV says you coordinate vendors.",
+            claimText: "Ran vendor selection from tender to statement of work.",
+            intendedClass: "Partially-Supported" as const,
+            interviewNarrative: "I took part in choosing our vendors.",
+            slot: { kind: "bullet" as const, role: 0, bullet: 0 },
+            lineOut: "Led the checkout replatforming, delivered 2 months early",
+            derivedFrom: null,
+            createdAt: "2026-10-23T09:00:00.000Z",
+            state: "declined" as const,
+            decidedAt: "2026-10-23T09:05:00.000Z",
+            scope: "this-job" as const,
+          },
+        ],
+      };
+      await store.put("session-1", "ad-1", { ...draftRecord("fp-1"), stretch });
+      expect((await store.get("session-1", "ad-1"))?.stretch).toEqual(stretch);
+      await store.put("session-1", "ad-1", { ...draftRecord("fp-1"), stretch: { fingerprint: "stretch-fp-2", status: "failed" } });
+      expect((await store.get("session-1", "ad-1"))?.stretch).toEqual({ fingerprint: "stretch-fp-2", status: "failed" });
+      await store.put("session-1", "ad-1", draftRecord("fp-2"));
+      expect((await store.get("session-1", "ad-1"))?.stretch).toBeUndefined();
+    });
+
     it("a redraft for the same (session, advert) replaces the prior record", async () => {
       await store.put("session-1", "ad-1", draftRecord("fp-1"));
       await store.put("session-1", "ad-1", draftRecord("fp-2"));

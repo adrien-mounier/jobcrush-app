@@ -195,6 +195,9 @@ export interface BuildOptions {
    *  press answers 503 (the readPastedAdvert rule) — main.ts wires the metered real client,
    *  qa-main.ts its stage-aware fake, tests their own. */
   reportLlm?: LlmClient;
+  /** #417: the model client behind the stretch suggestion step. Absent → the draft is written
+   *  without suggestions and the view says the step did not run (never "nothing to suggest"). */
+  stretchLlm?: LlmClient;
   /** #312: makes the two-page PDF from the rendered draft — consumed by #313's approve route.
    *  Absent → that route answers 503 rather than inventing a document (the readPastedAdvert
    *  rule); main.ts wires the real browser (chrome-headless-shell in the API image), qa-main.ts
@@ -744,6 +747,7 @@ export function buildServer(opts: BuildOptions = {}) {
       tailorDrafts,
       tailorLlm: opts.tailorLlm,
       reportLlm: opts.reportLlm,
+      stretchLlm: opts.stretchLlm,
       // #313: the approve-is-send press — the account's email, the mail seam, and #312's
       // injected document maker (absent ⇒ the press answers 503, the readPastedAdvert rule).
       auth,

@@ -45,7 +45,8 @@ import type { JobStore } from "../jobs.js";
 import { letterheadText, type ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
-import { composeDraftInputs, runTailorDraftJob, tailorDraftView } from "../tailorDraft.js";
+import { composeDraftInputs, runTailorDraftJob, tailorDraftView, type StretchContext } from "../tailorDraft.js";
+import { STRETCH_ANSWERS, answerSuggestion, stretchIsCurrent, stretchView } from "../stretchSuggestions.js";
 import { exportGate, runTailorExportJob } from "../tailorExport.js";
 import { reportContext, reportGate } from "../applicationReport.js";
 import type { AuthStore } from "../auth.js";
@@ -84,6 +85,9 @@ export interface TailorRouteDeps {
   /** #315 — the application report's one model call. Same rule as tailorLlm: wired in main.ts
    *  (metered) and qa-main's fake only; absent, the approve press answers 503. */
   reportLlm?: LlmClient;
+  /** #417 — the stretch suggestion step's one call, same rule: wired in main.ts (metered) and
+   *  qa-main's fake only; absent, the draft is written and the step is recorded as not run. */
+  stretchLlm?: LlmClient;
   /** #313 — the approve-is-send press's own deps. `auth` resolves the signed-in account's email
    *  (the document goes to HIM). `documentMaker` follows the readPastedAdvert rule: the real
    *  browser is wired in main.ts, the stand-in in qa-main/tests — absent, the press answers 503
@@ -403,6 +407,17 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       return { target: { ...target, confirmed, negatives, blocks, facts, brought } };
     };
 
+    // #417: the requirements with the card's verdicts, composed exactly as the screen's own list
+    // is (buildTailorState's reading of the judged card) — the stretch step suggests only for the
+    // ones it does not read as met.
+    const stretchContext = async (session: SessionRecord, t: DraftTarget): Promise<StretchContext | undefined> => {
+      if (!deps.stretchLlm) return undefined;
+      const { judgement, years } = await judgeAndYears(
+        session, t.adReq, t.confirmed, t.facts, t.blocks, isBrought(t.brought, t.posting.id),
+      );
+      return { requirements: buildTailorState(t.posting, t.adReq, t.confirmed, t.negatives, judgement, years).requirements };
+    };
+
     // #310: one in-flight run per (session, advert, fact set) — a reload mid-write joins the run
     // already paying instead of starting a second one. ponytail: per-process only; a multi-process
     // deploy would need the job store to arbitrate, which one machine does not.
@@ -435,18 +450,24 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
       const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
       const stored = await deps.tailorDrafts.get(session.id, posting.id);
-      if (stored?.inputFingerprint === inputs.fingerprint) return { ready: true };
+      const stretch = await stretchContext(session, resolved.target);
+      // #417: a draft that matches the facts is ready only once its suggestions are current too;
+      // otherwise the job below re-makes the suggestions alone, the draft untouched and unspent.
+      const draftCurrent = stored?.inputFingerprint === inputs.fingerprint;
+      if (draftCurrent && (!stretch || stretchIsCurrent(stored!, posting, stretch.requirements, inputs))) return { ready: true };
       const runKey = JSON.stringify([session.id, posting.id, inputs.fingerprint]);
       const running = draftRuns.get(runKey);
       if (running) return reply.status(202).send({ jobId: running });
       const job = await deps.jobs.create("tailor-draft", session.id);
       draftRuns.set(runKey, job.id);
       void runTailorDraftJob(
-        { jobs: deps.jobs, tailorDrafts: deps.tailorDrafts, tailorLlm: deps.tailorLlm },
+        { jobs: deps.jobs, tailorDrafts: deps.tailorDrafts, tailorLlm: deps.tailorLlm, stretchLlm: deps.stretchLlm },
         session.id,
         job.id,
         posting,
         inputs,
+        stretch,
+        draftCurrent ? stored! : undefined,
       ).finally(() => draftRuns.delete(runKey));
       return reply.status(202).send({ jobId: job.id });
     });
@@ -480,6 +501,36 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         email: contact.email?.value ?? null,
       });
     });
+
+    // #417 (ADR-0020 clause 4): an answer to one stretch suggestion beside the current draft. "No"
+    // declines it for this job only — the record lives beside THIS draft, so nothing else moves and
+    // another job's run may suggest the same line again. Spends nothing; answers the suggestions
+    // as the next read would show them. A suggestion the current draft does not carry (an old
+    // draft's, a typo) is a 404, the same fail-closed shape as the other doors.
+    app.post(
+      "/onboarding/tailor/suggestions/:id",
+      { schema: { params: z.object({ id: z.string().min(1) }), body: z.object({ answer: z.enum(STRETCH_ANSWERS) }) } },
+      async (req, reply) => {
+        const session = requireUser(req);
+        const resolved = await resolveDraftTarget(session);
+        if (resolved.refused) {
+          const { status, code, message } = resolved.refused;
+          return reply.status(status).send({ error: { code, message } });
+        }
+        const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+        const header = letterheadText(await deps.contact.getRecord(session.id));
+        const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
+        const stored = await deps.tailorDrafts.get(session.id, posting.id);
+        const answered =
+          stored && stored.inputFingerprint === inputs.fingerprint
+            ? answerSuggestion(stored.stretch, req.params.id, req.body.answer, new Date().toISOString())
+            : null;
+        if (!stored || !answered)
+          return reply.status(404).send({ error: { code: "unknown_suggestion", message: "no such suggestion for this draft" } });
+        await deps.tailorDrafts.put(session.id, posting.id, { ...stored, stretch: answered });
+        return { stretch: stretchView(answered) };
+      },
+    );
 
     // --- #313: approving is sending — one press, server-side gates, narrated wait --------------
 

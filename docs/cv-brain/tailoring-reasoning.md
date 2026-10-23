@@ -23,6 +23,7 @@
   - [The application report](#the-application-report)
   - [Not decided here](#not-decided-here)
 - [9. The CV review: drafting rules R1–R6 and removal only for what belongs nowhere (#340, #380)](#9-the-cv-review-drafting-rules-r1r6-and-removal-only-for-what-belongs-nowhere-340-380)
+- [10. Stretch suggestions beside the finished draft (#417, ADR-0020)](#10-stretch-suggestions-beside-the-finished-draft-417-adr-0020)
 
 ## 1. What tailoring produces
 
@@ -316,3 +317,45 @@ unticked. Its vague phrases are choices — the CV's own words first, marked CV,
 marked TYPICAL — so a typical option is never presented as the person's fact. A job placed in no
 published family gets fixes and judgements but no drafted lines. The whole CV is context for every
 job (recall depends on facts written elsewhere), but the answer is produced and stored per job.
+
+## 10. Stretch suggestions beside the finished draft (#417, ADR-0020)
+
+The CV is written first, from true facts only (§8 and `preview-tailor.md` rule 1: tailoring is
+silent; a stretch is never written). Then **one more model step** reads the finished draft against
+the job's requirements it does not fully meet and proposes stretches beside it. The prompt is
+`apps/api/prompts/stretch-suggestions.md`; the code-side gates are `apps/api/src/stretchSuggestions.ts`.
+[ADR-0020](../adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md) clauses 3–4 and
+[ADR-0005](../adr/0005-a-stretch-belongs-to-its-advert.md) clauses 1–4 and 6 are the decisions; this
+section is the instruction.
+
+1. **A stretch is a position, not a fact.** It claims a skill, field, scope, number or title the
+   person's facts do not hold outright, written from their **nearest true facts** so that it can be
+   defended in the room. Saying a held fact in the job's words is tailoring and reads `met`; the step
+   suggests only for requirements that read `gap` or `untested`.
+2. **At most one suggestion per unmet requirement, and none without a nearby fact.** Nothing true
+   underneath means nothing to suggest for that requirement — an empty answer is a correct answer.
+3. **Every suggestion states why it fired** — what the job asks, what the CV shows — two sentences
+   the person can disagree with (ADR-0005 clause 3: information, not a guardrail).
+4. **The line in takes a slot, and the slot names the line out.** A bullet replaces a bullet under
+   the same job; a summary line replaces the summary; a skill joins a skills group and pushes nothing
+   out. The line out is **read from the draft at that slot by code**, never from the model's answer,
+   so the swap shown is the swap made (clause 4 step 4).
+5. **The comparison is explicit, and it decides.** The answer carries one sentence comparing the
+   line in against the line out for this job and a verdict; a verdict of *not better* makes no
+   suggestion (clause 4 step 3 — the step a model skips while appearing to succeed, so it is a field
+   the code reads, not an implication).
+6. **A denied capability is never the subject of a stretch** (§8 clause 3). The step is told the
+   denied list; a line in that states a denied item's words is dropped in code by the same word
+   check `conservationIssues()` runs on the page. The ceiling is the same: words, never a paraphrase.
+7. **Written once, printed verbatim.** The line in is written in the CV's own register — one
+   sentence for a bullet or summary line, a short noun phrase for a skill — and is what prints if the
+   person uses it; *what to say if asked* defends exactly that sentence (ADR-0005 clause 6).
+8. **Never moralise.** No warnings, no honesty advice. The person owns every word; the step puts the
+   choice in front of them with its price visible.
+9. **Three states, kept apart.** The record beside the draft says *ran* (with the suggestions, or
+   none), *failed*, or is absent when the step never ran. The screen never presents a failure or an
+   absence as "nothing to suggest" (ADR-0005's negative-test warning), and never names the step.
+10. **Nothing here touches the profile.** Suggestions are stored beside the draft, per person and
+    job, never as a claim and never in the claim graph (ADR-0005 clause 2). "No" declines for this
+    job only; another job's run may suggest the same line again. A suggestion left unanswered when
+    the CV is approved is left out.

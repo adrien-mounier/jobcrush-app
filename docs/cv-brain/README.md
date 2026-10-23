@@ -30,6 +30,9 @@ here, so jobcrush-app has no runtime or authoring dependency on the JobCrush che
 - `apps/api/prompts/cv-review.md` — reviews the whole CV job by job before any jobs show: fixes,
   removal suggestions only for items that belong nowhere (#380), and drafted lines for a thin job's missing must-haves under R1–R6
   (implements `tailoring-reasoning.md` §9; blind-tested with `apps/api/scripts/blind-test.mjs`).
+- `apps/api/prompts/stretch-suggestions.md` — after the draft is written, suggests at most one stretch
+  per requirement the CV does not meet, each with its line out and an explicit better-than comparison
+  (implements `tailoring-reasoning.md` §10; the code-side gates are `apps/api/src/stretchSuggestions.ts`).
 - `apps/api/src/preview.ts` — the canonical Draft schema + `conservationIssues()` lint (the mechanical
   enforcement of "tailor by emphasis, not amputation").
 
