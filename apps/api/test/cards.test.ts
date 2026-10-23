@@ -11,6 +11,7 @@ import { buildDeckCards, hasOpenDiscoveryQuestions, newToFamily, orderCardsForRe
 import { buildDeckServer as buildServer, discoveryFact, fixtureReadAd, injectSettled, liveIdFor, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
 import { listAdRequirements } from "../src/e5stub.js";
+import { deniedClaim } from "./denial.js";
 import type { Posting } from "../src/preview.js";
 import { languageEligible } from "../src/language.js";
 import { makeAdReader } from "../src/adReader.js";
@@ -391,11 +392,12 @@ describe("#19 GET /onboarding/cards", () => {
   // #29: a requirement declined while tailoring an ad must be asked-and-closed on that ad's DECK card
   // too — spec #37, "the list of open things only ever shrinks". #23 filtered negatives in the tailor
   // assembly only, deliberately, so #19's deck payload stayed byte-identical while it shipped.
-  it("a requirement answered 'no' in Tailor leaves that ad's deck card gaps, and only that ad's", async () => {
-    const { app } = buildItProjectDeliveryServer();
+  it("a stored 'no' on a requirement leaves that ad's deck card gaps, and only that ad's", async () => {
+    const { app, claims } = buildItProjectDeliveryServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await signIn(app, cookie, "tailor-no-hides-gap@example.com"); // the want/tailor routes are post-wall
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
 
     const cardOf = async (adId: string): Promise<JobCard> => {
       const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -412,12 +414,9 @@ describe("#19 GET /onboarding/cards", () => {
       .find((id) => id !== VALID_AD_ID)!;
     const otherBefore = await cardOf(otherAdId);
 
-    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
-    const answered = await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: declined.id,
-      answer: "No",
-    });
-    expect(answered.statusCode).toBe(200);
+    // #415: the Tailor step takes no "No" any more — the denial is a stored one, as the retired
+    // answer route wrote it; every reader of it is still live.
+    await claims.answerNegative(sid, deniedClaim(VALID_AD_ID, declined.id, declined.requirement));
 
     const after = await cardOf(VALID_AD_ID);
     // AC1: gone from "Where you don't — yet".
@@ -1696,16 +1695,6 @@ describe("#107 D4 — withdrawal on every surface that renders an advert", () =>
     // Cleared, not just silenced for this one response — a reload must not keep landing on it.
     const meAfterGet = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     expect(meAfterGet.json().tailorAdId).toBeNull();
-
-    await sessions.setTailorTarget(sid, target.id); // re-persist to prove POST clears it independently
-    const answerRes = await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: "mandarin-required",
-      answer: "Yes",
-    });
-    expect(answerRes.statusCode).toBe(409);
-    expect(answerRes.json()).toEqual(noTargetShape);
-    const meAfterPost = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
-    expect(meAfterPost.json().tailorAdId).toBeNull();
   });
 });
 

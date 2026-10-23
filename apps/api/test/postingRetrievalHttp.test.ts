@@ -426,32 +426,14 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const tailor = await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
     expect(tailor.statusCode).toBe(200);
     expect(tailor.json().card).toMatchObject({ adId: livePosting.id, adExcerpt: description });
-    const initialPct = tailor.json().card.matchPct as number;
-    const firstRequirementId = tailor.json().questions[0].requirementId as string;
-    const firstAnswer = await built.app.inject({
-      method: "POST",
-      url: "/onboarding/tailor/answer",
-      headers: { cookie },
-      payload: { requirementId: firstRequirementId, answer: "Yes" },
-    });
-    expect(firstAnswer.statusCode).toBe(200);
-    expect(firstAnswer.json().card.matchPct).toBeGreaterThan(initialPct);
+    // #415: the live-read requirement list reaches the Tailor step as its requirements, in the
+    // job's order, and never as questions.
+    expect(tailor.json().requirements.length).toBeGreaterThan(0);
+    expect(tailor.json().questions.every((q: { kind?: string }) => q.kind === "profile")).toBe(true);
 
     const resumed = await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
     expect(resumed.statusCode).toBe(200);
-    expect(resumed.json().card.matchPct).toBe(firstAnswer.json().card.matchPct);
-    const secondRequirementId = resumed.json().questions[0].requirementId as string;
-    expect(secondRequirementId).not.toBe(firstRequirementId);
-    const secondAnswer = await built.app.inject({
-      method: "POST",
-      url: "/onboarding/tailor/answer",
-      headers: { cookie },
-      payload: { requirementId: secondRequirementId, answer: "No" },
-    });
-    expect(secondAnswer.statusCode).toBe(200);
-    const completedTailor = await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
-    expect(completedTailor.statusCode).toBe(200);
-    expect(completedTailor.json()).toMatchObject({ done: true, closedGaps: { asked: 2 } });
+    expect(resumed.json().card.matchPct).toBe(tailor.json().card.matchPct);
 
     const sameAdvertCards = completed.json().cards.filter((card: Record<string, unknown>) =>
       card.title === fixturePosting.title &&

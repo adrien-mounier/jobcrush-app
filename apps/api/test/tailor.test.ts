@@ -1,7 +1,10 @@
 // #23 tailor (screen 3) — pure helpers (prior art: matchtick.test.ts) + the pinned HTTP seam (prior
-// art: discovery.test.ts, cards.test.ts). Pins: composeTailorLine actually covers the requirement (the
-// AC1 hinge), the ledger derivation, and the route behaviors — re-score never decreases, never-re-ask,
-// the ledger, done, and drop losing the job but never a claim.
+// art: discovery.test.ts, cards.test.ts). #415 (ADR-0020): the requirement yes/no queue, its answer
+// route and the ledger are gone — the Tailor step asks only the profile questions (tailorProfile.ts)
+// and then writes the CV. What this file pins now: the claim-id scheme, the denial mapping the card
+// and the report read, the `requirements` list the screen's "Where you fit" / "Also asked, not on
+// your CV" are drawn from, and the route behaviours — the removed door 404s, drop loses the job but
+// never a claim.
 import { describe, expect, it } from "vitest";
 import type { AdRequirementV1, AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
@@ -9,21 +12,14 @@ import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { loadAdRequirements } from "../src/e5stub.js";
-import { matchTick } from "../src/matchtick.js";
 import { discoveryClaimId } from "../src/discovery.js";
+import { buildTailorState } from "../src/deck.js";
+import type { Posting } from "../src/preview.js";
 import {
   advertDeniedRows,
-  buildTailorLedger,
-  composeGrownLine,
-  composeTailorLine,
   deniedCapabilities,
-  growSinceYear,
-  grownTailorClaimId,
   negativeRequirementIds,
   tailorClaimId,
-  tailorCvLines,
-  tailorQuestions,
-  tailorSectionTag,
 } from "../src/tailor.js";
 import { DECLINE_OPTION, eligibilityCandidates } from "../src/eligibilityDiscovery.js";
 import { ANY_FAMILY } from "../src/eligibility.js";
@@ -57,10 +53,9 @@ const AD: AdRequirementsV1 = {
 };
 const [OWN_BUDGET, LEAD_TEAM, CERTIFICATION] = AD.requirements as [AdRequirementV1, AdRequirementV1, AdRequirementV1];
 
-// #28: buildTailorLedger reads answer order off ClaimRecord.seq — a module-level counter so calls
-// made earlier in a test (JS evaluates arguments left-to-right) land with a lower seq, same as the
-// real store assigning it at answer time.
 let seqCounter = 0;
+// A tailor-scoped claim exactly as the retired answer route wrote it (the stored claims of past
+// answers stay as they are — no data step — so the readers below must still understand them).
 const claimFor = (
   adId: string,
   req: AdRequirementV1,
@@ -69,7 +64,7 @@ const claimFor = (
 ): ClaimRecord => ({
   id: tailorClaimId(adId, req.id),
   role: "profile",
-  text: decision === "negative" ? `Not applicable — ${req.requirement}` : composeTailorLine(req, answer),
+  text: decision === "negative" ? `Not applicable — ${req.requirement}` : `${req.requirement}.`,
   machine_touch: "verbatim",
   classification: "Verified",
   source_quote: answer.slice(0, 200),
@@ -82,179 +77,24 @@ const claimFor = (
 const yesClaim = (req: AdRequirementV1) => claimFor(AD.adId, req, "Yes", "confirmed");
 const noClaim = (req: AdRequirementV1) => claimFor(AD.adId, req, "No", "negative");
 
-describe("#23 composeTailorLine", () => {
-  // D3: a bullet, not a sentence — no "I " prefix (was producing "I experience driving digital
-  // transformation initiatives."). Reads like discovery's own lines.
-  it("a bare 'Yes' restates the requirement as a CV bullet, not a first-person sentence", () => {
-    expect(composeTailorLine(OWN_BUDGET, "Yes")).toBe("Own a project budget with vendor oversight.");
-    expect(composeTailorLine(OWN_BUDGET, "yes.")).toBe("Own a project budget with vendor oversight.");
-  });
-
-  it("free text is the visitor's own words, verbatim (period-terminated)", () => {
-    expect(composeTailorLine(OWN_BUDGET, "I've run vendor budgets north of $2M")).toBe(
-      "I've run vendor budgets north of $2M.",
-    );
-  });
-
-  it("is deterministic — same requirement+answer yields the same line", () => {
-    expect(composeTailorLine(LEAD_TEAM, "Yes")).toBe(composeTailorLine(LEAD_TEAM, "Yes"));
-  });
-
-  // The AC1 hinge: the composed line must actually cover the requirement, or the tick never moves.
-  it("the composed 'Yes' line covers its own requirement — matchTick moves (the AC1 hinge)", () => {
-    for (const req of AD.requirements) {
-      const before = matchTick([], AD);
-      const line = composeTailorLine(req, "Yes");
-      const after = matchTick([{ text: line }], AD);
-      expect(after).toBeGreaterThan(before);
-    }
-  });
-});
-
 describe("#23 tailorClaimId", () => {
   it("is a valid kebab-case slug even when the adId carries underscores (the E5 stub's date-slug ids)", () => {
-    const id = tailorClaimId("2026-07-05_manulife_senior-it-project-manager-delivery-manager", "manage-full-project-lifecycle");
+    const id = tailorClaimId("2026-07-05_manulife_senior-project-manager", "own-budget");
     expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-    expect(id.includes("_")).toBe(false);
+    expect(id).toBe("tailor-2026-07-05-manulife-senior-project-manager-own-budget");
   });
 
   it("is deterministic and distinct per (adId, requirementId)", () => {
-    expect(tailorClaimId("ad-1", "req-1")).toBe(tailorClaimId("ad-1", "req-1"));
-    expect(tailorClaimId("ad-1", "req-1")).not.toBe(tailorClaimId("ad-1", "req-2"));
-    expect(tailorClaimId("ad-1", "req-1")).not.toBe(tailorClaimId("ad-2", "req-1"));
-  });
-});
-
-describe("#23 tailorQuestions — the never-re-ask rule", () => {
-  it("lists every requirement, ad rank order, when nothing is answered", () => {
-    expect(tailorQuestions(AD, [], []).map((q) => q.requirementId)).toEqual([
-      "own-budget",
-      "lead-team",
-      "certification",
-    ]);
-  });
-
-  it("excludes a requirement once covered by a confirmed fact", () => {
-    expect(tailorQuestions(AD, [yesClaim(OWN_BUDGET)], []).map((q) => q.requirementId)).toEqual([
-      "lead-team",
-      "certification",
-    ]);
-  });
-
-  it("excludes a requirement answered 'no' even though it stays uncovered — never re-asked", () => {
-    const qs = tailorQuestions(AD, [], [noClaim(OWN_BUDGET)]);
-    expect(qs.map((q) => q.requirementId)).not.toContain("own-budget");
-  });
-
-  it("every question offers tap-first Yes/No options", () => {
-    for (const q of tailorQuestions(AD, [], [])) expect(q.options).toEqual(["Yes", "No"]);
-  });
-});
-
-describe("#23 buildTailorLedger", () => {
-  it("a covered positive answer produces a '+N%' line; N is the requirement's band-weight share", () => {
-    const { ledger, closedGaps } = buildTailorLedger(AD, [yesClaim(OWN_BUDGET)], []);
-    expect(ledger).toEqual([{ requirementId: "own-budget", text: "+43% · Own a project budget with vendor oversight" }]);
-    expect(closedGaps).toEqual({ asked: 1, closed: 1 });
-  });
-
-  it("a 'nice' band answer gets a smaller share than a 'must'", () => {
-    const { ledger } = buildTailorLedger(AD, [yesClaim(CERTIFICATION)], []);
-    expect(ledger[0]!.text).toBe("+14% · Hold a project management certification");
-  });
-
-  // B1: the answered requirement itself is no longer "open" (spec #37/#38 — a "no" closes the gap,
-  // not just the question), so "still open" must be 2 (lead-team, certification), NOT 3 — the
-  // pre-fix code counted 3 here because openCount never subtracted the requirement it was reporting
-  // as just-closed.
-  it("a negative answer produces an 'asked and closed · k still open' line and does not count as closed", () => {
-    const { ledger, closedGaps } = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET)]);
-    expect(ledger).toEqual([{ requirementId: "own-budget", text: "asked and closed · 2 still open" }]);
-    expect(closedGaps).toEqual({ asked: 1, closed: 0 });
-  });
-
-  it("an unanswered requirement gets no ledger line", () => {
-    const { ledger, closedGaps } = buildTailorLedger(AD, [], []);
-    expect(ledger).toEqual([]);
-    expect(closedGaps).toEqual({ asked: 0, closed: 0 });
-  });
-
-  it("ledger order follows the ad's own rank order, not answer order", () => {
-    const { ledger } = buildTailorLedger(AD, [yesClaim(LEAD_TEAM), yesClaim(OWN_BUDGET)], []);
-    expect(ledger.map((l) => l.requirementId)).toEqual(["own-budget", "lead-team"]);
-  });
-
-  it("only ever grows across answers — the last line never disappears once a requirement is answered", () => {
-    const first = buildTailorLedger(AD, [yesClaim(OWN_BUDGET)], []);
-    const second = buildTailorLedger(AD, [yesClaim(OWN_BUDGET), yesClaim(LEAD_TEAM)], []);
-    expect(second.ledger.length).toBeGreaterThan(first.ledger.length);
-    expect(second.ledger.map((l) => l.requirementId)).toEqual(
-      expect.arrayContaining(first.ledger.map((l) => l.requirementId)),
-    );
-  });
-
-  // #23 B1 regression: every negative answered so far (up to and including the one this line is
-  // about) must be excluded from "still open" — otherwise "closed 2 of 3" and "N still open" can
-  // both lie simultaneously. Post-#28, "so far" means AT THAT ANSWER'S OWN LANDING TIME, so the two
-  // lines below now differ (own-budget landed first, when 2 were still open; lead-team second, when
-  // only 1 was) — see the #28 describe block below for the regression this superseded.
-  it("B1: 'still open' subtracts every negative recorded up to and including that answer's own landing", () => {
-    const { ledger } = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET), noClaim(LEAD_TEAM)]);
-    expect(ledger.find((l) => l.requirementId === "own-budget")!.text).toBe("asked and closed · 2 still open");
-    expect(ledger.find((l) => l.requirementId === "lead-team")!.text).toBe("asked and closed · 1 still open");
-  });
-});
-
-// #28: buildTailorLedger stamped every "asked and closed" line from the CURRENT open count, computed
-// once before the loop — so rebuilding the ledger after a later "no" landed silently rewrote every
-// EARLIER line too (by session's end every one read "· 0 still open" regardless of when it actually
-// closed). Fix: replay confirmed+negatives merged by ClaimRecord.seq, one answer at a time, and stamp
-// each line with the count open right after ITS OWN answer landed.
-describe("#28 buildTailorLedger — a historical line is stamped once, not rewritten by later answers", () => {
-  it("an earlier line's count survives a later answer landing on the SAME rebuilt ledger", () => {
-    const onlyFirst = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET)]);
-    expect(onlyFirst.ledger).toEqual([{ requirementId: "own-budget", text: "asked and closed · 2 still open" }]);
-
-    // Rebuilding the ledger (same as a reload) after LEAD_TEAM also lands "no": pre-fix, own-budget's
-    // line would now read "1 still open" (today's count) — a rewrite of already-shown history.
-    const afterSecond = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET), noClaim(LEAD_TEAM)]);
-    expect(afterSecond.ledger.find((l) => l.requirementId === "own-budget")!.text).toBe(
-      "asked and closed · 2 still open", // unchanged from `onlyFirst` — AC1
-    );
-    expect(afterSecond.ledger.find((l) => l.requirementId === "lead-team")!.text).toBe(
-      "asked and closed · 1 still open", // its own landing-time count, not own-budget's
-    );
-  });
-
-  // Every other count-asserting test in this file only ever passes `confirmed: []` (all-negative
-  // scenarios) or answers everything "No" — so confirmedSoFar === confirmed at every replay step by
-  // construction, and the replay's use of confirmedSoFar (not the final `confirmed`) at tailor.ts's
-  // uncoveredRequirements(confirmedSoFar, ...) call goes untested. This interleaves a "no" landing
-  // BEFORE a later "yes": if the replay used the final `confirmed` list at every step instead of the
-  // accumulated confirmedSoFar, lead-team's line would wrongly treat own-budget as already covered
-  // (it isn't yet, at the moment lead-team's "no" lands) and understate "still open" by one.
-  it("a 'no' landed BEFORE a later 'yes' is stamped with pre-yes coverage, not the session's final coverage", () => {
-    const negLeadTeamFirst = noClaim(LEAD_TEAM); // constructed (and seq'd) first — lands first
-    const posOwnBudgetSecond = yesClaim(OWN_BUDGET); // constructed second — lands after
-    const { ledger } = buildTailorLedger(AD, [posOwnBudgetSecond], [negLeadTeamFirst]);
-
-    // own-budget's own "yes" covers itself immediately (the AC1 hinge) -> a "+N%" line, unaffected.
-    expect(ledger.find((l) => l.requirementId === "own-budget")!.text).toContain("+");
-
-    // lead-team's "no" landed while only itself was answered: own-budget and certification were BOTH
-    // still uncovered at that instant, minus lead-team itself (excluded as the negative in question)
-    // -> 2 still open. A buggy replay using the final `confirmed` ([own-budget]) at this step would
-    // already count own-budget as covered and report 1.
-    expect(ledger.find((l) => l.requirementId === "lead-team")!.text).toBe("asked and closed · 2 still open");
+    expect(tailorClaimId("ad", "r1")).toBe(tailorClaimId("ad", "r1"));
+    expect(tailorClaimId("ad", "r1")).not.toBe(tailorClaimId("ad", "r2"));
+    expect(tailorClaimId("ad", "r1")).not.toBe(tailorClaimId("other", "r1"));
   });
 });
 
 describe("#23 negativeRequirementIds", () => {
   it("returns exactly the requirement ids with a recorded tailor negative for this ad", () => {
-    expect(negativeRequirementIds(AD, [noClaim(OWN_BUDGET)])).toEqual(new Set(["own-budget"]));
-    expect(negativeRequirementIds(AD, [noClaim(OWN_BUDGET), noClaim(LEAD_TEAM)])).toEqual(
-      new Set(["own-budget", "lead-team"]),
-    );
+    const ids = negativeRequirementIds(AD, [noClaim(OWN_BUDGET), noClaim(CERTIFICATION)]);
+    expect([...ids].sort()).toEqual(["certification", "own-budget"]);
   });
 
   it("is empty when nothing has been answered 'no' for this ad", () => {
@@ -262,49 +102,70 @@ describe("#23 negativeRequirementIds", () => {
   });
 
   it("never matches a negative recorded against a DIFFERENT ad (claim ids are ad-scoped)", () => {
-    const foreignAdNegative = { ...noClaim(OWN_BUDGET), id: tailorClaimId("other-ad", "own-budget") };
-    expect(negativeRequirementIds(AD, [foreignAdNegative])).toEqual(new Set());
+    const foreign = claimFor("some-other-ad", OWN_BUDGET, "No", "negative");
+    expect(negativeRequirementIds(AD, [foreign])).toEqual(new Set());
   });
 });
 
-describe("#23 tailorCvLines — B2: a confirmed tailor answer becomes a CV line", () => {
-  it("emits one cvLine per confirmed tailor answer for this ad", () => {
-    const lines = tailorCvLines(AD, [yesClaim(OWN_BUDGET)]);
-    expect(lines).toEqual([
-      { itemId: tailorClaimId(AD.adId, "own-budget"), section: "experience", text: "Own a project budget with vendor oversight." },
+// --- #415 (ADR-0020 clause 6): the requirements list behind "Where you fit" and "Also asked" ------
+
+const POSTING: Posting = {
+  id: AD.adId,
+  title: "Senior Project Manager",
+  company: "Acme",
+  location: "Paris, France",
+  keywords: [],
+  excerpt: "Lead delivery.",
+  language: "en",
+};
+const judgement = (fits: Record<string, number>) => ({
+  verdicts: AD.requirements.map((r) => ({
+    requirementId: r.id,
+    fit: fits[r.id] ?? 0,
+    supportingFactId: null,
+    reason: fits[r.id] !== undefined && fits[r.id]! >= 0.8 ? "you have done this" : "partial",
+  })),
+  version: "test",
+  cost: { model: "fake-judge", inputTokens: 1, outputTokens: 1, judgedAt: new Date().toISOString() },
+});
+
+describe("#415 buildTailorState.requirements — every requirement of the job, in the job's own order", () => {
+  it("names each requirement met, gap or untested, in the job's order — never re-sorted by band", () => {
+    // own-budget met (0.9), lead-team in part (0.5 — under the threshold is a gap, as the card
+    // computes it), certification denied (a planted 'No' — a gap too, ADR-0020 clause 6).
+    const state = buildTailorState(POSTING, AD, [], [noClaim(CERTIFICATION)], judgement({ "own-budget": 0.9, "lead-team": 0.5 }));
+    expect(state.requirements).toEqual([
+      { id: "own-budget", text: OWN_BUDGET.requirement, state: "met" },
+      { id: "lead-team", text: LEAD_TEAM.requirement, state: "gap" },
+      { id: "certification", text: CERTIFICATION.requirement, state: "gap" },
     ]);
+    // The same verdicts the card carries: the met row is the card's fit row, the gaps are its
+    // open and denied rows — one list, never a second scorer.
+    expect(state.card.fit.map((f) => f.id)).toEqual(["own-budget"]);
+    expect(state.card.dontYet.map((r) => r.id)).toEqual(["lead-team"]);
+    expect(state.card.askedClosed.map((f) => f.id)).toEqual([tailorClaimId(AD.adId, CERTIFICATION.id)]);
   });
 
-  it("uses the requirement's own cvSection when the ad carries one", () => {
-    const skillReq: AdRequirementV1 = { ...OWN_BUDGET, cvSection: "skills" };
-    const lines = tailorCvLines({ ...AD, requirements: [skillReq] }, [yesClaim(skillReq)]);
-    expect(lines[0]!.section).toBe("skills");
+  it("a years bar the record could not test reads 'untested', not a gap (#162 AC6 flows through)", () => {
+    const yearsAd: AdRequirementsV1 = {
+      ...AD,
+      requirements: [
+        { id: "years", band: "essential", requirement: "8+ years of IT experience", sourceSpan: "8+ years", eligibilityDimension: "years-experience" },
+        ...AD.requirements,
+      ],
+    };
+    const untestable = { total: null, family: null, familySource: "unscoped", familyConfidence: null } as const;
+    const state = buildTailorState(POSTING, yearsAd, [], [], null, untestable);
+    expect(state.requirements[0]).toEqual({ id: "years", text: "8+ years of IT experience", state: "untested" });
+    expect(state.requirements.slice(1).every((r) => r.state === "gap")).toBe(true);
   });
 
-  it("falls back to 'experience' when the requirement has no cvSection (the AD fixture's own case)", () => {
-    expect(tailorCvLines(AD, [yesClaim(LEAD_TEAM)])[0]!.section).toBe("experience");
-  });
-
-  it("a negative produces no CV line, and an unanswered requirement produces none either", () => {
-    expect(tailorCvLines(AD, [])).toEqual([]);
-  });
-});
-
-// #387 (ADR-0018 clause 9): a fact added while tailoring joins the profile, in its section.
-describe("#387 tailorSectionTag — the profile section a tailoring fact joins", () => {
-  it("maps the requirement's cvSection to the profile's own section tag; experience when it has none", () => {
-    expect(tailorSectionTag(OWN_BUDGET)).toBe("experience");
-    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "experience" })).toBe("experience");
-    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "skills" })).toBe("skill");
-    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "education" })).toBe("edu");
-    expect(tailorSectionTag({ ...OWN_BUDGET, cvSection: "summary" })).toBe("profile");
-  });
-});
-
-describe("#387 the joined fact is used by the next tailoring like any other item (AC3)", () => {
-  it("a fact answered for ANOTHER job covers this job's requirement — never re-asked", () => {
-    const joined = claimFor("some-other-ad", OWN_BUDGET, "Yes", "confirmed");
-    expect(tailorQuestions(AD, [joined], []).map((q) => q.requirementId)).toEqual(["lead-team", "certification"]);
+  it("the queue is the profile questions alone — no requirement is ever a question", () => {
+    const state = buildTailorState(POSTING, AD, [], [], judgement({}));
+    expect(state.questions).toEqual([]);
+    expect(state).not.toHaveProperty("ledger");
+    expect(state).not.toHaveProperty("doors");
+    expect(state).not.toHaveProperty("closedGaps");
   });
 });
 
@@ -321,12 +182,6 @@ const post = (
   url: string,
   payload?: unknown,
 ) => app.inject({ method: "POST", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
-const put = (
-  app: ReturnType<typeof buildServer>["app"],
-  cookie: string,
-  url: string,
-  payload?: unknown,
-) => app.inject({ method: "PUT", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
 async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
   const link = await post(app, cookie, "/auth/request-link", { email });
   const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
@@ -342,16 +197,6 @@ const END_TO_END = "end-to-end-delivery";
 const STAKEHOLDERS = "stakeholder-coordination";
 const RISKS = "risk-dependency-control";
 const COMMUNICATION = "delivery-communication";
-const minedClaimFor = (req: AdRequirementV1): CandidateClaim => ({
-  id: `mined-${req.id}`,
-  role: "profile",
-  text: `${req.requirement}.`,
-  machine_touch: "verbatim",
-  classification: "Verified",
-  source_quote: req.requirement.slice(0, 200),
-  needs_grill: false,
-  grill_hint: null,
-});
 
 /** One discovery answer exactly as the pre-#339 answer route wrote it: id `discovery-<item>`,
  *  semantic_key the bare item id, the visitor's own words as the line. */
@@ -370,8 +215,8 @@ const floorClaim = (itemId: string, text: string, answer: string): CandidateClai
   grill_hint: null,
 });
 /** #339: discovery no longer asks the floor and the deck no longer waits on it, but these tests read
- *  the four answers it used to record (factCount's 4, the deck reject of END_TO_END, the RISKS "No"),
- *  so they are planted in the claims store exactly as the old route wrote them. */
+ *  the four answers it used to record (factCount's 4, the RISKS "No"), so they are planted in the
+ *  claims store exactly as the old route wrote them. */
 async function plantFloorAnswers(claims: ReturnType<typeof buildServer>["claims"], sid: string) {
   await claims.add(sid, floorClaim(END_TO_END, "Owned delivery from planning through completion.", "Yes"));
   await claims.add(sid, floorClaim(STAKEHOLDERS, "Business, engineering, and vendors.", "Business, engineering, and vendors"));
@@ -396,25 +241,6 @@ async function reachTailor(
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 }
 
-async function reachTailorWithSeededDeck(server: ReturnType<typeof buildServer>, cookie: string, email: string) {
-  const { app, store, claims } = server;
-  await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await plantFloorAnswers(claims, (await get(app, cookie, "/sessions/me")).json().id as string);
-  await signIn(app, cookie, email);
-
-  const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
-  const adReq = loadAdRequirements(FIXTURE_AD_ID);
-  const job = await store.create("onboarding", sessionId);
-  await store.update(job.id, {
-    status: "completed",
-    progress: { miner: { claims: adReq.requirements.map(minedClaimFor), doc: { roles: [] }, roles: 0, needsGrill: 0 } },
-  });
-  const deck = await post(app, cookie, "/onboarding/deck", { jobId: job.id });
-  expect(deck.statusCode).toBe(200);
-  await warmRetrieval(app, cookie); // #63: the advert exists for this session once retrieval delivers it
-  await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
-}
-
 describe("#23 GET /onboarding/tailor", () => {
   it("409s with no_tailor_target when no job is being tailored", async () => {
     const { app } = buildServer();
@@ -425,7 +251,7 @@ describe("#23 GET /onboarding/tailor", () => {
     expect(res.json()).toEqual({ error: { code: "no_tailor_target", message: "no job being tailored" } });
   });
 
-  it("returns the pinned TailorState shape once a job is targeted", async () => {
+  it("returns the pinned TailorState shape once a job is targeted: profile questions only, every requirement in the job's order", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "first-get@example.com");
@@ -434,135 +260,51 @@ describe("#23 GET /onboarding/tailor", () => {
     expect(res.statusCode).toBe(200);
     const state = res.json();
     expect(state.card.adId).toBe(VALID_AD_ID);
-    expect(state.questions.length).toBeGreaterThan(0);
-    expect(state.ledger).toEqual([]); // nothing answered in tailor yet
-    expect(state.closedGaps).toEqual({ asked: 0, closed: 0 });
-    expect(state.done).toBe(false); // AC4: the "I'm done" exit is available regardless, from the client
-    expect(Array.isArray(state.cvLines)).toBe(true);
-    expect(state.cvLines.some((l: { itemId: string }) => l.itemId === "role")).toBe(true);
+    // #415: never a requirement as a yes/no — the queue holds profile questions (work rights, a
+    // language) or nothing, and the draft is the first thing the person sees.
+    expect(state.questions.every((q: { kind?: string }) => q.kind === "profile")).toBe(true);
+    expect(state.questions.some((q: { question: string }) => q.question.includes("Does that describe you?"))).toBe(false);
+    const adReq = loadAdRequirements(FIXTURE_AD_ID);
+    expect(state.requirements.map((r: { id: string }) => r.id)).toEqual(adReq.requirements.map((r) => r.id));
+    expect(state.requirements.every((r: { state: string }) => ["met", "gap", "untested"].includes(r.state))).toBe(true);
+    for (const key of ["ledger", "closedGaps", "cvLines", "doors", "done"]) expect(state).not.toHaveProperty(key);
     expect(typeof state.factCount).toBe("number");
     expect(state.factCount).toBeGreaterThanOrEqual(4); // the 4 discovery answers already recorded
   });
+
+  it("a stored denial reads as a gap on the list and is named on the card — with no door anywhere on the wire", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stored-denial@example.com");
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    const req = loadAdRequirements(FIXTURE_AD_ID).requirements.find((r) => !r.eligibilityDimension)!;
+    await claims.answerNegative(sid, {
+      ...floorClaim(req.id, `Not applicable — ${req.requirement}`, "No"),
+      id: tailorClaimId(VALID_AD_ID, req.id),
+    });
+
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.requirements.find((r: { id: string }) => r.id === req.id)).toEqual({ id: req.id, text: req.requirement, state: "gap" });
+    expect(state.card.askedClosed.map((f: { id: string }) => f.id)).toContain(tailorClaimId(VALID_AD_ID, req.id));
+    expect(state.card.dontYet.map((r: { id: string }) => r.id)).not.toContain(req.id);
+    expect(JSON.stringify(state)).not.toContain("Changed? Add it");
+  });
 });
 
-describe("#23 POST /onboarding/tailor/answer", () => {
-  it("409s with no_tailor_target when no job is being tailored", async () => {
-    const { app } = buildServer();
-    const cookie = await anonSession(app);
-    await signIn(app, cookie, "no-target-answer@example.com");
-    const res = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "x", answer: "Yes" });
-    expect(res.statusCode).toBe(409);
-  });
-
-  it("404s on a requirementId that isn't part of this ad", async () => {
+describe("#415 the requirement answer route is gone", () => {
+  it("POST /onboarding/tailor/answer is a 404, even with a job being tailored", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "unknown-req@example.com");
-    const res = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "not-real", answer: "Yes" });
+    await reachTailor({ app, claims }, cookie, "no-answer-door@example.com");
+    const req = loadAdRequirements(FIXTURE_AD_ID).requirements[0]!;
+    const res = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: req.id, answer: "Yes" });
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toEqual({ error: { code: "unknown_requirement", message: "no such requirement" } });
+    // The positive pair: the tailor target really is set, so the 404 is the door's, not a 409.
+    expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(200);
   });
+});
 
-  it("answering re-scores instantly, flips the requirement off the question list, and records a ledger line", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "answer-moves-pct@example.com");
-    const before = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = before.questions[0];
-
-    const res = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
-    expect(res.statusCode).toBe(200);
-    const after = res.json();
-    expect(after.card.matchPct).toBeGreaterThan(before.card.matchPct); // AC1: re-scores
-    expect(after.card.schemaVersion).toBe("1");
-    expect(after.card.breakdown.essential.met + after.card.breakdown.desirable.met).toBeGreaterThan(
-      before.card.breakdown.essential.met + before.card.breakdown.desirable.met,
-    );
-    expect(after.questions.map((x: { requirementId: string }) => x.requirementId)).not.toContain(q.requirementId);
-    expect(after.ledger.some((l: { requirementId: string; text: string }) => l.requirementId === q.requirementId && l.text.startsWith("+"))).toBe(true);
-    expect(after.closedGaps.asked).toBe(1);
-    expect(after.closedGaps.closed).toBe(1);
-  });
-
-  // #309 AC1/AC2: the never-falls floor is REMOVED (#86's own prose ruling — "never-decreasing
-  // becomes a lie once corrections are honoured"). This is the exact journey #31's floor was built
-  // to hold up; it now falls, honestly, and the response carries the raw number.
-  it("#309: correcting the same requirement to a 'no' LOWERS the % — the floor is gone", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "floor-gone@example.com");
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-
-    const afterYes = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })).json();
-    expect(afterYes.card.matchPct).toBeGreaterThan(s0.card.matchPct); // the yes really moved it
-    const afterNo = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
-    expect(afterNo.card.matchPct).toBeLessThan(afterYes.card.matchPct);
-    // The cause is named beside the fall: the corrected requirement's own ledger line.
-    expect(
-      afterNo.ledger.some((l: { requirementId: string }) => l.requirementId === q.requirementId),
-    ).toBe(true);
-  });
-
-  it("never re-asks a requirement answered 'no' — a fresh GET still omits it", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "never-reask@example.com");
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" });
-    const resumed = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(resumed.questions.map((x: { requirementId: string }) => x.requirementId)).not.toContain(q.requirementId);
-  });
-
-  it("is idempotent — re-answering the same requirement corrects it (positive<->negative flip)", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "idempotent@example.com");
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
-    const sid = me.json().id as string;
-
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" });
-    expect((await claims.negatives(sid)).map((c) => c.id)).toContain(tailorClaimId(VALID_AD_ID, q.requirementId));
-
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
-    expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(tailorClaimId(VALID_AD_ID, q.requirementId));
-    expect((await claims.negatives(sid)).map((c) => c.id)).not.toContain(tailorClaimId(VALID_AD_ID, q.requirementId));
-  });
-
-  it("done flips true once nothing is left worth asking, and matchPct reaches 100", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "done-flips@example.com");
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.done).toBe(false);
-
-    while (state.questions.length > 0) {
-      const q = state.questions[0];
-      state = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })).json();
-    }
-    expect(state.done).toBe(true);
-    expect(state.questions).toEqual([]);
-    expect(state.card.matchPct).toBe(100);
-  });
-
-  it("factCount is session-wide, grows by one per new answer, and never decreases across a correction", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "fact-count@example.com");
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-
-    const afterYes = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })).json();
-    expect(afterYes.factCount).toBe(s0.factCount + 1);
-
-    const afterNo = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
-    expect(afterNo.factCount).toBe(afterYes.factCount); // a correction flips in place, doesn't grow or shrink
-  });
-
+describe("#23 factCount on the tailor seam", () => {
   // #106 code-review D1 (2026-08-03, round 3): buildTailorState's own factCount is a SEPARATE
   // emission point from /profile's — a decline used to inflate this one too, unfiltered.
   it("a declined eligibility question does not inflate tailor's factCount (D1)", async () => {
@@ -588,24 +330,26 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   });
 
   // #33 — a claim rejected in the S2 review deck really does lower the raw confirmed+negatives count,
-  // but the badge's server-side floor must not let ANY of the five factCount-emitting routes show a
+  // but the badge's server-side floor must not let ANY of the factCount-emitting routes show a
   // drop (AC4: the guarantee lives at the API seam, not the per-mount client clamp — so every seam
   // that emits factCount needs its own proof, not just the two GETs).
-  it("factCount holds at its peak across all five emission seams, even after a deck reject (#33)", async () => {
+  it("factCount holds at its peak across every emission seam, even after a deck reject (#33)", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "fact-floor@example.com");
     const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
 
-    // One genuinely new tailor answer, so peak (4) sits strictly above what the post-reject raw count
-    // (4) will be — otherwise a dropped floor on the tailor seam would coincidentally still read 4 and
-    // this test wouldn't catch it (raw alone would already equal a peak of "just the 4 discovery answers").
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-    const afterTailorAnswer = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })
-    ).json();
-    const peak = afterTailorAnswer.factCount; // 4 discovery answers + this new tailor one
+    // One genuinely new fact, so peak (5) sits strictly above what the post-reject raw count (4)
+    // will be — otherwise a dropped floor on the tailor seam would coincidentally still read 4 and
+    // this test wouldn't catch it. #415: no tailor answer records a fact any more, so the fifth is
+    // planted the way the four floor answers are.
+    await claims.add(sid, floorClaim("one-more", "Ran the vendor tender end to end.", "Yes"));
+    // #63: a new fact stales the retrieval snapshot the target resolves against — re-swipe, as the
+    // client does from the deck.
+    await warmRetrieval(app, cookie);
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+    const peak = (await get(app, cookie, "/onboarding/tailor")).json().factCount as number;
+    expect(peak).toBe(5);
 
     // Reject one of the discovery claims in the deck — the raw count really does shrink. Assert the
     // reject actually landed on the store (not just a 200 — InMemoryClaimStore.reject is a silent
@@ -615,33 +359,15 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(claimId); // present before...
     const rejectRes = await post(app, cookie, `/onboarding/claims/${claimId}/reject`);
     expect(rejectRes.statusCode).toBe(200);
-    expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain(claimId); // ...gone after — raw is now 3
+    expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain(claimId); // ...gone after — raw is now 4
     // #63: the reject changed this session's evidence, which stales the retrieval snapshot the
     // tailor target resolves against (#101's decided fail-closed rule). The client is on the deck
     // when it rejects a claim and swipes back onto the card from there; these two lines are that.
-    // Nothing about the factCount question below changes.
     await warmRetrieval(app, cookie);
     await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 
-    // All five emission seams. The tailor POST /answer is a legitimate idempotent correction (#23's
-    // own "re-answering the same item CORRECTS it" contract) on an item already answered before the
-    // reject — same item, same answer, no new record — and the discovery one is a decline, which
-    // records nothing; both exercise the route's own factCount computation without accidentally
-    // growing the raw count back up to peak on their own.
     const seams: [string, () => Promise<{ factCount: number }>][] = [
       ["GET /onboarding/tailor", () => get(app, cookie, "/onboarding/tailor").then((r) => r.json())],
-      // #63: BOTH tailor seams run before the discovery ones. Rejecting a claim changes this
-      // session's evidence, and the next discovery re-derive stales the retrieval snapshot the
-      // tailor target resolves against - #101's decided fail-closed rule. That is the retrieval
-      // gate doing its job, not a factCount question. Order is not what this test pins; each seam
-      // reporting the peak is.
-      [
-        "POST /onboarding/tailor/answer",
-        () =>
-          post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" }).then(
-            (r) => r.json(),
-          ),
-      ],
       ["GET /onboarding/discovery", () => get(app, cookie, "/onboarding/discovery").then((r) => r.json())],
       [
         "POST /onboarding/discovery/start",
@@ -667,256 +393,11 @@ describe("#23 POST /onboarding/tailor/answer", () => {
   });
 });
 
-// Review fix B1 (spec MUST-FIX): a recorded "no" must close the ? on the card too, not just the
-// question — spec #37/#38, "the open list only ever shrinks". Pre-fix, dontYet/openCount were derived
-// from uncoveredRequirements alone, which has no notion of a negative, so a "no" left the requirement
-// in dontYet forever and the ledger's "still open" count never fell.
-describe("#23 B1 — a 'no' closes the gap, not just the question", () => {
-  it("answering every requirement 'No' empties dontYet, and the ledger's open count agrees (0) at the end", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "b1-all-no@example.com");
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.card.dontYet.length).toBeGreaterThan(0); // sanity: there's something to close
-    const totalToAnswer = state.questions.length; // every "no" here, answered in rank order (below)
-
-    while (state.questions.length > 0) {
-      const q = state.questions[0];
-      state = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
-    }
-
-    expect(state.done).toBe(true);
-    // Pre-fix this stayed non-empty: dontYet was uncoveredRequirements(confirmed, adReq) with no
-    // subtraction for negatives, so every "no"-answered requirement stayed a grey "?" forever.
-    expect(state.card.dontYet).toEqual([]);
-    // #28: each line is stamped with the count open right after IT landed, not the final (0) count —
-    // answered here in rank order (questions[0] each time), so the count steps down by exactly one
-    // per line, only reaching 0 on the LAST one. Pre-fix every line read the ad's final uncovered
-    // count regardless of when it actually closed — so ALL of them read "0 still open" here.
-    const stillOpenLines = state.ledger.filter((l: { text: string }) => l.text.includes("still open"));
-    expect(stillOpenLines.map((l: { text: string }) => l.text)).toEqual(
-      Array.from({ length: totalToAnswer }, (_, i) => `asked and closed · ${totalToAnswer - i - 1} still open`),
-    );
-  });
-});
-
-// #28 AC2, at the HTTP seam (prior art: #31's "the layer the visitor actually reads" framing above):
-// buildTailorState calls buildTailorLedger fresh on every request — nothing is stored. Reload-stable
-// means a line, once landed, reads the same on every later GET, including after MORE "no"s answer and
-// even after a plain re-read with no new answer in between (a straight rebuild-vs-rebuild check).
-describe("#28 GET /onboarding/tailor — a landed ledger line survives later answers and a reload", () => {
-  it("the first-answered line's text is unchanged after more 'no's land, and a reload repeats it byte-for-byte", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "historical-ledger@example.com");
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.questions.length).toBeGreaterThan(1); // sanity: more than one "no" is coming below
-
-    const firstReq = state.questions[0].requirementId;
-    state = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: firstReq, answer: "No" })
-    ).json();
-    const firstLineAtLanding = state.ledger.find((l: { requirementId: string }) => l.requirementId === firstReq)!.text;
-
-    // More "no"s land after it — pre-fix, buildTailorLedger re-stamps EVERY historical line with
-    // today's (now lower) open count on every rebuild, so firstReq's line would drift downward too.
-    while (state.questions.length > 0) {
-      const q = state.questions[0];
-      state = (
-        await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })
-      ).json();
-    }
-
-    const read1 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const read2 = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(read2.ledger).toEqual(read1.ledger); // AC2: a reload rebuilds the same ledger, unchanged
-
-    const firstLineNow = read1.ledger.find((l: { requirementId: string }) => l.requirementId === firstReq)!.text;
-    expect(firstLineNow).toBe(firstLineAtLanding); // AC1: not rewritten to the current, lower count
-  });
-});
-
-describe("#37 GET /onboarding/tailor - later deck decisions do not rewrite earlier Tailor ledger lines", () => {
-  it("keeps earlier Tailor open counts byte-stable after drop -> deck confirm -> re-swipe", async () => {
-    const server = buildServer();
-    const { app } = server;
-    const cookie = await anonSession(app);
-    await reachTailorWithSeededDeck(server, cookie, "deck-confirm-after-tailor@example.com");
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.questions.length).toBeGreaterThan(2); // two Tailor answers, then one later deck confirm
-
-    const answeredReqIds: string[] = [];
-    for (let i = 0; i < 2; i++) {
-      const q = state.questions[0];
-      answeredReqIds.push(q.requirementId);
-      state = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
-    }
-    const linesAtLanding = Object.fromEntries(
-      answeredReqIds.map((id) => [
-        id,
-        state.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
-      ]),
-    );
-    const laterDeckReqId = state.questions[0].requirementId as string;
-
-    await post(app, cookie, "/onboarding/tailor/drop");
-    const confirm = await post(app, cookie, `/onboarding/claims/mined-${laterDeckReqId}/confirm`);
-    expect(confirm.statusCode).toBe(200);
-    await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
-    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
-
-    const rebuilt = (await get(app, cookie, "/onboarding/tailor")).json();
-    const linesAfterDeckConfirm = Object.fromEntries(
-      answeredReqIds.map((id) => [
-        id,
-        rebuilt.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
-      ]),
-    );
-    expect(linesAfterDeckConfirm).toEqual(linesAtLanding);
-    expect(rebuilt.questions.map((q: { requirementId: string }) => q.requirementId)).not.toContain(laterDeckReqId);
-  });
-
-  // AC1 names "confirm/edit" — the test above covers confirm; this covers the edit branch at the same
-  // API seam. A deck edit (PUT /onboarding/claims/:id) on a pending mined claim auto-confirms it and
-  // must stamp decisionSeq at edit-time, so a later edit landing after Tailor answers replays after
-  // them and leaves earlier lines' open counts byte-stable.
-  it("keeps earlier Tailor open counts byte-stable after drop -> deck edit -> re-swipe (AC1 'edit')", async () => {
-    const server = buildServer();
-    const { app } = server;
-    const cookie = await anonSession(app);
-    await reachTailorWithSeededDeck(server, cookie, "deck-edit-after-tailor@example.com");
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.questions.length).toBeGreaterThan(2); // two Tailor answers, then one later deck edit
-
-    const answeredReqIds: string[] = [];
-    for (let i = 0; i < 2; i++) {
-      const q = state.questions[0];
-      answeredReqIds.push(q.requirementId);
-      state = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
-    }
-    const linesAtLanding = Object.fromEntries(
-      answeredReqIds.map((id) => [
-        id,
-        state.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
-      ]),
-    );
-    const laterDeckReqId = state.questions[0].requirementId as string;
-    const laterReq = loadAdRequirements(FIXTURE_AD_ID).requirements.find((r) => r.id === laterDeckReqId)!;
-
-    await post(app, cookie, "/onboarding/tailor/drop");
-    // Edit the pending mined claim for the still-open requirement, with text that covers it (the
-    // requirement's own words — same text the seeded mined claim carries, so token-overlap fires).
-    const edit = await put(app, cookie, `/onboarding/claims/mined-${laterDeckReqId}`, {
-      text: `${laterReq.requirement}.`,
-    });
-    expect(edit.statusCode).toBe(200);
-    await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
-    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
-
-    const rebuilt = (await get(app, cookie, "/onboarding/tailor")).json();
-    const linesAfterDeckEdit = Object.fromEntries(
-      answeredReqIds.map((id) => [
-        id,
-        rebuilt.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
-      ]),
-    );
-    expect(linesAfterDeckEdit).toEqual(linesAtLanding);
-    expect(rebuilt.questions.map((q: { requirementId: string }) => q.requirementId)).not.toContain(laterDeckReqId);
-  });
-});
-
-// Review fix D1 (BLOCKS THE COMMIT — spec AC2, "answering a gap … rewrites the bubble's gap clause"):
-// Pre-fix, buildTailorState patched matchPct and dontYet for negatives but passed card.bubble straight
-// through from buildJobCard, whose pickOpenClause uses raw uncoveredRequirements — negative-blind by
-// design (B1). So the bubble kept naming a requirement the visitor had just declined, permanently.
-describe("#23 D1 — the bubble's gap clause rewrites after a 'No' (AC2)", () => {
-  it("answering 'No' to the requirement the bubble names stops the bubble naming it", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "d1-bubble@example.com");
-    const before = (await get(app, cookie, "/onboarding/tailor")).json();
-    const namedRequirement = before.card.bubble.open;
-    // The bubble names dontYet's own top entry — find its requirementId so we answer "No" to exactly
-    // the requirement currently headlined, not just any open one.
-    const target = before.card.dontYet.find((r: { requirement: string }) => r.requirement === namedRequirement);
-    expect(target).toBeTruthy(); // sanity: the bubble is naming a real, currently-open requirement
-
-    const after = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: target.id, answer: "No" })
-    ).json();
-
-    // Pre-fix: card.bubble.open passed straight through from buildJobCard/pickOpenClause — negative-
-    // blind, so it named this exact (now-declined) requirement forever.
-    expect(after.card.bubble.open).not.toBe(namedRequirement);
-  });
-
-  it("answering 'No' to everything rewrites the bubble to the nothing-open fallback", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "d1-bubble-all-no@example.com");
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-
-    while (state.questions.length > 0) {
-      const q = state.questions[0];
-      state = (
-        await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })
-      ).json();
-    }
-
-    expect(state.card.dontYet).toEqual([]);
-    // Pre-fix: bubble.open kept naming whatever uncoveredRequirements' first (raw, negative-blind)
-    // entry was — a requirement already answered "no" — instead of falling back once nothing is open.
-    expect(state.card.bubble.open).toBe("You're covering everything we can see so far.");
-  });
-});
-
-// Review fix B2 (spec MUST-FIX): a tailor answer must reach "the CV below" (ticket #23's own framing),
-// not just the score. Pre-fix, cvLines came from discoveryState(...).cvLines, which only ever considers
-// `discovery-`-prefixed claims — a `tailor-<adId>-<reqId>` claim was filtered out before that loop ran,
-// so answering every Tailor question "Yes" moved the ring to 100% but "I'm done — use this CV" hit
-// return exactly the CV discovery alone had already produced.
-describe("#23 B2 — tailor answers reach the CV", () => {
-  it("a tailor 'Yes' answer produces a cvLine keyed to that answer's claim id", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "b2-cv-line@example.com");
-    const before = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = before.questions[0];
-    const beforeLineCount = before.cvLines.length;
-
-    const after = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })
-    ).json();
-
-    expect(after.cvLines.length).toBeGreaterThan(beforeLineCount); // pre-fix: unchanged
-    const tailorClaim = tailorClaimId(VALID_AD_ID, q.requirementId);
-    expect(after.cvLines.some((l: { itemId: string }) => l.itemId === tailorClaim)).toBe(true); // pre-fix: false
-  });
-
-  it("free text also lands in cvLines, in the visitor's own words", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "b2-free-text@example.com");
-    const before = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = before.questions[0];
-
-    const after = (
-      await post(app, cookie, "/onboarding/tailor/answer", {
-        requirementId: q.requirementId,
-        answer: "I ran exactly this on my last two contracts",
-      })
-    ).json();
-
-    const line = after.cvLines.find((l: { itemId: string }) => l.itemId === tailorClaimId(VALID_AD_ID, q.requirementId));
-    expect(line?.text).toBe("I ran exactly this on my last two contracts.");
-  });
-});
-
 // Review fix B3 (standards MUST-FIX): session.tailorAdId is persisted state that can outlive the
 // fixture pair that validated it at /want time. Simulate that drift directly via the session store
 // (bypassing /want's own validation) rather than editing the fixture files — same observable effect.
 describe("#23 B3 — a stale/invalid tailor target fails closed with a 404, not a crash", () => {
-  it("GET and POST /tailor/answer both 404 (not 500) when tailorAdId no longer resolves", async () => {
+  it("GET /tailor 404s (not 500) when tailorAdId no longer resolves", async () => {
     const { app, sessions } = buildServer();
     const cookie = await anonSession(app);
     await signIn(app, cookie, "b3-stale-target@example.com");
@@ -927,37 +408,32 @@ describe("#23 B3 — a stale/invalid tailor target fails closed with a 404, not 
     const getRes = await get(app, cookie, "/onboarding/tailor");
     expect(getRes.statusCode).toBe(404);
     expect(getRes.json()).toEqual({ error: { code: "not_found", message: "unknown card" } });
-
-    const postRes = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "x", answer: "Yes" });
-    expect(postRes.statusCode).toBe(404);
-    expect(postRes.json()).toEqual({ error: { code: "not_found", message: "unknown card" } });
   });
 });
 
 describe("#23 POST /onboarding/tailor/drop", () => {
-  it("clears the tailor target and returns to deck WITHOUT losing recorded answers", async () => {
+  it("clears the tailor target and returns to deck WITHOUT losing a recorded fact", async () => {
     const { app, claims } = buildServer();
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "drop-keeps-claims@example.com");
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const before = await claims.list(sid);
+    expect(before.length).toBeGreaterThan(0); // sanity: there is something to lose
 
     const res = await post(app, cookie, "/onboarding/tailor/drop");
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ stage: "deck" });
 
-    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
-    expect(me.json().stage).toBe("deck");
-    expect(me.json().tailorAdId).toBeNull();
+    const meAfter = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(meAfter.json().stage).toBe("deck");
+    expect(meAfter.json().tailorAdId).toBeNull();
 
     // The tailor target is gone — the 409 re-triggers.
     expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(409);
 
-    // But the claim from the tailor answer is still there — "everything you told me stays on your profile."
-    const sid = me.json().id as string;
-    const confirmedIds = (await claims.confirmed(sid)).map((c) => c.id);
-    expect(confirmedIds).toContain(tailorClaimId(VALID_AD_ID, q.requirementId));
+    // But every claim is still there — "everything you told me stays on your profile."
+    expect(await claims.list(sid)).toEqual(before);
   });
 
   it("works even with nothing currently targeted (idempotent no-op landing on deck)", async () => {
@@ -970,53 +446,7 @@ describe("#23 POST /onboarding/tailor/drop", () => {
   });
 });
 
-// #309 — the floor #31 built (drop + re-swipe kept the earned %, a correction could never lower
-// the number) is REMOVED, at the layer the visitor actually reads: card.matchPct over HTTP. The
-// score is a pure function of (this ad, this session's claims) again — earned answers survive a
-// drop because the CLAIMS survive it, never because a stored floor holds the number up.
-describe("#309 the % is honest across drop + re-swipe — no stored floor", () => {
-  it("drop → re-swipe keeps the earned % (the claims carry it), and a correction then lowers it", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "no-floor-drop@example.com");
-    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = s0.questions[0];
-
-    const earned = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })
-    ).json().card.matchPct;
-    expect(earned).toBeGreaterThan(s0.card.matchPct); // the % was really earned
-
-    await post(app, cookie, "/onboarding/tailor/drop");
-    await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
-    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`); // swipe right on the same card again
-    const resumed = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(resumed.card.matchPct).toBe(earned); // recomputed from the surviving claims, no clamp
-
-    // Pre-#309 this exact correction was held at `earned` by the floor; now it falls, honestly.
-    const corrected = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })
-    ).json();
-    expect(corrected.card.matchPct).toBeLessThan(earned);
-  });
-
-  it("a DIFFERENT job after a drop is scored on its own merits", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "other-job-own-merits@example.com");
-    const q = (await get(app, cookie, "/onboarding/tailor")).json().questions[0];
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
-    await post(app, cookie, "/onboarding/tailor/drop");
-
-    const other = (await get(app, cookie, "/onboarding/cards")).json().cards.find(
-      (c: { adId: string }) => c.adId !== VALID_AD_ID,
-    );
-    await post(app, cookie, `/onboarding/cards/${other.adId}/want`);
-    expect((await get(app, cookie, "/onboarding/tailor")).json().card.matchPct).toBe(other.matchPct);
-  });
-});
-
-// --- #311 (#287): a "No" never prints, and growing is one step ------------------------------------
+// --- #311 (#287): a "No" is named only where the posting asks, and never prints -----------------
 
 describe("#311 advertDeniedRows — a denial is named only on a posting that asks for it", () => {
   const denial = (id: string, words: string): ClaimRecord => ({
@@ -1051,8 +481,8 @@ describe("#311 advertDeniedRows — a denial is named only on a posting that ask
 
   // #311 QA gate defect 1: ONE shared domain-common word ("delivery" here; "project"/"stakeholder"
   // in the wild) half-covers a two-word clause like "delivery discipline", and had a single "No"
-  // recited across most of the deck — with a door claiming he denied a requirement he never saw.
-  // Two shared words is the floor (anyClauseAsked) — one is never "this posting asks for it".
+  // recited across most of the deck. Two shared words is the floor (anyClauseAsked) — one is never
+  // "this posting asks for it".
   it("one shared common word is not an ask — the QA gate's exact repro stays unnamed", () => {
     const shortClauseAd: AdRequirementsV1 = {
       ...AD,
@@ -1076,43 +506,6 @@ describe("#311 advertDeniedRows — a denial is named only on a posting that ask
   });
 });
 
-describe("#311 the grow vocabulary — asked, never stamped", () => {
-  const NOW = new Date("2026-10-01T12:00:00Z");
-
-  it("growSinceYear maps the three coarse choices to their conservative years, anything else to null", () => {
-    expect(growSinceYear("This year", NOW)).toBe(2026);
-    expect(growSinceYear("1-2 years ago", NOW)).toBe(2025);
-    expect(growSinceYear("3 or more years ago", NOW)).toBe(2023);
-    expect(growSinceYear("Yes", NOW)).toBeNull();
-    expect(growSinceYear("No", NOW)).toBeNull();
-  });
-
-  it("composeGrownLine restates the requirement with the asked year — and still covers it (the tick moves)", () => {
-    const line = composeGrownLine(OWN_BUDGET, 2025);
-    expect(line).toBe("Own a project budget with vendor oversight (since 2025).");
-    expect(matchTick([{ text: line }], AD)).toBeGreaterThan(matchTick([], AD));
-  });
-
-  it("grownTailorClaimId is a kebab slug distinct from the denial's own id", () => {
-    const grown = grownTailorClaimId(AD.adId, OWN_BUDGET.id);
-    expect(grown).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-    expect(grown).not.toBe(tailorClaimId(AD.adId, OWN_BUDGET.id));
-  });
-
-  it("a grown fact earns its '+N%' ledger line while the old 'No' still sits on the record", () => {
-    const negatives = [noClaim(OWN_BUDGET)];
-    const grown: ClaimRecord = {
-      ...yesClaim(OWN_BUDGET),
-      id: grownTailorClaimId(AD.adId, OWN_BUDGET.id),
-      text: composeGrownLine(OWN_BUDGET, 2025),
-    };
-    const { ledger, closedGaps } = buildTailorLedger(AD, [grown], negatives);
-    const line = ledger.find((l) => l.requirementId === OWN_BUDGET.id)!;
-    expect(line.text).toMatch(/^\+\d+% · /);
-    expect(closedGaps).toEqual({ asked: 1, closed: 1 });
-  });
-});
-
 describe("#311 deniedCapabilities — the page's never-print list", () => {
   it("carries each denial in its own words, answer scaffolding stripped", () => {
     expect(deniedCapabilities([noClaim(OWN_BUDGET)], [])).toEqual([
@@ -1120,113 +513,10 @@ describe("#311 deniedCapabilities — the page's never-print list", () => {
     ]);
   });
 
-  it("drops a denial a confirmed claim now states — the grown fact outranks the old 'No'", () => {
-    const grown: ClaimRecord = {
-      ...yesClaim(OWN_BUDGET),
-      id: grownTailorClaimId(AD.adId, OWN_BUDGET.id),
-      text: composeGrownLine(OWN_BUDGET, 2025),
-    };
-    expect(deniedCapabilities([noClaim(OWN_BUDGET)], [grown])).toEqual([]);
+  it("drops a denial a confirmed claim now states — the person's own fact outranks the old 'No'", () => {
+    const stated: ClaimRecord = { ...yesClaim(OWN_BUDGET), id: "review-own-budget" };
+    expect(deniedCapabilities([noClaim(OWN_BUDGET)], [stated])).toEqual([]);
     // An unrelated confirmed fact supersedes nothing.
     expect(deniedCapabilities([noClaim(OWN_BUDGET)], [yesClaim(LEAD_TEAM)])).toHaveLength(1);
-  });
-});
-
-describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
-  it("a 'No' names the denial with its door; growing keeps the old 'No' and lands a dated fact", async () => {
-    const server = buildServer();
-    const { app, claims } = server;
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "grow-door@example.com");
-    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
-
-    let state = (await get(app, cookie, "/onboarding/tailor")).json();
-    const reqId = state.questions[0].requirementId as string;
-    state = (
-      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: reqId, answer: "No" })
-    ).json();
-
-    // The denial is named on THIS card (its posting asks — he was just asked), with its door.
-    const claimId = tailorClaimId(VALID_AD_ID, reqId);
-    expect(state.card.askedClosed.map((f: { id: string }) => f.id)).toContain(claimId);
-    const door = state.doors.find((d: { claimId: string }) => d.claimId === claimId);
-    expect(door).toBeDefined();
-    expect(door.requirementId).toBe(reqId);
-    expect(door.options).toEqual(["This year", "1-2 years ago", "3 or more years ago"]);
-
-    // Growing: the existing answer path, one of the door's coarse choices.
-    const res = await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: reqId,
-      answer: "1-2 years ago",
-    });
-    expect(res.statusCode).toBe(200);
-    state = res.json();
-
-    // The dated fact covers its requirement — which now prints in fit by requirement (#407: a fit row
-    // names the requirement met, never the fact's own text) — and earns its ledger share; the row and
-    // its door are gone. The dated fact itself is checked in the claims store below.
-    const year = new Date().getFullYear() - 1;
-    expect(state.card.fit.map((f: { id: string }) => f.id)).toContain(reqId);
-    expect(state.card.askedClosed.map((f: { id: string }) => f.id)).not.toContain(claimId);
-    expect(state.doors.map((d: { claimId: string }) => d.claimId)).not.toContain(claimId);
-    expect(state.ledger.find((l: { requirementId: string }) => l.requirementId === reqId)!.text).toMatch(/^\+\d+% · /);
-    // Never re-asked: the question stays closed.
-    expect(state.questions.map((q: { requirementId: string }) => q.requirementId)).not.toContain(reqId);
-
-    // #287 c9: the old "No" is KEPT, untouched at its original decision seq — the record never
-    // claims he always had it. The grown fact lives beside it under its own id.
-    const negatives = await claims.negatives(sessionId);
-    const kept = negatives.find((c) => c.id === claimId);
-    expect(kept).toBeDefined();
-    expect(kept!.text).toMatch(/^Not applicable — /);
-    const confirmed = await claims.confirmed(sessionId);
-    const grown = confirmed.find((c) => c.id === grownTailorClaimId(VALID_AD_ID, reqId));
-    expect(grown?.text).toContain(`(since ${year})`);
-  });
-
-  it("a grow for a requirement nothing denied maps to is refused (400), fail-closed like the door it lacks", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "grow-refused@example.com");
-    const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    const res = await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: state.questions[0].requirementId,
-      answer: "This year",
-    });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error.code).toBe("invalid_answer");
-  });
-});
-
-// #387 (ADR-0018 clause 9): a true fact added while tailoring joins the profile — in its section,
-// wearing the job it was added for — so the next application can use it. A "No" is no fact and
-// never shows (the profile never lists what the person lacks).
-describe("#387 a fact added while tailoring joins the profile", () => {
-  it("a 'Yes' lands on the profile in its section, wearing the job it was added for; a 'No' never shows", async () => {
-    const { app, claims } = buildServer();
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "joins-profile@example.com");
-    const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    const [yes, no] = state.questions as Array<{ requirementId: string; question: string }>;
-    expect((await post(app, cookie, "/onboarding/tailor/answer", { requirementId: yes.requirementId, answer: "Yes" })).statusCode).toBe(200);
-    expect((await post(app, cookie, "/onboarding/tailor/answer", { requirementId: no.requirementId, answer: "No" })).statusCode).toBe(200);
-
-    const profile = (await get(app, cookie, "/profile")).json();
-    const facts = profile.domains.flatMap((d: { tag: string; facts: Array<Record<string, unknown>> }) =>
-      d.facts.map((f) => ({ ...f, domain: d.tag })),
-    );
-    const adReq = loadAdRequirements(FIXTURE_AD_ID);
-    const yesReq = adReq.requirements.find((r) => r.id === yes.requirementId)!;
-    const noReq = adReq.requirements.find((r) => r.id === no.requirementId)!;
-    const joined = facts.filter((f: { addedFor?: string }) => f.addedFor);
-    expect(joined).toHaveLength(1);
-    expect(joined[0]).toMatchObject({
-      text: `${yesReq.requirement}.`,
-      domain: tailorSectionTag(yesReq),
-      source: "told",
-      job: null, // not a job line of the CV: no employer heading is invented for it
-      addedFor: `${state.card.title} at ${state.card.company}`,
-    });
-    expect(facts.some((f: { text: string }) => f.text.includes(noReq.requirement))).toBe(false);
   });
 });

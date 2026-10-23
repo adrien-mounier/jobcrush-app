@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { loadAdRequirements } from "../src/e5stub.js";
+import { deniedClaim } from "./denial.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { Mailer } from "../src/mailer.js";
 import type { LlmClient } from "../src/llm.js";
@@ -262,20 +263,12 @@ describe("#313 one press: approve → lint → document → email, through the s
     });
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "export-lint@example.com");
-    // Deny an advert requirement in the card's own words — the never-print list entry. First one
-    // the answer door takes (a profile-owned requirement is refused there, and rightly).
-    let denied: { id: string; requirement: string } | undefined;
-    for (const requirement of loadAdRequirements(FIXTURE_AD_ID)!.requirements) {
-      const answered = await post(app, cookie, "/onboarding/tailor/answer", {
-        requirementId: requirement.id,
-        answer: "No",
-      });
-      if (answered.statusCode === 200) {
-        denied = requirement;
-        break;
-      }
-    }
-    expect(denied).toBeDefined();
+    // Deny an advert requirement in the card's own words — the never-print list entry. #415: a
+    // stored denial (the Tailor step takes no "No" any more), on a requirement no profile
+    // question owns.
+    const denied = loadAdRequirements(FIXTURE_AD_ID)!.requirements.find((r) => !r.eligibilityDimension)!;
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.answerNegative(sid, deniedClaim(VALID_AD_ID, denied.id, denied.requirement));
     const view = await draftAndRead(app, cookie);
 
     const token = cookie.split("=")[1]!;
@@ -791,16 +784,12 @@ describe("#315 the application report", () => {
     });
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "report-denied@example.com");
-    // The first requirement the answer door takes is denied — the card's own "You told me you
-    // don't have this" row, which the report must carry as a gap and never as a strength.
-    let denied: { id: string; requirement: string } | undefined;
-    for (const requirement of loadAdRequirements(FIXTURE_AD_ID)!.requirements) {
-      const answered = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: requirement.id, answer: "No" });
-      if (answered.statusCode === 200) {
-        denied = requirement;
-        break;
-      }
-    }
+    // A stored denial on one requirement (#415: the Tailor step takes no "No" any more) — the
+    // card's own "You told me you don't have this" row, which the report must carry as a gap and
+    // never as a strength.
+    const denied = loadAdRequirements(FIXTURE_AD_ID)!.requirements.find((r) => !r.eligibilityDimension)!;
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.answerNegative(sid, deniedClaim(VALID_AD_ID, denied.id, denied.requirement));
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(state.card.askedClosed).toHaveLength(1);
     // No readable work history in this walk: the advert's two years bars are "not tested".

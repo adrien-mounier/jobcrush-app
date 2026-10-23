@@ -18,6 +18,12 @@ a CV draft assembled from those claims, tailored to the posting.
    one or more claims (use their exact facts; you may compress, merge, or split — rule 8). If the
    posting asks for something no claim supports, LEAVE IT OUT — a gap is never filled with
    invention.
+   **Tailoring is silent; a stretch is never written (ADR-0020 clause 2).** Tailoring means
+   saying the candidate's own facts in the posting's words — do that freely, without asking. A
+   stretch is any line that claims a skill, field, scope, number or title the candidate's facts do
+   not hold. Never write one: a stretch is only ever SUGGESTED to the candidate, beside this
+   draft, by a separate step, and reaches the CV only by their choice. A requirement the facts do
+   not meet is left unmet on the page, never bridged.
 2. **Keep the candidate's numbers exactly.** Never round up, extend date ranges, or upgrade
    titles. Keep tool/technology names verbatim, including parenthetical tech stacks attached
    to bullets — concrete tool names are ATS signal, never dilute them into generic phrases.

@@ -78,6 +78,14 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
   responsibility-only or attendance bullets.
 - **No invented facts:** never invent dates, employers, titles, certifications, or metrics. Non-
   Verified / non-Derived claims must appear in the verification audit.
+- **Tailoring is silent; a stretch is never written** (#415,
+  [ADR-0020](../adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md) clause 2).
+  Tailoring is saying the person's own facts in the job's words — the CV writer does it without
+  asking. A **stretch** is any line that claims a skill, field, scope, number or title the person's
+  facts do not hold: the writer never writes one. It is only suggested beside the finished draft,
+  by a separate step, and reaches the CV only by the person's tap. A requirement the facts do not
+  meet stays unmet on the page (and is listed under *Also asked, not on your CV*), never bridged.
+  Enforced in `apps/api/prompts/preview-tailor.md` rule 1.
 - **A denied capability never appears, and is never implied** (#287, 2026-09-27). When the person has
   answered *"No — I have never done this"* about something the advert asks for, the CV prints nothing
   about it **and** says nothing that hands it to a recruiter by implication: not in the Summary, not as

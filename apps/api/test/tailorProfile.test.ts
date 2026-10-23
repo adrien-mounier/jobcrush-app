@@ -444,13 +444,13 @@ const YES = "Yes — no sponsorship needed";
 const NOT_YET = "Not yet — I'd need sponsorship";
 
 describe("#307 GET /onboarding/tailor — the queue leads with the profile question", () => {
-  it("AC1/AC3/AC6: the work-rights question comes FIRST, with the remember line, before the advert's own", async () => {
+  it("AC1/AC3/AC6: the work-rights question is the queue, with the remember line — the advert's own requirements are never questions (#415)", async () => {
     const { app } = workRightsServer();
     const cookie = await anonSession(app);
     await reachTailor(app, cookie, "queue-first@example.com");
 
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.questions.length).toBeGreaterThan(1); // the advert's own questions are still there, after
+    expect(state.questions).toHaveLength(1); // ADR-0020 clause 1: only eligibility comes before the CV
     expect(state.questions[0]).toMatchObject({
       requirementId: PROFILE_Q_ID,
       kind: "profile",
@@ -458,26 +458,12 @@ describe("#307 GET /onboarding/tailor — the queue leads with the profile quest
       remember: "I'll remember this for every job in Hong Kong.",
     });
     expect(state.questions[0].options).toEqual([YES, NOT_YET]);
-    // Exactly one profile question per kind per advert, and every later one is the advert's own.
-    expect(state.questions.slice(1).every((q: { kind?: string }) => q.kind === undefined)).toBe(true);
-    // One queue means ONE question: the advert's own work-rights requirement never also appears
-    // as a "This job wants: …" Yes/No twin (#292 ruling 2's defect, kept closed).
+    // The advert's own work-rights requirement is on the requirements list (the sheet reads it),
+    // never a "This job wants: …" Yes/No twin (#292 ruling 2's defect, kept closed).
+    expect(state.requirements.some((r: { id: string }) => r.id === "right-to-work-hk")).toBe(true);
     expect(
       state.questions.some((q: { requirementId: string }) => q.requirementId === "right-to-work-hk"),
     ).toBe(false);
-  });
-
-  it("the advert-answer door refuses the profile-owned requirement — no advert-scoped claim can be written for it", async () => {
-    const { app } = workRightsServer();
-    const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "no-claim-door@example.com");
-
-    const res = await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: "right-to-work-hk",
-      answer: "Yes",
-    });
-    expect(res.statusCode).toBe(404);
-    expect(res.json().error.code).toBe("unknown_requirement");
   });
 });
 
@@ -706,12 +692,6 @@ describe("#308 the language ladder in the queue, through the HTTP seam", () => {
     expect(
       state.questions.filter((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
     ).toHaveLength(1);
-    // …and the advert-answer door refuses it outright.
-    const twin = await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: LANG_Q_ID,
-      answer: "Yes",
-    });
-    expect(twin.statusCode).toBe(404);
     // A grade that is not a tapped situation is refused, not guessed at.
     const graded = await post(app, cookie, "/onboarding/tailor/profile-answer", {
       requirementId: LANG_Q_ID,

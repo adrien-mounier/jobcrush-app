@@ -1,12 +1,12 @@
-// #307 — the Tailor step's own routes, out of the spine. The three pre-#307 endpoints moved here
-// verbatim from routes/onboarding.ts (the ratchet's own remedy: extraction, not comment-shaving —
-// the whole tailor step was the last sixth of the spine, and this ticket's queue had to live
-// somewhere). /onboarding/tailor/profile-answer takes a permanent, profile-scoped answer, written
-// to the ELIGIBILITY store — never a claim (#106 must-fix 1, #287 clause 5) — and, as of #308,
-// also the skip ("not sure yet" / "not now"), which writes NOTHING but session queue state.
+// #307 — the Tailor step's own routes, out of the spine (the ratchet's own remedy: extraction, not
+// comment-shaving). /onboarding/tailor/profile-answer takes a permanent, profile-scoped answer,
+// written to the ELIGIBILITY store — never a claim (#106 must-fix 1, #287 clause 5) — and, as of
+// #308, also the skip ("not sure yet" / "not now"), which writes NOTHING but session queue state.
+// #415 (ADR-0020): the requirement answer route is gone — the profile door is the only answer the
+// Tailor step takes, and the draft doors below write the CV from true facts alone.
 //
 // The queue's rules live in tailorProfile.ts; the state composition in deck.ts (buildTailorState);
-// the pure question/ledger helpers in tailor.ts. This file only turns requests into calls.
+// the claim-id scheme and the denial readers in tailor.ts. This file only turns requests into calls.
 // composeTailorState below is the shared resolve-judgement → years → buildTailorState tail the
 // #307 review deferred to this ticket.
 import type { FastifyInstance } from "fastify";
@@ -22,7 +22,6 @@ import type { JobBlockStore, JobBlockView } from "../jobBlockStore.js";
 import type { ProductionFamilyFloorStore } from "../familyFloors.js";
 import type { JudgeFn } from "../judge.js";
 import { isBrought, type BroughtJob, type BroughtJobsFn } from "../broughtJobs.js";
-import { currentDiscoveryFamily } from "../discoveryEngine.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
 import { marketForLocationText, retrievalRequestForSession, retrievalFingerprint } from "../postingRetrieval.js";
@@ -42,7 +41,6 @@ import {
 import { findWithdrawingRequirement } from "../withdrawal.js";
 import { answerEligibilityItem, mapEligibilityAnswer } from "../eligibilityDiscovery.js";
 import { answerLanguageLevel, rungForSituation } from "../languageLevel.js";
-import { isNoAnswer } from "../discovery.js";
 import type { JobStore } from "../jobs.js";
 import { letterheadText, type ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
@@ -53,17 +51,6 @@ import { reportContext, reportGate } from "../applicationReport.js";
 import type { AuthStore } from "../auth.js";
 import type { Mailer } from "../mailer.js";
 import type { DocumentMaker } from "../documentMaker.js";
-import {
-  addedForLabel,
-  advertDeniedRows,
-  composeGrownLine,
-  composeTailorLine,
-  growSinceYear,
-  grownTailorClaimId,
-  tailorClaimId,
-  tailorSectionTag,
-  userAnswerClaim,
-} from "../tailor.js";
 import {
   broughtStaysLine,
   languageChangeLine,
@@ -133,8 +120,6 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         deps.jobBlocks.list(sessionId),
       ]);
 
-    const currentFamily = (session: SessionRecord) => currentDiscoveryFamily(session, deps);
-
     // #308 (the #307 review's own deferral): the resolve-judgement → years → buildTailorState tail
     // every state-returning handler used to repeat, extracted the moment a fourth caller (the skip
     // path) arrived. #309 removed the floor raise that used to sit between judgement and state —
@@ -177,13 +162,10 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       skips: ReadonlySet<string>,
       broughtJob: boolean,
     ) => {
-      const role = session.targetTitles[0] ?? null;
       const { judgement, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob);
-      const family = role ? await currentFamily(session) : null;
       const state = buildTailorState(
-        posting, adReq, confirmed, negatives, role, judgement, years,
-        family?.items ?? [],
-        // #307/#308: the profile-level questions THIS advert still has open, first in the queue.
+        posting, adReq, confirmed, negatives, judgement, years,
+        // #307/#308: the profile-level questions THIS advert still has open — #415: the whole queue.
         tailorProfileAsks(adReq, posting.location, facts, skips),
       );
       state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
@@ -235,99 +217,9 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       );
     });
 
-    // Idempotent, like #18's discovery answer: re-answering the same requirement CORRECTS it
-    // (positive<->negative flip) via the same upserting add()/answerNegative() — no 409 guard needed.
-    // #309: no floor holds the number up any more — a correction/"no" that lowers the real fit
-    // lowers the responded matchPct, and the ledger line beside it names the answer that did it.
-    app.post(
-      "/onboarding/tailor/answer",
-      { schema: { body: z.object({ requirementId: z.string(), answer: z.string().trim().min(1) }) } },
-      async (req, reply) => {
-        const session = requireUser(req);
-        const adId = session.tailorAdId;
-        if (!adId)
-          return reply
-            .status(409)
-            .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        const [targetConfirmed, targetNegatives, targetFacts] = await reads(session.id);
-        const fingerprint = retrievalFingerprint(
-          retrievalRequestForSession(session, targetConfirmed, targetNegatives),
-        );
-        const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want.
-        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, targetFacts, brought);
-        if (!target)
-          return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
-        const { posting, adReq } = target;
-        // #107 (M3): a target that has since become withdrawn behaves EXACTLY like no target at
-        // all — checked BEFORE the requirement lookup (#308 moved it up: a profile-owned
-        // requirement's 404 must never outrank the dead-target 409). This handler's own write can
-        // never cause a withdrawal — only eligibility facts withdraw, and a tailor answer writes a
-        // claim — so checking on the pre-write facts decides exactly what a post-write check did.
-        // #305: never for a job he brought — it stays, whatever his own answers say (#294 c1).
-        if (findWithdrawingRequirement(adReq, targetFacts, posting.location, brought)) {
-          await deps.sessions.clearTailorTarget(session.id);
-          return reply
-            .status(409)
-            .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        }
-        const requirement = adReq.requirements.find((r) => r.id === req.body.requirementId);
-        // #307: a requirement the PROFILE question owns is refused here outright — answering it
-        // through this door would write the advert-scoped claim AC4 forbids (#287 clause 5). Same
-        // fail-closed 404 as a requirement that does not exist, because for this door it doesn't.
-        // #308: that now covers subject-carrying language requirements too — the graded ladder is
-        // the only door a language answer may take.
-        if (!requirement || profileOwnedRequirementIds(adReq, posting.location).has(requirement.id))
-          return reply
-            .status(404)
-            .send({ error: { code: "unknown_requirement", message: "no such requirement" } });
-
-        // #311 (#287 c6-c10): a "Changed? Add it" answer — one of the door's coarse date choices —
-        // grows the profile WITHOUT touching the stored "No". The new fact lands under its OWN id
-        // (grownTailorClaimId), dated by the tapped choice, so the record never claims he always
-        // had it and never prints a date he never gave. Refused (fail-closed, like the unknown-
-        // requirement 404 above) unless a stored denial actually names this requirement — the only
-        // rows that carry the door.
-        // #387 (ADR-0018 clause 9): a true fact added here joins the profile — in the requirement's
-        // own section, wearing this job — so the next application can use it. Whether it prints is
-        // still decided per job ad (ADR-0007). A "No" carries no such fields: it is no fact.
-        const joins = { section: tailorSectionTag(requirement), addedFor: addedForLabel(posting) };
-        const sinceYear = growSinceYear(req.body.answer);
-        if (sinceYear !== null) {
-          const denied = advertDeniedRows(adReq, targetConfirmed, targetNegatives);
-          if (!denied.some((d) => d.requirement.id === requirement.id))
-            return reply
-              .status(400)
-              .send({ error: { code: "invalid_answer", message: "nothing denied to grow here" } });
-          await deps.claims.add(
-            session.id,
-            userAnswerClaim(
-              grownTailorClaimId(adReq.adId, requirement.id),
-              composeGrownLine(requirement, sinceYear),
-              req.body.answer,
-              joins,
-            ),
-          );
-        } else {
-          const no = isNoAnswer(req.body.answer);
-          const claim = userAnswerClaim(
-            tailorClaimId(adReq.adId, requirement.id),
-            no ? `Not applicable — ${requirement.requirement}` : composeTailorLine(requirement, req.body.answer),
-            req.body.answer,
-            no ? undefined : joins,
-          );
-          if (no) await deps.claims.answerNegative(session.id, claim);
-          else await deps.claims.add(session.id, claim);
-        }
-
-        const [confirmed, negatives, facts, blocks] = await reads(session.id);
-        // The answer just changed the fact set, so this is a fresh (adId, fingerprint), never a
-        // cache hit reusing a stale judgement — the re-score is the honest number (#105 decision 7).
-        return composeTailorState(
-          session, posting, adReq, confirmed, negatives, facts, blocks,
-          tailorSkipsFor(session, adId), isBrought(brought, adId),
-        );
-      },
-    );
+    // #415 (ADR-0020 clause 1): there is no /onboarding/tailor/answer any more — a requirement is
+    // never a question, so nothing writes an advert-scoped claim. The profile door below is the
+    // only answer the Tailor step takes.
 
     // #307 — a PROFILE-LEVEL answer: permanent, profile-scoped, told before and after.
     //

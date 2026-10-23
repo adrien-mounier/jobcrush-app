@@ -21,6 +21,7 @@ import type { AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 import { buildDeckServer as buildServer, fixtureReadAd, injectSettled, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
 import type { Posting } from "../src/preview.js";
 import { discoveryClaimId, freeTextLine } from "../src/discovery.js";
+import { deniedClaim } from "./denial.js";
 import { makeJudge, makeJudgePeek, judgementFingerprint, judgeVersion, type JudgeFn } from "../src/judge.js";
 import { InMemoryJudgementStore } from "../src/judgementStore.js";
 import { readCounters } from "../src/counters.js";
@@ -297,9 +298,10 @@ describe("#105 review: a negative answer must never move the number or force a r
 
     await wantTarget(app, cookie, targetPosting.id);
     // stubRequirements' one requirement id — still open (the generic responder above scores every
-    // requirement 0.5, below COVERAGE_THRESHOLD), so this is a real question with a real "No".
-    const answered = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "own-a-budget", answer: "No" });
-    expect(answered.statusCode).toBe(200);
+    // requirement 0.5, below COVERAGE_THRESHOLD). #415: the Tailor step takes no "No" any more, so
+    // the negative is a stored one, as the retired answer route wrote it.
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.answerNegative(sid, deniedClaim(targetPosting.id, "own-a-budget", stubRequirements(targetPosting.id).requirements[0]!.requirement));
 
     const after = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const targetAfter = after.cards.find((c) => c.adId === targetPosting.id)!;
@@ -332,13 +334,14 @@ describe("#105 an explicit negative stays answered-and-closed when a judge is wi
             cost: { model: "fake-judge", inputTokens: 5, outputTokens: 5, judgedAt: new Date().toISOString() },
           }
         : null;
-    const { app } = buildServer({ readAd, judge });
+    const { app, claims } = buildServer({ readAd, judge });
     const cookie = await anonSession(app);
     await signIn(app, cookie, "neg-judge-105@example.com"); // want/tailor are post-wall
 
     expect((await wantTarget(app, cookie, targetPosting.id)).statusCode).toBe(200);
-    const answered = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "the-req", answer: "No" });
-    expect(answered.statusCode).toBe(200);
+    // #415: a stored denial, as the retired answer route wrote it.
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.answerNegative(sid, deniedClaim(targetPosting.id, "the-req", "Fluent in Mandarin"));
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const card = body.cards.find((c) => c.adId === targetPosting.id)!;

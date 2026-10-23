@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { loadAdRequirements } from "../src/e5stub.js";
+import { deniedClaim } from "./denial.js";
 import type { LlmClient } from "../src/llm.js";
 import { tailorClaimId } from "../src/tailor.js";
 import type { CandidateClaim } from "@jobcrush/contracts";
@@ -207,14 +208,10 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     await awaitJob(app, cookie, first.json().jobId);
     expect(prompts).toHaveLength(1);
 
-    // A supported answer through the queue's own door.
-    const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    const advertQuestion = state.questions.find((q: { kind?: string }) => q.kind !== "profile");
-    expect(advertQuestion).toBeDefined();
-    await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: advertQuestion.requirementId,
-      answer: "Yes",
-    });
+    // A new supported fact on the record (#415: no tailor answer writes one any more — a stored
+    // "Yes" of the old kind, under its tailor-scoped id, which never stales the retrieval snapshot).
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.add(sid, { ...floorClaim("vendor-tender", "Ran the vendor tender end to end.", "Yes"), id: tailorClaimId(VALID_AD_ID, "vendor-tender") });
 
     const second = await post(app, cookie, "/onboarding/tailor/draft");
     expect(second.statusCode).toBe(202); // not `ready` — the fact set moved, the draft must too
@@ -230,21 +227,21 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "draft-negative@example.com");
 
+    // #415: a stored denial (the Tailor step takes no "No" any more) on one open requirement; the
+    // card's remaining open rows are the unanswered gaps.
+    const adReq = loadAdRequirements(FIXTURE_AD_ID);
+    const before = (await get(app, cookie, "/onboarding/tailor")).json();
+    const denied = adReq.requirements.find((r) => before.card.dontYet.some((d: { id: string }) => d.id === r.id))!;
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.answerNegative(sid, deniedClaim(VALID_AD_ID, denied.id, denied.requirement));
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    const advertQuestions = state.questions.filter((q: { kind?: string }) => q.kind !== "profile");
-    expect(advertQuestions.length).toBeGreaterThanOrEqual(2);
-    const denied = advertQuestions[0];
-    await post(app, cookie, "/onboarding/tailor/answer", {
-      requirementId: denied.requirementId,
-      answer: "No",
-    });
+    expect(state.card.dontYet.length).toBeGreaterThanOrEqual(1);
 
     const started = await post(app, cookie, "/onboarding/tailor/draft");
     await awaitJob(app, cookie, started.json().jobId);
     const prompt = prompts[0]!;
-    const adReq = loadAdRequirements(FIXTURE_AD_ID);
-    const deniedText = adReq.requirements.find((r) => r.id === denied.requirementId)!.requirement;
-    const openText = adReq.requirements.find((r) => r.id === advertQuestions[1].requirementId)!.requirement;
+    const deniedText = denied.requirement;
+    const openText = state.card.dontYet[0].requirement as string;
 
     expect(prompt).toContain("===CARD-CONTEXT===");
     const context = prompt.split("===CARD-CONTEXT===")[1]!.split("===JOB-POSTING===")[0]!;
@@ -252,7 +249,7 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     expect(context).toContain(openText); // the unanswered gap is named, never as satisfied
     // The negative is NOT in the claims block — a "No" is structurally not material.
     const claimsBlock = prompt.split("Claims:\n")[1]!.split("===")[0]!;
-    expect(claimsBlock).not.toContain(tailorClaimId(adReq.adId, denied.requirementId));
+    expect(claimsBlock).not.toContain(tailorClaimId(VALID_AD_ID, denied.id));
   });
 
   it("the stored CV letterhead reaches the engine — a real person is never drafted as 'Your name here' (QA D1)", async () => {
@@ -314,11 +311,11 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     await awaitJob(app, cookie, started.json().jobId);
     expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(200);
 
-    // The fact set moves; a direct GET (no POST first — a second tab, a stale client) must not
-    // pair the old draft with a disclosure computed from the new claims.
-    const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    const q = state.questions.find((question: { kind?: string }) => question.kind !== "profile");
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
+    // The fact set moves (#415: a stored fact of the old tailor-scoped kind, which never stales
+    // the retrieval snapshot); a direct GET (no POST first — a second tab, a stale client) must
+    // not pair the old draft with a disclosure computed from the new claims.
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.add(sid, { ...floorClaim("vendor-tender", "Ran the vendor tender end to end.", "Yes"), id: tailorClaimId(VALID_AD_ID, "vendor-tender") });
 
     const read = await get(app, cookie, "/onboarding/tailor/draft");
     expect(read.statusCode).toBe(404);
@@ -383,27 +380,3 @@ describe("#387 a stretch never joins the profile", () => {
   });
 });
 
-// #387 AC3 at the draft level: a fact added while tailoring ONE job rides into the NEXT job's draft
-// like any other confirmed fact — the engine is given the whole profile, and the joined fact is in it.
-describe("#387 the joined fact reaches the next job's draft", () => {
-  it("a 'Yes' on job A is among the claims the draft for job B is written from", async () => {
-    const { prompts, llm } = draftingLlm();
-    const { app, claims } = buildServer({ tailorLlm: llm });
-    const cookie = await anonSession(app);
-    await reachTailor({ app, claims }, cookie, "joined-fact-next-draft@example.com");
-    const q = (await get(app, cookie, "/onboarding/tailor")).json().questions[0];
-    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
-    const adReq = loadAdRequirements(FIXTURE_AD_ID);
-    const joinedLine = `${adReq.requirements.find((r) => r.id === q.requirementId)!.requirement}.`;
-    await post(app, cookie, "/onboarding/tailor/drop");
-
-    const other = (await get(app, cookie, "/onboarding/cards")).json().cards.find(
-      (c: { adId: string }) => c.adId !== VALID_AD_ID,
-    );
-    expect((await post(app, cookie, `/onboarding/cards/${other.adId}/want`)).statusCode).toBe(200);
-    const { jobId } = (await post(app, cookie, "/onboarding/tailor/draft")).json();
-    expect((await awaitJob(app, cookie, jobId)).status).toBe("completed");
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]).toContain(joinedLine);
-  });
-});

@@ -9,7 +9,6 @@ import type {
   CandidateClaim,
   CardScoreProvenance,
   FamilyPlacement,
-  FloorItem,
   JobCardV1,
   PlacementConfidence,
   PostingRetrievalResultV1,
@@ -60,11 +59,7 @@ import { CONFIDENCE_WEIGHT } from "./familyLabeler.js";
 import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
-import {
-  discoveryCvLines,
-  factCount,
-  type DiscoveryCvLine,
-} from "./discovery.js";
+import { factCount } from "./discovery.js";
 import {
   retrievalFingerprint,
   retrievalRequestForSession,
@@ -75,18 +70,8 @@ import { retrievalIsInProgress } from "./deckRetrieval.js";
 import { fallbackOffer } from "./deckFallback.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
-import { profileOwnedRequirementIds } from "./tailorProfile.js";
-import {
-  advertDeniedRows,
-  buildTailorLedger,
-  growDoors,
-  negativeRequirementIds,
-  tailorCvLines,
-  tailorQuestions,
-  type GrowDoor,
-  type LedgerLine,
-  type TailorQuestion,
-} from "./tailor.js";
+import type { ProfileAsk } from "./tailorProfile.js";
+import { advertDeniedRows, negativeRequirementIds } from "./tailor.js";
 
 /** #104's reader seam, named once here rather than via OnboardingDeps["readAd"] — structurally the
  *  same optional function the route deps carry. */
@@ -1184,23 +1169,28 @@ export interface TailorState {
   // (the overload above), so a pending/unscored card is unrepresentable here, matching the web
   // client's own TailorState.card: ScoredJobCard.
   card: ScoredJobCard;
-  questions: TailorQuestion[];
-  ledger: LedgerLine[];
-  cvLines: DiscoveryCvLine[];
-  closedGaps: { closed: number; asked: number };
-  done: boolean;
+  /** #415 (ADR-0020 clause 1): only the profile questions this advert still has open — the right
+   *  to work in its market, a language it requires (tailorProfile.ts). Empty ⇒ the draft is the
+   *  first thing the person sees. A requirement is never a question. */
+  questions: ProfileAsk[];
+  /** #415 (ADR-0020 clause 6): every requirement of this job, in the job's own order (never
+   *  re-sorted), with the verdict the card reached on it — the screen's "Where you fit" sheet and
+   *  its "Also asked, not on your CV" list (the `gap` rows: a fit under the threshold as the card
+   *  computes it, a denied capability included) are both drawn from this one list. `untested` is
+   *  #162 AC6's years bar with no readable work history. The vocabulary is a list that grows
+   *  (#417 adds a stretch's own state); nothing here hardcodes a job or a market. */
+  requirements: TailorRequirement[];
   factCount: number;
   /** #309 AC4 — present only on a job HE BROUGHT that a found job would have been withdrawn for:
    *  the one line saying why it stays despite the gap ("you brought this job anyway, so I've
    *  drafted for it; the gap is real"). Set by the route (it holds the eligibility facts this is
    *  derived from), recomputed on every read so it survives reloads. */
   stayed?: string;
-  /** #311 (#287 c6-c8) — one "Changed? Add it" door per denial the card names (askedClosed), keyed
-   *  by that row's claim id. Tailor-state only, never on the deck card: the door belongs WITH the
-   *  questions, before the draft is written — answering it goes through the same /tailor/answer
-   *  path as every other requirement answer, keeps the old "No" untouched, and lands a new fact
-   *  dated by the tapped choice. */
-  doors: GrowDoor[];
+}
+export interface TailorRequirement {
+  id: string;
+  text: string;
+  state: "met" | "gap" | "untested";
 }
 
 /** This session's tailor target, resolved to its posting + requirements — or null if either is no
@@ -1245,24 +1235,18 @@ export async function tailorTarget(
 // not tailorTarget's own extra eligibility.list() call), so the check costs nothing extra there.
 
 /** Pure composition of TailorState — same split as buildJobCard: matchtick.ts (or judgedScore.ts,
- *  when `judgement` is available — #105 decision 1) + tailor.ts score/rank, this shapes the pinned
+ *  when `judgement` is available — #105 decision 1) shapes the card, this shapes the pinned
  *  response. matchPct is the raw tick/judged score — #309 removed the monotonic floor (#86's own
  *  prose ruling, "never-decreasing becomes a lie once corrections are honoured"): an honest answer
- *  that lowers the fit lowers the number, and the ledger/after-line names the cause.
- *  tailorQuestions gets the SAME uncovered list buildJobCard's dontYet is built from, passed in
- *  explicitly (tailor.ts's own optional param) — a requirement the judge already considers met is
- *  never re-asked as a question just because the token-overlap tick alone wouldn't have covered it.
- *  The ledger (buildTailorLedger) is deliberately left untouched: it replays confirmed/negative
- *  answers ONE AT A TIME to say how many were still open at the moment each past answer landed, and a
- *  holistic per-request judgement has no equivalent historical snapshot to replay against — #105's
- *  own "explicitly out of scope" list names the ledger's BAND_WEIGHT shares for slice 10; the ledger
- *  as a whole stays on the deterministic path this slice, for the same reason. */
+ *  that lowers the fit lowers the number, and the after-line names the cause.
+ *  #415 (ADR-0020): the queue is the profile questions alone; the requirements list reads the
+ *  card's own verdicts back in the job's order, so the sheet, the gap list and the card can never
+ *  disagree on what is met. */
 export function buildTailorState(
   posting: Posting,
   adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
-  role: string | null,
   judgement: JudgementRecord | null,
   // #162 AC6, review must-fix: the tailor surface renders the SAME advert as the deck, so it must
   // reach the same verdict on whether the years bar could be tested. Without this it defaulted to
@@ -1270,27 +1254,10 @@ export function buildTailorState(
   // #222: now the full years-at-scopes resolution, so family-scope bars test the same number here
   // as on the deck (the route applies withYearsShortfall before passing `judgement` in).
   years?: SessionYears,
-  discoveryFloor: readonly FloorItem[] = [],
-  // #307: the PROFILE-LEVEL questions this advert raises (tailorProfile.ts's tailorProfileAsks),
-  // prepended before the advert's own — #292 ruling 3: he never answers five requirement questions
-  // about a job he cannot legally take. Empty for every pre-#307 caller, whose state is unchanged.
-  profileQuestions: TailorQuestion[] = [],
+  // #307: the PROFILE-LEVEL questions this advert raises (tailorProfile.ts's tailorProfileAsks).
+  // #415: the whole queue — the client renders questions[0]; empty means the draft starts.
+  questions: ProfileAsk[] = [],
 ): TailorState {
-  const uncovered = judgement
-    ? judgedUncoveredRequirements(judgement.verdicts, adReq)
-    : uncoveredRequirements(confirmed, adReq);
-  // #307: profile-level first (#292 ruling 3) — the client renders questions[0], so the ORDER of
-  // this array is the whole "asked before the advert's own" rule; nothing else enforces it. And a
-  // requirement the profile question OWNS never also appears as an advert question — one queue
-  // means one question, not indistinguishable twins one tap apart (profileOwnedRequirementIds).
-  const profileOwned = profileOwnedRequirementIds(adReq, posting.location);
-  const questions = [
-    ...profileQuestions,
-    ...tailorQuestions(adReq, confirmed, negatives, uncovered).filter(
-      (q) => !profileOwned.has(q.requirementId),
-    ),
-  ];
-  const { ledger, closedGaps } = buildTailorLedger(adReq, confirmed, negatives);
   // B1 (a "no" closes the gap too, spec #37/#38) and D1 (the bubble's gap clause rewrites with it)
   // are both buildJobCard's job as of #29 — the deck card needs the same guarantee, so the filter
   // moved into the shared function instead of being applied here on top.
@@ -1303,23 +1270,20 @@ export function buildTailorState(
   // matchPct on any surface, so nothing needs stripping here any more (#309 removed the monotonic
   // floor that used to sit on top).
   const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated", years);
-
-  // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
-  // the narrow slice of discoveryState's work this needs. Before Q1 (role null) discovery contributes
-  // nothing, same as discoveryState's own empty-skeleton branch.
-  const discoveryLines = role ? discoveryCvLines(role, discoveryFloor, confirmed) : [];
-  const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
+  // The card's three verdicts partition the job's requirements: fit (met), notTested (untested),
+  // and everything else — an open row or a denied one — is a gap the CV does not meet.
+  const met = new Set(card.fit.map((f) => f.id));
+  const untested = new Set((card.notTested ?? []).map((r) => r.id));
+  const requirements = adReq.requirements.map((r) => ({
+    id: r.id,
+    text: r.requirement,
+    state: met.has(r.id) ? ("met" as const) : untested.has(r.id) ? ("untested" as const) : ("gap" as const),
+  }));
 
   return {
     card,
     questions,
-    ledger,
-    cvLines,
-    closedGaps,
-    // #311: the doors come from the SAME mapping the card's askedClosed rows come from
-    // (advertDeniedRows), so a named denial always has its door and an unnamed one never does.
-    doors: growDoors(adReq, confirmed, negatives),
-    done: questions.length === 0,
+    requirements,
     // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
     factCount: factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
   };
