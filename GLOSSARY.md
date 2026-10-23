@@ -192,10 +192,13 @@ counts fully toward each, so the family numbers do not sum to the total and no s
 that sum — and the total at the global scope, each job counted once. A years bar is tested at its
 own scope (`yearsScope` on the requirement): family bars against the advert's family's number — the
 session's pinned floor, else its target-role placement; the advert's own `familyFit` decides deck
-membership (#243), never which years fact a bar tests — total bars against the total. **Decided in
-#408, not yet built:** a bar naming several fields ("project management, consulting, or business
-transformation") counts every job whose kind of work is any one of them, each job once; a field we do
-not publish adds nothing. The bar is met or short on that number alone — never on how a CV sentence
+membership (#243), never which years fact a bar tests — total bars against the total. A bar naming
+several fields ("project management, consulting, or business transformation") counts every job whose
+kind of work is any one of them, each job once (#413, ADR-0020 clause 5): the job reader names every
+published family the fields map to (`yearsFamilies` on the requirement), and the bar's years are the
+merged months of every job placed in any of them; a field we do not publish adds nothing, and a bar
+naming only unpublished fields is **not tested**, never a zero. The bar is met or short on that number
+alone — its fit is `min(1, years / bar)` (`apps/api/src/recordBars.ts`), never how a CV sentence
 reads — and a shortfall is never asked: it shows on the card, and may be bridged by a **stretch**. A third scope, **industry**,
 exists on the requirement from #284: the advert reader names a published industry id (or none, when
 the advert names an industry we do not publish, which leaves the bar untestable). Nothing is scored
