@@ -33,11 +33,36 @@ import { extractJson } from "./miner.js";
 import type { Draft, Posting, StretchMarks } from "./preview.js";
 import type { DraftInputs } from "./tailorDraft.js";
 
-const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "stretch-suggestions.md");
-let cachedPrompt: string | null = null;
-export function stretchPrompt(): string {
-  if (!cachedPrompt) cachedPrompt = readFileSync(PROMPT_PATH, "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
-  return cachedPrompt;
+const PROMPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts");
+/** One prompt file, read once and cached, its leading HTML comment (the file's own notes) dropped. */
+const promptFile = (name: string) => {
+  let cached: string | null = null;
+  return (): string => (cached ??= readFileSync(join(PROMPTS_DIR, name), "utf8").replace(/^<!--[\s\S]*?-->\s*/, ""));
+};
+export const stretchPrompt = promptFile("stretch-suggestions.md");
+
+/** The step's one call in either mode: one attempt plus one retry with the validation error
+ *  appended (the report's shape); `read` parses and gates the answer. Cost is logged from the
+ *  driver's own usage. Throws after a second bad answer — the caller stores nothing. */
+async function completeChecked<T>(llm: LlmClient, input: string, mode: string, read: (doc: unknown) => T): Promise<T> {
+  let lastError = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const prompt =
+      attempt === 0
+        ? input
+        : `${input}\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
+    const { text, cost } = await completeWithCost(llm, prompt);
+    console.log(
+      `[ops] stretch ${mode} call: model ${cost.model}, ` +
+        (cost.inputTokens === null ? "usage unmeasured" : `${cost.inputTokens} in / ${cost.outputTokens} out tokens`),
+    );
+    try {
+      return read(extractJson(text));
+    } catch (err) {
+      lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
+    }
+  }
+  throw new Error(`stretch ${mode} failed validation twice: ${lastError.slice(0, 500)}`);
 }
 
 /** The prompt's own section heading — qa-main routes on this (a structural line, never the opening
@@ -139,12 +164,7 @@ type SuggestionAnswer = z.infer<typeof SuggestionAnswer>["suggestions"][number];
 // the wording and says so).
 // ---------------------------------------------------------------------------------------------
 
-const RESAY_PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "stretch-resay.md");
-let cachedResayPrompt: string | null = null;
-function resayPrompt(): string {
-  if (!cachedResayPrompt) cachedResayPrompt = readFileSync(RESAY_PROMPT_PATH, "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
-  return cachedResayPrompt;
-}
+const resayPrompt = promptFile("stretch-resay.md");
 
 /** The re-say prompt's own section heading — qa-main and the tests route on it. */
 export const RESAY_PROMPT_HEADING = "## Rewriting what to say for an edited line";
@@ -159,28 +179,9 @@ export function buildResayInput(line: string, claims: CandidateClaims): string {
 
 const ResayAnswer = z.object({ say: Sentence }).strict();
 
-/** The one re-say call: one attempt plus one retry with the validation error appended (the
- *  suggestion step's own shape). Throws after a second bad answer — the caller stores nothing. */
-export async function resayStretch(llm: LlmClient, input: string): Promise<string> {
-  let lastError = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt =
-      attempt === 0
-        ? input
-        : `${input}\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
-    const { text, cost } = await completeWithCost(llm, prompt);
-    console.log(
-      `[ops] stretch re-say call: model ${cost.model}, ` +
-        (cost.inputTokens === null ? "usage unmeasured" : `${cost.inputTokens} in / ${cost.outputTokens} out tokens`),
-    );
-    try {
-      return ResayAnswer.parse(extractJson(text)).say;
-    } catch (err) {
-      lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
-    }
-  }
-  throw new Error(`stretch re-say failed validation twice: ${lastError.slice(0, 500)}`);
-}
+/** The one re-say call (completeChecked). Throws after a second bad answer — the caller stores nothing. */
+export const resayStretch = (llm: LlmClient, input: string): Promise<string> =>
+  completeChecked(llm, input, "re-say", (doc) => ResayAnswer.parse(doc).say);
 
 /** The pending suggestion an edit may change, or undefined (none such, or already answered — an
  *  answer is withdrawn with Undo first). */
@@ -266,40 +267,22 @@ export function gateSuggestions(
 }
 
 /**
- * The one model call: one attempt plus one retry with the validation error appended (the report's
- * shape), the answer gated by zod and then by gateSuggestions. Throws after a second bad answer — the
- * caller records "failed", which the screen tells apart from "ran, found none" (ADR-0005's negative
- * test warning). Cost is logged from the driver's own usage; the metered client's ledger row under
+ * The one model call (completeChecked), the answer gated by zod and then by gateSuggestions. Throws
+ * after a second bad answer — the caller records "failed", which the screen tells apart from "ran,
+ * found none" (ADR-0005's negative test warning). The metered client's ledger row under
  * "stretch-suggestions" is the measured per-CV figure.
  */
-export async function suggestStretches(
+export const suggestStretches = (
   llm: LlmClient,
   input: string,
   draft: Draft,
   requirements: TailorRequirement[],
   denied: string[],
   adId: string,
-): Promise<StretchProposalV2[]> {
-  let lastError = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt =
-      attempt === 0
-        ? input
-        : `${input}\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
-    const { text, cost } = await completeWithCost(llm, prompt);
-    console.log(
-      `[ops] stretch suggestions call: model ${cost.model}, ` +
-        (cost.inputTokens === null ? "usage unmeasured" : `${cost.inputTokens} in / ${cost.outputTokens} out tokens`),
-    );
-    try {
-      const doc = SuggestionAnswer.parse(extractJson(text));
-      return gateSuggestions(doc.suggestions, draft, requirements, denied, adId, new Date().toISOString());
-    } catch (err) {
-      lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
-    }
-  }
-  throw new Error(`stretch suggestions failed validation twice: ${lastError.slice(0, 500)}`);
-}
+): Promise<StretchProposalV2[]> =>
+  completeChecked(llm, input, "suggestions", (doc) =>
+    gateSuggestions(SuggestionAnswer.parse(doc).suggestions, draft, requirements, denied, adId, new Date().toISOString()),
+  );
 
 /** The answers a suggestion takes (ADR-0020 clause 4). #417 built "no"; #418 adds "use" (this job
  *  only) and "undo" (back to pending — the Ready-to-send summary's per-answer Undo); #419 adds "true"
