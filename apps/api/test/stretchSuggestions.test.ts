@@ -1251,6 +1251,38 @@ describe("#420 what an edit cannot do", () => {
   });
 });
 
+describe("#418 approving freezes the used lines (ADR-0005 clause 6)", () => {
+  it("after Approve, an answer, an Undo and an edit are each refused in plain words; nothing is spent and nothing moves", async () => {
+    const tailor = draftingLlm();
+    const stretch = withResay(suggestingLlm().llm);
+    const report = reportingLlm();
+    const { app, claims } = buildServer({
+      tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge: fakeJudge(), reportLlm: report.llm, documentMaker: new StandInDocumentMaker(),
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-frozen@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    const pressed = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(pressed.statusCode).toBe(202);
+    expect((await awaitJob(app, cookie, pressed.json().jobId)).status).toBe("completed");
+    const approved = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+
+    for (const [path, payload] of [
+      [`/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" }],
+      [`/onboarding/tailor/suggestions/${skill.id}`, { answer: "use" }],
+      [`/onboarding/tailor/suggestions/${skill.id}/wording`, { text: EDITED }],
+    ] as const) {
+      const refused = await post(app, cookie, path, payload);
+      expect(refused.statusCode, path).toBe(409);
+      expect(refused.json().error).toEqual({ code: "draft_approved", message: "This CV is approved, so its lines can no longer change." });
+    }
+    expect(stretch.resays).toHaveLength(0);
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).json()).toEqual(approved);
+  });
+});
+
 describe("#417 a redone suggestion step keeps the answers to the suggestions that come back", () => {
   it("the draft stands and the step's input changes: a suggestion back with the same id and line out keeps its answer, scope and edited wording; one back elsewhere starts again; one not back is dropped", async () => {
     const tailor = draftingLlm();

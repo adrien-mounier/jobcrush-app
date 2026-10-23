@@ -550,6 +550,10 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       },
     );
 
+    // #418 (ADR-0005 clause 6: written once, frozen at render): approving freezes the used lines, so the
+    // approved CV takes no answer, no Undo and no edited wording. A redraft is a fresh, unapproved CV.
+    const FROZEN = { error: { code: "draft_approved", message: "This CV is approved, so its lines can no longer change." } };
+
     // #417 (ADR-0020 clause 4): an answer to one stretch suggestion beside the current draft. "No"
     // declines it for this job only — the record lives beside THIS draft, so nothing else moves and
     // another job's run may suggest the same line again. Spends nothing; answers the suggestions
@@ -566,6 +570,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           return reply.status(status).send({ error: { code, message } });
         }
         const { posting, confirmed, inputs, stored } = resolved.target;
+        if (stored?.approvedAt && stored.inputFingerprint === inputs.fingerprint) return reply.status(409).send(FROZEN);
         const answered =
           stored && stored.inputFingerprint === inputs.fingerprint
             ? answerSuggestion(stored.stretch, req.params.id, req.body.answer, new Date().toISOString())
@@ -603,6 +608,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         const unknown = () =>
           reply.status(404).send({ error: { code: "unknown_suggestion", message: "no such open suggestion for this draft" } });
         const stored = await current();
+        if (stored?.approvedAt) return reply.status(409).send(FROZEN);
         const target = editableSuggestion(stored?.stretch, req.params.id);
         // A suggestion exists only where the step ran, so stretchLlm is wired whenever target is.
         if (!stored || !target || !deps.stretchLlm) return unknown();
