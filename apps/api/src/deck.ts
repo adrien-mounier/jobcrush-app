@@ -73,6 +73,8 @@ import { partitionByWithdrawal } from "./withdrawal.js";
 import type { ProfileAsk } from "./tailorProfile.js";
 import { advertDeniedRows, negativeRequirementIds } from "./tailor.js";
 import { withStretchedVerdicts } from "./stretchSuggestions.js";
+import { countedStretch } from "./stretchFact.js";
+import type { ContactStore } from "./contact.js";
 import type { TailorDraftStore } from "./tailorDraftStore.js";
 
 /** #104's reader seam, named once here rather than via OnboardingDeps["readAd"] — structurally the
@@ -850,7 +852,7 @@ export async function buildDeckCards(
      *  and the Tailor screen show the same % for the same job. */
     sessionId?: string;
   },
-  deps: DeckJudgingDeps & { readAd?: ReadAdFn; tailorDrafts?: Pick<TailorDraftStore, "get"> },
+  deps: DeckJudgingDeps & { readAd?: ReadAdFn; tailorDrafts?: Pick<TailorDraftStore, "get">; contact?: Pick<ContactStore, "getRecord"> },
 ) {
   // #116: ONE read budget for the whole phase (DECK_JUDGE_BUDGET_MS's reasoning, applied to reads):
   // computed once, shared across every concurrency-cap wave, so the phase is bounded by this one
@@ -908,8 +910,13 @@ export async function buildDeckCards(
   // for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
   const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, input.confirmed, deps);
   const cardCandidates = await Promise.all(resolved.map(async (entry) => {
-    // #418: the answers beside this job's draft, when the caller can read them.
-    const stretch = input.sessionId && deps.tailorDrafts ? (await deps.tailorDrafts.get(input.sessionId, entry.posting.id))?.stretch : undefined;
+    // #418: the answers beside this job's draft, when the caller can read them — and only while that
+    // draft is the one that would print (countedStretch).
+    const { tailorDrafts, contact } = deps;
+    const stretch =
+      input.sessionId && tailorDrafts && contact
+        ? await countedStretch({ tailorDrafts, contact }, input.sessionId, entry.posting, entry.adReq, input)
+        : undefined;
     // #309 AC5 — a brought job's years bars are answered against ITS advert family, not the deck's:
     // his placed history in a field he never worked reads as an honest zero, never the career total
     // lent to him. Found jobs keep the shared per-request `years` untouched.
@@ -970,8 +977,10 @@ export interface DeckResponseDeps extends DeckJudgingDeps {
   /** #305: absent → no pasted advert is stitched in, which is exactly the deck every pre-#305 test
    *  asserts against. */
   broughtJobs?: BroughtJobsFn;
-  /** #418: the answers beside each job's draft (buildDeckCards). Absent → a card reads the facts alone. */
+  /** #418: the answers beside each job's draft, and the letterhead that draft was written with — what
+   *  tells a current draft from a stale one (buildDeckCards). Absent → a card reads the facts alone. */
   tailorDrafts?: Pick<TailorDraftStore, "get">;
+  contact?: Pick<ContactStore, "getRecord">;
   ensureRetrieval: (
     session: SessionRecord,
     retrievalRequest: RetrievalRequest,

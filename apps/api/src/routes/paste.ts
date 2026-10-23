@@ -44,6 +44,7 @@ import {
 } from "../pastedAdvert.js";
 import { makeBroughtJobs, type BroughtJob } from "../broughtJobs.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
+import type { ContactStore } from "../contact.js";
 import { Refusal } from "./refusal.js";
 
 export interface PasteDeps extends PasteAdvertDeps {
@@ -69,6 +70,9 @@ export interface PasteDeps extends PasteAdvertDeps {
   /** #418: the answers beside a job's draft, so its own screen counts a used stretch as met on its
    *  card (buildDeckCards). Absent in a stack with no tailor step — the card reads the facts alone. */
   tailorDrafts?: Pick<TailorDraftStore, "get">;
+  /** #418: the letterhead that job's draft was written with — a used stretch counts only while that
+   *  draft is current (countedStretch). */
+  contact?: Pick<ContactStore, "getRecord">;
 }
 
 const Body = z.object({

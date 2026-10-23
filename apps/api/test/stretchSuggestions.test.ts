@@ -660,6 +660,38 @@ describe("#418 the requirement counts as met by a stretch on THIS job's card onl
   });
 });
 
+describe("#418 a used stretch counts only while the draft it was used on is the draft that would print", () => {
+  it("Use, then a changed fact makes the draft stale: the Tailor screen and the deck list drop met by a stretch and the higher %", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    // The judge reads each job once: the new fact below changes the draft, never the verdicts, so
+    // the number it leaves is the number without the stretch.
+    const judged = fakeJudge();
+    const verdicts = new Map<string, ReturnType<JudgeFn>>();
+    const judge: JudgeFn = (adReq, facts) => verdicts.get(adReq.adId) ?? verdicts.set(adReq.adId, judged(adReq, facts)).get(adReq.adId)!;
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge });
+    const cookie = await anonSession(app);
+    const sid = await reachTailor({ app, claims }, cookie, "stretch-stale@example.com");
+    const before = (await get(app, cookie, "/onboarding/tailor")).json();
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    expect((await get(app, cookie, "/onboarding/tailor")).json().card.matchPct).toBeGreaterThan(before.card.matchPct);
+
+    // A new fact the job's requirements do not read: the stored draft is no longer the one that
+    // would print (it reads as no draft), and nothing else about the card moves.
+    await claims.add(sid, { ...floorClaim("meetups", "Speaks at local meetups.", "Yes"), id: tailorClaimId(VALID_AD_ID, "meetups") });
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404);
+    const stale = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(stale.card.matchPct).toBe(before.card.matchPct);
+    expect(stale.requirements.find((r: { id: string }) => r.id === swap.requirementId).state).toBe("gap");
+    expect(stale.card.fit.some((f: { stretched?: boolean }) => f.stretched)).toBe(false);
+    const listCard = (await get(app, cookie, "/onboarding/cards")).json().cards.find((c: { adId: string }) => c.adId === VALID_AD_ID);
+    expect(listCard.matchPct).toBe(before.card.matchPct);
+    expect(listCard.fit.some((f: { stretched?: boolean }) => f.stretched)).toBe(false);
+  });
+});
+
 describe("#418 the job's own screen reads the same answer (a job he brought, through the paste door)", () => {
   it("GET /onboarding/jobs/:adId counts the used stretch as met, flags the fit row, and its % rises", async () => {
     const tailor = draftingLlm();
@@ -727,6 +759,10 @@ describe("#418 the job's own screen reads the same answer (a job he brought, thr
     expect(after.fit).toContainEqual(expect.objectContaining({ id: "vendor-governance", stretched: true }));
     expect(after.matchPct).toBeGreaterThan(before.matchPct);
     expect(after.dontYet).toEqual([]);
+
+    // A changed fact makes that draft stale: the job page stops counting the stretch.
+    await claims.add(sid, floorClaim("meetups", "Speaks at local meetups.", "Yes"));
+    expect((await screen()).json().card.fit.some((f: { stretched?: boolean }) => f.stretched)).toBe(false);
   });
 });
 

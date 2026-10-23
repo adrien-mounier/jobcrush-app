@@ -4,9 +4,12 @@
 // it was suggested for — that job's employer and title as written, the role the profile heads the
 // job's block with — or in the suggestion's skills group, tagged "Added while tailoring for <job>"
 // (#387). It is written on the tap only, and Undo takes it off again.
-import type { StretchProposalV2 } from "@jobcrush/contracts";
+import type { AdRequirementsV1, StretchProposalV2 } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore, SeedClaim } from "./claims.js";
+import { letterheadText, type ContactStore } from "./contact.js";
 import { ABOUT_YOU_HEADING } from "./cvReview.js";
+import type { JobBlockView } from "./jobBlockStore.js";
+import { composeDraftInputs } from "./tailorDraft.js";
 import type { Draft, Posting } from "./preview.js";
 import { SECTIONS } from "./rootcv.js";
 import { usedStretches, type StretchCheckpoint } from "./stretchSuggestions.js";
@@ -118,4 +121,26 @@ export function draftFacts<T extends { fingerprint: string }>(
     if (inputs.fingerprint === stored.inputFingerprint) return { claims, inputs };
   }
   return { claims: confirmed, inputs: compose(confirmed) };
+}
+
+/**
+ * #418 (review): the answers that count on this job's card — only while the stored draft they were
+ * given on is the draft that would print, its input the current facts' input (draftFacts, the same
+ * test the draft doors make). A stale draft reads as no draft, and its answers count for nothing
+ * until it is written again: the score never describes a CV that cannot be sent.
+ */
+export async function countedStretch(
+  deps: { tailorDrafts: Pick<TailorDraftStore, "get">; contact: Pick<ContactStore, "getRecord"> },
+  sessionId: string,
+  posting: Posting,
+  adReq: AdRequirementsV1,
+  facts: { confirmed: ClaimRecord[]; negatives: ClaimRecord[]; blocks: readonly JobBlockView[] },
+): Promise<StretchCheckpoint | undefined> {
+  const stored = await deps.tailorDrafts.get(sessionId, posting.id);
+  if (!stored || usedStretches(stored.stretch).length === 0) return undefined;
+  const header = letterheadText(await deps.contact.getRecord(sessionId));
+  const { inputs } = draftFacts(facts.confirmed, stored, (claims) =>
+    composeDraftInputs(claims, facts.negatives, [...facts.blocks], posting, adReq, header),
+  );
+  return inputs.fingerprint === stored.inputFingerprint ? stored.stretch : undefined;
 }
