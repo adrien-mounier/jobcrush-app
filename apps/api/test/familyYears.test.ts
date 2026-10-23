@@ -211,13 +211,13 @@ describe("#413 computeYearsInFamilies", () => {
   // Two delivery jobs, 44 + 47 months = 7.6 years merged; a third 3-year job (36 months).
   const career = [job("d1", [2016, 1], [2019, 8]), job("d2", [2019, 9], [2023, 7]), job("p1", [2023, 8], [2026, 7])];
 
-  it("AC1: the third job in BOTH families is counted once — 10.6 years, not 13.6", async () => {
+  it("a job in BOTH named families is counted once — 10.6 years, not 13.6", async () => {
     const view = await viewOf(career, { d1: placed([FAMILY]), d2: placed([FAMILY]), p1: placed([PRODUCT, FAMILY]) });
     expect(computeFamilyYears(view, now).get(FAMILY)).toBe(10.6); // the per-family number agrees
     expect(computeYearsInFamilies(view, [FAMILY, PRODUCT], now)).toBe(10.6);
   });
 
-  it("AC2: the third job in product management only still counts for a bar naming both — 10.6", async () => {
+  it("only the families named count: a product-only job adds nothing to a delivery bar", async () => {
     const view = await viewOf(career, { d1: placed([FAMILY]), d2: placed([FAMILY]), p1: placed([PRODUCT]) });
     expect(computeFamilyYears(view, now).get(FAMILY)).toBe(7.6);
     expect(computeYearsInFamilies(view, [FAMILY, PRODUCT], now)).toBe(10.6);
