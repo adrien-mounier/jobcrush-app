@@ -2,6 +2,18 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-24 — Spec #412 shipped: the CV is written first, only stretches are suggested (#413–#420, #411; d411ecc)
+
+`/implement-spec 412` (Fable 5.1, then Opus 5.5 xhigh after the Fable quota ran out). Nine tickets in worktrees on `spec-412`.
+- **#413/#416:** years bars by family (each job counted once) and degree levels decided by rule in `recordBars.ts`. Reader `adreq/5`, judge `judge/2`, so each stored card is re-judged once (~$0.02).
+- **#414:** a job can be both kinds of work, with a *Kind of work* row on the job page. Labeler eval: bars hold, but confidence fell (comment on #414).
+- **#415:** yes/no queue gone; the draft starts by itself; "Also asked" list and "Where you fit" sheet.
+- **#417–#420:** stretch step (`stretch-suggestions.md`, `StretchProposalV2`) with Use, It's true and Edit wording. **#411:** breakdown on the Tailor screen.
+- `/code-review`: 13 fixes, including the deck list reading stretches (onboarding.ts ratchet 523 → 515), carried answers on a redone step, refusing answers after approval (409), and a 20-per-session cap on paid rewrites.
+QA **GO** on tree 911c990: api 2218, mocked 292, 25 journeys, live drive 84/0 at both widths, migration checked on real Postgres. Filed #421 (withdrawal journey rotted in no tier) and #422 (phone top bar too tall).
+Staging-only, still open: the owner's real CV and Hong Kong job, the stretch step's measured cost, the report email body. Screen order follows #411 (the ageing line and "Read the ad in full" stay), not the prototype.
+**Next:** owner re-proof on a fresh staging account; then Chat with JobCrush (#350).
+
 ## 2026-10-23 — #408 grilled and decided: ADR-0020, the CV is written first; spec #412 filed (#413–#420, #411)
 
 No code. `/grill-with-docs 408` (Opus 5.5): nine owner calls, plus a two-round prototype (`/impeccable` critique 24/40 → round 2 approved). The decision is on #408, which was closed by hand:
@@ -72,9 +84,3 @@ CI green on 1f72b12 (run 39130226914), staging at 2e56452. Then the finish line 
 **CI over a39ee5e (2026-10-17, run 38942989223): red, not #314.** 1 of 42 tier-2 journeys, `work-history-door-journey.mjs`, timed out on discovery — since #392 (4f3b169, pushed `[skip ci]`) that screen moves on by itself ~2 s after the save and no longer shows the fact badge; #392's gate ran 23 of the 42 journeys and this one was in neither that set nor the 17 it rewrote. Fixed in the journey only (raw click, wait for check mode, profile by address): 16/16 twice on the fake stack, the HEAD step reproduces the abort; scoped QA GO; committed as 81af595. Staging still served 0342c65 at the time. Lesson extended under "A screen that moves on by itself".
 The push raised no CI run (unexplained); a hand-dispatched run (38955133132) went green on 4010912, 42/42 journeys, but the deploy job runs on push events only — owner OK, deployed by hand with flyctl (BUILD_SHA 4010912), /healthz confirms.
 **Next:** on staging, #315 the application report is the last open ticket on the v1 spine; then Chat with JobCrush (#350).
-
-## 2026-10-16 — #396 shipped: the reading lamp while the CV review runs; short "from X" tags (84c995b, deployed by hand)
-
-Owner via /impeccable: walking check mode while the review still filled it in felt wrong, and the skills tags were too long. While the run goes check mode is now the reading lamp — her CV on the paper sheet, a lamplight band sweeping it, lines inking in per landed unit, one segment per unit, minutes left; the walk opens by itself when the run ends (a run stuck past 10 min opens it anyway, nothing said). The old "still running" walk paths were removed. Tags read "from <where>" (over 16 chars → first word, or two after an initial: "from BRED…", "from J.P. Morgan…"), full sentence for hover/screen readers, in check mode and on the profile. QA NO-GO first (check-mode-journey lost its work-rights answer in the rewrite) → GO on tree 2c37de3 (135/135 specs, 14 journeys). Pushed [skip ci], web deployed with flyctl.
-Owner, after the deploy: "it looks ok now". Not covered: /profile still shows content mid-run; the progress bars are faint at 0.
-**Next:** owner decides #394 AC7 and the #389 calls; then Chat with JobCrush (#350) — `/to-spec` (Opus 5.5).
