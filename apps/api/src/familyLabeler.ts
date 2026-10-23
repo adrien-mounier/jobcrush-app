@@ -222,14 +222,16 @@ export async function placeTargetRole(
   return (await place(role, families, llm, feed)).placement;
 }
 
-/** #231 — exported for the eval grid, which measures the plural labeler. */
+/** #231 — exported for the eval grid, which measures the plural labeler. #414: with the lines
+ *  written under the job, when the case has them. */
 export async function placeJobTitle(
   title: string,
   families: PublishedFamily[],
   llm: LlmClient,
   feed?: UnmappedLabelFeed,
+  lines: string[] = [],
 ): Promise<FamilyPlacement> {
-  return (await place(title, families, llm, feed)).placement;
+  return (await place(title, families, llm, feed, lines)).placement;
 }
 
 /** placeTargetRole's own body, plus whether the answer was a DEGRADATION rather than a real one.
