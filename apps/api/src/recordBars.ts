@@ -15,10 +15,15 @@
 //
 // Pure, applied at READ TIME, never persisted: the cached judgement describes the advert and the
 // fact set it was judged against; the record is session state that moves independently of it.
-// #416 adds the degree rule beside this one.
+//
+// #416 — the degree rule sits beside it: a degree bar naming a level and no field of study is fit 1
+// when the highest degree held meets the bar (degreeLevel.ts), whatever the scorer said. The
+// record here is the fact set the judgement was made against (JudgementRecord.facts), so the deck
+// and the Tailor screen agree without a route carrying anything new.
 import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
 import type { JudgeVerdict } from "./judge.js";
 import { answerIndustryBar, type YearsAtScopes } from "./judgedScore.js";
+import { highestDegree, meetsDegreeBar, type EducationFactLike } from "./degreeLevel.js";
 import { computeYearsInFamilies, hasUnplacedWork } from "./yearsWorked.js";
 
 /** The worked-out years a years-experience requirement is tested against, or null when the record
@@ -40,18 +45,31 @@ export function answerYearsBar(req: AdRequirementV1, years: YearsAtScopes): numb
 /** Replaces the scorer's fit on every years bar stating a MINIMUM (op ">=", bar > 0) with
  *  min(1, years / bar). A bar of 0 would divide by zero and a "<="/"==" bar states no minimum, so
  *  both stay untouched; a negative bar (the contract never rules one out) clamps at 0 rather than
- *  rendering a negative matchPct. */
+ *  rendering a negative matchPct.
+ *
+ *  #416 — and on a degree bar naming a level and NO field of study, fit 1 when the highest degree
+ *  held (degreeLevel.ts, read from `facts`: the fact set the judgement was made against) is at or
+ *  above the bar. A field named is the scorer's to judge, told the level is met (judge.ts
+ *  buildJudgeInput), so its verdict stands; held below the bar, or either level unknown, also
+ *  stands — "or equivalent experience" is a judgement, never a forced zero. */
 export function applyRecordBars(
   verdicts: JudgeVerdict[],
   adRequirements: AdRequirementsV1,
   years: YearsAtScopes,
+  facts: ReadonlyArray<EducationFactLike> = [],
 ): JudgeVerdict[] {
-  if (years.family === null && years.total === null) return verdicts;
   const byId = new Map(adRequirements.requirements.map((r) => [r.id, r]));
+  const noYears = years.family === null && years.total === null;
+  const held = highestDegree(facts);
   return verdicts.map((v) => {
     const req = byId.get(v.requirementId);
-    const bar = req?.comparable?.value;
-    if (!req || req.eligibilityDimension !== "years-experience" || req.comparable?.op !== ">=" || !bar) return v;
+    if (!req) return v;
+    if (req.eligibilityDimension === "degree") {
+      if (req.degreeLevel && !req.degreeFieldNamed && held && meetsDegreeBar(held, req.degreeLevel)) return { ...v, fit: 1 };
+      return v;
+    }
+    const bar = req.comparable?.value;
+    if (noYears || req.eligibilityDimension !== "years-experience" || req.comparable?.op !== ">=" || !bar) return v;
     const userYears = answerYearsBar(req, years);
     if (userYears === null) return v;
     return { ...v, fit: Math.max(0, Math.min(1, userYears / bar)) };

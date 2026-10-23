@@ -240,3 +240,77 @@ describe("#413 the card: the scorer's fit for a years bar has no effect, and an 
     expect(short.dontYet.map((r) => r.id)).toContain("years-bar"); // 7.6/15 — a shortfall, shown, never asked
   });
 });
+
+// #416 (ADR-0020 clause 5) — a degree bar is decided by the degree held: the highest degree among
+// the person's education facts against the bar's level. Held >= bar with no field named: fit 1,
+// whatever the scorer said. A field named: the level is the record's and the scorer judges only
+// the field (judge.ts tells it so), so its verdict stands here. Held below the bar, or either level
+// unknown: the scorer's reading stands — "or equivalent experience" is a judgement.
+describe("#416 applyRecordBars — a degree bar is decided by the degree held", () => {
+  const MASTERS = [{ id: "edu-esiea", text: "ESIEA, Paris — Master's Degree in Computer Science (Machine Learning)" }];
+  const BACHELORS = [{ id: "edu-bsc", text: "BSc Computer Science, 2008" }];
+  const UNREADABLE = [{ id: "edu-esiea", text: "ESIEA, Paris, 2010" }];
+  const degreeBar = (over: Partial<AdRequirementV1> = {}): AdRequirementV1 => ({
+    id: "degree-bar",
+    band: "essential",
+    kind: "ordinary",
+    requirement: "Bachelor's degree",
+    eligibilityDimension: "degree",
+    degreeLevel: "bachelor",
+    sourceSpan: "Bachelor's degree",
+    ...over,
+  });
+  const noYears: SessionYears = { family: null, total: null, familySource: "unscoped", familyConfidence: null };
+
+  it("AC1: a Master's meets 'Bachelor's degree' with fit 1 whether the scorer said 0.3 or 0.9", () => {
+    for (const scorerFit of [0.3, 0.9]) {
+      expect(fitOf(applyRecordBars([verdict("degree-bar", scorerFit)], ad(degreeBar()), noYears, MASTERS), "degree-bar")).toBe(1);
+    }
+  });
+
+  it("AC2: with a field named the scorer's field verdict stands — the level was settled for it", () => {
+    const withField = degreeBar({ requirement: "Bachelor's degree in Computer Science or related field", degreeFieldNamed: true });
+    const verdicts = [verdict("degree-bar", 0.6)];
+    expect(applyRecordBars(verdicts, ad(withField), noYears, MASTERS)).toEqual(verdicts);
+  });
+
+  it("AC3: a bachelor's against 'Master's degree' keeps the scorer's reading — never forced to 0", () => {
+    const verdicts = [verdict("degree-bar", 0.4)];
+    expect(applyRecordBars(verdicts, ad(degreeBar({ requirement: "Master's degree", degreeLevel: "master" })), noYears, BACHELORS)).toEqual(verdicts);
+  });
+
+  it("AC4: an education fact with no readable level leaves the scorer's reading untouched", () => {
+    const verdicts = [verdict("degree-bar", 0.5)];
+    expect(applyRecordBars(verdicts, ad(degreeBar()), noYears, UNREADABLE)).toEqual(verdicts);
+  });
+
+  it("a bar whose level the reader could not name (no degreeLevel) is the scorer's, as today", () => {
+    const verdicts = [verdict("degree-bar", 0.5)];
+    expect(applyRecordBars(verdicts, ad(degreeBar({ degreeLevel: undefined })), noYears, MASTERS)).toEqual(verdicts);
+  });
+
+  it("a doctorate meets a master's bar; the fact set defaults to none, so a caller without facts changes nothing", () => {
+    const phd = [{ id: "edu-phd", text: "PhD in Statistics" }];
+    expect(fitOf(applyRecordBars([verdict("degree-bar", 0.2)], ad(degreeBar({ degreeLevel: "master" })), noYears, phd), "degree-bar")).toBe(1);
+    const verdicts = [verdict("degree-bar", 0.2)];
+    expect(applyRecordBars(verdicts, ad(degreeBar()), noYears)).toEqual(verdicts);
+  });
+
+  it("the card: the % is the same whether the scorer rated the degree bar 0.3 or 0.9, even with no work history", () => {
+    const posting: Posting = { id: "ad-x", title: "PM", company: "Acme", location: "Hong Kong", keywords: [], excerpt: "x", language: "en" };
+    const other: AdRequirementV1 = { id: "english", band: "essential", kind: "ordinary", requirement: "Fluent English", sourceSpan: "Fluent English" };
+    const adReq = ad(degreeBar(), other);
+    const judgement = (degreeFit: number): JudgementRecord => ({
+      verdicts: [verdict("degree-bar", degreeFit), verdict("english", 0.5)],
+      version: "test",
+      cost: { model: "none", inputTokens: 0, outputTokens: 0, judgedAt: "2026-10-18T00:00:00.000Z" },
+      facts: MASTERS, // the fact set the judgement was made against — the record the bar reads
+    });
+    const cardWith = (degreeFit: number) =>
+      buildJobCard(posting, adReq, [], [], withYearsShortfall(judgement(degreeFit), adReq, noYears), "estimated", noYears);
+    const low = cardWith(0.3);
+    const high = cardWith(0.9);
+    expect(low.matchPct).toBe(high.matchPct);
+    expect(low.dontYet.map((r) => r.id)).not.toContain("degree-bar");
+  });
+});

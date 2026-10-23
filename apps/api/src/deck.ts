@@ -614,14 +614,15 @@ export function newToFamily(years: SessionYears): boolean {
 /** #107 (D5) / #413 — applies recordBars.ts's applyRecordBars (a years bar is decided by the
  *  worked-out years alone, replacing the scorer's fit) on top of whatever resolveJudgement
  *  returned, at READ TIME only; never persisted. A plain pass-through when there's nothing to
- *  decide. */
+ *  decide. #416: the degree bar reads the judgement's own fact set — the education facts the
+ *  scorer saw — so it is decided even with no dated work history. */
 export function withYearsShortfall(
   judgement: JudgementRecord | null,
   adReq: AdRequirementsV1,
   years: SessionYears,
 ): JudgementRecord | null {
-  if (!judgement || (years.family === null && years.total === null)) return judgement;
-  return { ...judgement, verdicts: applyRecordBars(judgement.verdicts, adReq, years) };
+  if (!judgement) return judgement;
+  return { ...judgement, verdicts: applyRecordBars(judgement.verdicts, adReq, years, judgement.facts) };
 }
 
 /** Pure composition, no LLM: matchtick.ts (or, when a judgement is available, judgedScore.ts) scores
