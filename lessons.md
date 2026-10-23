@@ -324,7 +324,11 @@ would have withdrawn every Australian posting for an Australian in Hong Kong. A 
 (`language`) instead of a thing (`Mandarin`) silently matches the wrong instance; an unknown scope
 returns `null` and never withdraws; store the grade, not a boolean, when consumers may read it at a
 different bar; a model label wired to a destructive action (`blocking`) carries an explicit
-definition, a boundary regression test, and a firing-rate counter.
+definition, a boundary regression test, and a firing-rate counter. **Check what the judging model
+can see before trusting its fit.** The card judge sees requirement and fact text only, with no dates
+and no degree level. So it rated an 8-year bar 0.5 for a man with 9.8 dated years ("no explicit
+total years"), and a Master's against a bachelor's at 0.3 to 0.9 across runs. Both became questions
+the CV already answered (#408). A bar the record answers is decided by the record (ADR-0020 clause 5).
 
 ### Changing a unit or container changes every bound around it
 `MAX_QUERY_TERM_LENGTH = 40` was per word; when queries became phrases it silently truncated a

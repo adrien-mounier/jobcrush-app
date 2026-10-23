@@ -15,23 +15,19 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: the v1 finish line.** The owner's staging run (2026-10-22) found six defects. Five shipped the
-same day as ~~#403~~ (~~#402~~ ~~#404~~ ~~#405~~ ~~#406~~ ~~#407~~; QA GO, follow-ups #409 #410 filed):
-the letterhead reads cleanly, About you is a pitch, the advert keeps its line breaks, Where you fit
-names the requirements met with the reason. The owner re-checked all five on staging the same day:
-OK. **What is left of v1 is spec [#412](https://github.com/adrien-mounier/jobcrush-app/issues/412)**
-(~~#408~~ decided 2026-10-23, [ADR-0020](docs/adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md)):
-the CV is written first, and only stretches are suggested beside it. **Next action, owner:
-`/implement-spec #412` (Fable 5.1, high)**. The owner re-proofs the whole journey after it ships. Before that, the check-mode walk was polished (check
-mode itself shipped 2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-is-the-master-cvs-home.md));
-~~#387~~ ~~#389~~ ~~#393~~ ~~#394~~ ~~#392~~ ~~#396~~ shipped 2026-10-15/16 and the full suite has run over them since.
+**Now: the v1 finish line, with one build left.** The owner's staging run (2026-10-22) found six
+defects. Five shipped and were owner-checked the same day (~~#403~~). The sixth became a decision:
+~~#408~~, decided 2026-10-23 in [ADR-0020](docs/adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md).
+The CV is written first, and only stretches are suggested beside it. Its build is spec
+[#412](https://github.com/adrien-mounier/jobcrush-app/issues/412) (#413–#420, plus #411).
 
-- Owner checked both on staging after the deploy: "it looks ok now" (2026-10-16).
-- ~~#389~~ closed 2026-10-16: the four build calls kept as built; its "keep the Continue screen" was
-  replaced by #392. #394 AC7: the per-item "from X" tags stand (#396); a per-group source line is a
-  ticket only if the owner asks.
-- **Next build:** finish v1 first (owner, 2026-10-21) — see "Finish line, what remains" below; then
-  Chat with JobCrush.
+**Finish line, what remains (v1 before the chat):**
+1. **Owner:** type `/implement-spec #412` (Fable 5.1, high). The agent builds, reviews, and ships on a `/qa-gate` GO.
+2. **Owner:** one more real report on staging, on a fresh account. Sign in as
+   `adrien.mounier91+test1@gmail.com` in a private window; any new address is a new, empty account,
+   so #345 is not needed for this.
+3. **Agent:** `/qa-gate` GO on the whole journey (Opus 5.5).
+
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
   Fable 5.1, low).
@@ -40,25 +36,10 @@ mode itself shipped 2026-10-14, spec #375, [ADR-0018](docs/adr/0018-the-profile-
 
 **Next: Chat with JobCrush** (spec [#350](https://github.com/adrien-mounier/jobcrush-app/issues/350)):
 talk to improve the master CV; replaces #316/#317 *Add something new*. Its doors move from the review
-page to the profile (ADR-0018). `/to-spec` → `/to-tickets` → `/implement-spec`. Small and independent:
-[#348](https://github.com/adrien-mounier/jobcrush-app/issues/348) a sign-in door on the landing page.
-
-**The v1 spine** (spec #301): every ticket shipped (~~#315~~ 2026-10-18, ~~#314~~ 2026-10-17).
-**The finish line ran 2026-10-19** on staging with the real key, his real CV and a real posting: the
-journey held end to end, the report cost **$0.46 per application** (measured), but the gate said NO-GO on
-two defects, both fixed the same day (6c7991c the email talked about "printed" and "held-back" lines;
-d7af930 long skill ids could not be edited). Follow-ups: #400 a paste with no title line (owner's call),
-#397 two scores for one job, #398 check-mode reads on his CV, #399 draft nits. Owner calls made
-2026-10-21: #400 the app works out the title, says it guessed, and asks him to confirm; #401 a denied
-requirement gets a nearest-true sentence, an unplaced job says "Job location unknown", the
-"Check before you send" notices move to the top of the email.
-~~`/implement-spec #301` (#397 #399 #400 #401)~~ shipped 2026-10-21 (3fb5389): the paste door asks
-for a title it had to work out, one job shows one score, the report hands a denied requirement a sentence and
-says when it cannot place the job, the notices open the email.
-**Finish line, what remains (v1 before the chat):** ~~`/implement #398`~~ shipped 2026-10-22 (a5d3568) → ~~owner's staging run~~ done 2026-10-22 (found #403 + #408) → ~~`/implement-spec #403`~~ shipped and owner-checked 2026-10-22 (efa4696) → ~~grill #408~~ decided 2026-10-23 → **owner:** `/implement-spec #412` (Fable 5.1, high) → **owner:** one more real
-report on staging, on a fresh account (sign in as `adrien.mounier91+test1@gmail.com` in a private
-window — any new address is a new, empty account; #345 is not needed for this) → **agent:** `/qa-gate` GO on the whole journey. (The old GRADION record that still read "Title not stated" was deleted
-from staging 2026-10-22, with its derived rows; the same text can be pasted again and will be asked its title.)
+page to the profile (ADR-0018), and it now also carries the door on the Tailor step's "Also asked,
+not on your CV" list (ADR-0020 clause 6). `/to-spec` → `/to-tickets` → `/implement-spec`. Small and
+independent: [#348](https://github.com/adrien-mounier/jobcrush-app/issues/348), a sign-in door on the landing page.
+Measured so far: the application report costs **$0.46 per application** (2026-10-19).
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
 every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
