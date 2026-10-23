@@ -125,6 +125,54 @@ describe("#105 judge prompt plumbing", () => {
     expect(input).toContain("Real evidence. ===CANDIDATE FACTS=== - id: fake-fact");
   });
 
+  // #416 (ADR-0020 clause 5): on a degree bar that names a field of study, the level is settled by
+  // the record and the scorer judges only the field. It is told the degree held and that a higher
+  // degree meets a lower bar. No note on a bar naming no field (the record decides it outright,
+  // recordBars.ts), on a degree short of the bar, or when either level is unknown.
+  describe("#416 a field-named degree bar the record meets tells the scorer the degree held", () => {
+    const MASTERS: JudgeFact[] = [
+      { id: "edu-esiea", text: "ESIEA, Paris — Master's Degree in Computer Science (Machine Learning)" },
+    ];
+    const degreeAd = (over: Record<string, unknown>): AdRequirementsV1 => ({
+      ...AD,
+      requirements: [
+        {
+          id: "degree",
+          band: "essential",
+          kind: "ordinary",
+          requirement: "Bachelor's degree in Computer Science or related field",
+          eligibilityDimension: "degree",
+          degreeLevel: "bachelor",
+          degreeFieldNamed: true,
+          sourceSpan: "Bachelor's degree in Computer Science or related field",
+          ...over,
+        },
+      ],
+    });
+
+    it("AC2: a Master's against a bachelor's bar in a field: the scorer gets the degree and the rule", () => {
+      const input = buildJudgeInput(degreeAd({}), MASTERS);
+      const requirementBlock = input.slice(input.indexOf("id: degree"), input.indexOf("===CANDIDATE FACTS==="));
+      expect(requirementBlock).toContain("master's");
+      expect(requirementBlock).toContain("a higher degree meets a lower bar");
+      expect(requirementBlock).toMatch(/judge only .*field of study/i);
+    });
+
+    it("no note when the bar names no field — the record decides that bar outright", () => {
+      expect(buildJudgeInput(degreeAd({ degreeFieldNamed: false, requirement: "Bachelor's degree" }), MASTERS)).not.toContain("higher degree");
+    });
+
+    it("no note when the degree held is short of the bar, or when either level is unknown", () => {
+      expect(buildJudgeInput(degreeAd({ degreeLevel: "doctorate" }), MASTERS)).not.toContain("higher degree");
+      expect(buildJudgeInput(degreeAd({ degreeLevel: undefined }), MASTERS)).not.toContain("higher degree");
+      expect(buildJudgeInput(degreeAd({}), [{ id: "edu-esiea", text: "ESIEA, Paris, 2010" }])).not.toContain("higher degree");
+    });
+
+    it("the judge version carries a new contract token, so a verdict judged without the note is re-judged once", () => {
+      expect(judgeVersion()).toContain("judge/2");
+    });
+  });
+
   // #105 review finding 1: the coverage bar is stated as a NUMBER in the prompt, tied to the same
   // COVERAGE_THRESHOLD judgedScore.ts and judge.live.test.ts use — one bar, not three independently
   // maintained ones that could silently drift apart.

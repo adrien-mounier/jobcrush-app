@@ -25,6 +25,9 @@ const LANGUAGE_LEVELS = ["not-at-all", "a-few-words", "gets-by", "meetings", "ne
 // #222 — the scopes a years bar can test (see the yearsScope check below). #284 added "industry":
 // a bar naming a published industry, whose id rides on `yearsIndustry`.
 const YEARS_SCOPES = ["family", "industry", "total"];
+// #416 (ADR-0020 clause 5) — the degree ladder, ascending, kept identical to the zod port's
+// DegreeLevel: the level a degree bar asks for, so the record can decide it (held >= bar).
+const DEGREE_LEVELS = ["bachelor", "master", "doctorate"];
 
 function exactKeys(e, value, keys, at) {
   if (!isObject(value)) return;
@@ -79,6 +82,8 @@ export function validateAdRequirementsV1(value) {
         "yearsScope",
         "yearsIndustry",
         "yearsFamilies",
+        "degreeLevel",
+        "degreeFieldNamed",
         "sourceSpan",
       ],
       at,
@@ -142,6 +147,18 @@ export function validateAdRequirementsV1(value) {
       req.yearsFamilies === undefined ||
         (isArray(req.yearsFamilies) && req.yearsFamilies.every(isNonEmptyString)),
       `${at}.yearsFamilies must be a list of non-empty family ids`,
+    );
+    // #416 (ADR-0020 clause 5) — additive v1 fields on the SAME version bump as yearsFamilies: the
+    // level a degree bar asks for (a rung of the degree ladder, never a grade or free text) and
+    // whether it names a field of study. Only meaningful beside a "degree" eligibilityDimension;
+    // adReader.ts's clamp drops them elsewhere.
+    e.require(
+      req.degreeLevel === undefined || oneOf(req.degreeLevel, DEGREE_LEVELS),
+      `${at}.degreeLevel must be bachelor, master, or doctorate`,
+    );
+    e.require(
+      req.degreeFieldNamed === undefined || isBool(req.degreeFieldNamed),
+      `${at}.degreeFieldNamed must be a boolean`,
     );
     if (req.comparable !== undefined) {
       const c = req.comparable;

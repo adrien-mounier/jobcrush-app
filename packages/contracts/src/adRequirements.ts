@@ -79,6 +79,11 @@ export const LanguageLevel = z.enum([
   "native", // speaks it like a first language
 ]);
 
+// #416 (ADR-0020 clause 5) — the degree ladder, ascending. The level a degree bar asks for and the
+// level the record reads from the person's education both sit on it, so "held >= bar" is one
+// comparison: a Master's meets a bachelor's. Nothing finer (a grade, an institution) is a level.
+export const DegreeLevel = z.enum(["bachelor", "master", "doctorate"]);
+
 export const AdRequirementV1 = z
   .object({
     id: z.string().min(1),
@@ -147,6 +152,16 @@ export const AdRequirementV1 = z
     // published, so it is not tested (never a zero); non-empty = those families. Which ids are
     // publishable is not this contract's to know; adReader.ts's clamp drops an unpublished one.
     yearsFamilies: z.array(z.string().min(1)).optional(),
+    // #416 (ADR-0020 clause 5) — the same contract version as yearsFamilies above (one bump for
+    // the two record-decided bars, never a second). WHICH LEVEL a degree bar asks for, on the one
+    // ladder bachelor < master < doctorate, so the record can decide it: the highest degree held
+    // meets any bar at or below it. Only meaningful beside eligibilityDimension "degree"; absent =
+    // the advert states a degree without a readable level, and the scorer's reading stands.
+    degreeLevel: DegreeLevel.optional(),
+    // #416 — whether the bar names a FIELD of study ("in Computer Science or a related field").
+    // With a field, the record settles the level and the scorer judges only the field; without
+    // one (or "any field"), the level alone decides. Absent reads as no field named.
+    degreeFieldNamed: z.boolean().optional(),
     // The advert's own words this requirement was drawn from, so it can be shown to be the advert's
     // and not the model's — the provenance pin. A literal excerpt (this codebase's existing
     // source_quote convention), not a character span: reliable for a model to produce, and directly
@@ -191,5 +206,6 @@ export type AdRequirementKind = z.infer<typeof AdRequirementKind>;
 export type ComparableValue = z.infer<typeof ComparableValue>;
 export type EligibilityDimension = z.infer<typeof EligibilityDimension>;
 export type LanguageLevel = z.infer<typeof LanguageLevel>;
+export type DegreeLevel = z.infer<typeof DegreeLevel>;
 export type AdRequirementV1 = z.infer<typeof AdRequirementV1>;
 export type AdRequirementsV1 = z.infer<typeof AdRequirementsV1>;

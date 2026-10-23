@@ -199,7 +199,16 @@ published family the fields map to (`yearsFamilies` on the requirement), and the
 merged months of every job placed in any of them; a field we do not publish adds nothing, and a bar
 naming only unpublished fields is **not tested**, never a zero. The bar is met or short on that number
 alone — its fit is `min(1, years / bar)` (`apps/api/src/recordBars.ts`), never how a CV sentence
-reads — and a shortfall is never asked: it shows on the card, and may be bridged by a **stretch**. A third scope, **industry**,
+reads — and a shortfall is never asked: it shows on the card, and may be bridged by a **stretch**. **A
+degree bar is decided the same way** (#416, ADR-0020 clause 5): the job reader names the bar's level
+(`degreeLevel`: bachelor < master < doctorate) and whether it names a field of study
+(`degreeFieldNamed`); a deterministic reader (`apps/api/src/degreeLevel.ts`) finds the highest degree
+among the person's education lines, in the common English and French forms, an engineering degree
+read as master, anything else **unknown, never guessed**. A bar naming no field is met outright when
+the degree held is at or above it — a Master's meets a bachelor's, whatever the scorer said; a bar
+naming a field has its level settled by the record and the scorer judges only the field, told the
+degree held and that a higher degree meets a lower bar. A degree below the bar, or either level
+unknown, keeps the scorer's reading: "or equivalent experience" is a judgement. A third scope, **industry**,
 exists on the requirement from #284: the advert reader names a published industry id (or none, when
 the advert names an industry we do not publish, which leaves the bar untestable). Nothing is scored
 against it until #285 — an industry bar is answered as a career-total bar until then. A **known zero is not an

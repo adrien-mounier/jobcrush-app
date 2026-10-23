@@ -5,6 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import {
+  FamilyPlacement as FamilyPlacementContract,
   FamilyVersionReference,
   IndustryPlacement as IndustryPlacementContract,
   MinedDate,
@@ -79,7 +80,14 @@ const CorrectBody = z.discriminatedUnion("key", [
   // #221: the visitor's own answer to "what kind of work is this?" — a reference into the closed
   // published list, never free text. Which family versions actually exist is checked in the handler
   // (the contract can only police the shape).
-  z.object({ key: z.literal("family"), value: FamilyVersionReference }),
+  // #414 (ADR-0020 clause 5): one reference OR a list of them — a job can be two kinds of work and
+  // the person may say so. Or a WHOLE placement, which is the undo, on exactly the industry door's
+  // terms below: what has to be put back may be an unmapped, or the machine's own two families at
+  // the confidence it gave, which no list of references can express.
+  z.object({
+    key: z.literal("family"),
+    value: z.union([FamilyVersionReference, z.array(FamilyVersionReference).min(1), FamilyPlacementContract]),
+  }),
   // #281: her own answer to "what industry was this?" — a reference into the closed published
   // vocabulary, never free text. Which industry versions actually exist is checked in the handler.
   //
@@ -160,18 +168,17 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
       // mutated a record without re-deriving. Counted and repaired, never silently absorbed. The
       // records are already in hand, so this costs one eligibility read (and a write only on drift).
       await verifyWorkedYears(deps.eligibility, session.id, blocks, summary.read);
-      // #231: the published families no longer travel with the deck. They were here so the review
-      // screen could offer choices for a job nobody could place — nobody is asked any more, so this
-      // was a list nothing read. The list itself still guards the CORRECTION door below, where the
-      // closed vocabulary is actually enforced.
-      //
-      // #281: the published INDUSTRIES do travel, for the opposite reason — something reads them.
-      // The work-history screen prints the industry beside the employer, and a placement carries ids
+      // #281: the published INDUSTRIES travel with the deck because something reads them. The
+      // work-history screen prints the industry beside the employer, and a placement carries ids
       // and versions only, so the display names have to come from the same publication the labeler
       // placed into. It is also what the correction picker offers, so the screen can never offer a
       // choice the correction door would then refuse. Not a question: a list to show and to pick
       // from when she disagrees, never a prompt asking her which industry she was in.
-      return { blocks, summary, industries: publishedIndustryChoices() };
+      //
+      // #414: the published FAMILIES travel on the same terms — #231 took them off because nothing
+      // read them; the job page's Kind of work row and its correction now do. Still never a
+      // question: the card states the families, and the panel offers the list when she disagrees.
+      return { blocks, summary, industries: publishedIndustryChoices(), families: publishedChoices() };
     });
 
     app.post(
@@ -265,29 +272,44 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
           } satisfies IndustryPlacement;
         }
         if (key === "family") {
-          const known = publishedChoices().find(
-            (family) => family.familyId === value.familyId && family.version === value.version,
+          const choices = publishedChoices();
+          // #414: her pick is one reference or a list of them; the undo is a whole placement.
+          const named =
+            "schemaVersion" in value
+              ? value.outcome === "confirmed"
+                ? value.families
+                : []
+              : Array.isArray(value)
+                ? value
+                : [value];
+          // Checked one by one: a list that names a real family beside one nobody published is
+          // refused whole, and an undo cannot slip an unpublished family back in through the door
+          // that exists to keep the vocabulary closed.
+          const known = named.map((ref) =>
+            choices.find((family) => family.familyId === ref.familyId && family.version === ref.version),
           );
-          if (!known) {
+          if (known.some((family) => !family)) {
             return reply
               .status(400)
               .send({ error: { code: "unknown_family", message: "no such published job family" } });
           }
-          familyLabel = known.label;
-          stored = {
-            schemaVersion: PLACEMENT_SCHEMA_VERSION,
-            outcome: "confirmed",
-            families: [{ familyId: known.familyId, version: known.version }],
-            // #231 — a person's own answer is the one placement nothing is unsure about, so it is
-            // never attenuated in the ranking. The machine's doubt was about the machine.
-            confidence: "certain",
-            // KNOWN LIMIT, deliberate: the contract went plural, this door did not. A correction
-            // names ONE family and supersedes whatever was there, so a person correcting a job the
-            // machine placed in two families narrows it to one. That is the right reading of the
-            // only correction anything can currently express ("this job is X"), and #231 scopes
-            // #128's correction machinery as untouched — but nothing can yet say "it is both".
-            // Widen this door when a surface exists that can ask for two.
-          } satisfies FamilyPlacement;
+          familyLabel = known.length ? known.map((family) => family!.label).join(" and ") : null;
+          stored =
+            "schemaVersion" in value
+              ? // The undo — stored as she read it, confidence and second family included.
+                value
+              : ({
+                  schemaVersion: PLACEMENT_SCHEMA_VERSION,
+                  outcome: "confirmed",
+                  families: named.map(({ familyId, version }) => ({ familyId, version })),
+                  // #231 — a person's own answer is the one placement nothing is unsure about, so
+                  // it is never attenuated in the ranking. The machine's doubt was about the machine.
+                  confidence: "certain",
+                  // #414 widened this door to a list: a correction names every family the job was,
+                  // and supersedes whatever was there. The years are re-derived below, so the job's
+                  // months count toward each family named (amendment 1 decision 4) and toward the
+                  // career total once.
+                } satisfies FamilyPlacement);
         }
         const found = await deps.jobBlocks.correct(session.id, req.params.blockId, key, stored);
         if (!found) return reply.status(404).send(notFound("unknown job block"));
@@ -326,7 +348,9 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
             ? // Deliberately says only what is true TODAY. Naming a per-family years number here
               // would promise a readback nothing computes yet (that is #222) — the same rule
               // downstreamMessage below already follows for the total.
-              `We'll count this job as ${familyLabel} from now on.`
+              familyLabel
+              ? `We'll count this job as ${familyLabel} from now on.`
+              : "We've put this job's kind of work back to not knowing."
             : before
               ? downstreamMessage(key, value, before)
               : null;

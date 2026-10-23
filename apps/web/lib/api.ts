@@ -1004,6 +1004,7 @@ export type {
   PublishedIndustryChoice as PublishedIndustry,
 } from "@jobcrush/contracts";
 import type {
+  FamilyPlacement,
   IndustryPlacement,
   Kind as JobBlockKind,
   MinedDate,
@@ -1020,8 +1021,19 @@ export function getJobBlocks(): Promise<{
    *  deploy this client can be talking to an API that predates it, and a screen that renders
    *  "we couldn't work this out" beats one that throws. */
   industries?: import("@jobcrush/contracts").PublishedIndustryChoice[];
+  /** #414 — the published job families, on the same terms: what the Kind of work row names and
+   *  the correction panel offers. */
+  families?: PublishedFamily[];
 }> {
   return jfetch("/api/job-blocks");
+}
+
+/** #414 — one published job family as it travels to the screen: the reference a placement carries
+ *  plus the display name. Same shape as PublishedIndustry, for the same reason. */
+export interface PublishedFamily {
+  familyId: string;
+  version: number;
+  label: string;
 }
 
 export function confirmJobBlock(id: string): Promise<{ ok: boolean }> {
@@ -1043,7 +1055,9 @@ export type JobBlockCorrection =
   // #221: the person's own answer to "what kind of work is this?" — a reference into the published
   // list, never free text. #231 removed the screen that ASKED it; the family stays a correctable
   // fact, so this door stays open for the correction surface that #128's machinery already has.
-  | { key: "family"; value: { familyId: string; version: number } }
+  // #414: one family, or every family the job was (a job can be two kinds of work), or — the undo —
+  // the WHOLE placement she read before, exactly as the industry door takes it.
+  | { key: "family"; value: { familyId: string; version: number } | Array<{ familyId: string; version: number }> | FamilyPlacement }
   // #281: her own answer to "what industry was this job in?" — a reference into the published
   // vocabulary, never free text. Unlike the family, this one HAS a surface (the correction panel's
   // industry picker), because the screen shows the machine's answer and a shown answer must be

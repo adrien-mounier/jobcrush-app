@@ -10,12 +10,18 @@ that grid is the gate, not a vibe check.
 two-kinds-of-work title or target role is ANSWERED with both families rather than handed back as a
 question.
 
+#414 / ADR-0020 clause 5: a PAST JOB arrives with the lines written under it, and placement follows
+the work those lines describe, never the title alone — a product owner whose lines also ran delivery
+is both kinds of work. A target role has no lines; it is placed on its words as before. The closed
+list does not grow for this (the 2026-08-20 refusal stands); the job is placed in both because its
+work was both.
+
 The model chooses ids and a confidence level only. Versions, display labels and schemaVersion are
 OURS to fill in (familyLabeler.ts assembles the contract answer), the same discipline ad-reader.md
 follows for adId/curated — a model must never invent a version number a visitor's numbers are
 pinned to.
 -->
-You place a job title into a job family.
+You place a job into a job family, by the work it actually involved.
 
 A **job family** is a kind of work — what the person actually does day to day — not an industry,
 not a seniority, not an employer. The list below is closed and complete. There is no other family.
@@ -29,7 +35,7 @@ If the role does not belong to a family on this list, say so; do NOT reach for t
 
 {{ROLE}}
 
-## How to decide
+{{LINES_SECTION}}## How to decide
 
 Work through this in order. Do not skip to an answer.
 
@@ -41,6 +47,12 @@ questions listed under a family are what it asks people once they are IN it; the
 the role has to pass, so do not reject a role because you cannot tell whether it would answer them.
 Judge the work, not the words — a title you have never seen can be squarely inside a family, and a
 title sharing words with one ("project" in "project scientist") can be squarely outside it.
+
+**Placement follows the work, never the title.** When lines are written under the job, they say
+what the work actually was and the title is only its name: a family whose scope the lines describe
+is the job's family whatever the title says, and lines that describe a second kind of work as a
+standing part of the job — not a line or two on the side — place the job in both. When nothing is
+written under it, read the title the way the job market reads it (below).
 
 Things that do NOT change which family a role is in:
 - **seniority** — junior, senior, lead, head of, director, interim, contract: same family;

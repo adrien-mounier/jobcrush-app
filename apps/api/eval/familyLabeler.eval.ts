@@ -47,6 +47,13 @@ describe("#220 the labeler measurement grid", () => {
 
       const rates = rateGrid(results);
       for (const line of describeMisses(results)) console.error(line);
+      // #414: the receipt. Every run is paid for, so the tokens it spent are printed beside the
+      // rates — price them with llmPricing.ts's table for the model named above.
+      const spent = results.reduce(
+        (sum, item) => ({ input: sum.input + item.inputTokens, output: sum.output + item.outputTokens }),
+        { input: 0, output: 0 },
+      );
+      console.log(`tokens: ${spent.input} in, ${spent.output} out, over ${results.length} cases`);
       console.log(
         `\n${results.length} cases | comparable accuracy ${(rates.comparableAccuracy * 100).toFixed(1)}% (bar 95) | stranger recall ${(rates.strangerRecall * 100).toFixed(1)}% (bar 90) | false-unknown ${(rates.falseUnknownRate * 100).toFixed(1)}% (bar 5)` +
           // #231: reported, never barred. Confidence is measured so a labeler that hedges

@@ -234,16 +234,19 @@
 /* #281 — the industry, stated beside the employer it describes. Quieter than the readback (it is a
    fact ABOUT the job, not the job) and quieter still when we could not work it out, so an honest
    "we don't know" never shouts louder than what we do know. */
-.jobblocks .jb-industry {
+.jobblocks .jb-industry,
+.jobblocks .jb-family {
   font-size: 0.95rem;
   line-height: 1.5;
   margin: var(--jc-sp-sm) 0 0;
   color: var(--jc-ink-muted);
 }
-.jobblocks .jb-industry b {
+.jobblocks .jb-industry b,
+.jobblocks .jb-family b {
   color: var(--jc-ink);
 }
-.jobblocks .jb-industry[data-placed="false"] {
+.jobblocks .jb-industry[data-placed="false"],
+.jobblocks .jb-family[data-placed="false"] {
   font-style: italic;
 }
 

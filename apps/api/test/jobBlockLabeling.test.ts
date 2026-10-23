@@ -12,7 +12,8 @@ import { runOnboardingJob } from "../src/pipeline.js";
 import { makeJobBlockLabeler, publishedFamilies, type PublishedFamily } from "../src/familyLabeler.js";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
 import type { LlmClient } from "../src/llm.js";
-import type { JobBlockView, MinedJobBlock } from "@jobcrush/contracts";
+import type { CandidateClaim, JobBlockView, MinedJobBlock } from "@jobcrush/contracts";
+import { InMemoryClaimStore } from "../src/claims.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 import { InMemoryUnmappedLabelStore } from "../src/unmappedLabels.js";
 import { computeYearsWorked } from "../src/yearsWorked.js";
@@ -38,14 +39,16 @@ const TWO_FAMILIES: PublishedFamily[] = [
  *  the only thing "a retry re-spends nothing" can mean from outside. */
 function fakeLlm(answerFor: (role: string) => string) {
   const roles: string[] = [];
+  const prompts: string[] = [];
   const llm: LlmClient = {
     async complete(prompt: string) {
       const role = (/## The role to place\s+(.+)/.exec(prompt) ?? [, ""])[1]!.trim();
       roles.push(role);
+      prompts.push(prompt);
       return answerFor(role);
     },
   };
-  return { llm, roles };
+  return { llm, roles, prompts };
 }
 
 const confirmedAnswer = (ids: string[], confidence = "certain") =>
@@ -67,6 +70,24 @@ function minedBlock(id: string, title: string, employer = "Nordic Retail"): Mine
 
 const MINED = [minedBlock("nordic-pm", "IT Project Manager"), minedBlock("cafe-baker", "Pastry Chef", "Café Nord")];
 
+/** #414: one of the person's own CV lines, under the job it was written under. */
+function claim(id: string, role: string, text: string): CandidateClaim {
+  return {
+    id,
+    semantic_key: id,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role,
+    text,
+    machine_touch: "verbatim",
+    classification: "Verified",
+    source_quote: text.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+  };
+}
+
 /** A server plus one session, with the pipeline's job-block steps wired to the fakes below. */
 async function stack(options: {
   answerFor: (role: string) => string;
@@ -74,20 +95,25 @@ async function stack(options: {
   blocks?: MinedJobBlock[];
   labeler?: (sessionId: string) => Promise<void>;
   routeRetries?: boolean;
+  /** #414: the person's own CV lines, which the labeler reads beside the title. */
+  claims?: CandidateClaim[];
 }) {
   const jobBlocks = new InMemoryJobBlockStore();
   await jobBlocks.init();
-  const { llm, roles } = fakeLlm(options.answerFor);
+  const claims = new InMemoryClaimStore();
+  await claims.init();
+  const { llm, roles, prompts } = fakeLlm(options.answerFor);
   const unmappedLabels = new InMemoryUnmappedLabelStore();
   const labelJobBlocks =
     options.labeler ??
-    makeJobBlockLabeler(llm, options.families ?? PUBLISHED, jobBlocks, undefined, unmappedLabels);
+    makeJobBlockLabeler(llm, options.families ?? PUBLISHED, jobBlocks, undefined, unmappedLabels, claims);
   const server = buildServer({ jobBlocks, pipeline: options.routeRetries ? { labelJobBlocks } : undefined });
   const res = await server.app.inject({ method: "POST", url: "/sessions/anonymous" });
   const cookie = `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
   const sessionId = (
     await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })
   ).json().id as string;
+  if (options.claims?.length) await claims.seed(sessionId, options.claims);
 
   const jobs = new InMemoryJobStore();
   const mine = async (blocks: MinedJobBlock[] = options.blocks ?? MINED) => {
@@ -104,7 +130,7 @@ async function stack(options: {
   const read = async (): Promise<{ blocks: JobBlockView[] }> =>
     (await server.app.inject({ method: "GET", url: "/job-blocks", headers: { cookie } })).json();
 
-  return { server, cookie, sessionId, jobBlocks, jobs, roles, mine, read, unmappedLabels };
+  return { server, cookie, sessionId, jobBlocks, jobs, roles, prompts, mine, read, unmappedLabels };
 }
 
 const familyOf = (blocks: JobBlockView[], id: string) => blocks.find((b) => b.id === id)!.family;
@@ -171,9 +197,39 @@ describe("#221 AC1 — every dated job record carries a family placement", () =>
 
   // #231 — the published list travelled with the deck only so the screen could offer choices for an
   // unplaced job. Nobody is asked any more, so nothing reads it and it is no longer sent.
-  it("no longer serves the published families with the deck — nothing asks", async () => {
+  // #231 took the list off the deck because nothing read it; #414 puts it back for the one thing
+  // that does — the job page's Kind of work correction, which offers exactly the published
+  // families so the screen can never offer a choice the door would refuse. Still never a question.
+  it("serves the published families with the deck, for the correction picker (#414)", async () => {
     const s = await stack({ answerFor: () => UNMAPPED_ANSWER });
-    expect((await s.read() as Record<string, unknown>).families).toBeUndefined();
+    expect((await s.read() as { families?: unknown }).families).toEqual(
+      PUBLISHED.map(({ familyId, version, label }) => ({ familyId, version, label })),
+    );
+  });
+});
+
+describe("#414 — a job's kind of work follows its lines, never its title alone (ADR-0020 clause 5)", () => {
+  it("sends the job's own lines with its title, under the rule that placement follows the work", async () => {
+    const s = await stack({
+      answerFor: () => UNMAPPED_ANSWER,
+      blocks: [minedBlock("okoone-po", "Product Owner", "Okoone")],
+      claims: [
+        claim("c1", "Okoone — Product Owner", "Managed scope, budget and delivery timelines for the platform rebuild"),
+        claim("c2", "Okoone — Product Owner", "Owned the product backlog and roadmap"),
+        claim("c3", "Elsewhere — Analyst", "Reconciled trade settlements daily"),
+      ],
+    });
+    await s.mine();
+
+    expect(s.roles).toEqual(["Product Owner"]);
+    const prompt = s.prompts[0]!;
+    expect(prompt).toContain("Managed scope, budget and delivery timelines for the platform rebuild");
+    expect(prompt).toContain("Owned the product backlog and roadmap");
+    expect(prompt).not.toContain("Reconciled trade settlements daily"); // another job's lines
+    // The rule itself: placement follows the work described, and a job whose lines describe two
+    // kinds of work is placed in both.
+    expect(prompt).toMatch(/follows? the work/i);
+    expect(prompt).toMatch(/both/i);
   });
 });
 
@@ -301,6 +357,28 @@ describe("#221 AC5 — the label is correctable, and a correction outranks the m
       url: "/job-blocks/nordic-pm/correct",
       headers: { cookie: s.cookie },
       payload: { key: "family", value: { familyId: "underwater-basket-weaving", version: 1 } },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("unknown_family");
+    expect(familyOf((await s.read()).blocks, "nordic-pm").value?.outcome).toBe("unmapped");
+  });
+
+  // #414: the door takes one OR MORE families — and a list is checked name by name, so a
+  // published family cannot smuggle an unpublished one in beside it.
+  it("refuses a list that names a family nobody published, even beside a real one", async () => {
+    const s = await stack({ answerFor: () => UNMAPPED_ANSWER });
+    await s.mine();
+    const res = await s.server.app.inject({
+      method: "POST",
+      url: "/job-blocks/nordic-pm/correct",
+      headers: { cookie: s.cookie },
+      payload: {
+        key: "family",
+        value: [
+          { familyId: IT_DELIVERY.familyId, version: IT_DELIVERY.version },
+          { familyId: "underwater-basket-weaving", version: 1 },
+        ],
+      },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe("unknown_family");

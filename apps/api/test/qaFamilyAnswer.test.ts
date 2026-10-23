@@ -11,8 +11,16 @@
 // contract and real published registry accept what this fake says".
 import { describe, expect, it } from "vitest";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
-import { placeJobTitle, placeTargetRole, publishedFamilies } from "../src/familyLabeler.js";
-import { QA_FAMILY_ID, QA_SECOND_FAMILY_ID, QA_THIRD_FAMILY_ID, qaFamilyAnswer, roleFromLabelerPrompt } from "../src/qaFamilyAnswer.js";
+import { buildFamilyLabelerInput, placeJobTitle, placeTargetRole, publishedFamilies } from "../src/familyLabeler.js";
+import { buildIndustryLabelerInput } from "../src/industryLabeler.js";
+import {
+  QA_FAMILY_ID,
+  QA_SECOND_FAMILY_ID,
+  QA_THIRD_FAMILY_ID,
+  isFamilyLabelerPrompt,
+  qaFamilyAnswer,
+  roleFromLabelerPrompt,
+} from "../src/qaFamilyAnswer.js";
 import type { LlmClient } from "../src/llm.js";
 
 const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
@@ -38,6 +46,21 @@ function counting(): { llm: LlmClient; calls: () => number } {
     calls: () => calls,
   };
 }
+
+// #414: the fake ROUTES by the prompt too, and a routing that no longer matches the real prompt
+// fails exactly as silently as an answer in the wrong shape did — every job unplaced, every tier
+// green. (#414's own prompt edit did that to the opening line qa-main matched on.)
+describe("#414 the QA stack's fake recognises the real labeler prompt", () => {
+  it("matches the family labeler's prompt and not the industry labeler's", () => {
+    expect(isFamilyLabelerPrompt(buildFamilyLabelerInput("Product Owner", PUBLISHED))).toBe(true);
+    expect(isFamilyLabelerPrompt(buildFamilyLabelerInput("Product Owner", PUBLISHED, ["Ran delivery"]))).toBe(true);
+    expect(
+      isFamilyLabelerPrompt(
+        buildIndustryLabelerInput({ employer: "Okoone", title: "Product Owner", lines: [] }, []),
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("#231 the QA stack's fake labeler answers in a shape the real labeler accepts", () => {
   it("places a past job first time, with no wasted retry", async () => {
