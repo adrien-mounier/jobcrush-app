@@ -47,8 +47,13 @@ import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView, type StretchContext } from "../tailorDraft.js";
 import {
+  RESAY_LIMIT,
   STRETCH_ANSWERS,
   answerSuggestion,
+  buildResayInput,
+  editableSuggestion,
+  resayStretch,
+  rewordSuggestion,
   stretchIsCurrent,
   stretchMarks,
   stretchView,
@@ -550,6 +555,56 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           return reply.status(404).send({ error: { code: "unknown_suggestion", message: "no such suggestion for this draft" } });
         await deps.tailorDrafts.put(session.id, posting.id, { ...stored, stretch: answered });
         return { stretch: stretchView(answered) };
+      },
+    );
+
+    // #420 (ADR-0020 clause 3; ADR-0005 clause 6): an edited wording on one pending suggestion. The
+    // edited line and what to say if asked, rewritten for it by the step's re-say mode, are stored
+    // together on the suggestion — so Use prints the edited line and "It's true" keeps it. The
+    // checkpoint: a line that already reads so spends nothing (the stored pair was written for
+    // exactly this line, on the facts of this current draft). Bounded per draft by RESAY_LIMIT.
+    app.post(
+      "/onboarding/tailor/suggestions/:id/wording",
+      { schema: { params: z.object({ id: z.string().min(1) }), body: z.object({ text: z.string().trim().min(1).max(600) }) } },
+      async (req, reply) => {
+        const session = requireUser(req);
+        const resolved = await resolveDraftTarget(session);
+        if (resolved.refused) {
+          const { status, code, message } = resolved.refused;
+          return reply.status(status).send({ error: { code, message } });
+        }
+        const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+        const header = letterheadText(await deps.contact.getRecord(session.id));
+        const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
+        const current = async () => {
+          const stored = await deps.tailorDrafts.get(session.id, posting.id);
+          return stored && stored.inputFingerprint === inputs.fingerprint ? stored : null;
+        };
+        const unknown = () =>
+          reply.status(404).send({ error: { code: "unknown_suggestion", message: "no such open suggestion for this draft" } });
+        const stored = await current();
+        const target = editableSuggestion(stored?.stretch, req.params.id);
+        // A suggestion exists only where the step ran, so stretchLlm is wired whenever target is.
+        if (!stored || !target || !deps.stretchLlm) return unknown();
+        const text = req.body.text.replace(/\s+/g, " ");
+        if (text === target.claimText) return { stretch: stretchView(stored.stretch) };
+        // ponytail: counts finished rewrites only — a call that fails twice is not counted; count
+        // before the call if failed calls ever show as spend.
+        if (stored.stretch?.status === "ran" && (stored.stretch.resaid ?? 0) >= RESAY_LIMIT)
+          return reply.status(429).send({ error: { code: "rewrite_limit", message: "this draft's wording edits are used up" } });
+        let say: string;
+        try {
+          say = await resayStretch(deps.stretchLlm, buildResayInput(text, inputs.claimsDoc));
+        } catch (err) {
+          console.error(`[ops] stretch re-say failed: ${err instanceof Error ? err.message : String(err)}`);
+          return reply.status(502).send({ error: { code: "rewrite_failed", message: "could not rewrite what to say for this wording" } });
+        }
+        // Applied to what is stored NOW: an answer may have landed while the call ran.
+        const fresh = await current();
+        const edited = fresh ? rewordSuggestion(fresh.stretch, req.params.id, text, say) : null;
+        if (!fresh || !edited) return unknown();
+        await deps.tailorDrafts.put(session.id, posting.id, { ...fresh, stretch: edited });
+        return { stretch: stretchView(edited) };
       },
     );
 
