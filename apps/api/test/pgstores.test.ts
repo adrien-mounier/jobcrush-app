@@ -749,6 +749,16 @@ for (const [name, make] of sessionDrivers) {
       await store.raiseFactFloor(s.id, 5);
       expect((await store.getById(s.id))?.factFloor).toBe(5);
     });
+
+    // #420 (review): the paid wording rewrites are bounded per session, so the count is the session's.
+    it("countStretchRewrite counts up per session and hands back the count", async () => {
+      const a = await store.create();
+      const b = await store.create();
+      expect(await store.countStretchRewrite(a.id)).toBe(1);
+      expect(await store.countStretchRewrite(a.id)).toBe(2);
+      expect(await store.countStretchRewrite(b.id)).toBe(1);
+      expect(await store.countStretchRewrite(a.id)).toBe(3);
+    });
   });
 }
 

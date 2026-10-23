@@ -171,7 +171,9 @@ const resayPrompt = promptFile("stretch-resay.md");
 export const RESAY_PROMPT_HEADING = "## Rewriting what to say for an edited line";
 /** The edited line in the re-say input — the fakes read it back off this shape (last match). */
 export const RESAY_LINE = /^===LINE===\n(.+)$/gm;
-/** Paid rewrites one draft's suggestions may take: spend bounded per draft, never per request. */
+/** Paid rewrites one session may take, across every job and draft (CODING_STANDARDS: spend is
+ *  bounded per session, not per request). Every edit that reaches the model counts once, a failed one
+ *  too, so at most 2 × RESAY_LIMIT calls with the one retry each (sessions.ts countStretchRewrite). */
 export const RESAY_LIMIT = 20;
 
 export function buildResayInput(line: string, claims: CandidateClaims): string {
@@ -191,8 +193,8 @@ export function editableSuggestion(checkpoint: StretchCheckpoint | undefined, id
 }
 
 /** The edited line and the interview line rewritten for it, stored together on one pending
- *  suggestion (pure). Counts the paid rewrite against RESAY_LIMIT. Null when the suggestion is not
- *  pending any more. The edit outlives an Undo: the answer goes back to pending, the wording stays. */
+ *  suggestion (pure). Null when the suggestion is not pending any more. The edit outlives an Undo:
+ *  the answer goes back to pending, the wording stays. */
 export function rewordSuggestion(
   checkpoint: StretchCheckpoint | undefined,
   id: string,
@@ -202,7 +204,6 @@ export function rewordSuggestion(
   if (checkpoint?.status !== "ran" || !editableSuggestion(checkpoint, id)) return null;
   return {
     ...checkpoint,
-    resaid: (checkpoint.resaid ?? 0) + 1,
     suggestions: checkpoint.suggestions.map((s) => (s.id === id ? StretchProposalV2.parse({ ...s, claimText, interviewNarrative }) : s)),
   };
 }
@@ -433,7 +434,7 @@ export function applyUsedStretches(draft: Draft, checkpoint: StretchCheckpoint |
 /** What is stored beside the draft. `ran` with an empty list is "found none"; `failed` is the step
  *  that did not finish; an absent field is a step that never ran (ADR-0010: three different states). */
 export type StretchCheckpoint =
-  | { fingerprint: string; status: "ran"; suggestions: StretchProposalV2[]; /** #420: paid rewrites spent */ resaid?: number }
+  | { fingerprint: string; status: "ran"; suggestions: StretchProposalV2[] }
   | { fingerprint: string; status: "failed" };
 
 /** The page marks for one read (#417): the pending suggestions numbered in list order (stable —

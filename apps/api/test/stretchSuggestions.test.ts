@@ -1343,27 +1343,36 @@ describe("#417 a redone suggestion step keeps the answers to the suggestions tha
   });
 });
 
-describe("#420 the rewrites one draft may spend are bounded", () => {
-  it("up to RESAY_LIMIT paid rewrites per draft; past it the edit is refused before anything is spent", async () => {
+describe("#420 the paid rewrites one session may spend are bounded (CODING_STANDARDS: per session, not per request)", () => {
+  it("every rewrite that reaches the model counts, a failed one too, up to RESAY_LIMIT per session and across jobs; past it the edit is refused before anything is spent", async () => {
     const tailor = draftingLlm();
-    const stretch = withResay(suggestingLlm().llm);
+    let broken = false;
+    const stretch = withResay(suggestingLlm().llm, (line) => (broken ? "not json" : JSON.stringify({ say: `Rewritten for: ${line}` })));
     const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
     const cookie = await anonSession(app);
     await reachTailor({ app, claims }, cookie, "stretch-edit-limit@example.com");
-    const view = await draftWithSuggestions(app, cookie);
-    const [swap, skill] = view.stretch.suggestions;
+    const [swap, skill] = (await draftWithSuggestions(app, cookie)).stretch.suggestions;
+    // Every other rewrite fails twice (502) — paid for all the same, so it counts.
     for (let i = 0; i < RESAY_LIMIT; i++) {
-      const res = await post(app, cookie, `/onboarding/tailor/suggestions/${i % 2 ? skill.id : swap.id}/wording`, { text: `Wording number ${i}` });
-      expect(res.statusCode).toBe(200);
+      broken = i % 2 === 1;
+      const res = await post(app, cookie, `/onboarding/tailor/suggestions/${i % 4 < 2 ? swap.id : skill.id}/wording`, { text: `Wording number ${i}` });
+      expect(res.statusCode).toBe(broken ? 502 : 200);
     }
-    expect(stretch.resays).toHaveLength(RESAY_LIMIT);
+    broken = false;
+    const spent = stretch.resays.length;
+    expect(spent).toBe(RESAY_LIMIT / 2 + RESAY_LIMIT); // the failed half made one retry each
     const over = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: "One wording too many" });
     expect(over.statusCode).toBe(429);
-    expect(stretch.resays).toHaveLength(RESAY_LIMIT);
-    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json().stretch;
-    expect(after.suggestions[0].claimText).toBe(`Wording number ${RESAY_LIMIT - 2}`);
+    expect(stretch.resays).toHaveLength(spent);
+
+    // Bounded per session, not per draft: another job's suggestions are past the bound too.
+    await post(app, cookie, `/onboarding/cards/${liveIdFor(SECOND_FIXTURE_AD_ID)}/want`);
+    const [elsewhere] = (await draftWithSuggestions(app, cookie)).stretch.suggestions;
+    const refused = await post(app, cookie, `/onboarding/tailor/suggestions/${elsewhere.id}/wording`, { text: "Another job's wording" });
+    expect(refused.statusCode).toBe(429);
+    expect(stretch.resays).toHaveLength(spent);
     // Unchanged wording is still free past the bound — it spends nothing.
-    const same = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: `Wording number ${RESAY_LIMIT - 2}` });
+    const same = await post(app, cookie, `/onboarding/tailor/suggestions/${elsewhere.id}/wording`, { text: elsewhere.claimText });
     expect(same.statusCode).toBe(200);
   });
 });

@@ -587,7 +587,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // edited line and what to say if asked, rewritten for it by the step's re-say mode, are stored
     // together on the suggestion — so Use prints the edited line and "It's true" keeps it. The
     // checkpoint: a line that already reads so spends nothing (the stored pair was written for
-    // exactly this line, on the facts of this current draft). Bounded per draft by RESAY_LIMIT.
+    // exactly this line, on the facts of this current draft). Bounded per session by RESAY_LIMIT.
     app.post(
       "/onboarding/tailor/suggestions/:id/wording",
       { schema: { params: z.object({ id: z.string().min(1) }), body: z.object({ text: z.string().trim().min(1).max(600) }) } },
@@ -614,10 +614,9 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         if (!stored || !target || !deps.stretchLlm) return unknown();
         const text = req.body.text.replace(/\s+/g, " ");
         if (text === target.claimText) return { stretch: stretchView(stored.stretch) };
-        // ponytail: counts finished rewrites only — a call that fails twice is not counted; count
-        // before the call if failed calls ever show as spend.
-        if (stored.stretch?.status === "ran" && (stored.stretch.resaid ?? 0) >= RESAY_LIMIT)
-          return reply.status(429).send({ error: { code: "rewrite_limit", message: "this draft's wording edits are used up" } });
+        // Counted before the call, so a rewrite that then fails is counted too: it was paid for.
+        if ((await deps.sessions.countStretchRewrite(session.id)) > RESAY_LIMIT)
+          return reply.status(429).send({ error: { code: "rewrite_limit", message: "Your wording edits are used up." } });
         let say: string;
         try {
           say = await resayStretch(deps.stretchLlm, buildResayInput(text, inputs.claimsDoc));

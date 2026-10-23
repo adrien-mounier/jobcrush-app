@@ -436,6 +436,9 @@ export interface SessionStore {
   addTailorSkip(id: string, skipKey: string): Promise<void>;
   /** #33: raises the factCount floor only — Math.max/GREATEST — so a deck reject can't lower it. */
   raiseFactFloor(id: string, n: number): Promise<void>;
+  /** #420 (review): counts one paid wording rewrite for this session, durably and atomically, and
+   *  returns the count with it — the bound on that spend is per session (routes/tailor.ts). */
+  countStretchRewrite(id: string): Promise<number>;
   /** #246: the number question 1's search found, written once by discoveryEngine.ts's
    *  searchAtQuestionOne. A plain write, not a floor like the two above — re-answering question 1 is
    *  a NEW search for a different job, and its answer replaces the old one however it compares. */
@@ -498,6 +501,7 @@ export class InMemorySessionStore implements SessionStore {
     string,
     { requestFingerprint: string; ownerToken: string; claimedAtMs: number }
   >();
+  private stretchRewrites = new Map<string, number>(); // #420: per session, never reset
 
   async init(): Promise<void> {}
 
@@ -706,6 +710,12 @@ export class InMemorySessionStore implements SessionStore {
     if (s) s.factFloor = Math.max(s.factFloor, n);
   }
 
+  async countStretchRewrite(id: string): Promise<number> {
+    const n = (this.stretchRewrites.get(id) ?? 0) + 1;
+    this.stretchRewrites.set(id, n);
+    return n;
+  }
+
   async setPromiseOpenJobs(id: string, openJobs: number | null): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.promiseOpenJobs = openJobs;
@@ -783,6 +793,8 @@ const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS review_completed_at timestamptz",
   // #385: null until a re-upload reopens a finished check mode. No backfill.
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS review_since bigint",
+  // #420 (review): the paid wording rewrites this session has made — the per-session bound's count.
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS stretch_rewrites integer NOT NULL DEFAULT 0",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -1134,6 +1146,14 @@ export class PgSessionStore implements SessionStore {
 
   async raiseFactFloor(id: string, n: number): Promise<void> {
     await this.pool.query(`UPDATE sessions SET fact_floor = GREATEST(fact_floor, $2) WHERE id = $1`, [id, n]);
+  }
+
+  async countStretchRewrite(id: string): Promise<number> {
+    const { rows } = await this.pool.query(
+      `UPDATE sessions SET stretch_rewrites = stretch_rewrites + 1 WHERE id = $1 RETURNING stretch_rewrites`,
+      [id],
+    );
+    return Number(rows[0]?.stretch_rewrites ?? 0);
   }
 
   async setPromiseOpenJobs(id: string, openJobs: number | null): Promise<void> {
