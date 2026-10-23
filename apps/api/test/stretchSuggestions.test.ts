@@ -3,6 +3,9 @@
 // suggestion model (tailorDraft.test.ts's idiom): what is stored beside the draft, what is dropped
 // in code, what the checkpoint spends, and what "No" does.
 import { describe, expect, it } from "vitest";
+import Fastify from "fastify";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
+import { tailorRoutes, type TailorRouteDeps } from "../src/routes/tailor.js";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { buildDeckServer, liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
@@ -1248,6 +1251,24 @@ describe("#420 what an edit cannot do", () => {
     expect(failed.statusCode).toBe(502);
     expect(stretch.resays).toHaveLength(3); // one retry
     expect((await read()).suggestions[0]).toMatchObject({ claimText: EDITED, interviewNarrative: `Rewritten for: ${EDITED}` });
+  });
+});
+
+describe("#412 the suggestion routes declare a response for every status they send (CODING_STANDARDS)", () => {
+  it("the answer route and the wording route each name every status in their response schema", async () => {
+    const app = Fastify();
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
+    const declared = new Map<string, string[]>();
+    app.addHook("onRoute", (route) => {
+      if (route.url.includes("/suggestions/")) declared.set(route.url, Object.keys(route.schema?.response ?? {}).sort());
+    });
+    // Registering reads no dependency; only a request would.
+    await app.register(tailorRoutes({} as TailorRouteDeps));
+    await app.ready();
+    expect(declared.get("/onboarding/tailor/suggestions/:id")).toEqual(["200", "400", "404", "409"]);
+    expect(declared.get("/onboarding/tailor/suggestions/:id/wording")).toEqual(["200", "400", "404", "409", "429", "502"]);
+    await app.close();
   });
 });
 

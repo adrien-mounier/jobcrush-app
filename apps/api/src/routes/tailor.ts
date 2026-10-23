@@ -12,8 +12,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import type { AdRequirementsV1, FamilyPlacement } from "@jobcrush/contracts";
+import { StretchProposalV2, type AdRequirementsV1, type FamilyPlacement } from "@jobcrush/contracts";
 import { requireUser } from "../server.js";
+import { Refusal } from "./refusal.js";
 import type { ClaimRecord, ClaimStore } from "../claims.js";
 import type { SessionRecord, SessionStore } from "../sessions.js";
 import { withFactFloor } from "../sessions.js";
@@ -553,6 +554,16 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // #418 (ADR-0005 clause 6: written once, frozen at render): approving freezes the used lines, so the
     // approved CV takes no answer, no Undo and no edited wording. A redraft is a fresh, unapproved CV.
     const FROZEN = { error: { code: "draft_approved", message: "This CV is approved, so its lines can no longer change." } };
+    // What both suggestion doors answer with: the suggestions as the next read shows them
+    // (stretchView), and every refusal in its one shape.
+    const SuggestionsReply = z.object({
+      stretch: z
+        .discriminatedUnion("status", [
+          z.object({ status: z.literal("ran"), suggestions: z.array(StretchProposalV2) }),
+          z.object({ status: z.literal("failed") }),
+        ])
+        .nullable(),
+    });
 
     // #417 (ADR-0020 clause 4): an answer to one stretch suggestion beside the current draft. "No"
     // declines it for this job only — the record lives beside THIS draft, so nothing else moves and
@@ -561,7 +572,13 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // draft's, a typo) is a 404, the same fail-closed shape as the other doors.
     app.post(
       "/onboarding/tailor/suggestions/:id",
-      { schema: { params: z.object({ id: z.string().min(1) }), body: z.object({ answer: z.enum(STRETCH_ANSWERS) }) } },
+      {
+        schema: {
+          params: z.object({ id: z.string().min(1) }),
+          body: z.object({ answer: z.enum(STRETCH_ANSWERS) }),
+          response: { 200: SuggestionsReply.extend({ keptUnder: z.string().optional() }), 400: Refusal, 404: Refusal, 409: Refusal },
+        },
+      },
       async (req, reply) => {
         const session = requireUser(req);
         const resolved = await resolveDraftTarget(session);
@@ -590,7 +607,13 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // exactly this line, on the facts of this current draft). Bounded per session by RESAY_LIMIT.
     app.post(
       "/onboarding/tailor/suggestions/:id/wording",
-      { schema: { params: z.object({ id: z.string().min(1) }), body: z.object({ text: z.string().trim().min(1).max(600) }) } },
+      {
+        schema: {
+          params: z.object({ id: z.string().min(1) }),
+          body: z.object({ text: z.string().trim().min(1).max(600) }),
+          response: { 200: SuggestionsReply, 400: Refusal, 404: Refusal, 409: Refusal, 429: Refusal, 502: Refusal },
+        },
+      },
       async (req, reply) => {
         const session = requireUser(req);
         const resolved = await resolveDraftTarget(session);
