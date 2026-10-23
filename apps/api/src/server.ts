@@ -677,6 +677,7 @@ export function buildServer(opts: BuildOptions = {}) {
     eligibility,
     jobBlocks,
     contact,
+    tailorDrafts, // #418: a used stretch counts as met on the deck list, as on the Tailor screen
     reviews: cvReviews,
     familyFloors,
     productionFamilyFloors,

@@ -846,8 +846,8 @@ export async function buildDeckCards(
      *  and the newest three are pinned above the ranked deck (#294 c7). */
     brought?: readonly BroughtJob[];
     /** #418: with `deps.tailorDrafts`, the stretches this session used on a job count as met on that
-     *  job's card (withStretchedVerdicts). The job's own screen passes both; the deck list passes
-     *  neither yet (routes/onboarding.ts is at its ratchet), so a list card reads the facts alone. */
+     *  job's card (withStretchedVerdicts). The deck list and the job's own screen pass both, so they
+     *  and the Tailor screen show the same % for the same job. */
     sessionId?: string;
   },
   deps: DeckJudgingDeps & { readAd?: ReadAdFn; tailorDrafts?: Pick<TailorDraftStore, "get"> },
@@ -970,6 +970,8 @@ export interface DeckResponseDeps extends DeckJudgingDeps {
   /** #305: absent → no pasted advert is stitched in, which is exactly the deck every pre-#305 test
    *  asserts against. */
   broughtJobs?: BroughtJobsFn;
+  /** #418: the answers beside each job's draft (buildDeckCards). Absent → a card reads the facts alone. */
+  tailorDrafts?: Pick<TailorDraftStore, "get">;
   ensureRetrieval: (
     session: SessionRecord,
     retrievalRequest: RetrievalRequest,
@@ -1059,7 +1061,7 @@ export async function buildDeckResponse(
   // order + pin. See its own doc (and judgeDeck's) for the spend-bound properties.
   const { cards, pendingCount, withdrawn, unread } = await buildDeckCards(
     postings,
-    { confirmed, negatives, facts, blocks, years, deckFamilyId, langs, brought },
+    { confirmed, negatives, facts, blocks, years, deckFamilyId, langs, brought, sessionId: session.id },
     deps,
   );
   // #235: whether the empty deck may say "answer a few more questions" (hasOpenDiscoveryQuestions).

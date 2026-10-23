@@ -82,7 +82,10 @@ import { fileURLToPath } from "node:url";
 // #384 lowered it from 536: GET /profile's reads moved to profile.ts (readProfile), beside the
 // assembly they feed — the spine had zero headroom when the ticket needed one more dependency (the
 // review store, so the profile wears the review's fixes), and the route kept a one-line entry.
-const MAX_LINES = 523;
+// #412's review fix lowered it from 523: the want door's inline posting + requirements resolution was
+// a copy of deck.ts's tailorTarget, and now calls it — which paid for the drafts store the deck list
+// needed so a used stretch counts there as it does on the Tailor screen.
+const MAX_LINES = 515;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

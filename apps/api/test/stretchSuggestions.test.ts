@@ -637,6 +637,10 @@ describe("#418 the requirement counts as met by a stretch on THIS job's card onl
       before.card.breakdown.essential.met + before.card.breakdown.desirable.met + 1,
     );
     expect(after.card.dontYet.map((r: { id: string }) => r.id)).not.toContain(swap.requirementId);
+    // The deck list agrees with the Tailor screen: the same %, the row met by a stretch.
+    const listCard = (await get(app, cookie, "/onboarding/cards")).json().cards.find((c: { adId: string }) => c.adId === VALID_AD_ID);
+    expect(listCard.matchPct).toBe(after.card.matchPct);
+    expect(listCard.fit).toContainEqual(expect.objectContaining({ id: swap.requirementId, stretched: true }));
 
     // The other job: the same number, nothing stretched, and its own draft never carries the line.
     await post(app, cookie, `/onboarding/cards/${second}/want`);

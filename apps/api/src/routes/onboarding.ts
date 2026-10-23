@@ -23,7 +23,7 @@ import { readProfile } from "../profile.js";
 import { runGate } from "../gate.js";
 import { answeredGrillIds, answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
-import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
+import type { Posting } from "../preview.js";
 import type { EligibilityStore } from "../eligibility.js";
 import { answerEligibilityItem } from "../eligibilityDiscovery.js";
 import {
@@ -33,12 +33,11 @@ import {
   productionDiscoveryFamilyLookup,
   reconcileSessionDiscovery,
 } from "../discoveryEngine.js";
-import { readingLanguages, languageEligible } from "../language.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
 import {
   buildDeckResponse,
   claimTier,
-  resolveAdRequirements,
+  tailorTarget,
 } from "../deck.js";
 import { applyFallbackChoice } from "../deckFallback.js";
 import type { BroughtJobsFn } from "../broughtJobs.js";
@@ -73,6 +72,7 @@ export interface OnboardingDeps {
    *  source of both the total and the date-hole questions asked in its place. */
   jobBlocks: import("../jobBlockStore.js").JobBlockStore;
   contact: import("../contact.js").ContactStore; // #190: GET /profile reads it, additively.
+  tailorDrafts?: import("../tailorDraftStore.js").TailorDraftStore; // #418: a used stretch counts on the deck list too.
   reviews: import("../cvReviewStore.js").CvReviewStore; // #384: GET /profile wears the review's fixes.
   familyFloors: TestFixtureFamilyFloorStore;
   productionFamilyFloors: ProductionFamilyFloorStore;
@@ -116,11 +116,8 @@ export interface OnboardingDeps {
   judgeMaxCards?: number;
 }
 
-// #103 (E5 slice 2): the pool-application half of the gate (eligiblePostings) lives beside
-// loadPostings in preview.ts, not here — #103 code review finding 6, so slice 3's reader can reuse
-// it without importing a routes module. Every route below composes readingLanguages(session) with
-// eligiblePostings, and — for a card's requirement set — languageEligible(adReq.language, ...)
-// directly (#103 code review finding 5): no other "=== 'en'" check exists anywhere in this file.
+// #103 (E5 slice 2): the language gate (eligiblePostings, languageEligible) is applied in deck.ts —
+// the deck pass and tailorTarget — never here: no "=== 'en'" check exists anywhere in this file.
 
 export function onboardingRoutes(deps: OnboardingDeps) {
   const retrievePostings = deps.retrievePostings ?? unavailablePostingRetrieval;
@@ -491,20 +488,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireUser(req);
         // #103: an ad this session's languages can't read isn't a valid want target either, even if
         // guessed directly by id — same dual gate (posting AND requirement-set language) as the deck.
-        const langs = readingLanguages(session);
+        // #412 review: that gate is deck.ts's tailorTarget, the one the tailor step resolves with.
         const [confirmed, negatives, , facts] = await discoveryReads(deps, session.id);
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
         // #305: a job he brought is in no snapshot — it is stitched in from storage (broughtJobs.ts).
         const brought = (await deps.broughtJobs?.(session.id)) ?? [];
-        const pool = sessionPostings(session, fingerprint, facts, brought);
-        const posting = eligiblePostings(langs, pool).find((p) => p.id === req.params.adId);
-        const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
-        // T3 (code review): guard on `posting`/`adReq` themselves, not a derived boolean, so TS
-        // narrows both to non-null below without a `!` assertion — a later edit to this guard is then
-        // a compile error if it stops guaranteeing that, not a runtime one. (#182: `posting` joined
-        // the guard so its `.location` below is typed non-null, not just `adReq`'s.)
-        if (!posting || !adReq || !languageEligible(adReq.language, langs))
+        const target = await tailorTarget(session, req.params.adId, deps.readAd, fingerprint, facts, brought);
+        if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
+        const { posting, adReq } = target;
         // #107 (D4): a withdrawn ad is not a valid want target either — same 404 shape as an unknown
         // card, so a session can never distinguish "never existed" from "genuinely can't take it".
         // #305: `brought` is passed because a job he brought is never withdrawn (#294 c1) — the rule
