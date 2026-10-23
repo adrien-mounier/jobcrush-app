@@ -93,7 +93,7 @@ import { StandInDocumentMaker } from "./documentMaker.js";
 import { createGuestbook } from "./guestbook.js";
 import { IpRateLimiter } from "./sessions.js";
 import type { LlmClient } from "./llm.js";
-import { qaFamilyAnswer, roleFromLabelerPrompt } from "./qaFamilyAnswer.js";
+import { isFamilyLabelerPrompt, qaFamilyAnswer, roleFromLabelerPrompt } from "./qaFamilyAnswer.js";
 import { qaReviewAnswer, REVIEW_PROMPT_OPENING } from "./qaReviewAnswer.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -381,10 +381,12 @@ const fakeLlm: LlmClient = {
         })),
       });
     }
-    // family-labeler.md's own opening line (#220). The answer itself lives in qaFamilyAnswer.ts —
-    // #231 moved it there so it could be parsed by the real contract in a test, after this fake
-    // spent a commit answering in a shape the parser rejected with nothing to catch it.
-    if (prompt.includes("You place a job title into a job family")) {
+    // family-labeler.md's own role heading (#414; #220 matched its opening line until a wording
+    // pass changed it). The answer itself lives in qaFamilyAnswer.ts — #231 moved it there so it
+    // could be parsed by the real contract in a test, after this fake spent a commit answering in
+    // a shape the parser rejected with nothing to catch it; the match now lives there for the same
+    // reason.
+    if (isFamilyLabelerPrompt(prompt)) {
       seen.familyPlacement += 1;
       return qaFamilyAnswer(roleFromLabelerPrompt(prompt));
     }

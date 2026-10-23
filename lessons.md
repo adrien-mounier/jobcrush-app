@@ -174,6 +174,9 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
 - A journey that writes to a record keyed on its fixture's content (a pasted advert: first link wins) is not re-runnable until the fixture carries a run stamp.
 - Deck cards carry no per-card id and real postings share titles — reach a specific advert via `POST /onboarding/cards/:adId/want`, then assert `card.adId`.
 - A prompt-routing fake matches each stage by its own opening line; both miners end in `===CV-TEXT===`.
+  A wording pass on that line sends the fake dark with every tier green (#414: the family labeler's
+  first sentence changed, every QA job went unplaced). Match on a structural heading the fake also
+  reads (`## The role to place`), and pin the match in the fake's own test (`qaFamilyAnswer.test.ts`).
 - A fake that parses the prompt's input blocks must slice from the LAST occurrence of a block marker, not
   the first: the instructions name every marker (`=== JOB FAMILIES ===`) before the block itself appears,
   so `indexOf` reads the instructions and the fake answers "no families" without an error (#342).
