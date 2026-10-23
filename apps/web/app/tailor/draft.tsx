@@ -6,7 +6,7 @@
 // watches the same `/api/jobs/:id/events` stream the paste door uses (paste/page.tsx's own watch,
 // ported), and reads the checkpointed draft — a reload or a return re-spends nothing server-side.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { StretchRailView } from "./stretch";
+import { DESK_QUERY, focusAtEnd, type StretchRailView } from "./stretch";
 import {
   approveTailorDraft,
   getTailorDraft,
@@ -218,9 +218,16 @@ export interface TailorDraftProps {
   /** #417: the view as read, so the page can put the suggestions beside the draft. #418: "running"
    *  while the draft is already on the page and the step is still looking. */
   onStretch?: (stretch: StretchRailView) => void;
+  /** #420: the open suggestion's line is being edited — in place on this frame on a computer. */
+  editing?: boolean;
+  onEditText?: (text: string) => void;
+  /** Esc in the frame ends the edit (a key typed in the frame never reaches the page). */
+  onEditEnd?: () => void;
+  /** #420: bumped when an edit ends — the frame is re-read and remounted as a fresh document. */
+  rev?: number;
 }
 
-export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
+export function TailorDraft({ open = null, onStretch, editing = false, onEditText, onEditEnd, rev = 0 }: TailorDraftProps = {}) {
   const [phase, setPhase] = useState<Phase>({ kind: "writing" });
   const streamRef = useRef<EventSource | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -229,6 +236,11 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
   openRef.current = open;
   const onStretchRef = useRef(onStretch);
   onStretchRef.current = onStretch;
+  const editRef = useRef({ onEditText, onEditEnd });
+  editRef.current = { onEditText, onEditEnd };
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  // Counts the frame's loads: a srcDoc swap is a new document, which the edit must be armed in.
+  const [frameLoads, setFrameLoads] = useState(0);
 
   // The current phase's kind, readable from the stream handler without re-subscribing.
   const phaseRef = useRef<Phase["kind"]>("writing");
@@ -278,7 +290,33 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
     return () => {
       stale = true;
     };
-  }, [open, ready]);
+  }, [open, ready, rev]);
+
+  // #420: the edit in place, on a computer — the open suggestion's marked line in (the frame's one
+  // <ins>) becomes editable where it stands; what is typed reports up, Esc ends it. The frame is
+  // same-origin for this (sandbox allow-same-origin, still no scripts of its own).
+  useEffect(() => {
+    if (!editing || !window.matchMedia(DESK_QUERY).matches) return;
+    const doc = frameRef.current?.contentDocument;
+    const line = doc?.querySelector("ins");
+    if (!doc || !line) return;
+    line.contentEditable = "true";
+    focusAtEnd(line);
+    const onInput = () => editRef.current.onEditText?.(line.textContent ?? "");
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        editRef.current.onEditEnd?.();
+      } else if (e.key === "Enter") e.preventDefault(); // one line on the CV
+    };
+    line.addEventListener("input", onInput);
+    doc.addEventListener("keydown", onKey);
+    return () => {
+      line.removeEventListener("input", onInput);
+      doc.removeEventListener("keydown", onKey);
+      line.removeAttribute("contenteditable");
+    };
+  }, [editing, frameLoads]);
 
   const load = useCallback(async () => {
     setPhase({ kind: "writing" });
@@ -347,7 +385,17 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
   const { view } = phase;
   return (
     <div className="draft">
-      <iframe className="draft-frame" sandbox="" srcDoc={view.html} title="Your tailored CV" />
+      {/* #420: allow-same-origin (and nothing else) so the page can edit the open line in place;
+          no script in the document runs. Keyed by `rev`: an ended edit loads a fresh document. */}
+      <iframe
+        key={rev}
+        ref={frameRef}
+        className="draft-frame"
+        sandbox="allow-same-origin"
+        srcDoc={view.html}
+        title="Your tailored CV"
+        onLoad={() => setFrameLoads((n) => n + 1)}
+      />
       <p className="draft-hint">{D6}</p>
       {/* keyed by draftedAt: a redraft is a new document, so the press state starts over */}
       <SendBlock key={view.draftedAt} draftedAt={view.draftedAt} known={view.conservationNotices} />

@@ -50,6 +50,9 @@ export const STRETCH_REQUIREMENT_LINE = /^- id: (.+)\n  state: (\w+)/gm;
 
 const oneLine = (text: string) => text.replace(/[\r\n]+/g, " ").trim();
 const noBlockMarkers = (text: string) => text.replace(/^=+/gm, "");
+/** The person's facts, one per line with the id and the job each belongs to — the suggestion step
+ *  and its re-say mode (#420) read the same block. */
+const factLinesOf = (claims: CandidateClaims) => claims.claims.map((c) => `- ${c.id} [${c.role}] ${oneLine(c.text)}`).join("\n");
 
 /** The step's input: the job, the requirements with their verdicts, the draft line by line with
  *  each line's slot address, the facts, the denied list. Exported for the fingerprint and the tests. */
@@ -71,7 +74,7 @@ export function buildStretchInput(
     ]),
     ...draft.skills.map((g, i) => `skills group ${i}: ${oneLine(g.label)}: ${g.items.map(oneLine).join("; ")}`),
   ].join("\n");
-  const factLines = claims.claims.map((c) => `- ${c.id} [${c.role}] ${oneLine(c.text)}`).join("\n");
+  const factLines = factLinesOf(claims);
   const block = (lines: string) => lines || "(none)";
   return (
     `${stretchPrompt()}title: ${oneLine(posting.title)}\nemployer: ${oneLine(posting.company)}\n` +
@@ -125,6 +128,82 @@ const SuggestionAnswer = z
   })
   .strict();
 type SuggestionAnswer = z.infer<typeof SuggestionAnswer>["suggestions"][number];
+
+// ---------------------------------------------------------------------------------------------
+// #420 (ADR-0020 clause 3; ADR-0005 clause 6) — an edited wording. The person may change a pending
+// suggestion's line in before answering. What to say if asked is then rewritten for the edited
+// sentence by one small call of this step in its "re-say" mode (its own prompt and heading, the
+// same client — metered under the stretch-suggestions stage), and the two are stored together ON
+// the suggestion: the line printed is the line defended, and the old interview line is never kept
+// next to an edited sentence. An empty line never gets here (the route refuses it; the screen keeps
+// the wording and says so).
+// ---------------------------------------------------------------------------------------------
+
+const RESAY_PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "stretch-resay.md");
+let cachedResayPrompt: string | null = null;
+function resayPrompt(): string {
+  if (!cachedResayPrompt) cachedResayPrompt = readFileSync(RESAY_PROMPT_PATH, "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
+  return cachedResayPrompt;
+}
+
+/** The re-say prompt's own section heading — qa-main and the tests route on it. */
+export const RESAY_PROMPT_HEADING = "## Rewriting what to say for an edited line";
+/** The edited line in the re-say input — the fakes read it back off this shape (last match). */
+export const RESAY_LINE = /^===LINE===\n(.+)$/gm;
+/** Paid rewrites one draft's suggestions may take: spend bounded per draft, never per request. */
+export const RESAY_LIMIT = 20;
+
+export function buildResayInput(line: string, claims: CandidateClaims): string {
+  return `${resayPrompt()}===LINE===\n${oneLine(line)}\n\n===FACTS===\n${factLinesOf(claims) || "(none)"}\n`;
+}
+
+const ResayAnswer = z.object({ say: Sentence }).strict();
+
+/** The one re-say call: one attempt plus one retry with the validation error appended (the
+ *  suggestion step's own shape). Throws after a second bad answer — the caller stores nothing. */
+export async function resayStretch(llm: LlmClient, input: string): Promise<string> {
+  let lastError = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const prompt =
+      attempt === 0
+        ? input
+        : `${input}\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
+    const { text, cost } = await completeWithCost(llm, prompt);
+    console.log(
+      `[ops] stretch re-say call: model ${cost.model}, ` +
+        (cost.inputTokens === null ? "usage unmeasured" : `${cost.inputTokens} in / ${cost.outputTokens} out tokens`),
+    );
+    try {
+      return ResayAnswer.parse(extractJson(text)).say;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
+    }
+  }
+  throw new Error(`stretch re-say failed validation twice: ${lastError.slice(0, 500)}`);
+}
+
+/** The pending suggestion an edit may change, or undefined (none such, or already answered — an
+ *  answer is withdrawn with Undo first). */
+export function editableSuggestion(checkpoint: StretchCheckpoint | undefined, id: string): StretchProposalV2 | undefined {
+  return checkpoint?.status === "ran" ? checkpoint.suggestions.find((s) => s.id === id && s.state === "pending") : undefined;
+}
+
+/** The edited line and the interview line rewritten for it, stored together on one pending
+ *  suggestion (pure). Counts the paid rewrite against RESAY_LIMIT. Null when the suggestion is not
+ *  pending any more. The edit outlives an Undo: the answer goes back to pending, the wording stays. */
+export function rewordSuggestion(
+  checkpoint: StretchCheckpoint | undefined,
+  id: string,
+  claimText: string,
+  interviewNarrative: string,
+): StretchCheckpoint | null {
+  if (checkpoint?.status !== "ran" || !editableSuggestion(checkpoint, id)) return null;
+  return {
+    ...checkpoint,
+    resaid: (checkpoint.resaid ?? 0) + 1,
+    suggestions: checkpoint.suggestions.map((s) => (s.id === id ? StretchProposalV2.parse({ ...s, claimText, interviewNarrative }) : s)),
+  };
+}
 
 /** The draft line at a slot, or undefined when the draft prints no such line. A skill slot pushes
  *  nothing out (null) when the group exists. */
@@ -312,7 +391,7 @@ export function applyUsedStretches(draft: Draft, checkpoint: StretchCheckpoint |
 /** What is stored beside the draft. `ran` with an empty list is "found none"; `failed` is the step
  *  that did not finish; an absent field is a step that never ran (ADR-0010: three different states). */
 export type StretchCheckpoint =
-  | { fingerprint: string; status: "ran"; suggestions: StretchProposalV2[] }
+  | { fingerprint: string; status: "ran"; suggestions: StretchProposalV2[]; /** #420: paid rewrites spent */ resaid?: number }
   | { fingerprint: string; status: "failed" };
 
 /** The page marks for one read (#417): the pending suggestions numbered in list order (stable —

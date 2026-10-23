@@ -368,3 +368,13 @@ section is the instruction.
     writes nothing for it: the app itself puts the used line and its *what to say if asked* under *Be
     ready to explain*, exactly as stored (clause 6). Undo withdraws the answer and everything above
     with it.
+12. **An edited wording gets its own defence** (#420, ADR-0020 clause 3, ADR-0005 clause 6). The
+    person may rewrite a pending suggestion's line in before answering. The step then runs once in
+    its *re-say* mode (`apps/api/prompts/stretch-resay.md`): handed the edited line and the person's
+    facts — never the old interview line — it returns one *what to say if asked* that defends exactly
+    the edited sentence, resting only on those facts. The edited line and that answer are stored
+    together on the suggestion, so the line printed is the line defended and the old interview line
+    is never kept beside an edited sentence; a rewrite that fails stores nothing. The edited line is
+    what Use prints and what "It's true" keeps. A line that already reads so spends nothing, an
+    empty line keeps the suggestion's wording (the screen says so), and Undo of an answer keeps the
+    edit.

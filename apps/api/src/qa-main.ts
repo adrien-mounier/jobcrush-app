@@ -82,7 +82,7 @@ import { InMemoryUnmappedLabelStore } from "./unmappedLabels.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
 import { REPORT_STATE_LINE } from "./applicationReport.js";
-import { STRETCH_PROMPT_HEADING, STRETCH_REQUIREMENT_LINE } from "./stretchSuggestions.js";
+import { RESAY_LINE, RESAY_PROMPT_HEADING, STRETCH_PROMPT_HEADING, STRETCH_REQUIREMENT_LINE } from "./stretchSuggestions.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
 // DATABASE_URL and would write judgements to the real shared Postgres from a QA run.
 import { InMemoryJudgementStore } from "./judgementStore.js";
@@ -331,6 +331,14 @@ const fakeLlm: LlmClient = {
     // "- id:" / "state:" pairs (buildReportInput's shape), so the coverage check always holds and
     // an unchecked requirement gets no sentence — the fake obeys the same rule as the product.
     // The salary is null: not one of the owner's real adverts states one (#293 finding 3).
+    // #420: the same step's re-say mode — matched on its own heading; the interview line is derived
+    // from the edited line it is handed (the last block on the product-owned shape), so a journey
+    // reads back exactly the line it typed.
+    if (prompt.includes(RESAY_PROMPT_HEADING)) {
+      seen.stretch += 1;
+      const line = [...prompt.matchAll(RESAY_LINE)].pop()?.[1] ?? "";
+      return JSON.stringify({ say: `If they ask, I explain the work behind it: ${line}` });
+    }
     // #417: the stretch suggestion step — matched on the prompt's own heading (never its opening
     // sentence), the requirement states read back off the product-owned line shape. One bullet
     // swap for the first unmet requirement (the first bullet of the first role, so the journey's

@@ -33,6 +33,8 @@ here, so jobcrush-app has no runtime or authoring dependency on the JobCrush che
 - `apps/api/prompts/stretch-suggestions.md` — after the draft is written, suggests at most one stretch
   per requirement the CV does not meet, each with its line out and an explicit better-than comparison
   (implements `tailoring-reasoning.md` §10; the code-side gates are `apps/api/src/stretchSuggestions.ts`).
+- `apps/api/prompts/stretch-resay.md` — the same step's re-say mode: when the person edits a suggestion's
+  line in, writes the one *what to say if asked* that defends the edited sentence (`tailoring-reasoning.md` §10.12).
 - `apps/api/src/preview.ts` — the canonical Draft schema + `conservationIssues()` lint (the mechanical
   enforcement of "tailor by emphasis, not amputation").
 

@@ -8,13 +8,13 @@
 // clip of the swap itself, the answers stack, and "Skip the rest" closes the run. Closed (Esc, Skip
 // the rest, every one answered) the rail shows the list with each one's result.
 //
-// Answers: "No" (this job only, #417), "Use for this job" (#418: the gold primary, key U) and
+// Answers: "No" (this job only, #417), "Use for this job" (#418: the gold primary, key U),
 // "It's true: keep it on my CV for every job" (#419: its own row, key T — never beside Use, ADR-0005
-// clause 5) are built here; "Edit wording" (#420) lands in `.acts` below. Closed, the rail is the
+// clause 5) and "Edit wording" beside No (#420, key E) are built here. Closed, the rail is the
 // "Ready to send" summary: each answer with its own Undo, and "Be ready to explain" with each line
 // used for this job and what to say (the prototype's words) — a line kept as true needs none.
 // Every value is server-composed (the suggestion records beside the draft); nothing is re-derived.
-import type { RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { StretchSuggestion, StretchView, TailorRequirement } from "../../lib/api";
 
 /** #418: what the rail shows about the step — the server's view, or "running" while the draft is
@@ -50,7 +50,32 @@ const K21 = "Kept on your CV for every job";
 const F1 = "We could not look for ways to stretch this CV just now. Your CV is complete without them.";
 const F2 = "Look again";
 
+// #420: "Edit wording" — the edit happens in place (the draft on a computer, the card on a phone).
+// While the line is edited, and while what to say is rewritten for it, the old interview line is
+// never shown beside it. An emptied edit keeps the suggestion's wording and says so.
+const E1 = "Edit wording";
+const E2 = "Done editing";
+const E3 = "We will rewrite this to match your wording.";
+const E4 = "An empty line cannot go on your CV, so we kept the suggested wording.";
+const E5 = "We could not save your wording just now. Try again.";
+
 export const STRETCH_COPY = { K2, K3, F1, F2, K19, K21 };
+
+/** #420: computer width — the edit happens on the draft; under it, on the card (the grid's 960px). */
+export const DESK_QUERY = "(min-width: 960px)";
+
+/** The open suggestion's line being edited: `saving` while what to say is rewritten for it. */
+export type StretchEdit = { id: string; saving: boolean } | null;
+/** What the card says after an edit ends: the wording kept (an empty line), or not saved. */
+export type StretchEditNote = { id: string; kind: "kept" | "failed" } | null;
+
+/** Puts the caret at the end of an editable line (in the page or in the draft's frame). */
+export function focusAtEnd(el: HTMLElement) {
+  el.focus();
+  const selection = el.ownerDocument.getSelection();
+  selection?.selectAllChildren(el);
+  selection?.collapseToEnd();
+}
 
 const RESULT: Record<StretchSuggestion["state"], string> = {
   pending: K10,
@@ -73,6 +98,12 @@ export interface StretchCardsProps {
   onLookAgain: () => void;
   headingRef: RefObject<HTMLHeadingElement | null>;
   answering: boolean;
+  /** #420: the line being edited, the note after an edit, and the edit control (E toggles it). */
+  edit: StretchEdit;
+  editNote: StretchEditNote;
+  onEdit: (id: string) => void;
+  onEditText: (text: string) => void;
+  editButtonRef: RefObject<HTMLButtonElement | null>;
 }
 
 /** The pending suggestions, in list order — the one open, and the way J/K/N move. */
@@ -89,7 +120,30 @@ export function nextPending(view: StretchRailView, fromId: string | null, direct
   return pending[(i + direction + pending.length) % pending.length]!.id;
 }
 
-export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onUndo, onSkipRest, onLookAgain, headingRef, answering }: StretchCardsProps) {
+export function StretchCards({
+  view,
+  requirements,
+  openId,
+  onOpen,
+  onAnswer,
+  onUndo,
+  onSkipRest,
+  onLookAgain,
+  headingRef,
+  answering,
+  edit,
+  editNote,
+  onEdit,
+  onEditText,
+  editButtonRef,
+}: StretchCardsProps) {
+  // #420: on a phone the edit happens on the card's own line; on a computer, on the draft (draft.tsx).
+  const lineRef = useRef<HTMLModElement>(null);
+  const editingOpen = edit !== null && !edit.saving && edit.id === openId;
+  useEffect(() => {
+    if (editingOpen && lineRef.current && !window.matchMedia(DESK_QUERY).matches) focusAtEnd(lineRef.current);
+  }, [editingOpen]);
+
   if (!view) return null; // the step did not run: an honest absence, nothing said
   if (view.status === "running") {
     return (
@@ -115,6 +169,22 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onU
 
   if (open) {
     const n = all.indexOf(open) + 1;
+    const editThis = edit?.id === open.id ? edit : null;
+    const note = editNote?.id === open.id ? editNote.kind : null;
+    // Keyed so an ended edit remounts the line with the stored wording; a failed save keeps the
+    // person's text (still the same edit, so the same element).
+    const line = (
+      <ins
+        key={`${open.claimText}|${editThis ? "edit" : "show"}`}
+        ref={lineRef}
+        contentEditable={editingOpen}
+        suppressContentEditableWarning
+        onInput={(e) => onEditText(e.currentTarget.textContent ?? "")}
+        onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+      >
+        {open.claimText}
+      </ins>
+    );
     return (
       <section className="stretch-card" aria-label={`Suggestion ${n} of ${all.length}`}>
         <p className="eyebrow">
@@ -132,20 +202,30 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onU
           {open.lineOut ? (
             <>
               <del>{open.lineOut}</del>
-              <ins>{open.claimText}</ins>
+              {line}
             </>
           ) : (
             <>
               <span className="where">{K12}</span>
-              <ins>{open.claimText}</ins>
+              {line}
             </>
           )}
         </div>
         <p className="swap">{open.lineOut ? K2 : K3}</p>
         <div className="ifasked">
           <b>{K4}</b>
-          {open.interviewNarrative}
+          {editThis ? <span className="re">{E3}</span> : open.interviewNarrative}
         </div>
+        {note === "kept" && (
+          <p className="notice" role="status">
+            {E4}
+          </p>
+        )}
+        {note === "failed" && (
+          <p className="err" role="alert">
+            {E5}
+          </p>
+        )}
         <div className="acts">
           {/* The gold primary (ADR-0020 clause 4: this job only), then "It's true" on its own row —
               never the same row as Use (ADR-0005 clause 5); #420's "Edit wording" sits beside No. */}
@@ -155,19 +235,31 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onU
           <button type="button" className="b" disabled={answering} onClick={() => onAnswer(open.id, "true")}>
             {K20} <kbd aria-hidden="true">T</kbd>
           </button>
-          <button type="button" className="b quiet" disabled={answering} onClick={() => onAnswer(open.id, "no")}>
-            {K5} <kbd aria-hidden="true">N</kbd>
-          </button>
+          <div className="row">
+            <button type="button" className="b quiet" disabled={answering} onClick={() => onAnswer(open.id, "no")}>
+              {K5} <kbd aria-hidden="true">N</kbd>
+            </button>
+            {/* #420: in place — the line on the draft (computer) or on this card (phone). */}
+            <button
+              type="button"
+              className="b quiet"
+              ref={editButtonRef}
+              disabled={editThis ? editThis.saving : answering}
+              onClick={() => onEdit(open.id)}
+            >
+              {editThis ? E2 : E1} <kbd aria-hidden="true">E</kbd>
+            </button>
+          </div>
         </div>
         <div className="nav">
-          <button type="button" className="link" onClick={() => onOpen(nextPending(view, open.id, -1)!)}>
+          <button type="button" className="link" disabled={answering} onClick={() => onOpen(nextPending(view, open.id, -1)!)}>
             {K6}
           </button>
-          <button type="button" className="link" onClick={() => onOpen(nextPending(view, open.id, 1)!)}>
+          <button type="button" className="link" disabled={answering} onClick={() => onOpen(nextPending(view, open.id, 1)!)}>
             {K7}
           </button>
         </div>
-        <button type="button" className="link skip" onClick={onSkipRest}>
+        <button type="button" className="link skip" disabled={answering} onClick={onSkipRest}>
           {K8}
         </button>
       </section>

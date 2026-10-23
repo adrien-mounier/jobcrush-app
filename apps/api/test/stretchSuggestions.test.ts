@@ -12,7 +12,7 @@ import { InMemoryPostingStore } from "../src/postingStore.js";
 import type { PasteProgress } from "../src/routes/paste.js";
 import type { LlmClient } from "../src/llm.js";
 import type { Posting } from "../src/preview.js";
-import { STRETCH_REQUIREMENT_LINE } from "../src/stretchSuggestions.js";
+import { RESAY_LIMIT, RESAY_LINE, RESAY_PROMPT_HEADING, STRETCH_REQUIREMENT_LINE } from "../src/stretchSuggestions.js";
 import { tailorClaimId } from "../src/tailor.js";
 import { AdRequirementsV1, type CandidateClaim } from "@jobcrush/contracts";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
@@ -20,6 +20,7 @@ import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.j
 import type { Mailer } from "../src/mailer.js";
 import { fakeJudge, reportingLlm } from "./reportFakes.js";
 import type { JudgeFn } from "../src/judge.js";
+import { statedClaimId } from "../src/stretchFact.js";
 
 const ROLE = "IT project manager in Paris";
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -1017,3 +1018,206 @@ function printingStatedLines({ prompts, llm }: ReturnType<typeof draftingLlm>) {
     } satisfies LlmClient,
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// #420 (ADR-0020 clause 3; ADR-0005 clause 6) — editing a suggestion's wording. The edited line is
+// stored ON the suggestion together with an interview line rewritten for it (the step's re-say
+// mode, the same client), so the line printed is the line defended.
+// ---------------------------------------------------------------------------------------------
+
+/** The re-say mode on the SAME client as the suggestions: routed on the re-say prompt's own
+ *  heading, the interview line derived from the edited line it is handed (read off the
+ *  product-owned block shape, the last occurrence). */
+function withResay(base: LlmClient, answer?: (line: string) => string) {
+  const resays: string[] = [];
+  const llm: LlmClient = {
+    model: "test-fake",
+    async complete(prompt: string): Promise<string> {
+      if (!prompt.includes(RESAY_PROMPT_HEADING)) return base.complete(prompt);
+      resays.push(prompt);
+      const line = [...prompt.matchAll(RESAY_LINE)].pop()![1]!;
+      return answer ? answer(line) : JSON.stringify({ say: `I can stand behind it: ${line}` });
+    },
+  };
+  return { resays, llm };
+}
+
+const EDITED = "Ran the vendor tenders for the programme, from shortlist to signature";
+
+describe("#420 Edit, then Use: the line printed is the line defended", () => {
+  it("the draft prints the edited text word for word; the stored interview line is the one rewritten for it; the original line is stored nowhere", async () => {
+    const tailor = draftingLlm();
+    const stretch = withResay(suggestingLlm().llm);
+    const tailorDrafts = new InMemoryTailorDraftStore();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, tailorDrafts });
+    const cookie = await anonSession(app);
+    const sid = await reachTailor({ app, claims }, cookie, "stretch-edit-use@example.com");
+    const before = await claims.list(sid);
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+
+    const edited = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: EDITED });
+    expect(edited.statusCode).toBe(200);
+    // One re-say call, handed the edited line and the person's facts — never the old interview line.
+    expect(stretch.resays).toHaveLength(1);
+    expect(stretch.resays[0]).toContain(EDITED);
+    expect(stretch.resays[0]).toContain("Owned delivery from planning through completion.");
+    expect(stretch.resays[0]).not.toContain(swap.interviewNarrative);
+    expect(edited.json().stretch.suggestions[0]).toMatchObject({
+      id: swap.id,
+      claimText: EDITED,
+      interviewNarrative: `I can stand behind it: ${EDITED}`,
+      state: "pending",
+    });
+
+    const used = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    expect(used.statusCode).toBe(200);
+    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(after.html).toContain(`<li>${EDITED}</li>`);
+    expect(after.html).not.toContain(swap.claimText);
+    expect(after.html).not.toContain(BULLET_TEXT);
+    // What is stored: the edited sentence with the line rewritten for it, and nothing of the original pair.
+    const stored = JSON.stringify(await tailorDrafts.get(sid, swap.adId));
+    expect(stored).toContain(EDITED);
+    expect(stored).toContain(`I can stand behind it: ${EDITED}`);
+    expect(stored).not.toContain(swap.interviewNarrative);
+    expect(stored).not.toContain(swap.claimText);
+    expect(await claims.list(sid)).toEqual(before); // a used stretch never becomes a claim
+  });
+});
+
+describe("#420 the rewrite is checkpointed, and an edit outlives an Undo", () => {
+  it("the same wording again spends nothing; Use then Undo keeps the edited line and its interview line; the preview shows the edited line in place", async () => {
+    const tailor = draftingLlm();
+    const stretch = withResay(suggestingLlm().llm);
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-edit-undo@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: EDITED });
+    expect(stretch.resays).toHaveLength(1);
+    // The same line again — spacing aside — is the stored pair's own input: nothing is spent.
+    const again = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: `  ${EDITED.replace(/ /g, "  ")}\n` });
+    expect(again.statusCode).toBe(200);
+    expect(again.json().stretch.suggestions[0]).toMatchObject({ claimText: EDITED, interviewNarrative: `I can stand behind it: ${EDITED}` });
+    expect(stretch.resays).toHaveLength(1);
+
+    // The open preview strikes the line out and marks the EDITED line in.
+    const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${swap.id}`)).json();
+    expect(open.html).toContain(`<del>${BULLET_TEXT}</del><ins>${EDITED}</ins>`);
+
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    const undone = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" });
+    expect(undone.json().stretch.suggestions[0]).toMatchObject({
+      state: "pending",
+      claimText: EDITED,
+      interviewNarrative: `I can stand behind it: ${EDITED}`,
+    });
+    const plain = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(plain.html).toContain(BULLET_TEXT); // the line out is back on the page
+    expect(plain.html).not.toContain(EDITED);
+    expect(stretch.resays).toHaveLength(1);
+  });
+});
+
+describe("#420 what an edit cannot do", () => {
+  it("an empty line is refused and changes nothing; an answered suggestion takes no edit; a rewrite that fails twice stores nothing", async () => {
+    const tailor = draftingLlm();
+    let broken = false;
+    const stretch = withResay(suggestingLlm().llm, (line) => (broken ? "not json" : JSON.stringify({ say: `Rewritten for: ${line}` })));
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-edit-refused@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+    const read = async () => (await get(app, cookie, "/onboarding/tailor/draft")).json().stretch;
+
+    const empty = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: "  \n " });
+    expect(empty.statusCode).toBe(400);
+    expect(stretch.resays).toHaveLength(0);
+    expect((await read()).suggestions[0]).toMatchObject({ claimText: swap.claimText, interviewNarrative: swap.interviewNarrative });
+
+    // Answered: the edit waits for Undo — nothing is spent, nothing moves.
+    await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}`, { answer: "no" });
+    const answered = await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}/wording`, { text: "Vendor governance" });
+    expect(answered.statusCode).toBe(404);
+    expect((await read()).suggestions[1]).toMatchObject({ claimText: skill.claimText, state: "declined" });
+    // A line the edit does go through for, to show the refusals above are the guard's doing.
+    const ok = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: EDITED });
+    expect(ok.statusCode).toBe(200);
+    expect(stretch.resays).toHaveLength(1);
+
+    // Two bad answers: the edit is not stored — the suggestion keeps the pair it had, never the new
+    // line beside the old interview line.
+    broken = true;
+    const failed = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: "Ran three vendor tenders" });
+    expect(failed.statusCode).toBe(502);
+    expect(stretch.resays).toHaveLength(3); // one retry
+    expect((await read()).suggestions[0]).toMatchObject({ claimText: EDITED, interviewNarrative: `Rewritten for: ${EDITED}` });
+  });
+});
+
+describe("#420 the rewrites one draft may spend are bounded", () => {
+  it("up to RESAY_LIMIT paid rewrites per draft; past it the edit is refused before anything is spent", async () => {
+    const tailor = draftingLlm();
+    const stretch = withResay(suggestingLlm().llm);
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-edit-limit@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+    for (let i = 0; i < RESAY_LIMIT; i++) {
+      const res = await post(app, cookie, `/onboarding/tailor/suggestions/${i % 2 ? skill.id : swap.id}/wording`, { text: `Wording number ${i}` });
+      expect(res.statusCode).toBe(200);
+    }
+    expect(stretch.resays).toHaveLength(RESAY_LIMIT);
+    const over = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: "One wording too many" });
+    expect(over.statusCode).toBe(429);
+    expect(stretch.resays).toHaveLength(RESAY_LIMIT);
+    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json().stretch;
+    expect(after.suggestions[0].claimText).toBe(`Wording number ${RESAY_LIMIT - 2}`);
+    // Unchanged wording is still free past the bound — it spends nothing.
+    const same = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: `Wording number ${RESAY_LIMIT - 2}` });
+    expect(same.statusCode).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #419 + #420: an edited wording flows into "It's true" — the line the person keeps is the line
+// they wrote. "It's true" needs no interview line: it is their fact, not a stretch to defend.
+// ---------------------------------------------------------------------------------------------
+
+describe("#419 + #420 Edit, then It's true: the master CV keeps the edited line", () => {
+  it("the line that joins the master CV is the edited text, word for word, with no interview line; this CV prints it once; another suggestion can still be edited", async () => {
+    const tailor = draftingLlm();
+    const stretch = withResay(suggestingLlm().llm);
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    const sid = await reachTailorWithJob({ app, claims }, cookie, "stretch-edit-true@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+
+    expect((await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}/wording`, { text: EDITED })).statusCode).toBe(200);
+    expect((await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" })).statusCode).toBe(200);
+
+    const kept = (await claims.confirmed(sid)).find((c) => c.id === statedClaimId(swap.id));
+    expect(kept).toMatchObject({ text: EDITED, role: JOB_ROLE, addedFor: ADDED_FOR });
+    // The line alone joins the master CV: what to say if asked never becomes a fact.
+    expect(JSON.stringify(await claims.list(sid))).not.toContain("I can stand behind it");
+    const profile = (await get(app, cookie, "/profile")).json();
+    const texts = profile.domains.flatMap((d: { facts: { text: string }[] }) => d.facts.map((f) => f.text));
+    expect(texts).toContain(EDITED);
+    expect(texts).not.toContain(swap.claimText);
+    // This CV prints the edited line once, where the line out was.
+    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(after.html.split(EDITED)).toHaveLength(2);
+    expect(tailor.prompts).toHaveLength(1);
+
+    // The new master CV line never makes this draft read as stale to the other suggestion's edit.
+    const other = await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}/wording`, { text: "Vendor tender management" });
+    expect(other.statusCode).toBe(200);
+    expect(other.json().stretch.suggestions[1]).toMatchObject({ claimText: "Vendor tender management", state: "pending" });
+  });
+});
