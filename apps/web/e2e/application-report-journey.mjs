@@ -97,8 +97,14 @@ async function readThrough(note) {
   await page.waitForTimeout(900);
 }
 
+// #415 (ADR-0020): the draft is the page — no press reaches it. A profile question this job left
+// open (work rights, a language) is answered once first.
 async function openDraft(note) {
-  await qa.click(page.getByRole('button', { name: "I'm done — use this CV" }), note);
+  await qa.note(note);
+  if ((await page.locator('.tailor .ask .q').count()) > 0) {
+    await qa.click(page.locator('.tailor .opts .opt').first(), 'a profile question first — answer it once');
+    await page.waitForTimeout(1400);
+  }
   await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
   await qa.expectVisible('.draft-frame', 'the tailored CV draft is shown');
   await readThrough('read down through the draft to the send block');
@@ -168,7 +174,7 @@ await qa.goto('/deck', 'the reveal');
 await qa.click(page.getByRole('button', { name: 'See them' }), 'See them');
 await qa.click(page.getByRole('button', { name: 'I want this one, tailor this job' }), 'swipe right — I want this one');
 await page.waitForURL('**/tailor', { timeout: 15_000 });
-await openDraft("I'm done — use this CV");
+await openDraft('the draft is the page (#415)');
 const before = await reportCalls();
 const found = await pressAndWait('press "Approve and email me this CV" — once');
 const afterFirst = await reportCalls();
@@ -179,7 +185,7 @@ await assert(afterFirst - before === 1, `one press spent exactly one report call
 //    the server's own mid-run snapshot shapes: printing -> reporting -> sending.
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/tailor', 'reload — a fresh screen for the narration check');
-await openDraft("I'm done — use this CV (the ending is screen state)");
+await openDraft('the draft again after a reload (a checkpoint, nothing re-spent)');
 await page.route('**/api/jobs/*/events', async (route) => {
   const snap = (step) =>
     `data: ${JSON.stringify({ id: 'held', status: 'running', progress: { tailorExport: { step } } })}\n\n`;
@@ -217,7 +223,7 @@ await qa.expectVisible('.onejob .jobcard', "the pasted job's own screen");
 await qa.scrollThrough('read the pasted job');
 await qa.click(page.getByRole('button', { name: 'Write the tailored CV' }), 'Write the tailored CV');
 await page.waitForURL('**/tailor', { timeout: 15_000 });
-await openDraft("I'm done — use this CV (the pasted job)");
+await openDraft('the pasted job goes straight to its draft too');
 const pasted = await pressAndWait('press "Approve and email me this CV" on the pasted job');
 const afterPasted = await reportCalls();
 await assert(afterPasted - afterSecond === 1, `the pasted job's press spent one report call (${afterSecond} -> ${afterPasted})`);

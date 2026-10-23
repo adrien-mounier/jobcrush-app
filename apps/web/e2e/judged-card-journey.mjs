@@ -191,61 +191,45 @@ await qa.click(
   page.getByRole("button", { name: "I want this one, tailor this job" }),
   `choose "${topTitle}" — the best-scoring job on the deck`,
 );
-await settle(page.locator(".tailor .q"), "the tailor's first question");
-await qa.expectVisible(page.locator(".tailor .q"), "the tailor asks its first question, drawn from this advert's own requirements");
-await qa.scrollThrough("read the tailor screen — the same card, the same number, the same open list");
-
-const stateBefore = await page.evaluate(() => fetch("/api/onboarding/tailor").then((r) => r.json()));
-qa.note(
-  `tailoring ${stateBefore.card.adId} — number ${stateBefore.card.matchPct}%, ` +
-    `${stateBefore.card.dontYet.length} still open, ${stateBefore.questions.length} question(s) queued`,
-);
-// #105 AC, on the TAILOR surface as well as the deck: an explicit negative is answered-and-closed,
-// never an open gap. Recorded before the answer so the after-state below can be compared to it.
-const openBefore = stateBefore.card.dontYet.map((r) => r.id);
-const askedClosedBefore = stateBefore.card.askedClosed.length;
-
-// 6) Answer a question — the moment the number and the "not yet" list are supposed to respond.
-const firstQuestion = stateBefore.questions[0];
-if (!firstQuestion) {
-  await qa.note("no tailor question queued — nothing left open on this card, so there is no answer to drive.");
-  const okEarly = await qa.finish();
-  process.exit(okEarly ? 0 : 1);
+// #415 (ADR-0020): the tailor asks nothing about the job — a profile question it left open is
+// answered once, then the draft is the page and the judged verdicts reach the screen as the
+// "Where you fit" sheet and the "Also asked, not on your CV" list.
+if ((await page.locator(".tailor .ask .q").count()) > 0) {
+  await qa.click(page.locator(".tailor .opts .opt").first(), "a profile question first — answer it once");
+  await page.waitForTimeout(1400);
 }
-qa.note(`about to answer: "${firstQuestion.question}" (requirement ${firstQuestion.requirementId})`);
+await settle(page.locator(".draft-frame"), "the draft, written from the judged card's facts");
+await qa.expectVisible(page.locator(".draft-frame"), "the tailor writes the CV first — no question about the job's requirements");
+await qa.scrollThrough("read the tailor screen — the same number, the judged verdicts beside the draft");
 
-// Tap the LAST option — by convention the "No" on these generated questions. A "No" is the sharper
-// test of the two: it must close the gap (it leaves the open list) without ever moving the number,
-// and it must never buy a second model call, because the confirmed fact set did not change.
-const options = page.locator(".tailor .opts .opt");
-const optionCount = await options.count();
-await qa.click(options.nth(optionCount - 1), `tap the last option — the explicit "no" on this requirement`);
-// The answer changes the confirmed fact set, so this ad is re-judged from cold behind the same 15s
-// deadline — give it room rather than reading a half-settled screen.
-await page.waitForTimeout(20_000);
-
-const afterCounters = await counters();
 const stateAfter = await page.evaluate(() => fetch("/api/onboarding/tailor").then((r) => r.json()));
 const openAfter = stateAfter.card.dontYet.map((r) => r.id);
-
+const gaps = stateAfter.requirements.filter((r) => r.state === "gap").map((r) => r.id);
 qa.note(
-  `after the answer — number ${stateBefore.card.matchPct}% → ${stateAfter.card.matchPct}%, ` +
-    `open list ${openBefore.length} → ${openAfter.length}, ` +
-    `answered-and-closed ${askedClosedBefore} → ${stateAfter.card.askedClosed.length}`,
+  `tailoring ${stateAfter.card.adId} — number ${stateAfter.card.matchPct}%, ` +
+    `${openAfter.length} open on the card, ${gaps.length} listed under "Also asked", ${stateAfter.questions.length} profile question(s) queued`,
 );
-qa.note(`judging counters across the answer: ${JSON.stringify(judgeDelta(after, afterCounters))}`);
+qa.note(`judging counters across the tailor read: ${JSON.stringify(judgeDelta(after, await counters()))}`);
 
-await qa.scrollThrough("read the card again — the answered requirement should have left the open list");
-
-// The requirement just answered must NOT still be sitting in the open list — spec #37, "the list of
-// open things only ever shrinks". This is the assertion that holds on BOTH surfaces.
-if (openAfter.includes(firstQuestion.requirementId)) {
-  qa.note(`FAIL: "${firstQuestion.requirementId}" was answered but is still listed as an open gap.`);
-  await qa.expectVisible("#answered-requirement-still-open", "an answered requirement must never remain an open gap");
+// 6) The two surfaces agree: every open row of the judged card is a gap on the tailor's list, and
+//    the list is the job's own order (never re-sorted by band).
+await qa.expectVisible(page.locator(".tailor .score"), "the number is on screen and still explained beside the draft");
+if (!openAfter.every((id) => gaps.includes(id))) {
+  qa.note(`FAIL: open on the card but not listed as a gap: ${JSON.stringify(openAfter.filter((id) => !gaps.includes(id)))}`);
+  await qa.expectVisible("#open-row-missing-from-gaps", "every open requirement of the judged card is on the tailor's gap list");
 } else {
-  qa.note(`"${firstQuestion.requirementId}" left the open list once answered — answered-and-closed, never an open gap.`);
+  qa.note(`every open row of the judged card (${openAfter.length}) is on the tailor's gap list — one scorer, two surfaces.`);
 }
-await qa.expectVisible(page.locator(".tailor .score"), "the number is still on screen and still explained after the answer");
+await qa.click(page.getByRole("button", { name: /Where you fit/ }), "open 'Where you fit'");
+const sheetRows = await page.locator(".tailor .marks li .t").allTextContents();
+if (JSON.stringify(sheetRows) !== JSON.stringify(stateAfter.requirements.map((r) => r.text))) {
+  qa.note(`FAIL: the sheet re-sorted the job's requirements: ${JSON.stringify(sheetRows)}`);
+  await qa.expectVisible("#sheet-resorted", "the sheet lists every requirement in the job's own order");
+} else {
+  qa.note(`the sheet lists all ${sheetRows.length} requirements in the job's own order.`);
+}
+await qa.scrollThrough("read the sheet");
+await page.keyboard.press("Escape");
 
 // 7) The number must never contradict the list it is shown beside.
 if (stateAfter.card.matchPct === 100 && openAfter.length > 0) {

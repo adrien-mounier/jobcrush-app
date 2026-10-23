@@ -84,13 +84,18 @@ if (!link.body?.devLink) throw new Error(`sign-in failed (${link.status}): ${JSO
 await postJson('/api/auth/verify', { token: new URL('http://x' + link.body.devLink).searchParams.get('token') });
 await qa.note(`signed in as ${EMAIL}`);
 
-// 1. Deck -> want -> Tailor -> "I'm done" -> the draft.
+// 1. Deck -> want -> Tailor -> the draft (#415: written by itself, no press).
 await qa.goto('/deck', 'the reveal');
 await qa.click(page.getByRole('button', { name: 'See them' }), 'See them');
 await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'the deck card renders');
 await qa.click(page.getByRole('button', { name: 'I want this one, tailor this job' }), 'swipe right — I want this one');
 await page.waitForURL('**/tailor', { timeout: 15_000 });
-await qa.click(page.getByRole('button', { name: "I'm done — use this CV" }), "I'm done — use this CV");
+// #415 (ADR-0020): the draft is the page — no press reaches it; a profile question this job left
+// open is answered once first.
+if ((await page.locator('.tailor .ask .q').count()) > 0) {
+  await qa.click(page.locator('.tailor .opts .opt').first(), 'a profile question first — answer it once');
+  await page.waitForTimeout(1400);
+}
 await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await qa.expectVisible('.draft-frame', 'the tailored CV draft is shown');
 await readThrough('read down through the draft to the send block');
@@ -144,7 +149,7 @@ await qa.note(`printed bullets: ${bulletsBefore} before, ${(after.body?.html?.ma
 
 // 4. Reload: the notice is on the draft screen in its normal place, said once.
 await qa.goto('/tailor', 'reload the tailor screen');
-await qa.click(page.getByRole('button', { name: "I'm done — use this CV" }), "I'm done — use this CV (the ending is screen state)");
+await qa.note('after a reload the draft is back at once — a checkpoint, no press (#415)');
 await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await readThrough('scroll through the draft after the send');
 await qa.expectText('body', NOTICE, 'after a reload the page notice is on the draft screen');

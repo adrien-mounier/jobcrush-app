@@ -1,14 +1,13 @@
-// #17 the profile badge — the full answer-stream journey, human-paced, over a REAL stack.
+// #17 the profile badge — the full journey, human-paced, over a REAL stack.
 //
 // Nothing is stubbed: discovery (0 facts, and #339: question 1 and the eligibility answers add none)
-// -> /tailor (the first fact -> a "no" -> reload) -> /profile -> discovery and back -> the word
-// collapse, more answers, a round trip through the deck — all against the live Fastify API. The
-// flying chip is caught with a MutationObserver rather than a screenshot race, so the assertions are
-// about whether a chip existed at all, not whether we photographed it.
+// -> her CV read and reviewed (the facts the badge counts) -> /tailor -> /profile -> discovery and
+// back -> a round trip through the deck — all against the live Fastify API.
 //
-// #339 moved where the badge is born: discovery no longer asks the floor, so a visitor with no CV
-// tells us her first fact in the tailor step. The delta-0 "a correction flies nothing" step went
-// with discovery's correctable CV lines ("Fix this line"), which #339 removed.
+// #339 moved where the badge is born: discovery no longer asks the floor. #415 (ADR-0020) moved it
+// again: the Tailor step takes no answer that writes a fact any more (the requirement yes/no queue
+// is gone; a profile answer never moves the count), so the badge is born of her CV, and no chip
+// flies on any screen this journey walks — the MutationObserver below is kept to prove that.
 //
 //   OPS_KEY=qa-ops-key PORT=30181 node apps/api/dist/qa-main.js
 //   cd apps/web && API_URL=http://127.0.0.1:30181 npx next build && npx next start -p 30180
@@ -105,8 +104,11 @@ await assert(
 );
 
 // ---------------------------------------------------------------------------------------------
-// 4. Sign in and reach /tailor — where a visitor without a CV now tells us facts.
+// 4. Her CV, read and reviewed — the facts the badge counts (#339/#415). Then sign in and reach
+//    /tailor (past the wall), where the badge sits in the topbar.
 // ---------------------------------------------------------------------------------------------
+const facts = await qa.factsFromCv();
+await assert(facts > 0, `her CV gave the record ${facts} facts — the badge is born of her CV, not of a tap`);
 const signedIn = await page.evaluate(async (email) => {
   const post = (u, b) => fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
   const res = await post('/api/auth/request-link', { email });
@@ -131,60 +133,42 @@ if (signedIn !== 'ok') throw new Error(signedIn);
 await qa.goto('/tailor', 'open the tailor screen');
 await watchChips();
 await page.waitForTimeout(1600);
-await assert((await page.locator('a.prof').count()) === 0, 'still 0 facts on /tailor — no badge there either (spec §6)');
-// A profile-level question (a language ladder, when an earlier journey left the QA stack's language
-// adverts armed) has no Yes/No and adds no counted fact — put it off so a Yes/No requirement is up.
-for (let i = 0; i < 3 && !(await page.getByRole('button', { name: 'Yes', exact: true }).count()); i++) {
-  const notNow = page.getByRole('button', { name: 'Not now', exact: true });
-  if (!(await notNow.count())) break;
-  await qa.click(notNow.first(), 'a profile-level question first — "Not now", it adds no counted fact');
-  await page.waitForTimeout(1200);
+// A profile question this job left open (work rights, a language) comes first and adds no counted
+// fact — answer it once, and the draft follows (#415).
+if ((await page.locator('.tailor .ask .q').count()) > 0) {
+  await qa.click(page.locator('.tailor .opts .opt').first(), 'a profile question first — it adds no counted fact');
+  await page.waitForTimeout(1400);
+}
+await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+const b1 = await badge();
+await qa.note(`on /tailor: badge=${JSON.stringify(b1)} chips=${(await chips()).length}`);
+await assert(b1?.count === facts, `AC1: the badge reads her CV's ${facts} facts (${b1?.count})`);
+await assert(b1?.layers >= 1, `AC3: ${b1?.count} facts draw ${b1?.layers} layer(s)`);
+await assert((await chips()).length === 0, 'no chip flies on /tailor — nothing here records a fact (#415)');
+await qa.expectVisible('a.prof', `the badge in the tailor topbar at ${b1?.count}`);
+
+// ---------------------------------------------------------------------------------------------
+// 5. AC2 — the word: "fact"/"facts" up to 3, collapsed past it (the CV's count decides which).
+// ---------------------------------------------------------------------------------------------
+if (b1.count <= 3) {
+  await assert(b1.unit === (b1.count === 1 ? 'fact' : 'facts') && !b1.unitGone, `AC2: at ${b1.count} the word "${b1.unit}" is shown`);
+} else {
+  await assert(b1.unitGone, `AC2: past 3 the word has collapsed and only the count remains (unit collapsed=${b1.unitGone})`);
 }
 
 // ---------------------------------------------------------------------------------------------
-// 5. AC1 — the first answer that IS a fact: 0 -> 1. The answer the badge is born on.
+// 6. Reload — the count holds and no stale chip replays (spec §6, the resume state).
 // ---------------------------------------------------------------------------------------------
-await resetChips();
-await qa.click(page.getByRole('button', { name: 'Yes', exact: true }).first(), 'the first fact: "Yes" to a requirement');
-await page.waitForTimeout(1900);
-const c1 = await chips();
-const b1 = await badge();
-await qa.note(`0->1: chips=${JSON.stringify(c1)} badge=${JSON.stringify(b1)}`);
-await assert(c1.length === 1, `AC1 (0->1): exactly one chip flew on the very first fact (flew ${c1.length})`);
-await assert(c1[0]?.text === '+ Yes', `AC1: the chip carries the visitor's own answer — ${JSON.stringify(c1[0]?.text)}`);
-await assert(b1?.count === 1, `AC1: the badge was born and reads ${b1?.count}`);
-await assert(b1?.unit === 'fact' && !b1.unitGone, `AC2: at 1 it reads the singular "fact"`);
-await assert(b1?.layers === 1, `AC3: 1 fact draws 1 layer`);
-await qa.expectVisible('a.prof', 'the badge at 1 fact — count plus the word "fact"');
-
-// ---------------------------------------------------------------------------------------------
-// 6. AC1 on a "no" — a recorded "No" counts too, so the chip flies and the pile grows by one.
-// ---------------------------------------------------------------------------------------------
-await resetChips();
-const beforeNo = (await badge()).count;
-await qa.click(page.getByRole('button', { name: 'No', exact: true }).first(), 'answer "No" — it still counts as something she told us');
-await page.waitForTimeout(1900);
-const cNo = await chips();
-const bNo = await badge();
-await assert(cNo.length === 1, `AC1: a "no" flew a chip (flew ${cNo.length}) — the badge is what pays for a "no"`);
-await assert(bNo.count === beforeNo + 1, `AC1: the pile grew on a "no" (${beforeNo} -> ${bNo.count})`);
-await assert(bNo.unit === 'facts' && !bNo.unitGone, `AC2: at ${bNo.count} the plural "facts" is still shown`);
-await qa.expectVisible('a.prof', `the badge at ${bNo.count} facts, grown by a "no"`);
-
-// ---------------------------------------------------------------------------------------------
-// 7. Reload — the count holds and no stale chip replays (spec §6, the resume state).
-// ---------------------------------------------------------------------------------------------
-const beforeReload = (await badge()).count;
-await qa.goto('/tailor', 'reload mid-flow');
+await qa.goto('/tailor', 'reload');
 await watchChips();
 await page.waitForTimeout(1500);
 const afterReload = await badge();
 const reloadChips = await chips();
-await assert(afterReload?.count >= beforeReload, `the count held across a reload (${beforeReload} -> ${afterReload?.count})`);
+await assert(afterReload?.count >= b1.count, `the count held across a reload (${b1.count} -> ${afterReload?.count})`);
 await assert(reloadChips.length === 0, `a resume replays no chip and no pulse (chips=${reloadChips.length})`);
 
 // ---------------------------------------------------------------------------------------------
-// 8. AC5 — tapping the badge opens the profile as its own screen.
+// 7. AC5 — tapping the badge opens the profile as its own screen.
 // ---------------------------------------------------------------------------------------------
 await assert(
   /^Your profile — \d+ facts? about you$/.test(afterReload?.label ?? ''),
@@ -209,7 +193,7 @@ await qa.click(page.getByRole('button', { name: 'Back' }), 'Back returns to the 
 await page.waitForTimeout(1400);
 
 // ---------------------------------------------------------------------------------------------
-// 9. A trip through discovery. #392: once the role is known discovery shows only the job count and
+// 8. A trip through discovery. #392: once the role is known discovery shows only the job count and
 //    moves on by itself — no topbar, so no badge there any more; the badge after the trip must not
 //    have fallen below the one read before it.
 // ---------------------------------------------------------------------------------------------
@@ -224,35 +208,9 @@ await assert((await chips()).length === 0, 'arriving on /tailor replays no chip'
 await qa.expectVisible('a.prof', `the badge in the tailor topbar at ${bT?.count}`);
 
 // ---------------------------------------------------------------------------------------------
-// 10. AC2's second half — past 3 the word collapses and the count remains.
+// 9. "It only ever grows" — a round trip through the deck.
 // ---------------------------------------------------------------------------------------------
-const climb = [bT.count];
-for (let i = 0; i < 4; i++) {
-  const yes = page.getByRole('button', { name: 'Yes', exact: true });
-  if (!(await yes.count())) break;
-  await resetChips();
-  const before = (await badge()).count;
-  await qa.click(yes, `tailor answer ${i + 1}`);
-  await page.waitForTimeout(1900);
-  const c = await chips();
-  const b = await badge();
-  climb.push(b.count);
-  await assert(c.length === 1 && b.count > before, `AC1 on /tailor: answer ${i + 1} flew a chip and grew the badge (${before} -> ${b.count})`);
-  if (b.count === 4) {
-    await assert(b.unitGone, `AC2: at 4 the word has collapsed and only the count remains (unit collapsed=${b.unitGone})`);
-    await qa.expectVisible('a.prof', 'AC2: the badge at 4 — the word is gone, the count remains');
-  }
-}
-const bFinal = await badge();
-await qa.note(`AC1/AC3: the count across the whole run — ${climb.join(' -> ')}; layers now ${bFinal.layers}`);
-await assert(climb.every((v, i) => i === 0 || v >= climb[i - 1]), `the count never fell at any step (${climb.join(' -> ')})`);
-await assert(bFinal.unitGone, `AC2: past the threshold the word stays gone (count=${bFinal.count})`);
-await qa.expectVisible('a.prof', `the badge at ${bFinal.count} facts, ${bFinal.layers} layers`);
-
-// ---------------------------------------------------------------------------------------------
-// 11. "It only ever grows" — a round trip through the deck.
-// ---------------------------------------------------------------------------------------------
-const peak = bFinal.count;
+const peak = bT.count;
 await qa.goto('/deck', 'over to the deck');
 await assert((await page.locator('a.prof').count()) === 0, 'the deck deliberately carries no badge this slice (spec §11)');
 await qa.goto('/tailor', 'back to tailor');
@@ -264,7 +222,7 @@ await assert((await chips()).length === 0, 'returning replays no chip');
 await qa.expectVisible('a.prof', `back on tailor, still ${afterTrip?.count} facts`);
 
 // ---------------------------------------------------------------------------------------------
-// 12. Keyboard — the badge is a real link: Tab reaches it, Enter activates it.
+// 10. Keyboard — the badge is a real link: Tab reaches it, Enter activates it.
 // ---------------------------------------------------------------------------------------------
 // Tab order is DOM order, so "first tab stop" is a structural fact: read the focusable elements in
 // document order rather than pressing Tab from wherever the last click left focus.
@@ -278,12 +236,6 @@ const tabOrder = await page.evaluate(() =>
 );
 await qa.note(`focusable elements in DOM order inside the tailor screen: ${JSON.stringify(tabOrder)}`);
 await assert(tabOrder[0] === 'a.prof', `keyboard: the badge is the first tab stop within the screen (order: ${tabOrder.join(' -> ')})`);
-
-// Shift+Tab from the first question option must reach the badge (spec §8.4's stated route).
-await page.getByRole('button', { name: 'Yes', exact: true }).first().focus().catch(() => {});
-await page.keyboard.press('Shift+Tab');
-const backStop = await page.evaluate(() => document.activeElement?.className ?? '(none)');
-await qa.note(`Shift+Tab from an option lands on: "${backStop}"`);
 
 await page.locator('a.prof').focus();
 const focusedIsBadge = await page.evaluate(() => document.activeElement?.className === 'prof');

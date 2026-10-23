@@ -135,30 +135,30 @@ async function oneNumber(pasteJobId, adId, label) {
     Number.isFinite(job.pct) && job.pct === tailor.pct && job.pct === pasteResult && job.pct === tailorApi && (deck === undefined || deck === job.pct),
     `${label} #397 — one job, one percentage on every screen that names it (${job.pct}%)`,
   );
-  await must(job.band !== '' && job.band === tailor.band, `${label} #397 — one band word on both screens ("${job.band}" / "${tailor.band}")`);
+  // #415: the tailor screen carries no Match breakdown pill until #411 puts it under the title —
+  // the band word is checked on the job screen alone until then.
+  await must(job.band !== '', `${label} #397 — the job screen carries its band word ("${job.band}"); the tailor screen's pill is #411's`);
   const live = ((await page.locator('.tailor [aria-live="polite"]').first().textContent().catch(() => '')) ?? '').trim();
   await qa.note(`${label} — the tailor's screen-reader announcement: "${live}"`);
   await must(live.length > 0 && !/\.\s*\.|“”|""|^\s*\./.test(live), `${label} #397 — the announcement has no empty slot ("${live}")`);
 }
 
-/** Say "No" to the first `n` gap questions; returns the requirement sentences he denied. */
-async function denyQuestions(n, label) {
-  const denied = [];
-  for (let i = 0; i < n; i++) {
-    const q = page.locator('.tailor .q').first();
-    if (!(await q.isVisible().catch(() => false))) break;
-    const text = ((await q.textContent()) ?? '').trim();
-    const req = text.match(/This job wants: "(.+?)\.?" Does that describe you\?/)?.[1] ?? text;
-    await qa.expectVisible(q, `${label}: question ${i + 1} — ${text}`);
-    await qa.click(page.locator('.tailor .opts').getByRole('button', { name: 'No', exact: true }), `answer "No" — he has never done this`);
-    await page.waitForTimeout(1800);
-    denied.push(req);
-  }
-  return denied;
+// #415 (ADR-0020): the Tailor step takes no "No" to a requirement any more (the queue is gone),
+// so #401's denied-requirement sentence can no longer be driven live here — it is pinned at the
+// API seam (tailorExport.test.ts, a stored denial). The gaps the report names are the card's open
+// rows, read back below.
+async function openGaps() {
+  const state = (await api('/api/onboarding/tailor')).body;
+  return (state?.requirements ?? []).filter((r) => r.state === 'gap').map((r) => r.text);
 }
 
 async function approve(label) {
-  await qa.click(page.getByRole('button', { name: "I'm done — use this CV" }), `${label}: I'm done — use this CV`);
+  // #415: the draft is the page — no press reaches it; a profile question this job left open is
+  // answered once first.
+  if ((await page.locator('.tailor .ask .q').count()) > 0) {
+    await qa.click(page.locator('.tailor .opts .opt').first(), `${label}: a profile question first — answer it once`);
+    await page.waitForTimeout(1400);
+  }
   await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
   await qa.expectVisible('.draft-frame', `${label}: the tailored CV draft is shown (the fake tailor still drafts)`);
   await qa.scrollThrough(`${label}: read down the draft to the send block`);
@@ -227,9 +227,10 @@ await must(storedB.body?.card?.title === TYPED && !JSON.stringify(storedB.body).
 await must(!(await page.evaluate(() => document.body.innerText)).includes(PLACEHOLDER), '#400b — the placeholder is nowhere on the job screen');
 await oneNumber(jobB, b.adId, '#400b job');
 
-// 3. #401 on the Brussels job: deny two requirements, approve.
-const deniedB = await denyQuestions(2, '#401 Brussels job');
-await qa.note(`#401 — he said "No" to: ${JSON.stringify(deniedB)}`);
+// 3. #401 on the Brussels job: the requirements the CV does not meet, then approve. (#415: no
+//    requirement is asked, so none can be denied here — the open gaps carry the report's sentence.)
+const deniedB = await openGaps();
+await qa.note(`#401 — the Brussels job's gaps ("Also asked, not on your CV"): ${JSON.stringify(deniedB)}`);
 await approve('#401 Brussels job');
 
 // ---------------------------------------------------------------------------------------------
@@ -270,7 +271,7 @@ if (!sent) {
     for (const req of deniedB) {
       const line = s3.split('\n').find((l) => l.startsWith(`- ${req}`));
       await must(!!line && (/ — say: ".+"$/.test(line) || line.endsWith(NOTHING_CLOSE)),
-        `#401 — the requirement he said "No" to is in section 3 with a say sentence or the nothing-close line: ${line ?? '(missing)'}`);
+        `#401 — a requirement the CV does not meet is in section 3 with a say sentence or the nothing-close line: ${line ?? '(missing)'}`);
     }
     await must(brussels.text.slice(brussels.text.indexOf('4. Be ready'), brussels.text.indexOf('5. Salary')).includes(UNKNOWN),
       '#401 — the Brussels job (the lookup cannot place it) says "Job location unknown" in section 4');

@@ -134,18 +134,19 @@ await qa.expectText('.tailor .ask .skip', 'Not sure yet',
 await qa.scrollThrough('read the queue screen the way a person would');
 
 // -------------------------------------------------------------------------------------------
-// 3. Answer "Yes". The after-line lands; the queue moves on to the advert's own questions.
+// 3. Answer "Yes". The after-line lands; the draft follows (#415: a requirement is never a
+//    question, so nothing else is asked).
 // -------------------------------------------------------------------------------------------
 await qa.click(page.getByRole('button', { name: 'Yes — no sponsorship needed' }), 'answer the permanent question with a yes');
 await page.waitForTimeout(1400);
 await qa.expectText('.tailor .ledger', AFTER_YES,
   'AC6: one line after, saying what changed — remembered, and never asked again');
 const nextQ = await txt('.tailor .ask .q');
-await qa.note(`the queue moved on to: ${JSON.stringify(nextQ)}`);
-await assert(/^This job wants:/.test(nextQ ?? ''),
-  "AC3: with the profile question answered, the advert's own questions follow in the same queue");
-await assert((await page.locator('.tailor .ask .notice').count()) === 0,
-  'the remember line belongs to the permanent question alone — an advert question carries none');
+await qa.note(`after the answer the queue holds: ${JSON.stringify(nextQ)}`);
+await assert(nextQ === null,
+  'ADR-0020 clause 1: with the profile question answered, nothing else is asked — the CV is written');
+await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+await qa.expectVisible('.draft-frame', 'the draft is the page, with the after-line beside it');
 
 // -------------------------------------------------------------------------------------------
 // 4. AC5 — the NEXT Hong Kong job with the same stated gate asks nothing.
@@ -155,9 +156,10 @@ await qa.goto('/tailor', 'the Tailor step for job B — same market, same stated
 await qa.expectVisible('.jobdeck.tailor', 'the tailor screen mounted for job B');
 const firstQOnB = await txt('.tailor .ask .q');
 await qa.note(`job B's first question: ${JSON.stringify(firstQOnB)}`);
-await assert(/^This job wants:/.test(firstQOnB ?? ''),
-  'AC5: the work-rights answer given on job A is never asked again — job B opens straight on its own questions');
-await assert(firstQOnB !== QUESTION, 'the profile question specifically is gone');
+await assert(firstQOnB !== QUESTION,
+  'AC5: the work-rights answer given on job A is never asked again — job B opens straight on its draft');
+await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+await qa.expectVisible('.draft-frame', 'job B: the draft, with no question first');
 
 // -------------------------------------------------------------------------------------------
 // 5. Person two: "Not sure yet" first (#308 — stores nothing, returns on the next job), then
@@ -178,8 +180,10 @@ await qa.expectText('.tailor .ledger', 'Nothing saved — I\'ll ask again on ano
   '#308: the skip says both halves out loud — nothing saved, and it will be asked again');
 const afterSkipQ = await txt('.tailor .ask .q');
 await qa.note(`the queue after the skip: ${JSON.stringify(afterSkipQ)}`);
-await assert(/^This job wants:/.test(afterSkipQ ?? ''),
-  "#308: the skipped question stepped aside — the advert's own questions follow, and this job never re-asks");
+await assert(afterSkipQ === null,
+  "#308: the skipped question stepped aside — the draft follows, and this job never re-asks");
+await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+await qa.expectVisible('.draft-frame', 'the skip still starts the draft (ADR-0020 clause 1)');
 
 await assert((await want(AD_B)) === 200, 'person two moves to job B — the next job that states the gate');
 await qa.goto('/tailor', 'the Tailor step for job B');

@@ -29,6 +29,7 @@ import {
   getJobBlocks,
   resolveJobBlockMatch,
   unconfirmJobBlock,
+  type FamilyPlacement,
   type IndustryPlacement,
   type JobBlockCorrection,
   type JobBlockKind,
@@ -36,6 +37,7 @@ import {
   type JobBlocksReadStatus,
   type MinedDate,
   type MinedEndValue,
+  type PublishedFamily,
   type PublishedIndustry,
 } from "../../../lib/api";
 
@@ -142,13 +144,28 @@ interface UndoAction {
   local: LocalSnapshot;
 }
 
-// ---- #231: the sixth fact is never a question ----
+// ---- #231 / #414: the sixth fact is stated, never asked ----
 // #221 ended this deck with a "what kind of work were these?" panel for every job the machine could
 // not place. It is gone (ADR-0014 amendment 1): a job can be several families and nobody is asked,
 // so there is nothing here to ask about — an unplaced job is simply unplaced, and the labeler tries
-// again on the next run. The family stays a CORRECTABLE fact (the correct endpoint is untouched);
-// it is just never surfaced as a question on this screen. The job card itself said nothing about
-// families before and says nothing now.
+// again on the next run. #414 (ADR-0020 clause 5) puts the fact ON the card as a Kind of work row,
+// on exactly the industry's terms below: the card states what we believe, and the correction panel
+// offers the published list — as a multi-choice, since a job can be two kinds of work and the person
+// may say so.
+
+/** The families a placement names, as ID AND VERSION ONLY — empty for unmapped and for a job never
+ *  placed; confidence dropped for the same two reasons industryRefs gives below. */
+function familyRefs(placement: FamilyPlacement | null): Array<{ familyId: string; version: number }> {
+  return placement?.outcome === "confirmed"
+    ? placement.families.map(({ familyId, version }) => ({ familyId, version }))
+    : [];
+}
+
+function familyNames(placement: FamilyPlacement | null, published: PublishedFamily[]): string[] {
+  return familyRefs(placement).map(
+    (ref) => published.find((entry) => entry.familyId === ref.familyId)?.label ?? ref.familyId,
+  );
+}
 
 // ---- #281: the seventh fact IS shown, and therefore must be correctable ----
 // The industry is the one worked-out fact this screen prints, so unlike the family it needs a
@@ -217,6 +234,8 @@ export default function JobBlocksScreen() {
   // placement carries, and it is what the correction picker offers, so the screen can never offer
   // a choice the correction door would refuse.
   const [industries, setIndustries] = useState<PublishedIndustry[]>([]);
+  // #414 — the published families, on the same terms.
+  const [families, setFamilies] = useState<PublishedFamily[]>([]);
   const [readStatus, setReadStatus] = useState<JobBlocksReadStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -268,6 +287,7 @@ export default function JobBlocksScreen() {
       const res = await getJobBlocks();
       setBlocks(res.blocks);
       setIndustries(res.industries ?? []);
+      setFamilies(res.families ?? []);
       setReadStatus(res.summary.read);
       setConfirmedIds(new Set(res.blocks.filter((b) => b.confirmed).map((b) => b.id)));
       setQueue(res.blocks.filter((b) => !b.confirmed).map((b) => b.id));
@@ -426,6 +446,12 @@ export default function JobBlocksScreen() {
       pickedIndustry && JSON.stringify(draftIndustries) !== JSON.stringify(originalIndustries)
         ? ({ key: "industry", value: pickedIndustry } as const)
         : null;
+    // #414 — the family on the same terms: the whole list she chose, compared as a whole list.
+    const draftFamilies = familyRefs(draft.family.value);
+    const familyChange =
+      draftFamilies.length && JSON.stringify(draftFamilies) !== JSON.stringify(familyRefs(original.family.value))
+        ? ({ key: "family", value: draftFamilies } as const)
+        : null;
 
     const block = draft;
     const local = localSnapshot();
@@ -437,6 +463,7 @@ export default function JobBlocksScreen() {
       // while the card still read "all saved" (an undetectable, uncorrectable lie to the person).
       for (const c of changed) await correctJobBlock(block.id, c);
       if (industryChange) await correctJobBlock(block.id, industryChange);
+      if (familyChange) await correctJobBlock(block.id, familyChange);
       await confirmJobBlock(block.id);
       setUndo({
         label: "Saved your correction",
@@ -450,6 +477,11 @@ export default function JobBlocksScreen() {
             await correctJobBlock(block.id, {
               key: "industry",
               value: original.industry.value ?? { schemaVersion: "2", outcome: "unmapped" },
+            });
+          if (familyChange)
+            await correctJobBlock(block.id, {
+              key: "family",
+              value: original.family.value ?? { schemaVersion: "2", outcome: "unmapped" },
             });
           await unconfirmJobBlock(block.id);
         },
@@ -467,7 +499,7 @@ export default function JobBlocksScreen() {
           return n;
         });
         setQueue((q) => q.filter((id) => id !== block.id));
-        if (changed.length || industryChange) setCorrectionsCount((n) => n + 1);
+        if (changed.length || industryChange || familyChange) setCorrectionsCount((n) => n + 1);
         setLiveMessage("Saved your correction.");
         fireReward(rewardLabel(block), after > before); // only bump when it actually added time
         setDraft(null);
@@ -699,6 +731,7 @@ export default function JobBlocksScreen() {
                         original={current}
                         allBlocks={blocks}
                         industries={industries}
+                        families={families}
                         busy={busy}
                         onSave={saveBack}
                         onCancel={cancelBack}
@@ -708,6 +741,7 @@ export default function JobBlocksScreen() {
                         block={current}
                         allBlocks={blocks}
                         industries={industries}
+                        families={families}
                         dragX={dragX}
                         reducedMotion={reducedMotion}
                         onResolveMatch={onResolveMatch}
@@ -806,6 +840,7 @@ function FrontCard({
   block,
   allBlocks,
   industries,
+  families,
   dragX,
   reducedMotion,
   onResolveMatch,
@@ -814,6 +849,7 @@ function FrontCard({
   block: JobBlockView;
   allBlocks: JobBlockView[];
   industries: PublishedIndustry[];
+  families: PublishedFamily[];
   dragX: number;
   reducedMotion: boolean;
   onResolveMatch: (same: boolean) => void;
@@ -838,6 +874,20 @@ function FrontCard({
           </>
         ) : (
           <>We couldn&apos;t work out what industry this was. Nothing is counted against you for it.</>
+        )}
+      </p>
+    ) : null;
+  // #414 — the sixth fact, stated the same way. Jobs only; an honest "we don't know" when unplaced.
+  const familyNamesForBlock = familyNames(block.family.value, families);
+  const familyLine =
+    block.kind === "job" ? (
+      <p className="jb-family" data-placed={familyNamesForBlock.length ? "true" : "false"}>
+        {familyNamesForBlock.length ? (
+          <>
+            Kind of work: <b>{familyNamesForBlock.join(" and ")}</b>
+          </>
+        ) : (
+          <>We couldn&apos;t work out the kind of work this was. Nothing is counted against you for it.</>
         )}
       </p>
     ) : null;
@@ -867,6 +917,7 @@ function FrontCard({
             Yes, the same job
           </button>
         </div>
+        {familyLine}
         {industryLine}
         <p className="jb-quote">From your CV: &ldquo;{block.employer.origin.kind === "read" ? block.employer.origin.source_quote : block.employer.value}&rdquo;</p>
       </>
@@ -967,6 +1018,7 @@ function FrontCard({
         {tag}
       </span>
       <p className="jb-readback">{body}</p>
+      {familyLine}
       {industryLine}
       {quote && <p className="jb-quote">From your CV: &ldquo;{quote}&rdquo;</p>}
     </>
@@ -981,6 +1033,7 @@ function BackPanel({
   original,
   allBlocks,
   industries,
+  families,
   busy,
   onSave,
   onCancel,
@@ -990,6 +1043,7 @@ function BackPanel({
   original: JobBlockView;
   allBlocks: JobBlockView[];
   industries: PublishedIndustry[];
+  families: PublishedFamily[];
   busy: boolean;
   onSave: () => void;
   onCancel: () => void;
@@ -1152,6 +1206,49 @@ function BackPanel({
           {draft.kind === "job" ? "and this one does" : "and this one doesn't"}.
         </p>
       </div>
+      {/* #414 — the kind of work we worked out, offered back for correction on the industry's terms
+          below, as a MULTI-choice: a job can be two kinds of work (ADR-0020 clause 5), so each
+          family toggles on its own and at least one stays chosen. The blank state ("we couldn't
+          work this out") has no button: there is nothing to send that would un-place a job. */}
+      {draft.kind === "job" && families.length > 0 && (
+        <div className="jb-fgrp">
+          <label id="jb-family-label">Kind of work</label>
+          <div className="jb-choice" id="jb-family" role="group" aria-labelledby="jb-family-label">
+            {families.map((entry) => {
+              const chosen = familyRefs(draft.family.value);
+              const on = chosen.some((ref) => ref.familyId === entry.familyId);
+              return (
+                <button
+                  key={entry.familyId}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    const next = on
+                      ? chosen.filter((ref) => ref.familyId !== entry.familyId)
+                      : [...chosen, { familyId: entry.familyId, version: entry.version }];
+                    if (!next.length) return; // at least one — a job that was work was some kind of work
+                    setDraft({
+                      ...draft,
+                      family: {
+                        ...draft.family,
+                        // Her own answer is the one placement nothing is unsure about. The server
+                        // stamps this too; the same value here keeps the card from flickering.
+                        value: { schemaVersion: "2", outcome: "confirmed", families: next, confidence: "certain" },
+                      },
+                    });
+                  }}
+                >
+                  <strong>{entry.label}</strong>
+                </button>
+              );
+            })}
+          </div>
+          <p className="jb-note">
+            We work this out from what your CV says about the job rather than asking you — put it
+            right here if we got it wrong. Choose every kind of work it was.
+          </p>
+        </div>
+      )}
       {/* #281 — the industry we worked out, offered back for correction. Never a question: the card
           already stated what we believe, and this is where she overrules it. Jobs only, and only
           when a vocabulary actually reached the screen. */}

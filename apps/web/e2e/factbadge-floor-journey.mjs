@@ -80,23 +80,6 @@ async function readBadge(note) {
   return { b, s };
 }
 
-// Answer the tailor question on screen with "Yes". Returns false when no question is left. A
-// profile-level question (a language ladder, when the QA stack's language adverts are armed) has no
-// "Yes" and adds no counted fact, so it is put off with "Not now" first.
-async function answerTailorYes(note) {
-  const yes = page.getByRole('button', { name: 'Yes', exact: true });
-  for (let i = 0; i < 3 && !(await yes.count()); i++) {
-    const notNow = page.getByRole('button', { name: 'Not now', exact: true });
-    if (!(await notNow.count())) break;
-    await qa.click(notNow.first(), 'a profile-level question — "Not now", it adds no counted fact');
-    await page.waitForTimeout(1200);
-  }
-  if (!(await yes.count())) return false;
-  await qa.click(yes.first(), note);
-  await page.waitForTimeout(1600);
-  return true;
-}
-
 // ---------------------------------------------------------------------------------------------
 // 1. A new visitor: question 1, and no facts yet.
 // ---------------------------------------------------------------------------------------------
@@ -207,21 +190,14 @@ for (let lap = 1; lap <= 2; lap++) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 6. Keep going: the pile must still be able to GROW past the floor, and a second reject must
-//    still not lower it. Note the honest cost of any floor (the same one #23's tailor % pays):
-//    the first answer after a reject only refills the floor, so it shows no visible climb — the
-//    badge holds rather than grows. It never SHRINKS, which is what #17/#33 forbid.
+// 6. A second reject must still not lower it. (#415: the Tailor step takes no answer that writes
+//    a fact any more, so the "pile still grows past the floor" half has no door on this screen —
+//    growth is the review's and the chat's (#350). What #17/#33 forbid is a SHRINK, checked here.)
 // ---------------------------------------------------------------------------------------------
-await qa.goto('/tailor', 'back to tailoring to keep answering');
+await qa.goto('/tailor', 'back to the tailor screen — the draft, with the badge in its topbar');
 await page.waitForTimeout(1200);
-let last = peak;
-for (let i = 0; i < 2; i++) {
-  if (!(await answerTailorYes(`answer tailor question ${i + 1} "Yes" — the pile must still be able to grow`))) break;
-  const grown = await readBadge(`the badge after tailor answer ${i + 1}`);
-  await assert(grown.b?.count >= last, `the badge never fell while answering (${last} -> ${grown.b?.count})`);
-  last = grown.b?.count ?? last;
-}
-await assert(last > peak, `growth still works — the badge climbed past the floor it was holding (${peak} -> ${last})`);
+const last = (await readBadge('the badge on the tailor screen')).b?.count ?? peak;
+await assert(last >= peak, `the badge never fell on the tailor screen (${peak} -> ${last})`);
 
 {
   const second = (await server()).cvFacts[0];

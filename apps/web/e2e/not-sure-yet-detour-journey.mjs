@@ -112,7 +112,7 @@ try {
   await qa.note(`job A's whole queue: ${JSON.stringify(qsA.map((q) => [q.kind ?? 'advert', q.question.slice(0, 70), q.options.length]))}`);
   await assert(twins.length === 0, `AC4: nowhere in the queue is a language asked as Yes/No — ${JSON.stringify(twins)}`);
   const twinDoor = await api('/api/onboarding/tailor/answer', 'POST', { requirementId: ladderId, answer: 'Yes' });
-  await assert(twinDoor.status === 404, `AC4: the Yes/No door refuses the language requirement (HTTP ${twinDoor.status})`);
+  await assert(twinDoor.status === 404, `AC4 / #415: there is no Yes/No door for any requirement any more (HTTP ${twinDoor.status})`);
 
   // 4. "Not now". Nothing lands in her profile; a second skip is refused.
   await qa.scrollThrough('read the graded question before answering');

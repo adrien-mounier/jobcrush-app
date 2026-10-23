@@ -152,10 +152,10 @@ const tailorState = await page.evaluate(async () => {
   const r = await fetch("/api/onboarding/tailor");
   if (r.status !== 200) return { status: r.status };
   const j = await r.json();
-  return { status: 200, adId: j.card?.adId, questions: (j.questions || []).map((q) => q.question) };
+  return { status: 200, adId: j.card?.adId, requirements: (j.requirements || []).map((r) => `${r.state}: ${r.text}`) };
 });
 qa.note(`landed on ${new URL(page.url()).pathname}; GET /onboarding/tailor → ${tailorState.status}; tailoring ${tailorState.adId}`);
-qa.note(`questions generated from the live-read requirements: ${JSON.stringify(tailorState.questions?.slice(0, 3))}`);
+qa.note(`the live-read requirements, as the Tailor step lists them (#415): ${JSON.stringify(tailorState.requirements?.slice(0, 3))}`);
 if (tailorState.status !== 200) await qa.expectVisible("#tailor-must-be-200", "the tailor must open for a newly-read advert");
 // The whole point: the job being tailored must be the UNCURATED one, not a curated neighbour that
 // happens to share its title.
@@ -164,9 +164,15 @@ if (tailorState.adId !== targetId) {
   await qa.expectVisible("#wrong-tailor-target", `the tailor must hold the newly-read advert ${targetId}`);
 }
 
-// The tailor is asking about requirements that exist only because a model read the advert.
-await qa.expectVisible(page.locator(".tailor .q"), "the tailor asks its first question — drawn from the live-read requirement list");
-await qa.expectVisible(page.getByRole("button", { name: "I'm done — use this CV" }), "the newly-read job is fully tailorable — the exit is offered like any curated job");
+// #415 (ADR-0020): the tailor writes the CV for requirements that exist only because a model read
+// the advert — a profile question it left open is answered once first, then the draft is the page.
+if ((await page.locator(".tailor .ask .q").count()) > 0) {
+  await qa.click(page.locator(".tailor .opts .opt").first(), "a profile question first — answer it once");
+  await page.waitForTimeout(1400);
+}
+await page.locator(".draft-frame").waitFor({ state: "visible", timeout: 60_000 }).catch(() => {});
+await qa.expectVisible(".draft-frame", "the newly-read job is fully tailorable — its draft is written like any curated job's");
+await qa.expectVisible(page.getByRole("button", { name: /Where you fit/ }), "and its live-read requirement list is behind 'Where you fit'");
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

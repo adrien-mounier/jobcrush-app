@@ -137,10 +137,14 @@ await qa.goto('/tailor', 'AC3: signed in mid-tailor, open /tailor');
 await page.waitForTimeout(1200);
 await assert(path() === '/tailor', `AC3: stayed on /tailor (no redirect) — url is ${path()}`);
 await qa.expectVisible('.jobdeck.tailor', 'AC3: the tailor screen mounted');
-await qa.expectVisible('.tailor .live-card h2', 'AC3: the job title heads the live card');
-await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'AC3: the score ring renders');
-await qa.expectVisible('.tailor .q', 'AC3: the question dock is asking');
-await qa.expectVisible(page.getByRole('button', { name: "I'm done — use this CV" }), 'AC3: the exits are intact');
+// #415 (ADR-0020): a profile question this job left open comes first; otherwise the draft is the page.
+if ((await page.locator('.tailor .ask .q').count()) > 0) {
+  await qa.expectVisible('.tailor .live-card h2', 'AC3: the job title heads the live card over the profile question');
+} else {
+  await qa.expectVisible('.tailor .dbar h1', 'AC3: the job title heads the draft screen');
+}
+await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'AC3: the score renders');
+await qa.expectVisible(page.getByRole('button', { name: 'Drop this job' }), 'AC3: the exits are intact');
 
 // ---------------------------------------------------------------------------------------------
 // 5. The fix must NOT have swallowed every error into a redirect. A 500 and a dropped connection
