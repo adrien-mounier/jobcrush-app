@@ -1,0 +1,602 @@
+<!doctype html>
+<!-- PROTOTYPE — throwaway. #408 item 3, round 2 (owner's picks after the /impeccable critique, 2026-10-23):
+     ONE suggestion card, two presentations. A computer gets layout B (the true CV, one note open beside
+     its line, the rest as numbers in the page margin); a phone (under 960px) gets layout C (one card at a
+     time with a strip of the page, answers docked at the bottom, the CV in a pull-up sheet).
+     The score has no "+N%": it counts up with the shipped reward beat (a gold mote flies 720ms, the
+     number rolls, a 460ms bump and a brief glow), and simply swaps under reduced motion.
+     Data: the owner's Hong Kong digital transformation PM job (2026-10-22 staging run) as it would read
+     after the #408 fixes. PMP / PRINCE2 is added only to show the "not on your CV" list.
+     Prototype chrome (not the design): the banner and the Computer / Phone / Reset switch, top right.
+     Round 1 (three layouts A/B/C) lives in git history on the prototype branch. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Stretch suggestions — prototype</title>
+<style>
+  :root {
+    --floor: #101419; --surface: #171c23; --raised: #1f262f; --line: #2b333d;
+    --ink: #e8eaed; --muted: #7f8b98; --muted-r: #8a95a2; --weak: #6f7d8c; --settled: #4d5865;
+    --gold: #e8a33d; --gold-deep: #a8762b; --gold-light: #ffd9a0; --gold-ink: #1a1206;
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --paper-ink: #16150f; --paper-muted: #6b6455;
+    --wash: rgba(232, 163, 61, .22);
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --bump: cubic-bezier(.2, 1.5, .4, 1);
+    --out: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--floor); color: var(--ink); font: 14px/1.5 var(--sans); }
+  ::selection { background: rgba(232, 163, 61, .35); color: var(--ink); }
+  .paper ::selection { background: rgba(232, 163, 61, .4); color: var(--paper-ink); }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ---------- prototype chrome ---------- */
+  .banner { flex: none; background: #241d13; color: #e9cf9f; padding: 7px 16px; font-size: 12.5px; border-bottom: 1px solid #3d3020; padding-right: 260px; }
+  .chrome { position: fixed; top: 6px; right: 10px; z-index: 200; display: flex; gap: 2px; background: #fff; color: #111; border-radius: 999px; padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,.5); font-size: 12.5px; }
+  .chrome button { border: 0; background: none; border-radius: 999px; padding: 5px 12px; font-weight: 650; color: #111; }
+  .chrome button[aria-pressed="true"] { background: #111; color: #fff; }
+  @media (max-width: 600px) { .banner, .chrome { display: none; } }
+  [tabindex="-1"]:focus { outline: none; }
+
+  /* ---------- the app frame ---------- */
+  /* #app is the frame; .scroll inside it scrolls. Sheets and toasts sit on the frame, so they stay put
+     whether the frame is the whole window or the phone preview. */
+  #app { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+  .scroll { height: 100%; overflow: auto; scrollbar-color: var(--line) transparent; }
+  body.framed { background: #0b0e12; align-items: center; }
+  body.framed #app { flex: none; width: 390px; height: min(844px, calc(100dvh - 60px)); margin: 14px 0; border: 1px solid var(--line); border-radius: 30px; background: var(--floor); box-shadow: 0 30px 80px -20px rgba(0,0,0,.8); }
+
+  /* ---------- shared: the score ---------- */
+  .score { display: inline-flex; align-items: baseline; white-space: nowrap; }
+  .score .lb { margin-left: 7px; }
+  .score .n { font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); display: inline-block; transition: color 340ms ease, text-shadow 340ms ease; }
+  .score .pc { color: var(--muted); font-weight: 600; }
+  .score .lb { color: var(--muted); font-size: 12.5px; }
+  .score.lit .n { color: var(--gold); text-shadow: 0 0 26px rgba(232, 163, 61, .35); }
+  .mote { position: fixed; z-index: 150; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 14px rgba(232, 163, 61, .7); pointer-events: none; }
+
+  /* ---------- shared: buttons ---------- */
+  .b { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 10px; padding: 11px 14px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font-size: 14px; font-weight: 600; min-height: 44px; text-align: center; }
+  .b:hover { border-color: var(--muted); }
+  .b.gold { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+  .b.gold:hover { background: var(--gold-light); border-color: var(--gold-light); }
+  .b.gold.glow { box-shadow: 0 0 26px rgba(232, 163, 61, .35); }
+  .b.quiet { background: none; border-color: transparent; color: var(--muted-r); font-weight: 500; }
+  .b.quiet:hover { color: var(--ink); border-color: transparent; }
+  .b kbd { font: 10.5px var(--mono); padding: 1px 5px; border-radius: 4px; border: 1px solid currentColor; opacity: .55; }
+  .link { background: none; border: 0; padding: 4px 2px; color: var(--muted-r); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+  .link:hover { color: var(--ink); }
+
+  /* ---------- shared: suggestion pieces ---------- */
+  .why { color: var(--muted-r); font-size: 13px; margin: 6px 0 0; }
+  .swap { color: var(--muted-r); font-size: 12.5px; margin: 8px 0 0; }
+  .ask { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: #c9d1da; }
+  .ask b { display: block; font-size: 12px; font-weight: 600; color: var(--muted-r); margin-bottom: 2px; }
+  .ask .re { display: block; color: var(--muted-r); font-size: 12px; margin-top: 4px; }
+  .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font: 600 11px var(--sans); border: 1px solid var(--gold-deep); color: var(--gold); flex: none; }
+  .result { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+  .result .r-use { color: var(--gold); } .result .r-true { color: var(--ink); } .result .r-no { color: var(--muted-r); }
+  .marks { list-style: none; margin: 0; padding: 0; }
+  .marks li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .marks li:last-child { border-bottom: 0; }
+  .marks .m { width: 16px; flex: none; text-align: center; color: var(--muted); }
+  .marks .m.stretch { color: var(--gold-deep); } .marks .m.met { color: var(--ink); } .marks .m.gap { color: var(--weak); }
+  .marks .t { flex: 1; } .marks .s { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .marks .note { display: block; font-size: 12px; color: var(--muted); }
+  .gaplist { margin: 6px 0 0; padding-left: 18px; color: var(--ink); font-size: 13px; }
+  .h { font-size: 15px; font-weight: 620; margin: 22px 0 6px; letter-spacing: -0.005em; }
+  .h:first-child { margin-top: 0; }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .explain { margin: 6px 0 0; padding: 0; list-style: none; }
+  .explain li { margin: 0 0 10px; font-size: 13px; color: #c9d1da; }
+  .explain q { display: block; font-family: var(--serif); color: var(--ink); quotes: "“" "”"; }
+
+  /* ---------- the paper ---------- */
+  .fit { position: relative; }
+  .paper { width: 640px; transform-origin: top left; background: var(--paper); color: var(--paper-ink); font: 14.5px/1.5 var(--serif); border-radius: 6px; padding: 44px 48px 52px; box-shadow: 0 -12px 36px -10px rgba(0,0,0,.6), 0 18px 40px -16px rgba(0,0,0,.55); }
+  .paper h1 { font-size: 24px; margin: 0; font-weight: 600; }
+  .paper .role { font: 600 12px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--paper-muted); margin: 2px 0 14px; }
+  .paper h2 { font: 650 11.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--paper-muted); border-bottom: 1px solid var(--paper-edge); padding-bottom: 4px; margin: 20px 0 8px; }
+  .paper .emp { font-weight: 700; margin-top: 12px; }
+  .paper .meta { font-size: 13px; color: var(--paper-muted); }
+  .paper ul { margin: 4px 0 6px; padding-left: 18px; }
+  .paper li, .paper p { font-size: 13.5px; margin: 3px 0; position: relative; }
+  .paper del { color: var(--paper-muted); text-decoration-color: rgba(107, 100, 85, .7); }
+  .paper ins, .clip ins { text-decoration: none; background: var(--wash); border-radius: 3px; box-shadow: 0 0 0 3px var(--wash); }
+  .paper ins[contenteditable="true"], .clip ins[contenteditable="true"] { outline: 2px dashed var(--gold-deep); outline-offset: 3px; }
+  .paper .landed { animation: land 1100ms var(--out); border-radius: 3px; }
+  @keyframes land { from { background: var(--wash); box-shadow: 0 0 0 3px var(--wash); } to { background: transparent; box-shadow: 0 0 0 3px transparent; } }
+  .pin { position: absolute; left: -40px; top: 1px; border: 0; padding: 0; background: none; }
+  .pin .num { background: var(--paper); border-color: var(--paper-muted); color: var(--paper-muted); }
+  .pin.open .num { border-color: var(--gold-deep); background: var(--gold); color: var(--gold-ink); }
+  .pin.used { left: -36px; top: 0; font: 13px var(--sans); color: var(--gold-deep); cursor: pointer; }
+  .pin.skills { left: -40px; }
+
+  /* ---------- computer: B ---------- */
+  .dbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 20px; padding: 12px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .dbar .title { flex: 1; min-width: 0; }
+  .dbar .title b { display: block; font-size: 15px; font-weight: 620; }
+  .dbar .title span { color: var(--muted); font-size: 12.5px; }
+  .dbar .score .n { font-size: 27px; }
+  .prog { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+  .dots { display: flex; gap: 5px; }
+  .dots button, .dots i { width: 18px; height: 4px; border-radius: 2px; border: 0; padding: 0; background: var(--line); }
+  .dots .on { background: var(--gold); } .dots .did { background: var(--muted); }
+  .dgrid { display: grid; grid-template-columns: minmax(0, 640px) 380px; gap: 36px; justify-content: center; padding: 30px 28px 80px 68px; }
+  .rail { position: relative; }
+  .dnote { position: absolute; left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; transition: top 340ms var(--out); }
+  .dnote h3 { display: flex; gap: 10px; align-items: flex-start; margin: 0; font-size: 15px; font-weight: 620; line-height: 1.35; outline: none; }
+  .dnote .acts { display: grid; gap: 8px; margin-top: 14px; }
+  .dnote .acts .row { display: flex; gap: 6px; }
+  .dnote .acts .b { justify-content: space-between; text-align: left; }
+  .dnote .nav { display: flex; justify-content: space-between; margin-top: 10px; }
+  .dsum { position: sticky; top: 86px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+  .dsum .b.gold { width: 100%; margin-top: 18px; }
+
+  /* ---------- phone: C ---------- */
+  .pbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--line); }
+  .pbar .title { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); }
+  .pbar .title b { display: block; color: var(--ink); font-size: 14px; font-weight: 620; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pbar .score .n { font-size: 19px; }
+  .pbar .score .lb { display: none; }
+  .pbar .link { font-size: 12.5px; white-space: nowrap; }
+  .pmain { padding: 16px 16px 24px; }
+  .lede { margin: 0 0 14px; color: var(--muted-r); font-size: 13px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .pcard.deal { animation: deal 340ms var(--out); }
+  @keyframes deal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .pcard h3 { margin: 10px 0 0; font-size: 17px; font-weight: 620; line-height: 1.3; outline: none; }
+  .ptop { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12.5px; }
+  .ptop .dots button { height: 6px; width: 26px; }
+  .clip { margin: 12px -4px 0; background: var(--paper); color: var(--paper-ink); font: 14px/1.5 var(--serif); border-radius: 6px; padding: 10px 14px; box-shadow: 0 10px 24px -14px rgba(0,0,0,.6); }
+  .clip .ctx { color: var(--paper-muted); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .clip del { display: block; color: var(--paper-muted); text-decoration-color: rgba(107, 100, 85, .7); margin: 6px 0 4px; }
+  .clip ins { display: inline; }
+  .clip .where { font: 600 10.5px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--paper-muted); margin-bottom: 4px; }
+  .dock { position: sticky; bottom: 0; z-index: 20; display: grid; gap: 8px; padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: var(--floor); border-top: 1px solid var(--line); }
+  .dock .b { width: 100%; min-height: 48px; }
+  .dock .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dock .row .b { min-height: 44px; }
+  .dock .skip { justify-self: center; }
+
+  /* ---------- sheets (where you fit, the CV on a phone) ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 60; background: rgba(5, 7, 10, .55); }
+  .sheet { position: absolute; z-index: 61; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; animation: rise 340ms var(--out); }
+  .sheet.side { top: 0; right: 0; bottom: 0; width: min(440px, 100%); border-radius: 16px 0 0 16px; }
+  .sheet.up { left: 0; right: 0; bottom: 0; max-height: 92%; border-radius: 18px 18px 0 0; }
+  @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .sheet header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .sheet header b { font-size: 15px; font-weight: 620; }
+  .sheet .body { overflow: auto; padding: 14px 18px 24px; }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 8px auto 0; }
+
+  /* ---------- toast ---------- */
+  .toast { position: absolute; z-index: 120; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; max-width: min(460px, calc(100% - 32px)); background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 16px 34px -12px rgba(0,0,0,.55); animation: rise 340ms var(--out); }
+  .toast.phone { bottom: 200px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="banner"><b style="color:var(--gold)">PROTOTYPE · #408</b> — your Hong Kong digital transformation PM job (22 Oct run), after the fixes. Nothing is saved. PMP / PRINCE2 is added only to show the "not on your CV" list.</div>
+<div class="chrome" role="group" aria-label="Prototype view">
+  <button id="v-auto">Computer</button><button id="v-phone">Phone</button><button id="v-reset">Reset</button>
+</div>
+<div id="app"></div>
+<div id="live" class="sr" aria-live="polite"></div>
+
+<script>
+// ================= data =================
+const JOB = { title: "Digital Transformation Project Manager", company: "a Hong Kong bank" };
+const W = { essential: 3, standard: 2, nice: 1 };
+const REQS = [
+  { id: "years", band: "essential", text: "8+ years' experience in project management, consulting, or business transformation", fit: 1, note: "9.8 years: your Okoone job counts too, its lines show you ran delivery" },
+  { id: "degree", band: "essential", text: "Bachelor's degree", fit: 1, note: "your Master's covers it" },
+  { id: "lead-dt", band: "essential", text: "Lead the delivery of digital transformation projects", fit: 0.9 },
+  { id: "large", band: "essential", text: "Experience with large-scale transformation", fit: 0.9 },
+  { id: "xfunc", band: "essential", text: "Coordinate business, IT, operations, risk, compliance and finance", fit: 0.75 },
+  { id: "bcase", band: "standard", text: "Business cases and project governance", fit: 0.75 },
+  { id: "vendor", band: "standard", text: "Vendor management, including tenders and statements of work", fit: 0.6 },
+  { id: "risk", band: "standard", text: "Manage risks and dependencies", fit: 0.9 },
+  { id: "pmo", band: "standard", text: "PMO reporting to senior management", fit: 0.85 },
+  { id: "stake", band: "standard", text: "Engage stakeholders at every level", fit: 0.9 },
+  { id: "multi", band: "standard", text: "Run several workstreams at once", fit: 0.95 },
+  { id: "comm", band: "standard", text: "Strong communication skills", fit: 0.9 },
+  { id: "self", band: "standard", text: "Self-motivated, works independently", fit: 0.6, note: "covered in part, nothing to suggest" },
+  { id: "bank", band: "nice", text: "Banking or financial services background", fit: 1 },
+  { id: "agile", band: "nice", text: "Familiar with Agile", fit: 1, note: "your skills say Agile / Scrum" },
+  { id: "cert", band: "nice", text: "PMP or PRINCE2 certification", fit: 0, gap: true },
+];
+const SUGG = [
+  { id: "s1", req: "vendor", where: "BRED", out: "b5",
+    in: "Ran vendor selection and contract follow-up for core banking and card-service integrations, from tender to statement of work.",
+    why: "The job asks for tenders and statements of work. Your CV says you coordinate vendors.",
+    say: "At BRED I worked with our integration vendors every day. I took part in choosing them and checked their work against the contract." },
+  { id: "s2", req: "xfunc", where: "BRED", out: "b6",
+    in: "Coordinated business, IT, operations, risk, compliance and finance teams on cross-border banking change.",
+    why: "The job names six teams. Your CV names business and IT teams.",
+    say: "Every change at BRED went through compliance and risk. Finance signed off the budget, and operations ran the rollout in each country." },
+  { id: "s3", req: "bcase", where: "Skills", out: null,
+    in: "Business cases & steering-committee governance",
+    why: "The job asks for business cases. Your CV shows reporting to leadership, but no business case.",
+    say: "I wrote the cost and benefit part of the case for my projects and presented it to the department heads." },
+];
+const CV = {
+  name: "Adrien Mounier", role: "Senior Project Manager",
+  summary: "Senior Project Manager with 9+ years delivering banking, fintech and SaaS technology in regulated environments. Leads digital transformation end to end across Europe, Asia-Pacific and Africa, and brings applied AI into everyday delivery.",
+  jobs: [
+    { emp: "BRED Banque Populaire — International Banking Branch", meta: "Bangkok · 2023 – present · Senior Project Manager", bullets: [
+      ["b1", "Lead the delivery of digital banking transformation projects for the international branch, from scope to go-live."],
+      ["b2", "Delivered an AI-assisted KYC workflow end to end and rolled it out across seven countries."],
+      ["b3", "Run about four projects at once, managing risks and dependencies across business and IT teams."],
+      ["b4", "Report progress and escalate decisions to department heads and general management."],
+      ["b5", "Coordinate third-party vendors on core banking and card-service integrations."],
+      ["b6", "Organise internal AI workshops and training for project teams."],
+    ]},
+    { emp: "Okoone", meta: "Phnom Penh · 2020 – 2023 · Product Owner", bullets: [
+      ["o1", "Led a cross-functional product team, managing scope, priorities, budget and delivery timelines."],
+      ["o2", "Built Ship24.com from scratch into a cross-border logistics platform: 16M visitors and 3,000+ API subscriptions in 2023."],
+      ["o3", "Owned the product vision, roadmap and JIRA backlog for a logistics SaaS platform."],
+    ]},
+    { emp: "Société Générale", meta: "Paris · 2017 – 2020 · IT Junior Project Manager", bullets: [
+      ["g1", "Delivered IT projects with Agile / Scrum and escalated risks early to prevent delays."],
+      ["g2", "Structured project reporting for management and executives."],
+      ["g3", "Coordinated a risk-data chatbot with the data science team for the Risk department."],
+    ]},
+  ],
+  skills: [
+    ["Project management", ["Agile / Scrum", "IT governance & delivery", "Stakeholder management", "Risk & dependency management"]],
+    ["AI & automation", ["Applied AI for delivery", "Multi-LLM workflows", "n8n"]],
+    ["Tools", ["JIRA", "Confluence", "SQL", "Python"]],
+  ],
+  edu: "ESIEA, Paris — Master's Degree in Computer Science (Machine Learning), 2017",
+  langs: "French (native) · English (fluent) · Spanish (conversational) · Thai (beginner)",
+};
+const ALL_BULLETS = CV.jobs.flatMap((j) => j.bullets);
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ================= state =================
+const fresh = () => ({ ans: {}, edits: {}, editing: null, open: SUGG[0].id, skipped: false, sheet: null, landed: null, deal: false });
+let S = fresh();
+let view = new URLSearchParams(location.search).get("view") === "phone" ? "phone" : "auto";
+const app = document.getElementById("app");
+
+const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const sug = (id) => SUGG.find((s) => s.id === id);
+const reqOf = (s) => REQS.find((r) => r.id === s.req);
+const inText = (s) => S.edits[s.id] ?? s.in;
+const pending = () => SUGG.filter((s) => !S.ans[s.id]);
+const idx = (id) => SUGG.findIndex((s) => s.id === id);
+const mode = () => (view === "phone" || app.clientWidth < 960 ? "phone" : "desk");
+function fitNow(r) { const s = SUGG.find((x) => x.req === r.id); const a = s && S.ans[s.id]; return a === "use" || a === "true" ? 1 : r.fit; }
+function pct() { let n = 0, d = 0; for (const r of REQS) { n += W[r.band] * fitNow(r); d += W[r.band]; } return Math.round((n / d) * 100); }
+let shown = pct();
+
+function state(r) {
+  const s = SUGG.find((x) => x.req === r.id), a = s && S.ans[s.id];
+  if (a === "use") return ["stretch", "◆", "met by a stretch"];
+  if (a === "true") return ["met", "✓", "met"];
+  if (r.gap) return ["gap", "–", "not on your CV"];
+  if (r.fit >= 0.8) return ["met", "✓", "met"];
+  if (s && !a) return ["", "?", `suggestion ${idx(s.id) + 1}`];
+  return ["", "·", "in part"];
+}
+const metCount = () => REQS.filter((r) => state(r)[0] === "met" || state(r)[0] === "stretch").length;
+
+// The line as it reads on the CV right now (an accepted suggestion replaces its "out" line).
+function lineNow(id) {
+  const s = SUGG.find((x) => x.out === id), a = s && S.ans[s.id];
+  return a === "use" || a === "true" ? inText(s) : ALL_BULLETS.find(([b]) => b === id)[1];
+}
+
+// ================= shared pieces =================
+const scoreHtml = (label = true) => `<span class="score" id="score"><span class="n" id="scoreN">${shown}</span><span class="pc">%</span>${label ? `<span class="lb">match</span>` : ""}</span>`;
+const dotsHtml = (tappable) => `<span class="dots">${SUGG.map((s) => {
+  const cls = s.id === S.open ? "on" : S.ans[s.id] ? "did" : "";
+  return tappable ? `<button class="${cls}" aria-label="Suggestion ${idx(s.id) + 1}" onclick="go('${s.id}')"></button>` : `<i class="${cls}"></i>`;
+}).join("")}</span>`;
+const askHtml = (s) => `<div class="ask"><b>If they ask</b>${esc(s.say)}${S.edits[s.id] ? `<span class="re">We will rewrite this to match your wording.</span>` : ""}</div>`;
+const swapHtml = (s) => s.out ? `On your CV it replaces the line struck out ${mode() === "desk" ? "beside this note" : "above"}.` : "It joins your skills line. Nothing leaves your CV.";
+function resultHtml(s) {
+  const a = S.ans[s.id];
+  const lab = a === "use" ? `<span class="r-use">◆ Used for this job</span>` : a === "true" ? `<span class="r-true">✓ Kept on your CV for every job</span>` : `<span class="r-no">Not for this job</span>`;
+  return `<div class="result">${lab}<button class="link" onclick="undo('${s.id}')">Undo</button></div>`;
+}
+const fitList = () => `<ul class="marks">${REQS.map((r) => { const [c, m, l] = state(r); return `<li><span class="m ${c}" aria-hidden="true">${m}</span><span class="t">${esc(r.text)}${r.note ? `<span class="note">${esc(r.note)}</span>` : ""}</span><span class="s">${l}</span></li>`; }).join("")}</ul>`;
+const gapsHtml = () => `<ul class="gaplist">${REQS.filter((r) => r.gap).map((r) => `<li>${esc(r.text)}</li>`).join("")}</ul><p class="small" style="margin:6px 0 0">Your report gives you a sentence to say about this.</p>`;
+function explainHtml() {
+  const used = SUGG.filter((s) => S.ans[s.id] === "use");
+  return used.length ? `<ul class="explain">${used.map((s) => `<li><q>${esc(inText(s))}</q>${esc(s.say)}</li>`).join("")}</ul>` : `<p class="small" style="margin:4px 0 0">Nothing to prepare: you used no stretch.</p>`;
+}
+function summaryHtml() {
+  const use = SUGG.filter((s) => S.ans[s.id] === "use").length, tru = SUGG.filter((s) => S.ans[s.id] === "true").length, left = pending().length;
+  const parts = [use && `${use} used for this job`, tru && `${tru} kept on your CV for every job`, left && `${left} left out`].filter(Boolean);
+  return `<h3 class="h" tabindex="-1" id="focusme">Ready to send</h3>
+    <p class="small" style="margin:0">${parts.length ? parts.join(" · ") : "No suggestions used."}</p>
+    <div style="margin-top:12px;display:grid;gap:8px">${SUGG.map((s) => `<div><div style="font-size:13px">${esc(reqOf(s).text)}</div>${S.ans[s.id] ? resultHtml(s) : `<div class="result"><span class="r-no">Not answered, left out</span><button class="link" onclick="go('${s.id}')">Answer</button></div>`}</div>`).join("")}</div>
+    <h4 class="h">Be ready to explain</h4>${explainHtml()}
+    <h4 class="h">Also asked, not on your CV</h4>${gapsHtml()}`;
+}
+
+// The CV page. On a computer the open suggestion previews in place; the others are margin numbers.
+function paperHtml({ preview }) {
+  const pinFor = (s) => {
+    const a = S.ans[s.id], n = idx(s.id) + 1;
+    if (a === "use") return `<button class="pin used" onclick="go('${s.id}')" aria-label="Stretch used for this job: suggestion ${n}" title="Stretch, this job only">◆</button>`;
+    if (a) return "";
+    return preview ? `<button class="pin ${s.id === S.open ? "open" : ""} ${s.out ? "" : "skills"}" onclick="go('${s.id}')" aria-label="Suggestion ${n}: ${esc(reqOf(s).text)}"><span class="num">${n}</span></button>` : "";
+  };
+  const bullet = ([id, text]) => {
+    const s = SUGG.find((x) => x.out === id);
+    if (!s) return `<li>${esc(text)}</li>`;
+    const a = S.ans[s.id], landed = S.landed === s.id ? "landed" : "";
+    if (a === "use" || a === "true") return `<li data-line="${s.id}"><span class="${landed}" data-in="${s.id}">${esc(inText(s))}</span>${pinFor(s)}</li>`;
+    if (preview && s.id === S.open) return `<li data-line="${s.id}"><span class="sr">Line removed: </span><del>${esc(text)}</del>${pinFor(s)}</li><li><span class="sr">Line added: </span><ins data-in="${s.id}" ${S.editing === s.id ? 'contenteditable="true"' : ""}>${esc(inText(s))}</ins></li>`;
+    return `<li data-line="${s.id}">${esc(text)}${pinFor(s)}</li>`;
+  };
+  const s3 = SUGG.find((s) => !s.out), a3 = S.ans[s3.id];
+  const skills = CV.skills.map(([g, items], i) => {
+    let extra = "";
+    if (i === 0 && (a3 === "use" || a3 === "true")) extra = `; <span class="${S.landed === s3.id ? "landed" : ""}" data-in="${s3.id}">${esc(inText(s3))}</span>`;
+    else if (i === 0 && preview && S.open === s3.id && !a3) extra = `; <span class="sr">Added: </span><ins data-in="${s3.id}" ${S.editing === s3.id ? 'contenteditable="true"' : ""}>${esc(inText(s3))}</ins>`;
+    return `<p ${i === 0 ? `data-line="${s3.id}"` : ""}><b>${g}:</b> ${items.join("; ")}${extra}${i === 0 ? pinFor(s3) : ""}</p>`;
+  }).join("");
+  return `<div class="fit"><article class="paper" aria-label="Your CV for this job">
+    <h1>${CV.name}</h1><div class="role">${CV.role}</div>
+    <p>${esc(CV.summary)}</p>
+    <h2>Experience</h2>
+    ${CV.jobs.map((j) => `<div class="emp">${esc(j.emp)}</div><div class="meta">${esc(j.meta)}</div><ul>${j.bullets.map(bullet).join("")}</ul>`).join("")}
+    <h2>Skills</h2>${skills}
+    <h2>Education</h2><p>${esc(CV.edu)}</p>
+    <h2>Languages</h2><p>${esc(CV.langs)}</p>
+  </article></div>`;
+}
+
+// ================= computer: B =================
+function renderDesk() {
+  const left = pending().length, s = S.open && sug(S.open);
+  let rail;
+  if (s) {
+    const a = S.ans[s.id], n = idx(s.id) + 1;
+    rail = `<section class="dnote" id="dnote" aria-label="Suggestion ${n} of ${SUGG.length}">
+      <h3 tabindex="-1" id="focusme"><span class="num">${n}</span><span>${esc(reqOf(s).text)}</span></h3>
+      <p class="why">${esc(s.why)}</p>
+      ${a ? `<div style="margin-top:12px">${resultHtml(s)}</div>` : `<p class="swap">${swapHtml(s)}</p>${askHtml(s)}
+      <div class="acts">
+        <button class="b gold" onclick="answer('${s.id}','use')">Use for this job <kbd>U</kbd></button>
+        <button class="b" onclick="answer('${s.id}','true')">It's true: keep it on my CV for every job <kbd>T</kbd></button>
+        <div class="row"><button class="b quiet" onclick="answer('${s.id}','no')">No <kbd>N</kbd></button><button class="b quiet" onclick="edit('${s.id}')">${S.editing === s.id ? "Done editing" : "Edit wording"} <kbd>E</kbd></button></div>
+      </div>`}
+      <div class="nav"><button class="link" onclick="step(-1)">Previous</button><button class="link" onclick="step(1)">${a ? "Next" : "Later"}</button></div>
+    </section>`;
+  } else rail = `<section class="dsum">${summaryHtml()}<button class="b gold glow" onclick="approve()">Approve this CV</button></section>`;
+  return `<header class="dbar">
+      <div class="title"><b>${JOB.title}</b><span>${JOB.company} · your CV is written only from what is true about you</span></div>
+      <div class="prog">${dotsHtml(true)}<span>${left ? `${left} suggestion${left > 1 ? "s" : ""} · optional` : "suggestions done"}</span></div>
+      ${scoreHtml()}
+      <button class="link" onclick="openSheet('fit')">Where you fit · ${metCount()} of ${REQS.length}</button>
+      <button class="b ${left ? "" : "gold"}" onclick="approve()">Approve this CV</button>
+    </header>
+    <div class="dgrid"><div id="paperCol">${paperHtml({ preview: true })}</div><aside class="rail" id="rail">${rail}</aside></div>`;
+}
+
+// ================= phone: C =================
+function clipHtml(s) {
+  if (!s.out) return `<div class="clip"><div class="where">Skills</div><b>Project management:</b> Agile / Scrum; IT governance &amp; delivery; … ; <span class="sr">Added: </span><ins data-in="${s.id}" ${S.editing === s.id ? 'contenteditable="true"' : ""}>${esc(inText(s))}</ins></div>`;
+  const job = CV.jobs.find((j) => j.bullets.some(([b]) => b === s.out)), i = job.bullets.findIndex(([b]) => b === s.out);
+  const above = job.bullets[i - 1], below = job.bullets[i + 1];
+  return `<div class="clip"><div class="where">${esc(s.where)}</div>
+    ${above ? `<div class="ctx">${esc(lineNow(above[0]))}</div>` : ""}
+    <span class="sr">Line removed: </span><del>${esc(ALL_BULLETS.find(([b]) => b === s.out)[1])}</del>
+    <span class="sr">Line added: </span><ins data-in="${s.id}" ${S.editing === s.id ? 'contenteditable="true"' : ""}>${esc(inText(s))}</ins>
+    ${below ? `<div class="ctx" style="margin-top:6px">${esc(lineNow(below[0]))}</div>` : ""}</div>`;
+}
+function renderPhone() {
+  const s = S.open && sug(S.open), left = pending().length;
+  let card, dock;
+  if (s && !S.ans[s.id]) {
+    card = `<article class="pcard ${S.deal ? "deal" : ""}" aria-label="Suggestion ${idx(s.id) + 1} of ${SUGG.length}">
+      <div class="ptop">${dotsHtml(true)}<span>${idx(s.id) + 1} of ${SUGG.length} · optional</span></div>
+      <h3 tabindex="-1" id="focusme">${esc(reqOf(s).text)}</h3>
+      <p class="why">${esc(s.why)}</p>
+      ${clipHtml(s)}
+      <p class="swap">${swapHtml(s)}</p>
+      ${askHtml(s)}</article>`;
+    dock = `<button class="b gold" onclick="answer('${s.id}','use')">Use for this job</button>
+      <button class="b" onclick="answer('${s.id}','true')">It's true: keep it on my CV for every job</button>
+      <div class="row"><button class="b quiet" onclick="answer('${s.id}','no')">No</button><button class="b quiet" onclick="edit('${s.id}')">${S.editing === s.id ? "Done editing" : "Edit wording"}</button></div>
+      <button class="link skip" onclick="skipRest()">Skip the rest</button>`;
+  } else if (s) {
+    card = `<article class="pcard ${S.deal ? "deal" : ""}"><div class="ptop">${dotsHtml(true)}<span>${idx(s.id) + 1} of ${SUGG.length}</span></div>
+      <h3 tabindex="-1" id="focusme">${esc(reqOf(s).text)}</h3><div style="margin-top:10px">${resultHtml(s)}</div></article>`;
+    dock = `<button class="b" onclick="step(1)">Continue</button>`;
+  } else {
+    card = `<article class="pcard ${S.deal ? "deal" : ""}">${summaryHtml()}</article>`;
+    dock = `<button class="b gold glow" onclick="approve()">Approve this CV</button><button class="link skip" onclick="openSheet('cv')">See your CV first</button>`;
+  }
+  return `<header class="pbar"><div class="title"><b>${JOB.title}</b>${JOB.company}</div>${scoreHtml(false)}<button class="link" onclick="openSheet('fit')">Where you fit</button></header>
+    <main class="pmain">
+      <p class="lede"><b>Your CV is ready.</b> It says only what is true about you. ${left ? `${left} suggestion${left > 1 ? "s" : ""} to stretch it for this job, all optional.` : ""} <button class="link" onclick="openSheet('cv')">See your CV</button></p>
+      ${card}
+    </main>
+    <footer class="dock">${dock}</footer>`;
+}
+
+function sheetHtml() {
+  if (!S.sheet) return "";
+  const phone = mode() === "phone";
+  const title = S.sheet === "cv" ? "Your CV for this job" : `Where you fit · ${metCount()} of ${REQS.length} met`;
+  const body = S.sheet === "cv" ? paperHtml({ preview: false }) : `${fitList()}<h4 class="h">Be ready to explain</h4>${explainHtml()}`;
+  return `<div class="scrim" onclick="closeSheet()"></div>
+    <section class="sheet ${phone ? "up" : "side"}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      ${phone ? `<div class="grab"></div>` : ""}
+      <header><b>${title}</b><button class="link" onclick="closeSheet()">Close</button></header>
+      <div class="body" id="sheetBody">${body}</div></section>`;
+}
+
+// ================= render + post-render =================
+function render({ focus = false, top = false } = {}) {
+  const m = mode(), keep = top ? 0 : document.getElementById("scroll")?.scrollTop ?? 0;
+  document.body.classList.toggle("framed", view === "phone");
+  app.innerHTML = `<div class="scroll" id="scroll">${m === "desk" ? renderDesk() : renderPhone()}</div>` + sheetHtml();
+  document.getElementById("scroll").scrollTop = keep;
+  fitPapers();
+  if (m === "desk") pinNote();
+  if (focus) { const f = document.getElementById("focusme"); if (f) f.focus({ preventScroll: true }); }
+  S.landed = null; S.deal = false;
+  document.getElementById("v-auto").setAttribute("aria-pressed", view === "auto");
+  document.getElementById("v-phone").setAttribute("aria-pressed", view === "phone");
+}
+// The Fit-Width Paper Rule: the page keeps its 640px proportions and scales to its column.
+function fitPapers() {
+  for (const fit of app.querySelectorAll(".fit")) {
+    const paper = fit.firstElementChild, k = Math.min(1, fit.clientWidth / 640);
+    paper.style.transform = k < 1 ? `scale(${k})` : "";
+    fit.style.height = paper.offsetHeight * k + "px";
+  }
+}
+// Computer: the open note sits level with its line on the page.
+function pinNote() {
+  const note = document.getElementById("dnote"), rail = document.getElementById("rail");
+  if (!note) return;
+  const line = app.querySelector(`[data-line="${S.open}"]`);
+  const top = line ? Math.max(0, line.getBoundingClientRect().top - rail.getBoundingClientRect().top - 18) : 0;
+  note.style.top = top + "px";
+  rail.style.minHeight = top + note.offsetHeight + "px";
+}
+function reveal() {
+  const line = app.querySelector(`[data-line="${S.open}"]`);
+  if (!line) return;
+  const sc = document.getElementById("scroll"), r = line.getBoundingClientRect(), a = sc.getBoundingClientRect();
+  if (r.top < a.top + 90 || r.bottom > a.bottom - 40) sc.scrollBy({ top: r.top - a.top - a.height / 3, behavior: REDUCED ? "auto" : "smooth" });
+}
+
+// ================= the score =================
+let scoreToken = 0;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+function paintScore(roll) {
+  const n = document.getElementById("scoreN");
+  if (!n) return;
+  n.textContent = shown;
+  if (roll && !REDUCED) n.animate([{ transform: "translateY(38%)", opacity: 0.25 }, { transform: "none", opacity: 1 }], { duration: 110, easing: "cubic-bezier(.16,1,.3,1)" });
+}
+function flyMote(from) {
+  const to = document.getElementById("scoreN")?.getBoundingClientRect();
+  if (!from || !to) return Promise.resolve();
+  const m = document.createElement("div");
+  m.className = "mote"; document.body.appendChild(m);
+  const x0 = from.left + Math.min(from.width, 40), y0 = from.top + from.height / 2, x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+  const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 80;
+  const anim = m.animate([
+    { transform: `translate(${x0}px, ${y0}px) scale(1)`, opacity: 0.2 },
+    { transform: `translate(${mx}px, ${my}px) scale(1.3)`, opacity: 1, offset: 0.45 },
+    { transform: `translate(${x1}px, ${y1}px) scale(.6)`, opacity: 1 },
+  ], { duration: 720, easing: "cubic-bezier(.45,0,.2,1)" });
+  return anim.finished.then(() => m.remove(), () => m.remove());
+}
+async function moveScore(beat, fromRect) {
+  const token = ++scoreToken, target = pct();
+  document.getElementById("live").textContent = `Match now ${target}%`;
+  if (REDUCED) { shown = target; paintScore(false); return; }
+  if (beat) {
+    await flyMote(fromRect);
+    if (token !== scoreToken) return;
+    const sc = document.getElementById("score");
+    sc?.classList.add("lit");
+    sc?.querySelector(".n").animate([{ transform: "scale(1)" }, { transform: "scale(1.06)" }, { transform: "scale(1)" }], { duration: 460, easing: "cubic-bezier(.2,1.5,.4,1)" });
+  }
+  while (shown !== target) {
+    if (token !== scoreToken) return;
+    shown += Math.sign(target - shown);
+    paintScore(beat);
+    await wait(beat ? 75 : 45);
+  }
+  await wait(220);
+  if (token === scoreToken) document.getElementById("score")?.classList.remove("lit");
+}
+
+// ================= actions =================
+function saveEdit(id) {
+  const el = app.querySelector(`[data-in="${id}"]`);
+  if (!el) return;
+  const t = el.textContent.trim();
+  if (t && t !== sug(id).in) S.edits[id] = t;
+}
+function nextOpen(fromId) {
+  const i = idx(fromId);
+  return [...SUGG.slice(i + 1), ...SUGG.slice(0, i)].find((s) => !S.ans[s.id])?.id ?? null;
+}
+function answer(id, a) {
+  if (S.editing === id) { saveEdit(id); S.editing = null; }
+  const fromRect = app.querySelector(`[data-in="${id}"]`)?.getBoundingClientRect();
+  S.ans[id] = a;
+  if (a !== "no") S.landed = id;
+  S.open = nextOpen(id); S.deal = true;
+  render({ focus: true, top: mode() === "phone" });
+  if (mode() === "desk") reveal();
+  if (a !== "no") moveScore(true, fromRect);
+  if (a === "true") toast(`Kept on your CV for every job, under ${sug(id).where}.`, id);
+}
+function undo(id) {
+  delete S.ans[id];
+  S.open = id; S.deal = true; S.skipped = false;
+  render({ focus: true });
+  moveScore(false);
+}
+function edit(id) {
+  if (S.editing === id) { saveEdit(id); S.editing = null; } else S.editing = id;
+  render();
+  if (S.editing) { const el = app.querySelector(`[data-in="${id}"]`); el?.focus(); }
+}
+function go(id) { S.open = id; S.editing = null; S.deal = true; closeSheet(false); render({ focus: true }); if (mode() === "desk") reveal(); }
+function step(d) {
+  const i = S.open ? idx(S.open) : -1;
+  if (d > 0 && S.open && S.ans[S.open]) { S.open = nextOpen(S.open); S.deal = true; render({ focus: true }); if (mode() === "desk") reveal(); return; }
+  go(SUGG[(i + d + SUGG.length) % SUGG.length].id);
+}
+function skipRest() { S.skipped = true; S.open = null; S.deal = true; render({ focus: true }); }
+function approve() { toast(pending().length ? "Approved. The suggestions you did not answer are left out." : "Approved. (Prototype: nothing is sent.)"); }
+function openSheet(k) { S.sheet = k; render(); document.querySelector(".sheet .link")?.focus(); }
+function closeSheet(rerender = true) { if (!S.sheet) return; S.sheet = null; if (rerender) render(); }
+function toast(msg, undoId) {
+  document.querySelector(".toast")?.remove();
+  const t = document.createElement("div");
+  t.className = "toast" + (mode() === "phone" ? " phone" : "");
+  t.setAttribute("role", "status");
+  t.innerHTML = `<span>${esc(msg)}</span>${undoId ? `<button class="link">Undo</button>` : ""}`;
+  if (undoId) t.querySelector("button").onclick = () => { t.remove(); undo(undoId); };
+  app.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+
+// ================= wiring =================
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if (S.editing) { edit(S.editing); return; } closeSheet(); return; }
+  if (e.target.closest("[contenteditable='true'], input, textarea") || e.metaKey || e.ctrlKey || e.altKey || S.sheet) return;
+  const k = e.key.toLowerCase(), open = S.open && !S.ans[S.open] ? S.open : null;
+  if (k === "j") step(1); else if (k === "k") step(-1);
+  else if (open && k === "u") answer(open, "use");
+  else if (open && k === "t") answer(open, "true");
+  else if (open && k === "n") answer(open, "no");
+  else if (open && k === "e") { e.preventDefault(); edit(open); }
+});
+let lastMode = null;
+new ResizeObserver(() => { const m = mode(); if (m !== lastMode) { lastMode = m; render(); } else { fitPapers(); if (m === "desk") pinNote(); } }).observe(app);
+const setView = (v) => { view = v; const u = new URL(location.href); v === "phone" ? u.searchParams.set("view", "phone") : u.searchParams.delete("view"); history.replaceState(null, "", u); lastMode = null; render(); };
+document.getElementById("v-auto").onclick = () => setView("auto");
+document.getElementById("v-phone").onclick = () => setView("phone");
+document.getElementById("v-reset").onclick = () => { S = fresh(); shown = pct(); scoreToken++; render(); };
+render();
+lastMode = mode();
+</script>
+</body>
+</html>
