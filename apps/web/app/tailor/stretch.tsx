@@ -49,11 +49,11 @@ const F2 = "Look again";
 // #420: "Edit wording" — the edit happens in place (the draft on a computer, the card on a phone).
 // While the line is edited, and while what to say is rewritten for it, the old interview line is
 // never shown beside it. An emptied edit keeps the suggestion's wording and says so.
-const K20 = "Edit wording";
-const K21 = "Done editing";
-const K22 = "We will rewrite this to match your wording.";
-const K23 = "An empty line cannot go on your CV, so we kept the suggested wording.";
-const K24 = "We could not save your wording just now. Try again.";
+const E1 = "Edit wording";
+const E2 = "Done editing";
+const E3 = "We will rewrite this to match your wording.";
+const E4 = "An empty line cannot go on your CV, so we kept the suggested wording.";
+const E5 = "We could not save your wording just now. Try again.";
 
 export const STRETCH_COPY = { K2, K3, F1, F2, K19 };
 
@@ -207,16 +207,16 @@ export function StretchCards({
         <p className="swap">{open.lineOut ? K2 : K3}</p>
         <div className="ifasked">
           <b>{K4}</b>
-          {editThis ? <span className="re">{K22}</span> : open.interviewNarrative}
+          {editThis ? <span className="re">{E3}</span> : open.interviewNarrative}
         </div>
         {note === "kept" && (
           <p className="notice" role="status">
-            {K23}
+            {E4}
           </p>
         )}
         {note === "failed" && (
           <p className="err" role="alert">
-            {K24}
+            {E5}
           </p>
         )}
         <div className="acts">
@@ -237,7 +237,7 @@ export function StretchCards({
               disabled={editThis ? editThis.saving : answering}
               onClick={() => onEdit(open.id)}
             >
-              {editThis ? K21 : K20} <kbd aria-hidden="true">E</kbd>
+              {editThis ? E2 : E1} <kbd aria-hidden="true">E</kbd>
             </button>
           </div>
         </div>
