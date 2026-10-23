@@ -724,6 +724,7 @@ export function buildServer(opts: BuildOptions = {}) {
       readAd: opts.readAd,
       judge: opts.judge,
       judgePeek: opts.judgePeek,
+      tailorDrafts, // #418: a used stretch counts as met on the job's own screen too
     }),
   );
   // #307: the tailor step's own plugin — the spine's three tailor endpoints moved here, plus the

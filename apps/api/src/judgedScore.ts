@@ -179,7 +179,10 @@ export function judgedFitRows(verdicts: JudgeVerdict[], adRequirements: AdRequir
   const byId = verdictMap(verdicts);
   return adRequirements.requirements.flatMap((r) => {
     const v = byId.get(r.id);
-    return v && v.fit >= COVERAGE_THRESHOLD ? [{ id: r.id, text: r.requirement, reason: v.reason }] : [];
+    // #418: a row met by a used stretch says so (CardFact.stretched) — the label every surface reads.
+    return v && v.fit >= COVERAGE_THRESHOLD
+      ? [{ id: r.id, text: r.requirement, reason: v.reason, ...(v.stretched ? { stretched: true as const } : {}) }]
+      : [];
   });
 }
 

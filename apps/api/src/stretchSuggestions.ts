@@ -26,6 +26,7 @@ import {
 } from "@jobcrush/contracts";
 import { completeWithCost } from "./adReader.js";
 import type { TailorRequirement } from "./deck.js";
+import type { JudgementRecord } from "./judgementStore.js";
 import type { LlmClient } from "./llm.js";
 import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
@@ -254,6 +255,23 @@ export function answerSuggestion(
  *  approval prints here the same way). Empty when the step did not run or ran dry. */
 export function usedStretches(checkpoint: StretchCheckpoint | undefined): StretchProposalV2[] {
   return checkpoint?.status === "ran" ? checkpoint.suggestions.filter((s) => s.state === "approved") : [];
+}
+
+/**
+ * #418 (ADR-0020 clause 4) — the score moves because the CV moved: every requirement the person met
+ * by using a stretch reads fit 1 on THIS job's card, marked `stretched` so the fit row, the Tailor
+ * screen's sheet and the report all say *met by a stretch*. Applied at READ TIME on top of the
+ * record rules (recordBars.ts), never persisted — the cached judgement describes the facts; the
+ * answer is a record beside this job's draft, so no other job's card can read it. A null judgement
+ * (an estimated card) passes through untouched, exactly as the record rules do.
+ */
+export function withStretchedVerdicts(judgement: JudgementRecord | null, checkpoint: StretchCheckpoint | undefined): JudgementRecord | null {
+  const stretched = new Set(usedStretches(checkpoint).map((s) => s.requirementId));
+  if (!judgement || stretched.size === 0) return judgement;
+  return {
+    ...judgement,
+    verdicts: judgement.verdicts.map((v) => (stretched.has(v.requirementId) ? { ...v, fit: 1, stretched: true as const } : v)),
+  };
 }
 
 /**

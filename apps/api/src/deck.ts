@@ -72,6 +72,8 @@ import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
 import type { ProfileAsk } from "./tailorProfile.js";
 import { advertDeniedRows, negativeRequirementIds } from "./tailor.js";
+import { withStretchedVerdicts } from "./stretchSuggestions.js";
+import type { TailorDraftStore } from "./tailorDraftStore.js";
 
 /** #104's reader seam, named once here rather than via OnboardingDeps["readAd"] — structurally the
  *  same optional function the route deps carry. */
@@ -843,8 +845,12 @@ export async function buildDeckCards(
      *  a brought job skips the wrong-family deletion and the withdrawal filter (#294 c1, #292 req 11),
      *  and the newest three are pinned above the ranked deck (#294 c7). */
     brought?: readonly BroughtJob[];
+    /** #418: with `deps.tailorDrafts`, the stretches this session used on a job count as met on that
+     *  job's card (withStretchedVerdicts). The job's own screen passes both; the deck list passes
+     *  neither yet (routes/onboarding.ts is at its ratchet), so a list card reads the facts alone. */
+    sessionId?: string;
   },
-  deps: DeckJudgingDeps & { readAd?: ReadAdFn },
+  deps: DeckJudgingDeps & { readAd?: ReadAdFn; tailorDrafts?: Pick<TailorDraftStore, "get"> },
 ) {
   // #116: ONE read budget for the whole phase (DECK_JUDGE_BUDGET_MS's reasoning, applied to reads):
   // computed once, shared across every concurrency-cap wave, so the phase is bounded by this one
@@ -901,7 +907,9 @@ export async function buildDeckCards(
   // judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass — see its own doc
   // for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
   const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, input.confirmed, deps);
-  const cardCandidates = resolved.map((entry) => {
+  const cardCandidates = await Promise.all(resolved.map(async (entry) => {
+    // #418: the answers beside this job's draft, when the caller can read them.
+    const stretch = input.sessionId && deps.tailorDrafts ? (await deps.tailorDrafts.get(input.sessionId, entry.posting.id))?.stretch : undefined;
     // #309 AC5 — a brought job's years bars are answered against ITS advert family, not the deck's:
     // his placed history in a field he never worked reads as an honest zero, never the career total
     // lent to him. Found jobs keep the shared per-request `years` untouched.
@@ -925,7 +933,8 @@ export async function buildDeckCards(
           input.confirmed,
           input.negatives,
           // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall.
-          withYearsShortfall(entry.judgement, entry.adReq, years),
+          // #418: then the stretches used on this job, the same way.
+          withStretchedVerdicts(withYearsShortfall(entry.judgement, entry.adReq, years), stretch),
           // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
           // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
           !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
@@ -939,7 +948,7 @@ export async function buildDeckCards(
       rankWeight:
         (input.deckFamilyId === null ? 1 : entry.adReq.familyFit.confidence) * rankAttenuation(entry.adReq, years),
     };
-  });
+  }));
   // #308: the deck card no longer asks the language ladder — the graded question moved into the
   // Tailor queue (tailorProfile.ts), the one place every question about a job is asked.
   const ranked = orderCardsForReveal(cardCandidates);
@@ -1195,7 +1204,9 @@ export interface TailorState {
 export interface TailorRequirement {
   id: string;
   text: string;
-  state: "met" | "gap" | "untested";
+  /** #418: `stretched` is met by a stretch the person used for this job (ADR-0020 clause 4) — the
+   *  card's fit row carries the same flag, so the sheet and the card cannot disagree. */
+  state: "met" | "stretched" | "gap" | "untested";
 }
 
 /** This session's tailor target, resolved to its posting + requirements — or null if either is no
@@ -1278,11 +1289,18 @@ export function buildTailorState(
   // The card's three verdicts partition the job's requirements: fit (met), notTested (untested),
   // and everything else — an open row or a denied one — is a gap the CV does not meet.
   const met = new Set(card.fit.map((f) => f.id));
+  const stretched = new Set(card.fit.filter((f) => f.stretched).map((f) => f.id));
   const untested = new Set((card.notTested ?? []).map((r) => r.id));
   const requirements = adReq.requirements.map((r) => ({
     id: r.id,
     text: r.requirement,
-    state: met.has(r.id) ? ("met" as const) : untested.has(r.id) ? ("untested" as const) : ("gap" as const),
+    state: stretched.has(r.id)
+      ? ("stretched" as const)
+      : met.has(r.id)
+        ? ("met" as const)
+        : untested.has(r.id)
+          ? ("untested" as const)
+          : ("gap" as const),
   }));
 
   return {

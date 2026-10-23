@@ -43,6 +43,7 @@ import {
   type PastedAdvertHeader,
 } from "../pastedAdvert.js";
 import { makeBroughtJobs, type BroughtJob } from "../broughtJobs.js";
+import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { Refusal } from "./refusal.js";
 
 export interface PasteDeps extends PasteAdvertDeps {
@@ -65,6 +66,9 @@ export interface PasteDeps extends PasteAdvertDeps {
   readAd?: (posting: Posting) => Promise<AdRequirementsV1 | null>;
   judge?: JudgeFn;
   judgePeek?: JudgePeekFn;
+  /** #418: the answers beside a job's draft, so its own screen counts a used stretch as met on its
+   *  card (buildDeckCards). Absent in a stack with no tailor step — the card reads the facts alone. */
+  tailorDrafts?: Pick<TailorDraftStore, "get">;
 }
 
 const Body = z.object({
@@ -209,7 +213,7 @@ export function pasteRoutes(deps: PasteDeps) {
       const langs = readingLanguages(session);
       const { cards } = await buildDeckCards(
         eligiblePostings(langs, [brought.posting]),
-        { confirmed, negatives, facts, blocks, years, deckFamilyId: null, langs, brought: [brought] },
+        { confirmed, negatives, facts, blocks, years, deckFamilyId: null, langs, brought: [brought], sessionId: session.id },
         deps,
       );
       // No card left means we did not finish READING the advert — the requirements read timed out or

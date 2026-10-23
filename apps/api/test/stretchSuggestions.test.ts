@@ -4,11 +4,17 @@
 // in code, what the checkpoint spends, and what "No" does.
 import { describe, expect, it } from "vitest";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
-import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
+import { buildDeckServer, liveIdFor, warmRetrieval } from "./fixtureDeck.js";
+import { IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
+import { InMemoryJobStore, type JobRecord } from "../src/jobs.js";
+import { InMemoryPasteRecordStore } from "../src/pasteRecordStore.js";
+import { InMemoryPostingStore } from "../src/postingStore.js";
+import type { PasteProgress } from "../src/routes/paste.js";
 import type { LlmClient } from "../src/llm.js";
+import type { Posting } from "../src/preview.js";
 import { STRETCH_REQUIREMENT_LINE } from "../src/stretchSuggestions.js";
 import { tailorClaimId } from "../src/tailor.js";
-import type { CandidateClaim } from "@jobcrush/contracts";
+import { AdRequirementsV1, type CandidateClaim } from "@jobcrush/contracts";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { Mailer } from "../src/mailer.js";
@@ -592,5 +598,125 @@ describe("#418 'Use for this job' swaps the line on this CV only (ADR-0020 claus
     expect(restored.html).not.toContain(swap.claimText);
     expect(restored.html).toContain(`Jira, ${skill.claimText}</p>`); // the other answer stands
     expect(await claims.list(sid)).toEqual(before);
+  });
+});
+
+describe("#418 the requirement counts as met by a stretch on THIS job's card only", () => {
+  it("Use raises this job's % and marks the requirement 'stretched'; another job sharing nothing moves; its draft never carries the line; Undo restores the number", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    // fakeJudge: the first requirement met, every other 0.4 — a judged card, as on the real stack.
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge: fakeJudge() });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-score@example.com");
+    const second = liveIdFor(SECOND_FIXTURE_AD_ID);
+    // The other job's number, read before anything is used anywhere.
+    await post(app, cookie, `/onboarding/cards/${second}/want`);
+    const otherBefore = (await get(app, cookie, "/onboarding/tailor")).json();
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+
+    const before = (await get(app, cookie, "/onboarding/tailor")).json();
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    expect(before.requirements.find((r: { id: string }) => r.id === swap.requirementId).state).toBe("gap");
+
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    const after = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(after.card.matchPct).toBeGreaterThan(before.card.matchPct);
+    expect(after.requirements.find((r: { id: string }) => r.id === swap.requirementId).state).toBe("stretched");
+    // The card's own fit row says so too — the label every surface reads (Tailor screen, job page).
+    expect(after.card.fit).toContainEqual(expect.objectContaining({ id: swap.requirementId, stretched: true }));
+    expect(before.card.fit.map((f: { id: string }) => f.id)).not.toContain(swap.requirementId);
+    // Met is met: the breakdown counts it, and the gap list no longer names it.
+    expect(after.card.breakdown.essential.met + after.card.breakdown.desirable.met).toBe(
+      before.card.breakdown.essential.met + before.card.breakdown.desirable.met + 1,
+    );
+    expect(after.card.dontYet.map((r: { id: string }) => r.id)).not.toContain(swap.requirementId);
+
+    // The other job: the same number, nothing stretched, and its own draft never carries the line.
+    await post(app, cookie, `/onboarding/cards/${second}/want`);
+    const otherAfter = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(otherAfter.card.matchPct).toBe(otherBefore.card.matchPct);
+    expect(otherAfter.requirements.every((r: { state: string }) => r.state !== "stretched")).toBe(true);
+    const otherDraft = await draftWithSuggestions(app, cookie);
+    expect(otherDraft.html).not.toContain(swap.claimText);
+    expect(otherDraft.html).toContain(BULLET_TEXT);
+
+    // Back on this job: Undo restores the previous number and the requirement reads as before.
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" });
+    const undone = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(undone.card.matchPct).toBe(before.card.matchPct);
+    expect(undone.requirements).toEqual(before.requirements);
+  });
+});
+
+describe("#418 the job's own screen reads the same answer (a job he brought, through the paste door)", () => {
+  it("GET /onboarding/jobs/:adId counts the used stretch as met, flags the fit row, and its % rises", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm((gaps) => [
+      {
+        requirementId: gaps[0],
+        slot: { kind: "bullet", role: 0, bullet: 0 },
+        lineIn: "Governed three vendor teams against one programme budget.",
+        why: "The job asks for vendor governance. Your CV shows the programme.",
+        say: "I ran the vendor reviews myself.",
+        intendedClass: "Partially-Supported",
+        comparison: "The line in names what this job tests.",
+        better: true,
+      },
+    ]);
+    // broughtJobs.test.ts's shape: a pasted advert the injected reader reads into two requirements —
+    // the fake judge meets slot 0, so the gap the suggestion answers sits in slot 1.
+    const readPastedAdvert = async (text: string) => ({
+      title: text.split("\n")[0]!.trim(), titleSource: "stated" as const, company: "Gradion", location: "Hong Kong", closingDate: null,
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1> =>
+      AdRequirementsV1.parse({
+        schemaVersion: "1", adId: posting.id, curated: false, language: "en",
+        familyFit: { family: "it-project-delivery", confidence: 0.9 },
+        requirements: [
+          { id: "stakeholders", band: "essential", kind: "ordinary", requirement: "Coordinate business and technical stakeholders", sourceSpan: "coordinate" },
+          { id: "vendor-governance", band: "essential", kind: "ordinary", requirement: "Govern vendor teams against one budget", sourceSpan: "vendor" },
+        ],
+      });
+    const built = buildDeckServer({
+      readPastedAdvert, readAd, postings: new InMemoryPostingStore(), pasteRecords: new InMemoryPasteRecordStore(), store: new InMemoryJobStore(),
+      placeFamily: async () => IT_PROJECT_DELIVERY_PLACEMENT,
+      judge: fakeJudge(), tailorLlm: tailor.llm, stretchLlm: stretch.llm,
+    });
+    const { app, claims } = built;
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager in Hong Kong" });
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    await claims.add(sid, floorClaim("end-to-end-delivery", "Owned delivery from planning through completion.", "Yes"));
+    await claims.add(sid, floorClaim("delivery-communication", "Weekly steering updates.", "Weekly steering updates"));
+    await built.sessions.setImportProof(sid, { outcome: "success", usefulFactCount: 1, representativeFacts: [], conflict: null });
+    await post(app, cookie, "/review/complete");
+    await signIn(app, cookie, "stretch-job-screen@example.com");
+
+    const started = await post(app, cookie, "/onboarding/paste", { text: "Senior Project Manager\nGradion — Hong Kong\n\nRun a portfolio of technology programmes across APAC; coordinate business and technical stakeholders; govern vendor teams against one budget." });
+    expect(started.statusCode).toBe(202);
+    let adId = "";
+    for (let attempt = 0; attempt < 500 && !adId; attempt += 1) {
+      const job = (await get(app, cookie, `/jobs/${started.json().jobId}`)).json() as JobRecord;
+      if (job.status === "completed" || job.status === "failed") adId = (job.progress as { paste?: PasteProgress }).paste!.result!.adId;
+      else await new Promise((r) => setImmediate(r));
+    }
+    const screen = () => get(app, cookie, `/onboarding/jobs/${encodeURIComponent(adId)}`);
+    const before = (await screen()).json().card;
+    expect(before.scored).toBe("judged");
+    expect(before.fit.map((f: { id: string }) => f.id)).toEqual(["stakeholders"]);
+
+    await post(app, cookie, `/onboarding/cards/${encodeURIComponent(adId)}/want`);
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    expect(swap.requirementId).toBe("vendor-governance");
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+
+    const after = (await screen()).json().card;
+    expect(after.fit).toContainEqual(expect.objectContaining({ id: "vendor-governance", stretched: true }));
+    expect(after.matchPct).toBeGreaterThan(before.matchPct);
+    expect(after.dontYet).toEqual([]);
   });
 });

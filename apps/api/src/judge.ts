@@ -118,7 +118,10 @@ const JudgeResponseDoc = z
   })
   .strict();
 
-export type JudgeVerdict = z.infer<typeof JudgeVerdictDoc>;
+/** #418: `stretched` is a READ-TIME marker (stretchSuggestions.ts withStretchedVerdicts), never in a
+ *  stored judgement — the requirement counts as met on this job's card because the person used a
+ *  stretch for it, and every surface labels it so rather than passing it off as a plain match. */
+export type JudgeVerdict = z.infer<typeof JudgeVerdictDoc> & { stretched?: true };
 
 /** Code-level backstop, same shape as adReader.ts's clampBlocking: the prompt ASKS for exactly one
  *  verdict per requirement id, but nothing stops a model from skipping one, duplicating one, or

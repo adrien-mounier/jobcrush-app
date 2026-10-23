@@ -46,7 +46,14 @@ import { letterheadText, type ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView, type StretchContext } from "../tailorDraft.js";
-import { STRETCH_ANSWERS, answerSuggestion, stretchIsCurrent, stretchMarks, stretchView } from "../stretchSuggestions.js";
+import {
+  STRETCH_ANSWERS,
+  answerSuggestion,
+  stretchIsCurrent,
+  stretchMarks,
+  stretchView,
+  withStretchedVerdicts,
+} from "../stretchSuggestions.js";
 import { exportGate, runTailorExportJob } from "../tailorExport.js";
 import { reportContext, reportGate } from "../applicationReport.js";
 import type { AuthStore } from "../auth.js";
@@ -165,7 +172,11 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       skips: ReadonlySet<string>,
       broughtJob: boolean,
     ) => {
-      const { judgement, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob);
+      const { judgement: judged, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob);
+      // #418 (ADR-0020 clause 4): the stretches used on THIS job count as met on its card, read from
+      // the record beside its draft. Not in judgeAndYears: the stretch step's own input
+      // (stretchContext) must read the facts alone, or every answer would re-key the step.
+      const judgement = withStretchedVerdicts(judged, (await deps.tailorDrafts.get(session.id, posting.id))?.stretch);
       const state = buildTailorState(
         posting, adReq, confirmed, negatives, judgement, years,
         // #307/#308: the profile-level questions THIS advert still has open — #415: the whole queue.
