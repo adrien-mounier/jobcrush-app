@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../tailor.css";
 import { FactBadge } from "../factbadge";
-import { CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
+import { AdInFull, CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
 import { STRETCH_COPY, StretchCards, nextPending, pendingOf, type StretchEdit, type StretchEditNote, type StretchRailView } from "./stretch";
@@ -778,10 +778,13 @@ export default function TailorPage() {
         </header>
         <div className="dgrid">
           <div className="paper-col">
-            {/* #411 (owner, 2026-10-23): the Match breakdown is the first block under the header —
-                before the draft, following the live number like the ring above it. The deck card
-                and the job's own screen keep it at the card's foot (CardBody). */}
+            {/* #411 (owner, 2026-10-23): under the header, the ageing line when there is one, then
+                the Match breakdown — following the live number like the ring above it — then the
+                card's own "Read the ad in full", then the draft. The deck card and the job's own
+                screen keep the breakdown at the card's foot (CardBody). */}
+            {state.card.ageing && <p className="ageing">{state.card.ageing}</p>}
             <MatchBreakdown card={state.card} pct={displayPct} />
+            <AdInFull card={state.card} />
             <TailorDraft
               key={lookAgain}
               open={openStretch}

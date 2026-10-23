@@ -686,3 +686,24 @@ test("#411 the Match breakdown sits under the header, above the draft, and moves
   // Nothing else stands between the header and the breakdown.
   await expect(page.locator(".tailor .dbar + .dgrid > :first-child > :first-child")).toHaveClass(/breakdown/);
 });
+
+// #411's AC: under the header, the ageing line when there is one, then the Match breakdown, then
+// "Read the ad in full" — the job card's own folded ad — and then the draft. The job card stays on
+// this screen (the build note), so the ad and the ageing line are not lost with the redesign.
+test("#411 under the header: the ageing line, the Match breakdown, then Read the ad in full, then the draft", async ({ page }) => {
+  const ageing = "You pasted this 9 days ago. We cannot check whether it is still open.";
+  await openTailor(page, { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, ageing } });
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  const col = page.locator(".tailor .paper-col");
+  await expect(col.locator(".ageing")).toHaveText(ageing);
+  await expect(col.locator("> :first-child")).toHaveClass(/ageing/);
+  expect(await precedes(page, ".tailor .paper-col .ageing", ".tailor .paper-col .breakdown")).toBe(true);
+  expect(await precedes(page, ".tailor .paper-col .breakdown", ".tailor .paper-col details.ad")).toBe(true);
+  expect(await precedes(page, ".tailor .paper-col details.ad", ".tailor .draft-frame")).toBe(true);
+  // The card's own control: folded shut, and it opens on the job's own text.
+  const ad = col.locator("details.ad");
+  await expect(ad.locator("summary")).toHaveText("Read the ad in full");
+  await expect(ad).not.toHaveAttribute("open", "");
+  await ad.locator("summary").click();
+  await expect(ad.locator("p")).toHaveText(STATE_DRAFT.card.adExcerpt);
+});

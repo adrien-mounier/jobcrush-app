@@ -226,6 +226,26 @@ function rowClass(kind: "fit" | "open" | "settled", id: string, landedId?: strin
   return id === landedId ? `row ${kind} landed` : `row ${kind}`;
 }
 
+// #411: "Read the ad in full" is its own component so the Tailor screen's draft frame shows the
+// card's own control, not a copy (CardBody below renders it in the card's place).
+export function AdInFull({ card }: { card: JobCard }) {
+  // #117b (design §11.6): unscored starts unfolded — it's the only substantive content that card
+  // will ever have — and then the visitor's own toggle sticks; nothing may force it shut again.
+  // Initial-only by design: this must NOT depend on `card.scored` on every render, or a card that
+  // later resolves to judged/estimated (pending -> landed) would snap shut under the visitor.
+  const [adOpen, setAdOpen] = useState(card.scored === "unscored");
+  // Controlled only so `unscored` can start open — a judged/estimated/pending card gets
+  // adOpen=false at mount, same as the old uncontrolled default, and the visitor's own toggle then
+  // drives it exactly as before. shouldIgnoreSwipeStart already excludes `details.ad[open]` from
+  // starting a swipe (deck/page.tsx), unchanged.
+  return (
+    <details className="ad" open={adOpen} onToggle={(e) => setAdOpen(e.currentTarget.open)}>
+      <summary>{A1}</summary>
+      <p>{card.adExcerpt}</p>
+    </details>
+  );
+}
+
 // The card anatomy, as #306 leaves it: title -> meta -> ring, then what the card says about the job
 // ITSELF — how old it is, where to apply, the advert in full — and only then what the machine has to
 // say about the person: the highlight bubble, the three ranked lists, the breakdown.
@@ -270,11 +290,6 @@ export function CardBody({
   // #117/#117b: fit/dontYet read as claims the judgement hasn't made — hidden for both states with
   // no score, not just `pending`.
   const isScored = card.scored === "judged" || card.scored === "estimated";
-  // #117b (design §11.6): unscored starts unfolded — it's the only substantive content that card
-  // will ever have — and then the visitor's own toggle sticks; nothing may force it shut again.
-  // Initial-only by design: this must NOT depend on `card.scored` on every render, or a card that
-  // later resolves to judged/estimated (pending -> landed) would snap shut under the visitor.
-  const [adOpen, setAdOpen] = useState(card.scored === "unscored");
   return (
     <>
       <div className="hd">
@@ -330,14 +345,7 @@ export function CardBody({
           BEFORE the link that takes him out of the app. */}
       {applyRow}
 
-      {/* #117b design §11.6: controlled only so `unscored` can start open — a judged/estimated/
-          pending card gets adOpen=false at mount, same as the old uncontrolled default, and the
-          visitor's own toggle then drives it exactly as before. shouldIgnoreSwipeStart already
-          excludes `details.ad[open]` from starting a swipe (deck/page.tsx), unchanged. */}
-      <details className="ad" open={adOpen} onToggle={(e) => setAdOpen(e.currentTarget.open)}>
-        <summary>{A1}</summary>
-        <p>{card.adExcerpt}</p>
-      </details>
+      <AdInFull card={card} />
 
       {card.scored === "pending" ? (
         <PendingBubble gaveUp={gaveUp} retrying={retrying} onRetry={onRetry} />

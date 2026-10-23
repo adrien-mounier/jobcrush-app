@@ -640,6 +640,14 @@
   border-top: 0;
   max-width: 480px;
 }
+/* #411: the ageing line, when there is one, opens the column; the card's folded ad follows the
+   breakdown with its own hairline, and the draft follows the ad. */
+.tailor .paper-col .ageing {
+  margin: 0 0 14px;
+}
+.tailor .paper-col details.ad {
+  margin: 0 0 18px;
+}
 .tailor .rail {
   display: flex;
   flex-direction: column;
