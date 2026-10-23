@@ -1,6 +1,7 @@
 # ADR-0005 — A stretch belongs to its advert
 
-- **Status:** Accepted
+- **Status:** Accepted; clauses 3, 5 and 9 amended by
+  [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md) (2026-10-23)
 - **Date:** 2026-08-06
 - **Decided in:** [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) (owner grilling), under map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127)
 - **Depends on:** [ADR-0002](0002-how-a-structured-fact-reaches-the-cv.md) (how a fact reaches the page), [ADR-0003](0003-the-shared-parts-organisation-date-level.md) clause 9 (a stretch carries two independent labels), [ADR-0004](0004-each-elements-own-parts.md) clause 1a (every fact points at its origin; origin decides reuse), map #127 owner decision 9 (the product proposes stretches, it does not police honesty)
@@ -104,6 +105,12 @@ ever said about me"* become two different lists. That is chosen, not incidental.
 
 ### 3. The stretch library proposes. It never adds.
 
+> **Amended by [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md)** (2026-10-23),
+> recording #290 ruling 7: **no library is built.** Each job's suggestions are made fresh, beside its
+> finished draft, and a line declined for one job may be suggested again by another. The second job
+> below (*improve or skip a question about to be asked*) has nothing left to do: the application no
+> longer asks about requirements. *Propose, never add* and *every suggestion states why it fired* stand.
+
 Approved stretches accumulate in a library, consulted **after** normal tailoring has run. It has two
 jobs:
 
@@ -181,6 +188,12 @@ It attaches the price tag to a tap they are already making.
 
 ### 5. A stretch never graduates. It is superseded by a real fact.
 
+> **Amended by [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md)** (2026-10-23):
+> the person may state the fact at the moment it is suggested — *"It's true: keep it on my CV for every
+> job"* puts the line on the master CV as their own. It sits on its own row, away from "Use for this
+> job", with an Undo, as the warning below asks. The *"used on three applications"* prompt is not built:
+> without a library nothing counts the uses.
+
 When a stretch becomes genuinely true — the person did the job, took the course, grew into it — the
 stretch does **not** get promoted. **The person states the fact**, and *"the person said it"* is already
 a legitimate origin under ADR-0004 clause 1a: permanent, theirs, reusable on every CV where it helps.
@@ -242,6 +255,10 @@ derived from** — which is what ADR-0004 clause 1a already requires of every fa
 That lineage is what makes clause 5's *"you have used this three times"* countable at all.
 
 ### 9. Declining says which decline it is
+
+> **Amended by [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md)** (2026-10-23):
+> until the profile's mute list exists (ADR-0011 clause 4), the only decline is **"No" for this job**.
+> *Never again* waits for the surface that undoes it.
 
 The ported contract says a declined proposal is *"parked, never resurfaces."* Under a library that is
 wrong: declining trading for a marketing job must not kill it for the next banking job.

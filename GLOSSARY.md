@@ -45,6 +45,7 @@ with job requirements.
   - [Master CV](#master-cv)
   - [CV chat](#cv-chat)
   - [Chat proposal](#chat-proposal)
+  - [Stretch](#stretch)
   - [Application report](#application-report)
   - [Unchecked requirement](#unchecked-requirement)
 
@@ -191,7 +192,11 @@ counts fully toward each, so the family numbers do not sum to the total and no s
 that sum — and the total at the global scope, each job counted once. A years bar is tested at its
 own scope (`yearsScope` on the requirement): family bars against the advert's family's number — the
 session's pinned floor, else its target-role placement; the advert's own `familyFit` decides deck
-membership (#243), never which years fact a bar tests — total bars against the total. A third scope, **industry**,
+membership (#243), never which years fact a bar tests — total bars against the total. **Decided in
+#408, not yet built:** a bar naming several fields ("project management, consulting, or business
+transformation") counts every job whose kind of work is any one of them, each job once; a field we do
+not publish adds nothing. The bar is met or short on that number alone — never on how a CV sentence
+reads — and a shortfall is never asked: it shows on the card, and may be bridged by a **stretch**. A third scope, **industry**,
 exists on the requirement from #284: the advert reader names a published industry id (or none, when
 the advert names an industry we do not publish, which leaves the bar untestable). Nothing is scored
 against it until #285 — an industry bar is answered as a career-total bar until then. A **known zero is not an
@@ -205,6 +210,8 @@ confirmed or unmapped — never the nearest family. A confirmed placement names 
 families (a job can genuinely be two kinds of work) and carries an ordinal **placement confidence**.
 Nobody is ever asked to choose between families. It is worked out, stored on the job record as a
 correctable fact, and a correction is never overwritten by a re-read (#134, ADR-0014 + amendment 1).
+It follows the work the job's lines describe, never its title: a product owner job that also ran
+delivery is both kinds of work, and the person's correction may say so (#408).
 For a plural target role, every usable family floor is kept in placement order (no longer asked as
 questions since #339); the first family remains the single downstream search family (#232).
 _Avoid_: Job label, classification, posting family fit, needs clarification (deleted in #231)
@@ -324,12 +331,24 @@ shows the words it came from. It is never a stretch — a stretch belongs to one
 ticked proposed line is an ordinary **ticked line** (ADR-0017).
 _Avoid_: Drafted line (that is the review's, written for a family floor must-have), suggestion, edit
 
+**Stretch**:
+A line on one tailored CV that claims a skill, field, scope, number or title the person's own facts
+do not hold. The product suggests it beside the finished draft — the line it would add, the line it
+would push out, and what to say if asked — and it reaches the CV only by the person's tap. It belongs
+to that one application and never joins the profile (ADR-0005), and the requirement it covers counts
+as met — *met by a stretch* — on that application's match only. A suggested line the person says is
+simply true is kept on the **master CV** instead, and is then their fact, not a stretch. Saying one of
+the person's own facts in the job's words is tailoring, not a stretch: the CV writer does that
+without asking (#408).
+_Avoid_: Wording stretch, enrichment, embellishment
+
 **Application report**:
 The email that travels with the approved CV (#315, #293 verdict): five sections and nothing else —
 the job in short with the apply link on top · where you are strong · where you are not, each with a
 sentence to say · be ready to explain · salary, or plainly that the advert does not state one. Its
-content comes from three places only: the card (which requirement is met, open, denied or
-**unchecked**), one model call (the prose, the sentences, the bridges — never a fact, never a bridge
+content comes from three places only: the card (which requirement is met, *met by a stretch*,
+open, denied or **unchecked**; a used **stretch** brings its prepared line to *be ready to explain*,
+#408), one model call (the prose, the sentences, the bridges — never a fact, never a bridge
 where nothing adjacent exists), and the advert (salary, apply link). It refuses an unjudged card.
 _Avoid_: Interview prep, match summary, verification audit, report card
 

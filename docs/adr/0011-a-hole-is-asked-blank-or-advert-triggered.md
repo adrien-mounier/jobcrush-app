@@ -1,6 +1,7 @@
 # ADR-0011 — A hole is asked now, shown as a blank, or asked when an advert makes it matter
 
-- **Status:** Accepted
+- **Status:** Accepted; clause 2 amended by ADR-0016, clauses 1 and 2 amended by
+  [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md) (2026-10-23)
 - **Date:** 2026-08-07
 - **Decided in:** owner grilling during the `/to-tickets` pass on map
   [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) — the map's last fog item
@@ -48,6 +49,11 @@ Three channels already existed in decided form, each in a different place: ask d
 
 ### 1. Three channels, sorted by consequence
 
+> **Amended by [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md)** (2026-10-23):
+> at application time the advert-triggered channel asks only the right to work and a language the job
+> requires. Any other hole a job tests is shown, not asked: a stretch suggested beside the draft, or a
+> line on *Also asked, not on your CV*.
+
 A hole found at ingestion goes down exactly one of three paths:
 
 - **Asked now** — only when the answer **changes what the machine can do for the person**: it moves an
@@ -69,6 +75,10 @@ long tail of *could ask* moves to *an advert will ask when it matters*.
 > **Amended by [ADR-0016](0016-the-cv-is-reviewed-not-asked.md)** (2026-10-04): the CV review now judges quality at ingestion, as suggestions
 > only — fixes listed and undoable, untick suggestions never applied by the machine. Ingestion still
 > *asks* only about facts.
+>
+> **Amended by [ADR-0020](0020-the-cv-is-written-first-only-stretches-are-suggested.md)** (2026-10-23):
+> the application-time sharpening question below is deleted. It was never built; the application asks
+> only eligibility, and strengthening the person's own lines belongs to the CV review and the CV chat.
 
 The polish question — *"anything to add to this bullet? A number helps"* — never fires at ingestion.
 It moves to the **moment of application**: when a thin sentence is load-bearing for a real advert, the

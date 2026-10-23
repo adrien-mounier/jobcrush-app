@@ -121,6 +121,11 @@ additions". If unconfirmed, note the gap and prepare an interview-answer strateg
 `Unsupported but Plausible`: include only if it materially improves fit and can be defended at
 interview. Always surface it in the verification record. Default for High-risk items: ask the user.
 
+**In the product (ADR-0020, #408):** neither is asked as a question. The draft holds only what is true;
+a requirement it does not meet is either suggested beside the draft as a **stretch** (line in, line out,
+what to say — the person taps Use for this job, It's true, or No) or listed under *Also asked, not on
+your CV*, and the application report hands it a sentence (§8 clause 11).
+
 ## 6. The conservation principle (product-specific, added at the fork)
 
 The tailor may rephrase, reorder, merge, and select for the posting. It may **not** silently delete a
@@ -227,6 +232,14 @@ the ruling is wider.
    false in 2027, and the product owes her a way to say so while she is looking at the gap.
 
 ### The door
+
+> **Amended by [ADR-0020](../adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md)
+> (#408, 2026-10-23).** The Tailor step no longer asks about requirements, so there is no question
+> list to reopen and clause 5's double-asking cannot happen there. The row now sits on **"Also asked,
+> not on your CV"**, beside the finished draft, and has **no button** until the CV chat ships (#350):
+> its door then opens the chat (ADR-0017) on that requirement, and an added fact redrafts this CV.
+> Clause 6 holds with that door; clauses 7 and 8 below describe the retired path and are kept as
+> history.
 
 7. **The door is the existing answer path, not a second mechanism.** The row becomes a question again,
    she answers, the line appears in the CV beside her, the card re-scores, the ledger prints its
