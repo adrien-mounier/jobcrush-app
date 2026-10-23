@@ -23,6 +23,17 @@ const APPROVED_SCOPES = ["this-job", "every-job"];
 const DECLINED_SCOPES = ["this-job"];
 
 const isIndex = (v) => isInt(v) && v >= 0;
+const PROPOSAL_KEYS = [
+  "schemaVersion", "id", "adId", "requirementId", "why", "claimText", "intendedClass",
+  "interviewNarrative", "slot", "lineOut", "derivedFrom", "createdAt", "state", "decidedAt", "scope",
+];
+// The port is strict on the proposal and on each slot kind: an unknown key is refused here too.
+const SLOT_KEYS = { bullet: ["kind", "role", "bullet"], summary: ["kind"], skill: ["kind", "group"] };
+
+function exactKeys(e, value, keys, at) {
+  if (!isObject(value)) return;
+  for (const key of Object.keys(value)) e.require(keys.includes(key), `${at}.${key} is not allowed`);
+}
 
 export function validateStretchProposalV2(p) {
   const e = new Errors();
@@ -30,6 +41,7 @@ export function validateStretchProposalV2(p) {
     e.add("proposal must be a JSON object");
     return result(e);
   }
+  exactKeys(e, p, PROPOSAL_KEYS, "proposal");
   e.require(p.schemaVersion === "2", 'schemaVersion must be "2"');
   e.require(isNonEmptyString(p.id) && SLUG.test(p.id), "id must be a non-empty kebab slug");
   // (2) the job reference is required
@@ -41,6 +53,7 @@ export function validateStretchProposalV2(p) {
   e.require(isNonEmptyString(p.interviewNarrative), "interviewNarrative must be non-empty (every stretch carries what to say)");
 
   // the slot, and the slot-matched line out
+  if (isObject(p.slot) && oneOf(p.slot.kind, SLOT_KINDS)) exactKeys(e, p.slot, SLOT_KEYS[p.slot.kind], "slot");
   if (!isObject(p.slot) || !oneOf(p.slot.kind, SLOT_KINDS)) {
     e.add(`slot.kind must be one of ${SLOT_KINDS.join(", ")}`);
   } else if (p.slot.kind === "bullet") {

@@ -762,6 +762,12 @@ describe("Stretch proposal v2", () => {
       (p) => (p.scope = "this-job"), // pending ⇒ no scope
       (p) => (p.derivedFrom = "Not A Slug"),
       (p) => (p.state = "parked"),
+      // The port is strict on the proposal and on every slot kind; the oracle — the contract spec —
+      // refuses an unknown key in the same places.
+      (p) => (p.narrativeAnchor = "node-1"),
+      (p) => (p.slot = { kind: "bullet", role: 0, bullet: 0, extra: true }),
+      (p) => ((p.slot = { kind: "summary", role: 0 }), (p.lineOut = "Delivery lead.")),
+      (p) => ((p.slot = { kind: "skill", group: 0, bullet: 1 }), (p.lineOut = null)),
     ];
     for (const mutate of mutations) {
       const proposal = JSON.parse(JSON.stringify(proposals[0]));
