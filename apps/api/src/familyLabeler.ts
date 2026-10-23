@@ -29,6 +29,8 @@ import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
 import type { EligibilityStore } from "./eligibility.js";
+import type { ClaimStore } from "./claims.js";
+import { linesFor } from "./industryLabeler.js";
 import { refreshWorkedYears } from "./yearsWorked.js";
 import { incrementCounter } from "./counters.js";
 import {
@@ -103,23 +105,38 @@ const CARDINALITY = {
   asked to choose: name both, and each family counts the work in full. Name a second family ONLY
   when **both parts are substantial** — a real, standing half of the job, not a flavour of the
   first. A title that names two kinds of work ("X and Y manager", "X / Y lead") is the ordinary
-  case for this. A title where one word is merely the SUBJECT of the other ("product delivery
+  case for this, and so are lines that describe two kinds of work in full: the job is both because
+  its work was both. A title where one word is merely the SUBJECT of the other ("product delivery
   manager" — delivery work, done on a product) is ONE family, not two.
 - **more than two → name them all**, but read that as a signal you are counting flavours as jobs:
   go back through step 1 before you answer.`,
   idsExample: `"<id from the list>","<a second id, ONLY if that second kind of work is substantial>"`,
 };
 
+/** #414: how many of a job's own CV lines travel with the call — the same window the industry
+ *  labeler uses (industryLabeler.ts), for the same reason. */
+const MAX_LINES = 12;
+const MAX_LINE_LENGTH = 300;
+
 export function buildFamilyLabelerInput(
   role: string,
   families: PublishedFamily[],
+  // #414 / ADR-0020 clause 5: the lines written under the job. Placement follows the work they
+  // describe, never the title alone; a target role (no job behind it) passes none.
+  lines: string[] = [],
 ): string {
+  const written = lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, MAX_LINES)
+    .map((line) => `- ${line.slice(0, MAX_LINE_LENGTH)}`);
   // Function replacers: the substituted text is published data and visitor free text, neither of
   // which this repo controls, and a string replacer would treat "$&"/"$1" in it as a pattern
   // (adReader.ts hit the same hazard with family names).
   return familyLabelerPrompt()
     .replace("{{FAMILIES}}", () => describeFamilies(families))
     .replace("{{ROLE}}", () => role.trim())
+    .replace("{{LINES}}", () => (written.length ? written.join("\n") : "(nothing written under this job)"))
     .replace("{{CARDINALITY}}", () => CARDINALITY.rule)
     .replace("{{IDS_EXAMPLE}}", () => CARDINALITY.idsExample);
 }
@@ -227,6 +244,7 @@ async function place(
   // the source (target role vs past job) and the session it happened for. Optional: a caller with
   // no feed wired still places roles, it just records nothing.
   feed?: UnmappedLabelFeed,
+  lines: string[] = [],
 ): Promise<{ placement: FamilyPlacement; degraded: boolean }> {
   // Nothing typed, or no vocabulary published at all: unmapped, with no model call to pay for.
   // Deliberately NOT fed to the vocabulary-growth store (#252): an empty box and an empty registry
@@ -238,7 +256,7 @@ async function place(
 
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const base = buildFamilyLabelerInput(role, families);
+    const base = buildFamilyLabelerInput(role, families, lines);
     const input =
       attempt === 0
         ? base
@@ -357,6 +375,10 @@ export function makeJobBlockLabeler(
   eligibility?: EligibilityStore,
   // #252 — the past-job half of the vocabulary-growth feed, same optional-store rule as above.
   unmappedLabels?: UnmappedLabelStore,
+  // #414 — the person's own CV lines under each job (ADR-0020 clause 5: placement follows the work
+  // described, never the title alone). Optional on the same terms: a build with no claim store
+  // places on the title, which is what every build did before #414.
+  claims?: Pick<ClaimStore, "list">,
 ): (sessionId: string) => Promise<void> {
   return async (sessionId) => {
     let labeled = false;
@@ -364,13 +386,20 @@ export function makeJobBlockLabeler(
       if (block.kind !== "job") continue; // its CORRECTED kind — see this function's own doc
       if (block.family.value) continue; // already answered (labeled or corrected) — never re-spent
       try {
-        // The TITLE is what gets placed: it is the block's own statement of what the work was, and
-        // it is the field the visitor can already correct if the miner read it wrong.
+        // The title AND the lines written under it are what gets placed (#414): the title is the
+        // block's own name for the work, the lines say what the work actually was, and both are
+        // fields the visitor can already correct if the miner read them wrong.
         // PLURAL (#231): a past job may genuinely be two kinds of work, and nobody is asked which.
         const feed = unmappedLabels
           ? ({ store: unmappedLabels, sessionId, source: "past_job" } as const)
           : undefined;
-        const { placement, degraded } = await place(block.title.value, families, llm, feed);
+        const { placement, degraded } = await place(
+          block.title.value,
+          families,
+          llm,
+          feed,
+          await linesFor(claims, sessionId, block.employer.value),
+        );
         // A DEGRADED answer is never stored — the same rule makeFamilyPlacer's cache follows, and it
         // matters more here: a stored placement is exactly what stops this block being asked again,
         // so persisting an unmapped the model never actually gave would make one bad minute
