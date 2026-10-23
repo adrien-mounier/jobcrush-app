@@ -62,6 +62,11 @@ export const JOURNEYS = [
   "contact-fact-journey.mjs",
   "check-mode-work-rights-journey.mjs",
   "tailor-journey.mjs",
+  // stretch-use-journey.mjs (#418, spec #412): the ONLY journey that walks the stretch suggestions
+  // over the wire — the draft first, a suggestion previewed in place, "Use for this job", the score
+  // moving with the requirement read as met by a stretch, "Ready to send", approve. tailor-journey
+  // keeps the phone layout and the exits; this one owns the flow ADR-0020 clause 4 decides. ~2 min.
+  "stretch-use-journey.mjs",
   "search-area-coverage-journey.mjs",
   // #214: the only end-to-end proof that a typed city stays a city-level target (chips, cap,
   // refusal, per-market work-rights). ~2 min against the fake-model API.

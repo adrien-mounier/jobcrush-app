@@ -287,6 +287,20 @@ export const COVERAGE = {
   "check-mode-work-rights-journey.mjs": union(CV_INTAKE, DISCOVERY, ELIGIBILITY, REVIEW, PROFILE, DECK),
   // #23: discovery -> reveal -> sign-in -> deck -> swipe -> tailor -> the ending and the exits.
   "tailor-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS),
+  // #418: the stretch flow end to end — the step, its prompt, the read-time swap and score, the
+  // approve press with the report. The qa-main fake it reads its suggestion from is in SHARED.
+  "stretch-use-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS, [
+    "apps/api/src/stretchSuggestions.ts",
+    "apps/api/src/tailorDraft.ts",
+    "apps/api/src/tailorDraftStore.ts",
+    "apps/api/src/tailorExport.ts",
+    "apps/api/src/applicationReport.ts",
+    "apps/api/src/judgedScore.ts",
+    "apps/api/src/recordBars.ts",
+    "apps/api/prompts/stretch-suggestions.md",
+    "apps/api/prompts/application-report.md",
+    "apps/web/app/jobcard.tsx",
+  ]),
   // #184/#172: the server-side search-area coverage gate at the front door, across a reload.
   "search-area-coverage-journey.mjs": union(FRONT_DOOR, DISCOVERY, POSTINGS, ELIGIBILITY),
   // #214: up to three location chips, city-vs-country resolution, per-market work rights.
