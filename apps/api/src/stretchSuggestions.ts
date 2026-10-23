@@ -29,7 +29,7 @@ import type { TailorRequirement } from "./deck.js";
 import type { LlmClient } from "./llm.js";
 import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
-import type { Draft, Posting } from "./preview.js";
+import type { Draft, Posting, StretchMarks } from "./preview.js";
 import type { DraftInputs } from "./tailorDraft.js";
 
 const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "stretch-suggestions.md");
@@ -247,6 +247,22 @@ export function answerSuggestion(
 export type StretchCheckpoint =
   | { fingerprint: string; status: "ran"; suggestions: StretchProposalV2[] }
   | { fingerprint: string; status: "failed" };
+
+/** The page marks for one read (#417): the pending suggestions numbered in list order (stable —
+ *  an answered one keeps its number off the page but holds its place), the one named by `openId`
+ *  previewed in place. No `openId` (the plain read, a closed card) marks nothing; an id that is
+ *  not a pending suggestion numbers the pending ones and opens none. */
+export function stretchMarks(checkpoint: StretchCheckpoint | undefined, openId: string | undefined): StretchMarks | undefined {
+  if (checkpoint?.status !== "ran" || openId === undefined) return undefined;
+  const pending = checkpoint.suggestions
+    .map((s, i) => ({ s, n: i + 1 }))
+    .filter(({ s }) => s.state === "pending");
+  const open = pending.find(({ s }) => s.id === openId);
+  return {
+    ...(open ? { open: { slot: open.s.slot, lineIn: open.s.claimText, n: open.n } } : {}),
+    numerals: pending.filter(({ s }) => s.id !== openId).map(({ s, n }) => ({ slot: s.slot, n })),
+  };
+}
 
 /** What the screen reads: the suggestions with their answers, or the honest absence. */
 export type StretchView = { status: "ran"; suggestions: StretchProposalV2[] } | { status: "failed" } | null;

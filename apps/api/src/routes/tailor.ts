@@ -46,7 +46,7 @@ import { letterheadText, type ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView, type StretchContext } from "../tailorDraft.js";
-import { STRETCH_ANSWERS, answerSuggestion, stretchIsCurrent, stretchView } from "../stretchSuggestions.js";
+import { STRETCH_ANSWERS, answerSuggestion, stretchIsCurrent, stretchMarks, stretchView } from "../stretchSuggestions.js";
 import { exportGate, runTailorExportJob } from "../tailorExport.js";
 import { reportContext, reportGate } from "../applicationReport.js";
 import type { AuthStore } from "../auth.js";
@@ -476,7 +476,13 @@ export function tailorRoutes(deps: TailorRouteDeps) {
      *  disclosure (what it held back and why), and the conservation notices when it shipped lossy.
      *  Reading spends nothing — that is what makes exiting free: the supported draft stays here,
      *  behind no further gate (#66's fourth criterion). */
-    app.get("/onboarding/tailor/draft", async (req, reply) => {
+    // #417: `?open=<suggestion id>` previews that pending suggestion in place on the page (line
+    // out struck, line in marked) and numbers the other pending ones in the margin. Reading spends
+    // nothing and changes nothing stored.
+    app.get(
+      "/onboarding/tailor/draft",
+      { schema: { querystring: z.object({ open: z.string().optional() }) } },
+      async (req, reply) => {
       const session = requireUser(req);
       const resolved = await resolveDraftTarget(session);
       if (resolved.refused) {
@@ -496,11 +502,15 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           .status(404)
           .send({ error: { code: "no_draft", message: "no draft for this job's current facts" } });
       const contact = await deps.contact.getRecord(session.id);
-      return tailorDraftView(stored, inputs.claimsDoc, posting, {
-        phone: contact.phone?.value ?? null,
-        email: contact.email?.value ?? null,
-      });
-    });
+      return tailorDraftView(
+        stored,
+        inputs.claimsDoc,
+        posting,
+        { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
+        { marks: stretchMarks(stored.stretch, req.query.open) },
+      );
+      },
+    );
 
     // #417 (ADR-0020 clause 4): an answer to one stretch suggestion beside the current draft. "No"
     // declines it for this job only — the record lives beside THIS draft, so nothing else moves and

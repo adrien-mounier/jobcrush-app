@@ -35,6 +35,7 @@ import {
   tailorDraft,
   type Draft,
   type JobDisclosure,
+  type StretchMarks,
   type Posting,
   type StoredContact,
   type TailorInputOpts,
@@ -247,7 +248,7 @@ export function tailorDraftView(
   contact: StoredContact = { phone: null, email: null },
   // #313: the approved export prints the same render WITHOUT the DRAFT watermark/banner — the
   // document leaving the app is no longer a draft. Every screen read keeps the default.
-  opts: { watermark?: boolean } = {},
+  opts: { watermark?: boolean; marks?: StretchMarks } = {},
 ): TailorDraftView {
   const draft = {
     ...record.draft,

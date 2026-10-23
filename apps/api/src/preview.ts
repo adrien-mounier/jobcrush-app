@@ -23,6 +23,7 @@ import {
   type PostingRetrievalResultV1,
 } from "@jobcrush/contracts";
 import type { JobBlockView } from "./jobBlockStore.js";
+import type { StretchSlot } from "@jobcrush/contracts";
 import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
@@ -951,17 +952,44 @@ const WATERMARK_SVG = encodeURIComponent(
  * Sections with no content (certifications, education, additional, and summary when nothing
  * earns it a place) are omitted entirely, heading included — never a heading over nothing.
  */
+/** #417 (ADR-0020 clause 3): how the pending stretch suggestions show on the page. The OPEN one
+ *  previews in place — its line out struck, its line in marked — and every other pending one is a
+ *  numeral in the margin on its slot. Nothing here changes the stored draft: a suggestion reaches
+ *  the CV only by the person's tap (#418). */
+export interface StretchMarks {
+  open?: { slot: StretchSlot; lineIn: string; n: number };
+  numerals: { slot: StretchSlot; n: number }[];
+}
+
+const sameSlot = (a: StretchSlot, b: StretchSlot) =>
+  a.kind === b.kind &&
+  (a.kind !== "bullet" || (b.kind === "bullet" && a.role === b.role && a.bullet === b.bullet)) &&
+  (a.kind !== "skill" || (b.kind === "skill" && a.group === b.group));
+
 export function renderPreviewHtml(
   draft: Draft,
   posting: Posting,
-  opts: { watermark?: boolean } = {},
+  opts: { watermark?: boolean; marks?: StretchMarks } = {},
 ): string {
   const watermark = opts.watermark ?? true;
   const section = (title: string, body: string) =>
     body ? `<h2>${esc(title)}</h2>${body}` : "";
 
+  // #417: the mark on one slot — the open preview (struck line out + marked line in), or a numeral.
+  const marks = opts.marks;
+  const pin = (n: number, open = false) => `<span class="pin${open ? " open" : ""}" aria-hidden="true">${n}</span>`;
+  const openAt = (slot: StretchSlot) => (marks?.open && sameSlot(marks.open.slot, slot) ? marks.open : undefined);
+  const numeralAt = (slot: StretchSlot) => marks?.numerals.find((m) => sameSlot(m.slot, slot));
+  /** A whole line (a bullet, the summary): struck and replaced when open, numbered when pending. */
+  const markedLine = (slot: StretchSlot, text: string) => {
+    const open = openAt(slot);
+    if (open) return `${pin(open.n, true)}<del>${esc(text)}</del><ins>${esc(open.lineIn)}</ins>`;
+    const numeral = numeralAt(slot);
+    return `${esc(text)}${numeral ? pin(numeral.n) : ""}`;
+  };
+
   const experience = draft.experience
-    .map((e) => {
+    .map((e, r) => {
       const employer = e.location ? `${e.employer}, ${e.location}` : e.employer;
       return (
         `<div class="role"><div class="role-head"><strong>${esc(employer)}</strong>` +
@@ -969,18 +997,20 @@ export function renderPreviewHtml(
         `<div class="role-title">${esc(e.role)}</div>` +
         // Renders the bullet's human text only — claimIds/unprinted are provenance data for a
         // future control (#157), never shown on the page itself.
-        `<ul>${e.bullets.map((b) => `<li>${esc(b.text)}</li>`).join("")}</ul></div>`
+        `<ul>${e.bullets.map((b, i) => `<li>${markedLine({ kind: "bullet", role: r, bullet: i }, b.text)}</li>`).join("")}</ul></div>`
       );
     })
     .join("");
 
   const skills = draft.skills
-    .map(
-      (g) =>
-        `<p class="skill-group"><strong>${esc(g.label)}</strong><br>${g.items
-          .map(esc)
-          .join(", ")}</p>`,
-    )
+    .map((g, i) => {
+      // A skill joins the group and pushes nothing out (ADR-0005 clause 4).
+      const slot: StretchSlot = { kind: "skill", group: i };
+      const open = openAt(slot);
+      const numeral = numeralAt(slot);
+      const items = g.items.map(esc).join(", ") + (open ? `, <ins>${esc(open.lineIn)}</ins>` : "");
+      return `<p class="skill-group">${open ? pin(open.n, true) : numeral ? pin(numeral.n) : ""}<strong>${esc(g.label)}</strong><br>${items}</p>`;
+    })
     .join("");
 
   const certifications = draft.certifications
@@ -1029,6 +1059,13 @@ export function renderPreviewHtml(
   ul{margin:4px 0 0;padding-left:18px;}
   li{margin-bottom:2px;}
   .skill-group{margin:0 0 8px;}
+  /* #417: the open stretch suggestion previews in place; the others are numerals in the margin. */
+  li,.skill-group,.summary{position:relative;}
+  del{color:#5A6675;text-decoration-color:rgba(90,102,117,.7);}
+  ins{text-decoration:none;background:rgba(232,163,61,.22);border-radius:3px;box-shadow:0 0 0 3px rgba(232,163,61,.22);}
+  .pin{position:absolute;left:-30px;top:1px;display:inline-grid;place-items:center;width:20px;height:20px;
+    border-radius:50%;border:1px solid #5A6675;color:#5A6675;font-size:11px;font-weight:600;line-height:1;}
+  .pin.open{border-color:#a8762b;background:#e8a33d;color:#1a1206;}
   .cert{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;}
   .edu,.addl{margin:0 0 6px;}
   /* Fit-to-width on phones: viewport meta reflows to the iframe width; trim the page
@@ -1054,7 +1091,7 @@ ${
 <p class="headline"><span class="role-word">${esc(draft.headline)}</span>${
   draft.contact ? ` - ${esc(draft.contact)}` : ""
 }</p>
-${draft.summary.trim() ? section("Professional Summary", `<p>${esc(draft.summary)}</p>`) : ""}
+${draft.summary.trim() ? section("Professional Summary", `<p class="summary">${markedLine({ kind: "summary" }, draft.summary)}</p>`) : ""}
 ${section("Professional Experience", experience)}
 ${section("Skills", skills)}
 ${section("Certifications", certifications)}

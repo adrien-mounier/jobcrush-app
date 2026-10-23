@@ -497,3 +497,52 @@ describe("#417 approving with suggestions unanswered approves the draft without 
     expect(sent).toHaveLength(1);
   });
 });
+
+describe("#417 the draft previews the open suggestion in place", () => {
+  it("GET ?open=<id> strikes the line out and marks the line in at its slot; the others are margin numerals; without ?open the page is plain", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-preview@example.com");
+    const plain = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = plain.stretch.suggestions;
+    expect(plain.html).not.toContain("<del");
+    expect(plain.html).not.toContain("<ins");
+    expect(plain.html).not.toContain('class="pin');
+
+    const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${swap.id}`)).json();
+    // The open one, in place: the line out struck, the line in marked, numbered 1.
+    expect(open.html).toContain(`<del>${BULLET_TEXT}</del>`);
+    expect(open.html).toContain(`<ins>${swap.claimText}</ins>`);
+    expect(open.html).toMatch(/<span class="pin open"[^>]*>1<\/span>/);
+    // The other shows as a margin numeral on its slot (the skills group), not as text.
+    expect(open.html).toMatch(/<span class="pin"[^>]*>2<\/span>/);
+    expect(open.html).not.toContain(skill.claimText);
+    expect(open.html).toContain(SECOND_BULLET); // every other line prints as it is
+
+    // Opening the skill: its line in joins the group, nothing is struck.
+    const openSkill = (await get(app, cookie, `/onboarding/tailor/draft?open=${skill.id}`)).json();
+    expect(openSkill.html).toContain(`<ins>${skill.claimText}</ins>`);
+    expect(openSkill.html).not.toContain("<del");
+    expect(openSkill.html).toContain(BULLET_TEXT);
+    // An unknown id previews nothing and is not an error.
+    expect((await get(app, cookie, "/onboarding/tailor/draft?open=nope")).json().html).not.toContain("<ins");
+  });
+
+  it("an answered suggestion leaves no mark — only the pending ones are numbered", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-preview-answered@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "no" });
+    const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${skill.id}`)).json();
+    expect(open.html).toContain(`<ins>${skill.claimText}</ins>`);
+    expect(open.html).not.toContain("<del");
+    expect(open.html).not.toMatch(/<span class="pin"[^>]*>1<\/span>/); // the declined one is gone from the margin
+    expect(open.html).toMatch(/<span class="pin open"[^>]*>2<\/span>/); // numbering stays stable
+  });
+});
