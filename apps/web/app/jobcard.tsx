@@ -21,6 +21,9 @@ const H4 = "Not tested";
 const NOT_TESTED_NOTE =
   "I don't have your dated work history yet, so I couldn't measure you against this one. Add your dates and it can change.";
 const A1 = "Read the ad in full";
+// #418 (ADR-0020 clause 4): a fit row the person met by using a stretch for this job is never passed
+// off as a plain match — the label replaces the scorer's reason, on every card surface.
+const F1 = "Met by a stretch";
 
 // #117 the pending card's copy (design-117 §5). P3 ("Not scored yet") is retired by the §11
 // addendum — it collided with `unscored`'s own "Not scored": the give-up strip now keeps label P1
@@ -118,10 +121,12 @@ export function useReducedMotion() {
 export function ScoreRing({
   pct,
   bumped,
+  lit,
   estimated,
 }: {
   pct: number;
   bumped?: boolean;
+  lit?: boolean; // #418: the brief gold glow after a used stretch moved the number
   estimated?: boolean; // #117c: the ring itself is untouched — this only changes the accessible name
 }) {
   const r = 28;
@@ -131,7 +136,7 @@ export function ScoreRing({
   // with no extra machinery. The visible ".est" caption below is aria-hidden so it isn't read twice.
   const label = estimated ? `${pct}% match, estimated` : `${pct}% match`;
   return (
-    <div className={`score lg${bumped ? " bumped" : ""}`} role="img" aria-label={label}>
+    <div className={`score lg${bumped ? " bumped" : ""}${lit ? " lit" : ""}`} role="img" aria-label={label}>
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <circle className="bg" cx={32} cy={32} r={r} />
         <circle className="fg" cx={32} cy={32} r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
@@ -362,11 +367,11 @@ export function CardBody({
             {card.fit.map((f) => (
               <div className={rowClass("fit", f.id, landedId)} key={f.id} data-req={f.id}>
                 <span className="mk" aria-hidden="true">
-                  ✓
+                  {f.stretched ? "◆" : "✓"}
                 </span>
                 <span>
                   {f.text}
-                  {f.reason && <span className="fit-why">{f.reason}</span>}
+                  {f.stretched ? <span className="fit-why stretched">{F1}</span> : f.reason && <span className="fit-why">{f.reason}</span>}
                 </span>
               </div>
             ))}

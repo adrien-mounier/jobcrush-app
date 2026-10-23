@@ -712,6 +712,10 @@
   line-height: 1.4;
   color: var(--hud-mute);
 }
+/* #418: "Met by a stretch" under a fit row — gold, so it is never read as a plain match. */
+.jobdeck .row .fit-why.stretched {
+  color: var(--gold-dim);
+}
 .jobdeck .open {
   color: var(--hud-mute);
 }

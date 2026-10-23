@@ -19,14 +19,13 @@ import { FactBadge } from "../factbadge";
 import { CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
-import { StretchCards, nextPending, pendingOf } from "./stretch";
+import { StretchCards, nextPending, pendingOf, type StretchRailView } from "./stretch";
 import {
   answerStretch,
   answerTailorProfile,
   dropTailor,
   ensureSession,
   getTailor,
-  type StretchView,
   type TailorQuestion,
   type TailorRequirement,
   type TailorState,
@@ -65,12 +64,19 @@ const T28 = "Your report gives you a sentence to say about this.";
 const T29 = "Close";
 const STATE_LABEL: Record<TailorRequirement["state"], string> = {
   met: "met",
+  stretched: "met by a stretch", // #418 (ADR-0020 clause 4): never passed off as a plain match
   gap: "not on your CV",
   untested: "not tested",
 };
+const MARK: Record<TailorRequirement["state"], string> = { met: "✓", stretched: "◆", gap: "–", untested: "–" };
+// #418: the score's own announcement — the only place the new number is said (no "+N%" anywhere).
+const T30 = (pct: number) => `Match now ${pct}%`;
 
 const SCORE_TWEEN_MS = 680;
 const SCORE_BUMP_MS = 470;
+// #418 (the approved prototype's beat): a gold mote flies to the number, then it rolls up and glows.
+const MOTE_MS = 720;
+const GLOW_MS = 1100;
 
 // #309: the score may fall, and the fall is shown with its cause. When the new server number sits
 // below the last server number, the answer's own server-composed line is prefixed with the size of
@@ -98,6 +104,7 @@ export default function TailorPage() {
   const [tailor, setTailor] = useState<TailorState | null>(null);
   const [displayPct, setDisplayPct] = useState(0);
   const [scoreBumped, setScoreBumped] = useState(false);
+  const [scoreLit, setScoreLit] = useState(false); // #418: the brief gold glow
   // #307: the after-line of a permanent answer — the one line saying what the answer did. Shown
   // under the next question, or beside the draft when that answer was the last thing asked.
   const [ledgerView, setLedgerView] = useState<{ key: string; text: string; fell?: boolean } | null>(null);
@@ -120,7 +127,7 @@ export default function TailorPage() {
   const [badgeCount, setBadgeCount] = useState(0);
   // #417: the stretch suggestions beside the draft (read with the draft), the one open, and the
   // "look again" counter that remounts the draft so a failed step runs once more.
-  const [stretch, setStretch] = useState<StretchView | undefined>(undefined);
+  const [stretch, setStretch] = useState<StretchRailView>(undefined);
   const [openStretch, setOpenStretch] = useState<string | null>(null);
   const [stretchAnswering, setStretchAnswering] = useState(false);
   const [lookAgain, setLookAgain] = useState(0);
@@ -148,6 +155,8 @@ export default function TailorPage() {
   const prevAskKeyRef = useRef<string | null>(null);
   const rafRef = useRef<number | null>(null);
   const bumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const glowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scoreRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setScreen("loading");
@@ -189,6 +198,8 @@ export default function TailorPage() {
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
+      if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+      document.querySelectorAll(".mote").forEach((m) => m.remove());
     };
   }, []);
 
@@ -245,7 +256,7 @@ export default function TailorPage() {
 
   // #417: the first pending suggestion opens by itself when the draft (and its suggestions) land —
   // once; after that the person decides what is open. Focus stays on the page heading then.
-  const onStretch = useCallback((next: StretchView | undefined) => {
+  const onStretch = useCallback((next: StretchRailView) => {
     setStretch(next);
     if (autoOpenedRef.current) return;
     autoOpenedRef.current = true;
@@ -284,8 +295,90 @@ export default function TailorPage() {
     }
   }
 
+  // #418 (ADR-0020 clause 4): "Use for this job". The server swaps the line and re-composes the
+  // card; this screen re-reads the state and moves the number with the reward beat — a gold mote
+  // from the card to the ring (720ms), then the roll-up, the bump and a brief glow. No "+N%" is
+  // ever written: the number is the statement. Reduced motion swaps the number at once.
+  async function answerStretchUse(id: string) {
+    if (stretchAnswering) return;
+    setStretchAnswering(true);
+    const from = stretchHeadingRef.current?.getBoundingClientRect();
+    try {
+      const { stretch: next } = await answerStretch(id, "use");
+      setStretch(next);
+      openSuggestion(nextPending(next, id));
+      const state = await getTailor();
+      setTailor(state);
+      await moveScore(state.card.matchPct, from);
+    } catch {
+      setAskError(T7);
+    } finally {
+      setStretchAnswering(false);
+    }
+  }
+
+  // #418: Undo from the "Ready to send" summary — the answer is withdrawn, the suggestion reopens
+  // (pending again), and the number counts down quietly: no mote, no glow.
+  async function undoStretch(id: string) {
+    if (stretchAnswering) return;
+    setStretchAnswering(true);
+    try {
+      const { stretch: next } = await answerStretch(id, "undo");
+      setStretch(next);
+      openSuggestion(id);
+      const state = await getTailor();
+      setTailor(state);
+      setLiveMessage(T30(state.card.matchPct));
+      tweenScore(displayPct, state.card.matchPct);
+    } catch {
+      setAskError(T7);
+    } finally {
+      setStretchAnswering(false);
+    }
+  }
+
+  /** The reward beat, then the number. `from` is where the mote starts (the open card's heading). */
+  async function moveScore(to: number, from: DOMRect | undefined) {
+    setLiveMessage(T30(to));
+    if (!reducedMotion && from) await flyMote(from);
+    if (!reducedMotion) {
+      setScoreLit(true);
+      if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+      glowTimerRef.current = setTimeout(() => setScoreLit(false), GLOW_MS);
+    }
+    tweenScore(displayPct, to);
+  }
+
+  /** A 7px gold dot, flown with the Web Animations API from `from` to the ring's number and
+   *  removed when it lands (the prototype's flyMote). Resolves when it has landed. */
+  function flyMote(from: DOMRect): Promise<void> {
+    const to = scoreRef.current?.querySelector(".n")?.getBoundingClientRect();
+    if (!to || typeof HTMLElement.prototype.animate !== "function") return Promise.resolve();
+    const mote = document.createElement("div");
+    mote.className = "mote";
+    mote.setAttribute("aria-hidden", "true");
+    document.body.appendChild(mote);
+    const x0 = from.left + Math.min(from.width, 40);
+    const y0 = from.top + from.height / 2;
+    const x1 = to.left + to.width / 2;
+    const y1 = to.top + to.height / 2;
+    const anim = mote.animate(
+      [
+        { transform: `translate(${x0}px, ${y0}px) scale(1)`, opacity: 0.2 },
+        { transform: `translate(${(x0 + x1) / 2}px, ${Math.min(y0, y1) - 80}px) scale(1.3)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(${x1}px, ${y1}px) scale(0.6)`, opacity: 1 },
+      ],
+      { duration: MOTE_MS, easing: "cubic-bezier(.45,0,.2,1)" },
+    );
+    return anim.finished.then(
+      () => mote.remove(),
+      () => mote.remove(),
+    );
+  }
+
   // #417: J/K move between suggestions, N answers No, Esc closes the card — only on the draft
   // screen, never while a dialog is up or the focus is in a field (the prototype's wiring).
+  // #418: U answers Use.
   const showDraftNow = !!tailor && tailor.questions.length === 0 && screen === "flow";
   useEffect(() => {
     if (!showDraftNow || sheetOpen || dropConfirming) return;
@@ -301,6 +394,7 @@ export default function TailorPage() {
       if (key === "j") openSuggestion(nextPending(stretch, openStretch, 1));
       else if (key === "k") openSuggestion(nextPending(stretch, openStretch, -1));
       else if (key === "n" && openStretch) void answerStretchNo(openStretch);
+      else if (key === "u" && openStretch) void answerStretchUse(openStretch);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -569,7 +663,8 @@ export default function TailorPage() {
   );
 
   function renderDraftScreen(state: TailorState) {
-    const metCount = state.requirements.filter((r) => r.state === "met").length;
+    // Met is met: a requirement met by a stretch counts, labelled as such in the sheet.
+    const metCount = state.requirements.filter((r) => r.state === "met" || r.state === "stretched").length;
     const gaps = state.requirements.filter((r) => r.state === "gap");
     const meta = [state.card.company, state.card.place].filter(Boolean).join(" · ");
     return (
@@ -581,7 +676,9 @@ export default function TailorPage() {
             </h1>
             <p className="co">{[meta, T24].filter(Boolean).join(" · ")}</p>
           </div>
-          <ScoreRing pct={displayPct} bumped={scoreBumped} estimated={state.card.scored === "estimated"} />
+          <div ref={scoreRef} className="scoreslot">
+            <ScoreRing pct={displayPct} bumped={scoreBumped} lit={scoreLit} estimated={state.card.scored === "estimated"} />
+          </div>
           <button type="button" className="link" ref={sheetTriggerRef} onClick={() => setSheetOpen(true)}>
             {T26} · {metCount} of {state.requirements.length}
           </button>
@@ -608,7 +705,8 @@ export default function TailorPage() {
               requirements={state.requirements}
               openId={openStretch}
               onOpen={openSuggestion}
-              onAnswer={(id) => void answerStretchNo(id)}
+              onAnswer={(id, answer) => void (answer === "use" ? answerStretchUse(id) : answerStretchNo(id))}
+              onUndo={(id) => void undoStretch(id)}
               onSkipRest={() => openSuggestion(null)}
               onLookAgain={() => setLookAgain((n) => n + 1)}
               headingRef={stretchHeadingRef}
@@ -653,7 +751,7 @@ export default function TailorPage() {
                 {state.requirements.map((r) => (
                   <li key={r.id} data-state={r.state}>
                     <span className="m" aria-hidden="true">
-                      {r.state === "met" ? "✓" : "–"}
+                      {MARK[r.state]}
                     </span>
                     <span className="t">{r.text}</span>
                     <span className="s">{STATE_LABEL[r.state]}</span>

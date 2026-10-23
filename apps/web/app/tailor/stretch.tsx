@@ -8,11 +8,17 @@
 // clip of the swap itself, the answers stack, and "Skip the rest" closes the run. Closed (Esc, Skip
 // the rest, every one answered) the rail shows the list with each one's result.
 //
-// Answers: "No" (this job only) is built here. "Use for this job" (#418), "It's true" (#419) and
-// "Edit wording" (#420) land in `.acts` below — the layout leaves them their rows.
+// Answers: "No" (this job only, #417) and "Use for this job" (#418: the gold primary, key U) are
+// built here; "It's true" (#419) and "Edit wording" (#420) land in `.acts` below — the layout
+// leaves them their rows. Closed, the rail is the "Ready to send" summary: each answer with its
+// own Undo, and "Be ready to explain" with each used line and what to say (the prototype's words).
 // Every value is server-composed (the suggestion records beside the draft); nothing is re-derived.
 import type { RefObject } from "react";
 import type { StretchSuggestion, StretchView, TailorRequirement } from "../../lib/api";
+
+/** #418: what the rail shows about the step — the server's view, or "running" while the draft is
+ *  already on the page and the step is still looking (draft.tsx reports it off the job stream). */
+export type StretchRailView = StretchView | { status: "running" } | undefined;
 
 const K1 = "optional";
 const K2 = "On your CV it replaces the line struck out on the page.";
@@ -22,28 +28,40 @@ const K5 = "No";
 const K6 = "Previous";
 const K7 = "Later";
 const K8 = "Skip the rest";
-const K9 = "Suggestions";
+const K9 = "Ready to send";
 const K10 = "Not answered, left out";
 const K11 = "Not for this job";
 const K12 = "Skills";
+// #418: the gold primary and the summary's words (the approved prototype).
+const K13 = "Use for this job";
+const K14 = "Used for this job";
+const K15 = "Undo";
+const K16 = "Answer";
+const K17 = "Be ready to explain";
+const K18 = "No suggestions used.";
+// The draft is written; one more step looks for stretches beside it (shown in the rail, the draft
+// already on the page — ADR-0020: the draft is the first thing the person sees).
+const K19 = "Your CV is written. Looking for ways to stretch it for this job…";
 // A failed step is told as what it is — never as "nothing to suggest", and naming nothing of ours.
 const F1 = "We could not look for ways to stretch this CV just now. Your CV is complete without them.";
 const F2 = "Look again";
 
-export const STRETCH_COPY = { K2, K3, F1, F2 };
+export const STRETCH_COPY = { K2, K3, F1, F2, K19 };
 
 const RESULT: Record<StretchSuggestion["state"], string> = {
   pending: K10,
   declined: K11,
-  approved: "", // #418/#419 name this one
+  approved: K14, // #419's every-job approval names its own scope
 };
 
 export interface StretchCardsProps {
-  view: StretchView | undefined;
+  view: StretchRailView;
   requirements: TailorRequirement[];
   openId: string | null;
   onOpen: (id: string) => void;
-  onAnswer: (id: string, answer: "no") => void;
+  onAnswer: (id: string, answer: "no" | "use") => void;
+  /** #418: withdraws an answer from the summary — the suggestion is pending again and reopens. */
+  onUndo: (id: string) => void;
   onSkipRest: () => void;
   onLookAgain: () => void;
   headingRef: RefObject<HTMLHeadingElement | null>;
@@ -51,12 +69,12 @@ export interface StretchCardsProps {
 }
 
 /** The pending suggestions, in list order — the one open, and the way J/K/N move. */
-export function pendingOf(view: StretchView | undefined): StretchSuggestion[] {
+export function pendingOf(view: StretchRailView): StretchSuggestion[] {
   return view?.status === "ran" ? view.suggestions.filter((s) => s.state === "pending") : [];
 }
 
 /** The next pending suggestion after `fromId` (wrapping), or null when none is left. */
-export function nextPending(view: StretchView | undefined, fromId: string | null, direction: 1 | -1 = 1): string | null {
+export function nextPending(view: StretchRailView, fromId: string | null, direction: 1 | -1 = 1): string | null {
   const pending = pendingOf(view);
   if (pending.length === 0) return null;
   const i = pending.findIndex((s) => s.id === fromId);
@@ -64,8 +82,15 @@ export function nextPending(view: StretchView | undefined, fromId: string | null
   return pending[(i + direction + pending.length) % pending.length]!.id;
 }
 
-export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onSkipRest, onLookAgain, headingRef, answering }: StretchCardsProps) {
+export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onUndo, onSkipRest, onLookAgain, headingRef, answering }: StretchCardsProps) {
   if (!view) return null; // the step did not run: an honest absence, nothing said
+  if (view.status === "running") {
+    return (
+      <section className="stretch" role="status">
+        <p className="notice">{K19}</p>
+      </section>
+    );
+  }
   if (view.status === "failed") {
     return (
       <section className="stretch" role="status">
@@ -115,8 +140,11 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onS
           {open.interviewNarrative}
         </div>
         <div className="acts">
-          {/* #418 "Use for this job" and #419 "It's true" take the rows above this one; #420's
-              "Edit wording" sits beside No. */}
+          {/* The gold primary (ADR-0020 clause 4: this job only). #419's "It's true" takes the row
+              between — never the same row as Use; #420's "Edit wording" sits beside No. */}
+          <button type="button" className="b gold" disabled={answering} onClick={() => onAnswer(open.id, "use")}>
+            {K13} <kbd aria-hidden="true">U</kbd>
+          </button>
           <button type="button" className="b quiet" disabled={answering} onClick={() => onAnswer(open.id, "no")}>
             {K5} <kbd aria-hidden="true">N</kbd>
           </button>
@@ -136,28 +164,48 @@ export function StretchCards({ view, requirements, openId, onOpen, onAnswer, onS
     );
   }
 
-  // Closed: the list, each with its result, and the way back into a pending one.
+  // Closed: "Ready to send" — each suggestion with its answer and its own Undo (an unanswered one
+  // with the way back in), then what to be ready to explain for every used line.
   const pending = pendingOf(view).length;
+  const used = all.filter((s) => s.state === "approved");
   const declined = all.filter((s) => s.state === "declined").length;
-  const parts = [declined > 0 && `${declined} not for this job`, pending > 0 && `${pending} left out`].filter(Boolean);
+  const parts = [used.length > 0 && `${used.length} used for this job`, declined > 0 && `${declined} not for this job`, pending > 0 && `${pending} left out`].filter(Boolean);
   return (
     <section className="stretch" aria-label={K9}>
       <h2 className="h">{K9}</h2>
-      {parts.length > 0 && <p className="small">{parts.join(" · ")}</p>}
+      <p className="small">{parts.length > 0 ? parts.join(" · ") : K18}</p>
       <ul className="slist">
         {all.map((s) => (
           <li key={s.id}>
-            {s.state === "pending" ? (
-              <button type="button" className="link" onClick={() => onOpen(s.id)}>
-                {text(s)}
-              </button>
-            ) : (
-              <span>{text(s)}</span>
-            )}
-            <span className="s">{RESULT[s.state]}</span>
+            <span className="t">{text(s)}</span>
+            <span className={`result${s.state === "approved" ? " r-use" : ""}`}>
+              <span className="s">{RESULT[s.state]}</span>
+              {s.state === "pending" ? (
+                <button type="button" className="link" disabled={answering} onClick={() => onOpen(s.id)}>
+                  {K16}
+                </button>
+              ) : (
+                <button type="button" className="link" disabled={answering} onClick={() => onUndo(s.id)}>
+                  {K15}
+                </button>
+              )}
+            </span>
           </li>
         ))}
       </ul>
+      {used.length > 0 && (
+        <>
+          <h3 className="h">{K17}</h3>
+          <ul className="explain">
+            {used.map((s) => (
+              <li key={s.id}>
+                <q>{s.claimText}</q>
+                {s.interviewNarrative}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

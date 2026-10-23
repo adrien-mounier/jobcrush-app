@@ -453,7 +453,8 @@ export interface TailorQuestion {
 export interface TailorRequirement {
   id: string;
   text: string;
-  state: "met" | "gap" | "untested";
+  /** #418: `stretched` is met by a stretch the person used for this job (ADR-0020 clause 4). */
+  state: "met" | "stretched" | "gap" | "untested";
 }
 
 export interface TailorState {
@@ -551,9 +552,13 @@ export interface StretchSuggestion {
 
 export type StretchView = { status: "ran"; suggestions: StretchSuggestion[] } | { status: "failed" } | null;
 
+/** The answers a suggestion takes (routes/tailor.ts): "no" and "use" are this job only; "undo"
+ *  withdraws an answer (back to pending). #419 adds "true". */
+export type StretchAnswer = "no" | "use" | "undo";
+
 /** One answer on one suggestion of the current draft. Spends nothing; returns the suggestions as
- *  the next read would show them. #418/#419 widen the answer. */
-export function answerStretch(id: string, answer: "no"): Promise<{ stretch: StretchView }> {
+ *  the next read would show them. */
+export function answerStretch(id: string, answer: StretchAnswer): Promise<{ stretch: StretchView }> {
   return jfetch(`/api/onboarding/tailor/suggestions/${encodeURIComponent(id)}`, {
     method: "POST",
     body: JSON.stringify({ answer }),

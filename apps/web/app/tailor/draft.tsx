@@ -6,7 +6,7 @@
 // watches the same `/api/jobs/:id/events` stream the paste door uses (paste/page.tsx's own watch,
 // ported), and reads the checkpointed draft — a reload or a return re-spends nothing server-side.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { StretchView } from "../../lib/api";
+import type { StretchRailView } from "./stretch";
 import {
   approveTailorDraft,
   getTailorDraft,
@@ -26,8 +26,6 @@ const D3 = "We could not finish writing this CV.";
 const D4 = "Press Try again — everything you answered is saved, and nothing already done is re-done.";
 const D5 = "Try again";
 const D6 = "It is a full-page CV — scroll inside to read it all.";
-// #417: the draft is written; one more step looks for stretches beside it.
-const D7 = "Your CV is written. Looking for ways to stretch it for this job…";
 
 // #313 — the one press, and its narration. Silence is the failure mode to avoid: nearly every
 // press is a cold start of about half a minute, so the screen says what it is doing the whole
@@ -47,7 +45,7 @@ const S9 = "Your CV ran over two pages — shortening it to fit…";
 const S10 = "Writing your application report…";
 
 type Phase =
-  | { kind: "writing"; step?: "suggesting" }
+  | { kind: "writing" }
   | { kind: "ready"; view: TailorDraftView }
   | { kind: "failed"; cameBack?: string; fix?: string };
 
@@ -217,8 +215,9 @@ function DisclosureBlock({ d }: { d: JobDisclosure }) {
 export interface TailorDraftProps {
   /** #417: the open stretch suggestion — the frame is read with it so the swap previews in place. */
   open?: string | null;
-  /** #417: the view as read, so the page can put the suggestions beside the draft. */
-  onStretch?: (stretch: StretchView | undefined) => void;
+  /** #417: the view as read, so the page can put the suggestions beside the draft. #418: "running"
+   *  while the draft is already on the page and the step is still looking. */
+  onStretch?: (stretch: StretchRailView) => void;
 }
 
 export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
@@ -230,6 +229,10 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
   openRef.current = open;
   const onStretchRef = useRef(onStretch);
   onStretchRef.current = onStretch;
+
+  // The current phase's kind, readable from the stream handler without re-subscribing.
+  const phaseRef = useRef<Phase["kind"]>("writing");
+  phaseRef.current = phase.kind;
 
   const settle = useCallback((next: Phase) => {
     streamRef.current?.close();
@@ -246,6 +249,20 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
       settle({ kind: "failed" });
     }
   }, [settle]);
+
+  // #418 (ADR-0020: the draft is the first thing the person sees): the draft is checkpointed before
+  // the stretch step runs, so the moment the server says "suggesting" the finished draft is read and
+  // shown, and the rail says the step is still looking. The stream stays open for "completed".
+  const showDraftWhileSuggesting = useCallback(async () => {
+    try {
+      const view = await getTailorDraft(openRef.current);
+      if (cancelledRef.current) return;
+      setPhase({ kind: "ready", view });
+      onStretchRef.current?.({ status: "running" });
+    } catch {
+      /* the completed event reads it again */
+    }
+  }, []);
 
   // #417: a different open suggestion re-reads the frame (free: a checkpoint read) so the preview
   // moves with the card. Only once the draft is on screen; a stale answer never overwrites a newer.
@@ -285,8 +302,7 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
         if (snapshot.status === "completed") void readDraft();
         else if (snapshot.status === "failed")
           settle({ kind: "failed", ...snapshot.progress.tailorDraft?.failure });
-        else if (snapshot.progress.tailorDraft?.step === "suggesting" && !cancelledRef.current)
-          setPhase({ kind: "writing", step: "suggesting" });
+        else if (snapshot.progress.tailorDraft?.step === "suggesting" && phaseRef.current !== "ready") void showDraftWhileSuggesting();
       };
       source.onerror = () => {
         // EventSource reconnects on a blip; CLOSED means the browser gave up (paste's rule).
@@ -295,7 +311,7 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
     } catch {
       settle({ kind: "failed" });
     }
-  }, [readDraft, settle]);
+  }, [readDraft, settle, showDraftWhileSuggesting]);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -310,8 +326,8 @@ export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
   if (phase.kind === "writing") {
     return (
       <div className="draft draft-wait" role="status">
-        <p className="draft-wait-line">{phase.step === "suggesting" ? D7 : D1}</p>
-        {phase.step !== "suggesting" && <p className="draft-wait-sub">{D2}</p>}
+        <p className="draft-wait-line">{D1}</p>
+        <p className="draft-wait-sub">{D2}</p>
       </div>
     );
   }

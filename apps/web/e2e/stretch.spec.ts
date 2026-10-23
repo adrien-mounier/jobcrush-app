@@ -69,9 +69,26 @@ const S2: StretchSuggestion = {
   lineOut: null,
 };
 
+/** #418: the state after "Use for this job" on S1 — the server's own composition, mirrored: the
+ *  requirement met by a stretch, the number up, the fit row flagged. */
+const USED_STATE: TailorState = {
+  ...STATE,
+  card: {
+    ...CARD,
+    matchPct: 71,
+    breakdown: { essential: { met: 1, total: 1 }, desirable: { met: 0, total: 1 } },
+    fit: [...CARD.fit, { id: "sap", text: "Their SAP version", stretched: true }],
+    dontYet: CARD.dontYet.filter((r) => r.id !== "sap"),
+  },
+  requirements: STATE.requirements.map((r) => (r.id === "sap" ? { ...r, state: "stretched" } : r)),
+};
+
 /** The server's render, mirrored for one `?open=` id: the open one struck + marked, the others
- *  numbered (stretchSuggestions.test.ts pins the real thing). */
+ *  numbered (stretchSuggestions.test.ts pins the real thing). #418: a used bullet prints its line in
+ *  in place of the line out (applyUsedStretches). */
 function html(stretch: StretchView, open: string | null): string {
+  const used = stretch?.status === "ran" ? stretch.suggestions.find((s) => s.state === "approved" && s.slot.kind === "bullet") : undefined;
+  const bulletText = used ? used.claimText : LINE_OUT;
   const pending = stretch?.status === "ran" ? stretch.suggestions.map((s, i) => ({ s, n: i + 1 })).filter(({ s }) => s.state === "pending") : [];
   const o = pending.find(({ s }) => s.id === open);
   const pin = (n: number, isOpen = false) => `<span class="pin${isOpen ? " open" : ""}" aria-hidden="true">${n}</span>`;
@@ -83,7 +100,7 @@ function html(stretch: StretchView, open: string | null): string {
     return `${text}${pin(here.n)}`;
   };
   return (
-    `<!doctype html><html><body><h1>Maria Kowalski</h1><ul><li>${mark("bullet", LINE_OUT)}</li>` +
+    `<!doctype html><html><body><h1>Maria Kowalski</h1><ul><li>${mark("bullet", bulletText)}</li>` +
     `<li>Managed a budget of EUR 1.2M across 3 vendor teams</li></ul>` +
     `<p class="skill-group">${mark("skill", "<strong>Delivery</strong><br>Jira, MS Project")}</p></body></html>`
   );
@@ -93,11 +110,12 @@ function view(stretch: StretchView, open: string | null): TailorDraftView {
   return { html: html(stretch, open), disclosure: [], conservationNotices: [], draftedAt: "2026-09-30T08:00:00.000Z", stretch };
 }
 
-/** Stubs the whole screen. `stretch` is mutable so an answer stub can move the state. */
-async function openTailor(page: Page, state: { stretch: StretchView }) {
+/** Stubs the whole screen. `stretch` is mutable so an answer stub can move the state; `tailor` is
+ *  what GET /onboarding/tailor answers, moved by "use" and "undo" the way the server composes it. */
+async function openTailor(page: Page, state: { stretch: StretchView; tailor?: TailorState }) {
   const posts = { draft: 0, answers: [] as { id: string; answer: string }[] };
   await page.route("**/api/sessions/me", (route) => route.fulfill({ json: { ok: true } }));
-  await page.route("**/api/onboarding/tailor", (route) => route.fulfill({ json: STATE }));
+  await page.route("**/api/onboarding/tailor", (route) => route.fulfill({ json: state.tailor ?? STATE }));
   await page.route("**/api/onboarding/tailor/draft**", async (route) => {
     if (route.request().method() === "POST") {
       posts.draft += 1;
@@ -114,9 +132,15 @@ async function openTailor(page: Page, state: { stretch: StretchView }) {
       state.stretch = {
         status: "ran",
         suggestions: state.stretch.suggestions.map((s) =>
-          s.id === id ? { ...s, state: "declined", decidedAt: "2026-10-23T09:05:00.000Z", scope: "this-job" } : s,
+          s.id !== id
+            ? s
+            : answer === "undo"
+              ? { ...s, state: "pending", decidedAt: null, scope: null }
+              : { ...s, state: answer === "use" ? "approved" : "declined", decidedAt: "2026-10-23T09:05:00.000Z", scope: "this-job" },
         ),
       };
+    if (id === S1.id && answer === "use") state.tailor = USED_STATE;
+    if (id === S1.id && answer === "undo") state.tailor = STATE;
     await route.fulfill({ json: { stretch: state.stretch } });
   });
   await page.goto("/tailor");
@@ -173,10 +197,11 @@ test("#417 computer: J and K move between suggestions, N answers No for this job
   await expect(page.getByRole("region", { name: /Suggestion \d of 2/ })).toHaveCount(0);
   await expect(frame).not.toHaveAttribute("srcdoc", /<ins>/); // the page is plain again
   // The closed list still names what is left, with the way back in.
-  const list = page.getByRole("region", { name: "Suggestions" });
+  const list = page.getByRole("region", { name: "Ready to send" });
   await expect(list).toContainText("Public-sector delivery");
   await expect(list).toContainText("Their SAP version");
-  await list.getByRole("button", { name: "Public-sector delivery" }).click();
+  // #418: the row carries its result and the way back in ("Answer") — the text is no longer the button.
+  await list.getByRole("listitem").filter({ hasText: "Public-sector delivery" }).getByRole("button", { name: "Answer" }).click();
   await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
 });
 
@@ -199,7 +224,7 @@ test("#417 phone (390px): one suggestion at a time with the swap in the card, th
 
   await skip.click();
   await expect(cards).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Suggestions" })).toContainText("2 left out");
+  await expect(page.getByRole("region", { name: "Ready to send" })).toContainText("2 left out");
 });
 
 test("#417 a step that failed is told plainly, never as nothing to suggest, with a quiet way to look again", async ({ page }) => {
@@ -217,4 +242,120 @@ test("#417 a step that never ran shows nothing about suggestions — not a failu
   await openTailor(page, { stretch: null });
   await expect(page.getByRole("region", { name: /Suggestion/ })).toHaveCount(0);
   await expect(page.locator(".tailor")).not.toContainText(/could not look for|Look again|left out/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// #418 — "Use for this job": the gold primary; the score animates (no "+N%"); the requirement reads
+// met by a stretch; the "Ready to send" summary lists each answer with its own Undo.
+// ---------------------------------------------------------------------------------------------
+
+test("#418 Use for this job is the gold primary (key U): the line lands on the page, the number rises and is announced, the sheet reads 'met by a stretch', the summary lists it with Undo", async ({ page }) => {
+  const posts = await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  const use = card.getByRole("button", { name: /^Use for this job/ });
+  await expect(use).toBeVisible();
+  await expect(use).toHaveClass(/gold/);
+  // The primary sits above No, on its own row.
+  const useBox = (await use.boundingBox())!;
+  const noBox = (await card.getByRole("button", { name: /^No/ }).boundingBox())!;
+  expect(noBox.y).toBeGreaterThan(useBox.y + useBox.height - 1);
+  const ring = page.locator(".dbar .score");
+  await expect(ring).toHaveAttribute("aria-label", "61% match");
+
+  await use.click();
+  expect(posts.answers).toEqual([{ id: S1.id, answer: "use" }]);
+  // The next pending one opens; the used line is now the page's own line (no <ins>, no <del> for it).
+  await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
+  const frame = page.locator(".draft-frame");
+  await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<li>${S1.claimText}</li>`));
+  await expect(frame).not.toHaveAttribute("srcdoc", /<del>/);
+  // The score rolls up to the server's number — never a "+N%" anywhere — and is announced.
+  await expect(ring).toHaveAttribute("aria-label", "71% match", { timeout: 10_000 });
+  await expect(page.locator(".tailor")).not.toContainText(/\+\d+%/);
+  await expect(page.locator('.tailor [aria-live="polite"]')).toContainText("Match now 71%");
+  await expect(page.locator(".dbar .mote")).toHaveCount(0); // the mote is gone once it has landed
+
+  // "Where you fit": the requirement reads met by a stretch and counts as met.
+  await page.getByRole("button", { name: /Where you fit · 2 of 3/ }).click();
+  const sheet = page.getByRole("dialog", { name: /Where you fit/ });
+  await expect(sheet.locator('.marks li[data-state="stretched"] .t')).toHaveText("Their SAP version");
+  await expect(sheet.locator('.marks li[data-state="stretched"] .s')).toHaveText("met by a stretch");
+  await page.keyboard.press("Escape");
+  // The gap list no longer names it.
+  await expect(page.locator(".tailor .gaps")).not.toContainText("Their SAP version");
+
+  // Esc closes the open card: the "Ready to send" summary lists each answer with its own Undo.
+  await page.keyboard.press("Escape");
+  const summary = page.getByRole("region", { name: "Ready to send" });
+  await expect(summary).toContainText("1 used for this job · 1 left out");
+  const usedRow = summary.getByRole("listitem").filter({ hasText: "Their SAP version" });
+  await expect(usedRow).toContainText("Used for this job");
+  await expect(summary).toContainText("Be ready to explain");
+  await expect(summary).toContainText(S1.interviewNarrative);
+
+  // Undo: the answer is withdrawn, the line out is back, and the number counts down quietly.
+  await usedRow.getByRole("button", { name: "Undo" }).click();
+  expect(posts.answers).toEqual([
+    { id: S1.id, answer: "use" },
+    { id: S1.id, answer: "undo" },
+  ]);
+  await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible(); // reopened, pending again
+  await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<del>${LINE_OUT}</del>`));
+  await expect(ring).toHaveAttribute("aria-label", "61% match", { timeout: 10_000 });
+  await expect(page.locator(".tailor")).not.toContainText("met by a stretch");
+});
+
+test("#418 key U answers Use; with reduced motion the number changes at once and no mote flies", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const posts = await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  const ring = page.locator(".dbar .score");
+  await expect(ring).toHaveAttribute("aria-label", "61% match");
+  await page.keyboard.press("u");
+  expect(posts.answers).toEqual([{ id: S1.id, answer: "use" }]);
+  // At once: the first paint after the answer lands is the final number (no roll-up frames), and
+  // nothing flies.
+  await expect(ring).toHaveAttribute("aria-label", "71% match", { timeout: 3_000 });
+  await expect(page.locator(".mote")).toHaveCount(0);
+  await expect(page.locator('.tailor [aria-live="polite"]')).toContainText("Match now 71%");
+});
+
+test("#418 phone (390px): Use is the first of the stacked answers", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTailor(page, { stretch: RAN });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  const use = (await card.getByRole("button", { name: /^Use for this job/ }).boundingBox())!;
+  const no = (await card.getByRole("button", { name: /^No/ }).boundingBox())!;
+  expect(no.y).toBeGreaterThan(use.y + use.height - 1);
+  expect(use.width).toBeGreaterThan(200); // full-width on a phone
+});
+
+test("#418 the job's own screen labels a requirement met by a stretch", async ({ page }) => {
+  await page.route("**/api/sessions/me", (route) => route.fulfill({ json: { ok: true } }));
+  await page.route("**/api/onboarding/jobs/ad-1", (route) => route.fulfill({ json: { card: USED_STATE.card } }));
+  await page.goto("/job/ad-1");
+  const row = page.locator('.row.fit[data-req="sap"]');
+  await expect(row).toContainText("Their SAP version");
+  await expect(row.locator(".fit-why")).toHaveText("Met by a stretch");
+  // A plainly met row carries no such label.
+  await expect(page.locator('.row.fit[data-req="budget"]')).not.toContainText("Met by a stretch");
+});
+
+test("#418 (ADR-0020): while the stretch step runs the finished draft is already the page; the rail says it is looking", async ({ page }) => {
+  await page.route("**/api/sessions/me", (route) => route.fulfill({ json: { ok: true } }));
+  await page.route("**/api/onboarding/tailor", (route) => route.fulfill({ json: STATE }));
+  await page.route("**/api/onboarding/tailor/draft**", async (route) => {
+    if (route.request().method() === "POST") return route.fulfill({ status: 202, json: { jobId: "draft-job-418" } });
+    // The draft is checkpointed before the step runs: the read returns it, with no suggestions yet.
+    await route.fulfill({ json: view(null, null) });
+  });
+  await page.route("**/api/jobs/draft-job-418/events", async (route) => {
+    const snapshot = { id: "draft-job-418", status: "running", error: null, progress: { tailorDraft: { step: "suggesting" } } };
+    await route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(snapshot)}\n\n` });
+  });
+  await page.goto("/tailor");
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve and email me this CV" })).toBeVisible();
+  const rail = page.locator(".tailor .rail");
+  await expect(rail.getByRole("status")).toContainText("Looking for ways to stretch it for this job");
+  await expect(page.locator(".draft-wait-line")).toHaveCount(0); // the wait screen is gone
 });
