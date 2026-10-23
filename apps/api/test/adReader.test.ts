@@ -442,7 +442,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
   // means a future contract change that forgets the bump fails here rather than shipping a fleet of
   // stored reads silently missing the new field.
   it("the reader's version carries the CURRENT ad-requirements contract token", () => {
-    expect(adReaderVersion(FAMILIES, INDUSTRIES)).toContain("adreq/4");
+    expect(adReaderVersion(FAMILIES, INDUSTRIES)).toContain("adreq/5");
   });
 
   it("a stale stored version triggers exactly one fresh read (a prompt/contract bump)", async () => {
@@ -742,7 +742,7 @@ describe("#243 closed-vocabulary family fit", () => {
       { familyId: "data-analytics", label: "Data analytics", scope: "Analytics work" },
     ];
     expect(adReaderVersion(other, INDUSTRIES)).not.toBe(adReaderVersion(FAMILIES, INDUSTRIES));
-    expect(adReaderVersion(other, INDUSTRIES)).toContain("adreq/4"); // the contract half is untouched by the list
+    expect(adReaderVersion(other, INDUSTRIES)).toContain("adreq/5"); // the contract half is untouched by the list
   });
 
   // AC5 end-to-end at the reader seam: a read stored under the OLD family list is stale under the
@@ -868,7 +868,7 @@ describe("#284 the industry years scope", () => {
   it("folds the industry list into the reader version — a different list is a different version", () => {
     expect(adReaderVersion(FAMILIES, [])).not.toBe(adReaderVersion(FAMILIES, INDUSTRIES));
     expect(adReaderVersion(FAMILIES, [INDUSTRIES[0]!])).not.toBe(adReaderVersion(FAMILIES, INDUSTRIES));
-    expect(adReaderVersion(FAMILIES, INDUSTRIES)).toContain("adreq/4");
+    expect(adReaderVersion(FAMILIES, INDUSTRIES)).toContain("adreq/5");
   });
 
   it("re-reads a stored read from a previous industry list exactly once", async () => {
@@ -883,5 +883,85 @@ describe("#284 the industry years scope", () => {
     expect(secondLlm.calls).toHaveLength(1); // stale under the new list — re-read
     await readAd(posting());
     expect(secondLlm.calls).toHaveLength(1); // and only once
+  });
+});
+
+// #413 (ADR-0020 clause 5) — a years bar naming several fields ("8+ years in project management,
+// consulting, or business transformation") names EVERY published family those fields map to, so
+// the bar is answered by the merged months of every job in any of them. A field we do not publish
+// adds nothing, and a bar whose fields are all unpublished is not tested — visible as an EMPTY
+// list, distinct from the absent field a bar naming no field (or a pre-#413 read) carries.
+describe("#413 the families a years bar names", () => {
+  const TWO_FAMILIES = [
+    ...FAMILIES,
+    { familyId: "management-consulting", label: "Management consulting", scope: "Advising businesses" },
+  ];
+  const yearsReq = (over: Record<string, unknown>) => ({
+    id: "years",
+    band: "essential",
+    kind: "ordinary",
+    requirement: "8+ years in project management, consulting, or business transformation",
+    eligibilityDimension: "years-experience",
+    comparable: { op: ">=", value: 8 },
+    sourceSpan: "8+ years in project management, consulting, or business transformation",
+    ...over,
+  });
+
+  it("the prompt the model reads asks for the families a years bar names", () => {
+    expect(buildAdReaderInput(posting(), FAMILIES, INDUSTRIES)).toContain("`yearsFamilies`");
+  });
+
+  it("the reader's version carries the contract token that made every stored read stale", () => {
+    expect(adReaderVersion(FAMILIES, INDUSTRIES)).toContain("adreq/5");
+  });
+
+  it("keeps every published family the bar names, in the reader's own order", async () => {
+    const doc = {
+      ...validDoc,
+      requirements: [yearsReq({ yearsFamilies: ["IT Project Manager", "management-consulting"] })],
+    };
+    const result = await readAdvert(posting(), fakeLlm([JSON.stringify(doc)]), TWO_FAMILIES, INDUSTRIES);
+    expect(result!.requirements.requirements[0]?.yearsFamilies).toEqual([
+      "IT Project Manager",
+      "management-consulting",
+    ]);
+  });
+
+  it("drops a family id that is not published, counted — the published ones stay", async () => {
+    const before = readCounters()["adReader.years_families_clamped"];
+    const doc = {
+      ...validDoc,
+      requirements: [yearsReq({ yearsFamilies: ["IT Project Manager", "business-transformation"] })],
+    };
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const result = await readAdvert(posting(), llm, FAMILIES, INDUSTRIES);
+    expect(llm.calls).toHaveLength(1); // a clamp, not a retry — the read itself was good
+    expect(result!.requirements.requirements[0]?.yearsFamilies).toEqual(["IT Project Manager"]);
+    expect(readCounters()["adReader.years_families_clamped"]).toBe(before + 1);
+  });
+
+  it("a bar whose named fields are all unpublished keeps an EMPTY list — not tested, never absent", async () => {
+    const doc = { ...validDoc, requirements: [yearsReq({ yearsFamilies: ["business-transformation"] })] };
+    const result = await readAdvert(posting(), fakeLlm([JSON.stringify(doc)]), FAMILIES, INDUSTRIES);
+    expect(result!.requirements.requirements[0]?.yearsFamilies).toEqual([]);
+  });
+
+  it("a family list riding on a total or industry bar names nothing and is dropped", async () => {
+    const doc = {
+      ...validDoc,
+      requirements: [
+        yearsReq({ id: "total", yearsScope: "total", yearsFamilies: ["IT Project Manager"] }),
+        yearsReq({ id: "industry", yearsScope: "industry", yearsIndustry: "it-services", yearsFamilies: ["IT Project Manager"] }),
+      ],
+    };
+    const result = await readAdvert(posting(), fakeLlm([JSON.stringify(doc)]), FAMILIES, INDUSTRIES);
+    expect(result!.requirements.requirements[0]?.yearsFamilies).toBeUndefined();
+    expect(result!.requirements.requirements[1]?.yearsFamilies).toBeUndefined();
+  });
+
+  it("a bar naming no field carries no list — the advert's own family answers it, as before", async () => {
+    const doc = { ...validDoc, requirements: [yearsReq({ sourceSpan: "5+ years' experience" })] };
+    const result = await readAdvert(posting(), fakeLlm([JSON.stringify(doc)]), FAMILIES, INDUSTRIES);
+    expect(result!.requirements.requirements[0]?.yearsFamilies).toBeUndefined();
   });
 });

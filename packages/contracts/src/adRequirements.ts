@@ -138,6 +138,15 @@ export const AdRequirementV1 = z
     // (the vocabulary is published app data); adReader.ts's clamp is what refuses an unpublished id,
     // exactly as clampFamilyFit already refuses an unpublished family id.
     yearsIndustry: z.string().min(1).optional(),
+    // #413 (ADR-0020 clause 5) — additive v1 extension, same terms as the fields above. EVERY
+    // published family a family-scope bar's fields map to ("8+ years in project management,
+    // consulting, or business transformation" names three fields; each that is published is listed
+    // by its family id). The bar's years are the merged months of every job placed in ANY of them,
+    // each job once. Three states: absent = the bar names no field, or a pre-#413 stored read —
+    // the advert's own family answers it, as before; EMPTY = the bar named fields and none is
+    // published, so it is not tested (never a zero); non-empty = those families. Which ids are
+    // publishable is not this contract's to know; adReader.ts's clamp drops an unpublished one.
+    yearsFamilies: z.array(z.string().min(1)).optional(),
     // The advert's own words this requirement was drawn from, so it can be shown to be the advert's
     // and not the model's — the provenance pin. A literal excerpt (this codebase's existing
     // source_quote convention), not a character span: reliable for a model to produce, and directly

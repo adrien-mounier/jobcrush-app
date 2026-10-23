@@ -32,7 +32,11 @@ const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts
 // `yearsIndustry` field, so every advert already stored was read by a prompt that could not name an
 // industry at all. Same lazy re-read cost mechanism as #165's bump — one advert at a time, at most
 // once, only when a visitor actually looks at it.
-const PROMPT_CONTRACT_VERSION = "adreq/4";
+// #413 bumped this from "adreq/4": AdRequirementV1 gained `yearsFamilies` (every published family a
+// years bar's fields map to), which a stored read under the old prompt could not name. Same lazy
+// re-read cost mechanism: one reader call per advert, at most once, on its next use. A stored read
+// lacking the field falls back to today's single-family scope until then (recordBars.ts).
+const PROMPT_CONTRACT_VERSION = "adreq/5";
 
 let cachedPrompt: string | null = null;
 export function adReaderPrompt(): string {
@@ -210,6 +214,27 @@ function clampIndustryScope(parsed: AdRequirementsV1, industries: ReaderIndustry
   return { ...parsed, requirements };
 }
 
+/** #413 — the closed FAMILY vocabulary enforced on a years bar's named fields, clampIndustryScope's
+ *  twin: an id in `yearsFamilies` that we do not publish is DROPPED, never kept as free text. The
+ *  published ones stay; a bar whose named fields are all unpublished keeps an EMPTY list, which
+ *  reads as "not tested" downstream (recordBars.ts) — our missing vocabulary is never charged to
+ *  the person, and never scored as a zero. A list riding on a total or industry bar names nothing
+ *  and is dropped. Counted per bar, so a model that keeps inventing family ids is visible on
+ *  /ops/counters. */
+function clampYearsFamilies(parsed: AdRequirementsV1, families: ReaderFamily[]): AdRequirementsV1 {
+  let clamped = 0;
+  const requirements = parsed.requirements.map((r) => {
+    if (r.yearsFamilies === undefined) return r;
+    if ((r.yearsScope ?? "family") !== "family") return { ...r, yearsFamilies: undefined };
+    const published = r.yearsFamilies.filter((id) => families.some((f) => f.familyId === id));
+    if (published.length === r.yearsFamilies.length) return r;
+    clamped++;
+    return { ...r, yearsFamilies: published };
+  });
+  if (clamped > 0) addToCounter("adReader.years_families_clamped", clamped);
+  return { ...parsed, requirements };
+}
+
 export interface AdReadCost {
   model: string;
   inputTokens: number | null;
@@ -360,9 +385,12 @@ export async function readAdvert(
         adId: posting.id,
         curated: false,
       };
-      const parsed = clampIndustryScope(
-        clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families),
-        industries,
+      const parsed = clampYearsFamilies(
+        clampIndustryScope(
+          clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families),
+          industries,
+        ),
+        families,
       );
       addToCounter("adReader.requirements_produced", parsed.requirements.length);
       addToCounter(

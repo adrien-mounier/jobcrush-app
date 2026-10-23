@@ -29,7 +29,8 @@ import {
   industryScopeKey,
   refreshWorkedYears,
 } from "../src/yearsWorked.js";
-import { answerIndustryBar, applyYearsShortfall, type YearsAtScopes } from "../src/judgedScore.js";
+import { answerIndustryBar, type YearsAtScopes } from "../src/judgedScore.js";
+import { applyRecordBars } from "../src/recordBars.js";
 import { rankAttenuation, type SessionYears } from "../src/deck.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 
@@ -386,9 +387,9 @@ describe("#285 answerIndustryBar", () => {
     expect(rankAttenuation(adReq(bar(EXACT)), sessionYears(years({ years: new Map([[FAR, 8]]), hasUnplaced: true })))).toBe(1);
   });
 
-  it("an unmapped advert industry leaves every verdict completely untouched through applyYearsShortfall", () => {
+  it("an unmapped advert industry leaves every verdict completely untouched through applyRecordBars", () => {
     const verdicts = [{ requirementId: "r1", fit: 0.8, supportingFactId: null, reason: "t" }];
-    const out = applyYearsShortfall(
+    const out = applyRecordBars(
       verdicts,
       { schemaVersion: "1", adId: "ad", language: "en", familyFit: { family: FAMILY, confidence: 0.9 }, requirements: [bar()] },
       years({ years: new Map() }),

@@ -43,7 +43,6 @@ import {
 } from "./matchtick.js";
 import {
   answerIndustryBar,
-  applyYearsShortfall,
   CLOSENESS_WEIGHT,
   isFamilyScopeYearsBar,
   isIndustryScopeYearsBar,
@@ -56,6 +55,7 @@ import {
   type YearsAtScopes,
 } from "./judgedScore.js";
 import { CONFIDENCE_WEIGHT } from "./familyLabeler.js";
+import { answerYearsBar, applyRecordBars } from "./recordBars.js";
 import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
@@ -541,7 +541,8 @@ export function resolveSessionYears(
 ): SessionYears {
   const total = resolveUserYears(facts);
   if (total === null) return { total, family: null, familySource: "unscoped", familyConfidence: null };
-  const industries = { industries: resolveIndustryContext(facts, blocks, industryGroups) };
+  // #413: the records ride along so a bar naming several families is answered from them (recordBars.ts).
+  const industries = { industries: resolveIndustryContext(facts, blocks, industryGroups), blocks };
   if (advertFamilyId === null) {
     return { total, family: total, familySource: "unscoped", familyConfidence: null, ...industries };
   }
@@ -595,16 +596,17 @@ export function newToFamily(years: SessionYears): boolean {
   return years.familySource === "zero" && (years.total ?? 0) > 0;
 }
 
-/** #107 (D5) — applies judgedScore.ts's applyYearsShortfall (see its own doc for the attenuation
- *  rule and why it can only ever lower a score) on top of whatever resolveJudgement returned, at READ
- *  TIME only; never persisted. A plain pass-through when there's nothing to adjust. */
+/** #107 (D5) / #413 — applies recordBars.ts's applyRecordBars (a years bar is decided by the
+ *  worked-out years alone, replacing the scorer's fit) on top of whatever resolveJudgement
+ *  returned, at READ TIME only; never persisted. A plain pass-through when there's nothing to
+ *  decide. */
 export function withYearsShortfall(
   judgement: JudgementRecord | null,
   adReq: AdRequirementsV1,
   years: SessionYears,
 ): JudgementRecord | null {
   if (!judgement || (years.family === null && years.total === null)) return judgement;
-  return { ...judgement, verdicts: applyYearsShortfall(judgement.verdicts, adReq, years) };
+  return { ...judgement, verdicts: applyRecordBars(judgement.verdicts, adReq, years) };
 }
 
 /** Pure composition, no LLM: matchtick.ts (or, when a judgement is available, judgedScore.ts) scores
@@ -671,14 +673,16 @@ export function buildJobCard(
   // untested rather than unmet.
   years?: SessionYears,
 ): JobCard {
-  const yearsTested = years === undefined || years.total !== null;
   const negativeIds = negativeRequirementIds(adReq, negatives);
-  // Named on the card, never folded into the score: an unknown is not a shortfall.
-  const notTested = yearsTested
-    ? []
-    : adReq.requirements
-        .filter((r) => r.eligibilityDimension === "years-experience")
-        .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
+  // Named on the card, never folded into the score: an unknown is not a shortfall. #413: one
+  // definition of "the record cannot answer this bar" (answerYearsBar) — no usable history, a bar
+  // naming only unpublished fields, an industry we do not publish.
+  const notTested =
+    years === undefined
+      ? []
+      : adReq.requirements
+          .filter((r) => r.eligibilityDimension === "years-experience" && answerYearsBar(r, years) === null)
+          .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
   const notTestedIds = new Set(notTested.map((r) => r.id));
   const base = {
     schemaVersion: "1" as const,

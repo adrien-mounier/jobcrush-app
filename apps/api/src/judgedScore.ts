@@ -4,7 +4,7 @@
 // and every route that doesn't wire a judge (every pre-#105 test, and slice 10's own re-baselining
 // work) keeps today's deterministic tick byte-for-byte. Same "no IO, no store, no LLM" shape as
 // matchtick.ts — these functions only ever read an already-resolved JudgementRecord.
-import type { AdRequirementV1, AdRequirementsV1, CardFact, PlacementConfidence } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1, JobBlockView, CardFact, PlacementConfidence } from "@jobcrush/contracts";
 import { BAND_WEIGHT, type MatchBreakdown } from "./matchtick.js";
 import { COVERAGE_THRESHOLD, type JudgeVerdict } from "./judge.js";
 
@@ -68,52 +68,9 @@ export function judgedUncoveredRequirements(
   return adRequirements.requirements.filter((r) => (byId.get(r.id)?.fit ?? 0) < COVERAGE_THRESHOLD);
 }
 
-/** #107 (E5 slice 6, D5), rule corrected in code review (M2) — a years-experience shortfall counts,
- *  proportionately, by ATTENUATING (never replacing, never inflating) the model's own graded fit for
- *  any requirement whose bar states a MINIMUM ("8+ years", op ">="):
- *
- *      fit = modelFit * min(1, userYears / bar)
- *
- *  Multiplicative, not a replacement: an outright replace (the ticket's original instruction) turns a
- *  judge's honest 0.2 on "8+ years of enterprise software delivery" into 1.0 for anyone who tapped
- *  "More than 10 years" — INFLATING a card the model correctly scored low, on a field the judge is
- *  meant to be the authority over. Multiplying instead can only ever LOWER or hold a score — the
- *  user's own stated years still moves it (5 years and 9 years never score identically for the same
- *  non-zero model fit, AC4's own requirement), but never past what the model already found credible.
- *
- *  Applied ONLY when `bar > 0` — a `comparable.value` of exactly 0 (a real, storable band lower bound:
- *  eligibilityDiscovery.ts's "Under 3 years" -> 0) would otherwise divide by zero, producing `NaN`
- *  that slips past judgedMatchTick's `< COVERAGE_THRESHOLD` guard (NaN compares false to everything)
- *  and serializes `matchPct` as `null` on a JobCard field the contract pins as a number. Left
- *  completely untouched in that case, same as any other requirement this function doesn't apply to.
- *
- *  userYears === null (never asked) leaves every verdict completely untouched — an unknown is never a
- *  penalty, same rule the withdrawal predicate (withdrawal.ts) applies on the other side of this exact
- *  fact. A `"<="`/`"=="` bar states no MINIMUM demand, so there is nothing a shortfall could mean
- *  against it — left untouched too, out of this ticket's scope.
- *
- *  #222 closed #162's recorded residual: the years are now read AT THE BAR'S OWN SCOPE. Each bar
- *  tests either the visitor's years in the advert's family (`yearsScope` absent or "family" — the
- *  plain reading of "5+ years' experience" on a role advert) or the career total (`yearsScope:
- *  "total"` — "8+ years of professional experience"). A compound sentence is two requirements, one
- *  per scope, so it sees both numbers at once.
- *
- *  #285 gave the "industry" scope (#284's third scope) its own number: an industry bar is answered
- *  by answerIndustryBar below — her years in the advert's exact industry, the SAME whole years
- *  number from a near industry (same group; the card's deck rank sinks ×0.9 in rankAttenuation, the
- *  fact stays whole), nothing from a far one (a known zero when everything is placed), the generous
- *  career total while any job's industry is genuinely unaccounted for, and UNTESTABLE — verdict
- *  untouched — when the advert's industry is not in our vocabulary (our gap, never charged to the
- *  person). WHAT the family number is (a real fact, the honest
- *  known zero when every job is placed elsewhere, or the old generous career-total fallback while
- *  years are genuinely unaccounted for) is the caller's resolution — deck.ts's resolveSessionYears,
- *  ADR-0014 amendment 1 decision 6. A null at either scope means UNTESTABLE and leaves the verdict
- *  untouched — an unknown is never a penalty (#86 decision 3), same as before.
- *
- *  Pure — no IO, called at READ TIME by the route (routes/onboarding.ts), never persisted: the cached
- *  judgement describes the advert and the fact set it was judged against; years-experience is session
- *  state that can change independently of that cache. Judged path only — matchTick/matchtick.ts (the
- *  deterministic `estimated` scorer) is untouched; slice 10 (#111) retires it separately. */
+/** #413 — the years shortfall itself moved to recordBars.ts (applyRecordBars): a years bar is decided
+ *  by the worked-out years alone, never by the scorer's fit. The scope predicates and the industry
+ *  answer stay here, shared with deck.ts's rankAttenuation. */
 /** #285 — everything an industry-scope bar needs to be answered, as plain data resolved once per
  *  request (deck.ts's resolveSessionYears). `groupOf` is the published vocabulary's active group
  *  tree, which is what makes closeness (exact / near / far) a pure lookup here — no model, no IO. */
@@ -136,6 +93,10 @@ export interface YearsAtScopes {
   /** #285 — what answers an industry-scope bar. Absent = a caller with no industry context, which
    *  keeps the pre-#285 reading (the career total) rather than inventing a zero. */
   industries?: IndustryYearsContext;
+  /** #413 — the job records the facts were derived from, so a bar naming several families can be
+   *  answered by the merged months of every job in any of them (recordBars.ts). Absent = a caller
+   *  with no records in hand, which keeps the single-family reading. */
+  blocks?: readonly JobBlockView[];
 }
 
 /** The ONE definition of "a years bar that tests the family scope" — shared with buildJobCard's
@@ -209,38 +170,6 @@ export function answerIndustryBar(years: YearsAtScopes, req: AdRequirementV1): I
   // placed history makes the answer a KNOWN zero, and zero is what scoring uses.
   if (ctx.hasUnplaced) return { years: years.total, closeness: null, confidence: null };
   return { years: 0, closeness: null, confidence: null };
-}
-
-export function applyYearsShortfall(
-  verdicts: JudgeVerdict[],
-  adRequirements: AdRequirementsV1,
-  years: YearsAtScopes,
-): JudgeVerdict[] {
-  if (years.family === null && years.total === null) return verdicts;
-  const byId = new Map(adRequirements.requirements.map((r) => [r.id, r]));
-  return verdicts.map((v) => {
-    const req = byId.get(v.requirementId);
-    const bar = req?.comparable?.value;
-    if (!req || req.eligibilityDimension !== "years-experience" || req.comparable?.op !== ">=" || !bar) {
-      return v;
-    }
-    // Through the shared scope predicates, so each scope test has exactly ONE definition. A family
-    // bar reads the family number, an industry bar is answered by answerIndustryBar (exact / near /
-    // known zero / fallback / untestable), and everything else reads the career total.
-    const userYears = isFamilyScopeYearsBar(req)
-      ? years.family
-      : isIndustryScopeYearsBar(req)
-        ? answerIndustryBar(years, req).years
-        : years.total;
-    if (userYears === null) return v;
-    // Clamped to [0,1], not just capped at 1: the contract's `comparable.value` is any `number` (the
-    // oracle never rules out a negative one), and years/NEGATIVE_BAR is itself negative — an
-    // uncapped-below multiplier would send `fit` negative and render as a negative matchPct. An
-    // impossible-in-practice input (nothing legitimate ever produces a negative years bar), refused
-    // here rather than trusted to stay away.
-    const multiplier = Math.max(0, Math.min(1, userYears / bar));
-    return { ...v, fit: v.fit * multiplier };
-  });
 }
 
 /** #407 — the card's "Where you fit": this advert's requirements the scorer counts as met, in the
