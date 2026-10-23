@@ -88,7 +88,12 @@ export interface JobSnapshot {
     /** #304: the paste door's narrated read, on the same record and the same SSE stream. */
     paste?: PasteProgress;
     /** #310: the tailored-draft build — `failure` carries the server's own plain words. */
-    tailorDraft?: { ready?: boolean; failure?: { cameBack: string; fix: string } };
+    tailorDraft?: {
+      ready?: boolean;
+      /** #417: the draft is written; the stretch suggestions are being looked for. */
+      step?: "suggesting";
+      failure?: { cameBack: string; fix: string };
+    };
     /** #313: the approve-is-send press, narrated — printing → (tightening, #314) → sending → sent. */
     tailorExport?: {
       step?: "printing" | "tightening" | "reporting" | "sending" | "sent";
@@ -507,12 +512,52 @@ export interface JobDisclosure {
 
 export interface TailorDraftView {
   /** The rendered CV document — self-contained HTML for a sandboxed iframe (the server render,
-   *  watermark included; never re-derived here). */
+   *  watermark included; never re-derived here). #417: read with `open`, the open suggestion
+   *  previews in place on it (line out struck, line in marked; the others as margin numerals). */
   html: string;
   disclosure: JobDisclosure[];
   /** Plain-words notices when the draft shipped lossy after its retry — empty on a clean draft. */
   conservationNotices: string[];
   draftedAt: string;
+  /** #417: the stretch suggestions beside this draft — `ran` (maybe with none), `failed`, or null
+   *  when the step never ran. Optional only so older stubs type-check; the server always sends it. */
+  stretch?: StretchView;
+}
+
+// --- #417 (ADR-0020 clauses 3-4): stretch suggestions beside the draft ---
+
+export type StretchSlot = { kind: "bullet"; role: number; bullet: number } | { kind: "summary" } | { kind: "skill"; group: number };
+
+/** One suggestion as stored beside the draft (packages/contracts StretchProposalV2) — the
+ *  requirement it answers, why it fired, the line in (`claimText`), the slot-matched line out (null
+ *  for a skill), what to say if asked, and its answer. "No" is declined for this job only. */
+export interface StretchSuggestion {
+  schemaVersion: "2";
+  id: string;
+  adId: string;
+  requirementId: string;
+  why: string;
+  claimText: string;
+  intendedClass: "Partially-Supported" | "Unsupported-but-Plausible";
+  interviewNarrative: string;
+  slot: StretchSlot;
+  lineOut: string | null;
+  derivedFrom: string | null;
+  createdAt: string;
+  state: "pending" | "approved" | "declined";
+  decidedAt: string | null;
+  scope: "this-job" | "every-job" | null;
+}
+
+export type StretchView = { status: "ran"; suggestions: StretchSuggestion[] } | { status: "failed" } | null;
+
+/** One answer on one suggestion of the current draft. Spends nothing; returns the suggestions as
+ *  the next read would show them. #418/#419 widen the answer. */
+export function answerStretch(id: string, answer: "no"): Promise<{ stretch: StretchView }> {
+  return jfetch(`/api/onboarding/tailor/suggestions/${encodeURIComponent(id)}`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
 }
 
 /** Starts (or joins) the draft build for the job being tailored. `ready` ⇒ the stored draft already
@@ -522,8 +567,8 @@ export function requestTailorDraft(): Promise<{ ready?: boolean; jobId?: string 
   return jfetch("/api/onboarding/tailor/draft", { method: "POST" });
 }
 
-export function getTailorDraft(): Promise<TailorDraftView> {
-  return jfetch("/api/onboarding/tailor/draft");
+export function getTailorDraft(open?: string | null): Promise<TailorDraftView> {
+  return jfetch(`/api/onboarding/tailor/draft${open ? `?open=${encodeURIComponent(open)}` : ""}`);
 }
 
 /** #313 — the one press: approving IS sending. `draftedAt` names the draft on screen, which is

@@ -6,6 +6,7 @@
 // watches the same `/api/jobs/:id/events` stream the paste door uses (paste/page.tsx's own watch,
 // ported), and reads the checkpointed draft — a reload or a return re-spends nothing server-side.
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { StretchView } from "../../lib/api";
 import {
   approveTailorDraft,
   getTailorDraft,
@@ -25,6 +26,8 @@ const D3 = "We could not finish writing this CV.";
 const D4 = "Press Try again — everything you answered is saved, and nothing already done is re-done.";
 const D5 = "Try again";
 const D6 = "It is a full-page CV — scroll inside to read it all.";
+// #417: the draft is written; one more step looks for stretches beside it.
+const D7 = "Your CV is written. Looking for ways to stretch it for this job…";
 
 // #313 — the one press, and its narration. Silence is the failure mode to avoid: nearly every
 // press is a cold start of about half a minute, so the screen says what it is doing the whole
@@ -44,7 +47,7 @@ const S9 = "Your CV ran over two pages — shortening it to fit…";
 const S10 = "Writing your application report…";
 
 type Phase =
-  | { kind: "writing" }
+  | { kind: "writing"; step?: "suggesting" }
   | { kind: "ready"; view: TailorDraftView }
   | { kind: "failed"; cameBack?: string; fix?: string };
 
@@ -211,11 +214,22 @@ function DisclosureBlock({ d }: { d: JobDisclosure }) {
   );
 }
 
-export function TailorDraft() {
+export interface TailorDraftProps {
+  /** #417: the open stretch suggestion — the frame is read with it so the swap previews in place. */
+  open?: string | null;
+  /** #417: the view as read, so the page can put the suggestions beside the draft. */
+  onStretch?: (stretch: StretchView | undefined) => void;
+}
+
+export function TailorDraft({ open = null, onStretch }: TailorDraftProps = {}) {
   const [phase, setPhase] = useState<Phase>({ kind: "writing" });
   const streamRef = useRef<EventSource | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancelledRef = useRef(false);
+  const openRef = useRef(open);
+  openRef.current = open;
+  const onStretchRef = useRef(onStretch);
+  onStretchRef.current = onStretch;
 
   const settle = useCallback((next: Phase) => {
     streamRef.current?.close();
@@ -225,11 +239,29 @@ export function TailorDraft() {
 
   const readDraft = useCallback(async () => {
     try {
-      settle({ kind: "ready", view: await getTailorDraft() });
+      const view = await getTailorDraft(openRef.current);
+      settle({ kind: "ready", view });
+      onStretchRef.current?.(view.stretch);
     } catch {
       settle({ kind: "failed" });
     }
   }, [settle]);
+
+  // #417: a different open suggestion re-reads the frame (free: a checkpoint read) so the preview
+  // moves with the card. Only once the draft is on screen; a stale answer never overwrites a newer.
+  const ready = phase.kind === "ready";
+  useEffect(() => {
+    if (!ready) return;
+    let stale = false;
+    getTailorDraft(open)
+      .then((view) => {
+        if (!stale && !cancelledRef.current) setPhase({ kind: "ready", view });
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [open, ready]);
 
   const load = useCallback(async () => {
     setPhase({ kind: "writing" });
@@ -253,6 +285,8 @@ export function TailorDraft() {
         if (snapshot.status === "completed") void readDraft();
         else if (snapshot.status === "failed")
           settle({ kind: "failed", ...snapshot.progress.tailorDraft?.failure });
+        else if (snapshot.progress.tailorDraft?.step === "suggesting" && !cancelledRef.current)
+          setPhase({ kind: "writing", step: "suggesting" });
       };
       source.onerror = () => {
         // EventSource reconnects on a blip; CLOSED means the browser gave up (paste's rule).
@@ -276,8 +310,8 @@ export function TailorDraft() {
   if (phase.kind === "writing") {
     return (
       <div className="draft draft-wait" role="status">
-        <p className="draft-wait-line">{D1}</p>
-        <p className="draft-wait-sub">{D2}</p>
+        <p className="draft-wait-line">{phase.step === "suggesting" ? D7 : D1}</p>
+        {phase.step !== "suggesting" && <p className="draft-wait-sub">{D2}</p>}
       </div>
     );
   }

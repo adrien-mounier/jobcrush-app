@@ -19,11 +19,14 @@ import { FactBadge } from "../factbadge";
 import { CardBody, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
+import { StretchCards, nextPending, pendingOf } from "./stretch";
 import {
+  answerStretch,
   answerTailorProfile,
   dropTailor,
   ensureSession,
   getTailor,
+  type StretchView,
   type TailorQuestion,
   type TailorRequirement,
   type TailorState,
@@ -115,6 +118,15 @@ export default function TailorPage() {
   // #17 the profile badge: same seam as discovery — the parent owns the data, FactBadge owns motion.
   // No chip flies on this screen any more (#415): a profile answer never moves the count.
   const [badgeCount, setBadgeCount] = useState(0);
+  // #417: the stretch suggestions beside the draft (read with the draft), the one open, and the
+  // "look again" counter that remounts the draft so a failed step runs once more.
+  const [stretch, setStretch] = useState<StretchView | undefined>(undefined);
+  const [openStretch, setOpenStretch] = useState<string | null>(null);
+  const [stretchAnswering, setStretchAnswering] = useState(false);
+  const [lookAgain, setLookAgain] = useState(0);
+  const autoOpenedRef = useRef(false);
+  const focusStretchRef = useRef(false);
+  const stretchHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
   // One heading per screen: the card's h2 on the question screen, the job's h1 beside the draft.
@@ -230,6 +242,69 @@ export default function TailorPage() {
     goneHeadingRef.current?.focus();
     setLiveMessage(goneReason ? `${goneReason} ${goneNote}` : goneNote);
   }, [screen, goneNote, goneReason]);
+
+  // #417: the first pending suggestion opens by itself when the draft (and its suggestions) land —
+  // once; after that the person decides what is open. Focus stays on the page heading then.
+  const onStretch = useCallback((next: StretchView | undefined) => {
+    setStretch(next);
+    if (autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    setOpenStretch(nextPending(next, null));
+  }, []);
+
+  // #417: a user-initiated move (J/K, Previous/Later, the list, an answer) focuses the open card's
+  // heading and announces it once; the frame follows through `open` (draft.tsx).
+  const openSuggestion = useCallback((id: string | null) => {
+    focusStretchRef.current = id !== null;
+    setOpenStretch(id);
+  }, []);
+  useEffect(() => {
+    if (!openStretch || !tailor || !focusStretchRef.current) return;
+    focusStretchRef.current = false;
+    stretchHeadingRef.current?.focus();
+    if (stretch?.status === "ran") {
+      const n = stretch.suggestions.findIndex((s) => s.id === openStretch) + 1;
+      const s = stretch.suggestions[n - 1];
+      const text = tailor.requirements.find((r) => r.id === s?.requirementId)?.text ?? "";
+      setLiveMessage(`Suggestion ${n} of ${stretch.suggestions.length}: ${text}`);
+    }
+  }, [openStretch, stretch, tailor]);
+
+  async function answerStretchNo(id: string) {
+    if (stretchAnswering) return;
+    setStretchAnswering(true);
+    try {
+      const { stretch: next } = await answerStretch(id, "no");
+      setStretch(next);
+      openSuggestion(nextPending(next, id));
+    } catch {
+      setAskError(T7);
+    } finally {
+      setStretchAnswering(false);
+    }
+  }
+
+  // #417: J/K move between suggestions, N answers No, Esc closes the card — only on the draft
+  // screen, never while a dialog is up or the focus is in a field (the prototype's wiring).
+  const showDraftNow = !!tailor && tailor.questions.length === 0 && screen === "flow";
+  useEffect(() => {
+    if (!showDraftNow || sheetOpen || dropConfirming) return;
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']") || e.metaKey || e.ctrlKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "escape") {
+        if (openStretch) openSuggestion(null);
+        return;
+      }
+      if (pendingOf(stretch).length === 0) return;
+      if (key === "j") openSuggestion(nextPending(stretch, openStretch, 1));
+      else if (key === "k") openSuggestion(nextPending(stretch, openStretch, -1));
+      else if (key === "n" && openStretch) void answerStretchNo(openStretch);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showDraftNow, sheetOpen, dropConfirming, stretch, openStretch, openSuggestion, stretchAnswering]);
 
   // useCallback (not a plain function) so it can be named, honestly, in the Escape effect's deps
   // below (discovery's cancelCorrection precedent, discovery/page.tsx:338-345) — this repo has no
@@ -513,17 +588,33 @@ export default function TailorPage() {
         </header>
         <div className="dgrid">
           <div className="paper-col">
-            <TailorDraft />
+            <TailorDraft key={lookAgain} open={openStretch} onStretch={onStretch} />
           </div>
           <aside className="rail">
             {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
                 found job) stays — and says why in one line. Server-composed, reload-stable. */}
             {state.stayed && <p className="notice stayed">{state.stayed}</p>}
             {ledgerView && afterLine}
-            {/* #417 — the stretch suggestion cards go HERE, above the gap list: one card per
-                suggestion, each with the requirement, why, the line in, the line out and what to
-                say; the answers Use / It's true / No. The rail is the column on a computer and
-                the block under the draft on a phone, so one component serves both. */}
+            {/* #417 — the stretch suggestions, above the gap list: one card at a time (the open
+                one), with the requirement, why, the line in, the line out and what to say; "No"
+                here, Use / It's true / Edit wording in #418-#420. The rail is the column on a
+                computer and the block under the draft on a phone, so one component serves both. */}
+            <StretchCards
+              view={stretch}
+              requirements={state.requirements}
+              openId={openStretch}
+              onOpen={openSuggestion}
+              onAnswer={(id) => void answerStretchNo(id)}
+              onSkipRest={() => openSuggestion(null)}
+              onLookAgain={() => setLookAgain((n) => n + 1)}
+              headingRef={stretchHeadingRef}
+              answering={stretchAnswering}
+            />
+            {askError && !state.questions.length && (
+              <p className="err" role="alert">
+                {askError}
+              </p>
+            )}
             {gaps.length > 0 && (
               <section className="gaps" aria-labelledby="tailor-gaps-h">
                 <h2 id="tailor-gaps-h" className="h">
