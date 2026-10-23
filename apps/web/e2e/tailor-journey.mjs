@@ -208,7 +208,8 @@ await qa.expectVisible(page.getByRole('button', { name: 'Drop this job' }), 'Dro
 
 await qa.click(page.getByRole('button', { name: 'Drop this job' }), 'Drop this job');
 await qa.expectText('.tailor .exits.confirming .notice', 'Everything you told me stays on your profile.', 'the reassurance copy, verbatim');
-await qa.click(page.getByRole('button', { name: 'Keep it' }), 'Keep it — the job is not dropped');
+// #419: exact — "It's true: keep it on my CV for every job" also names "keep it".
+await qa.click(page.getByRole('button', { name: 'Keep it', exact: true }), 'Keep it — the job is not dropped');
 await qa.expectVisible(page.getByRole('button', { name: 'Approve and email me this CV' }), 'still on the draft after Keep it');
 
 await qa.click(page.getByRole('button', { name: 'Save it and come back later' }), 'Save it and come back later (secondary)');
