@@ -78,6 +78,7 @@ export function validateAdRequirementsV1(value) {
         "eligibilityLevel",
         "yearsScope",
         "yearsIndustry",
+        "yearsFamilies",
         "sourceSpan",
       ],
       at,
@@ -131,6 +132,16 @@ export function validateAdRequirementsV1(value) {
     e.require(
       req.yearsIndustry === undefined || isNonEmptyString(req.yearsIndustry),
       `${at}.yearsIndustry must be a non-empty string`,
+    );
+    // #413 (ADR-0020 clause 5) — additive v1 field: EVERY published family a family-scope bar's
+    // fields map to, as a list of family ids. Absent = the bar names no field (or a pre-#413 read):
+    // the advert's own family answers it. EMPTY is valid and distinct from absent: the bar named
+    // fields and none is published, so it is not tested. Whether an id is published is not this
+    // validator's to know; adReader.ts's clamp drops an unpublished one.
+    e.require(
+      req.yearsFamilies === undefined ||
+        (isArray(req.yearsFamilies) && req.yearsFamilies.every(isNonEmptyString)),
+      `${at}.yearsFamilies must be a list of non-empty family ids`,
     );
     if (req.comparable !== undefined) {
       const c = req.comparable;
