@@ -142,6 +142,23 @@ export function computeFamilyYears(
   return new Map([...byFamily].map(([familyId, spans]) => [familyId, mergedYears(spans)]));
 }
 
+/** #413 (ADR-0020 clause 5) — the merged calendar years of every counting job confirmed into ANY of
+ *  `familyIds`, each job counted once (a job in two of them is one span, not two). What a years bar
+ *  naming several fields is answered with. Null when no counting job is placed in any of them —
+ *  the caller tells a known zero from the career-total fallback (recordBars.ts), as
+ *  resolveSessionYears does for one family. */
+export function computeYearsInFamilies(
+  blocks: readonly JobBlockView[],
+  familyIds: readonly string[],
+  now: Date = new Date(),
+): number | null {
+  const placed = blocks.filter(
+    (b) => b.countsTowardExperience && confirmedFamilies(b).some((id) => familyIds.includes(id)),
+  );
+  if (placed.length === 0) return null;
+  return mergedYears(placed.map((b) => span(b, now)).filter((s): s is { from: number; to: number } => s !== null));
+}
+
 /** #234 — how recent each family's most recent job is, as a sortable month number. Only ever
  *  COMPARED (the discovery plan's tie-break when two families carry the same years), never shown.
  *  A job whose end nobody stated reads at its start, the only month it actually carries.
