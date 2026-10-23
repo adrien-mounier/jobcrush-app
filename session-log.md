@@ -2,6 +2,19 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-23 — #408 grilled and decided: ADR-0020, the CV is written first; spec #412 filed (#413–#420, #411)
+
+No code. `/grill-with-docs 408` (Opus 5.5): nine owner calls, plus a two-round prototype (`/impeccable` critique 24/40 → round 2 approved). The decision is on #408, which was closed by hand:
+- The Tailor step asks only work rights and a required language, then writes the CV from true facts.
+- One more AI step suggests stretches beside the draft (line in / line out / what to say). The answers are Use for this job (raises this job's % only; *met by a stretch*; owner's call against the agent's recommendation), It's true (master CV), or No (this job only).
+- Years bars count every named field, each job once, decided by the number alone; a job can be both kinds of work.
+- "Also asked, not on your CV" has no button until #350.
+
+Staging evidence: 7 questions, 0 real gaps. The scorer cannot see dates (years 0.475 for 9.8 years held); the degree scored 0.3–0.9 across runs.
+Docs cbb922a: ADR-0020 and its amendment notes (ADR-0011 cl. 1–2, ADR-0005 cl. 3/5/9, tailoring-reasoning §5/§8), GLOSSARY *Stretch*. Prototype: branch `prototype/stretch-suggestions-408`. #350 gains the gap-list door.
+**Spec #412:** waves #413 #414 #415 → #416 #417 #411 → #418 → #419 #420. Suggestion step ≈$0.05 per CV (estimate).
+**Next:** owner types `/implement-spec #412` (Fable 5.1, high); then his re-proof on a fresh staging account.
+
 ## 2026-10-22 — Spec #403 shipped: five screen fixes from the owner's staging run (#404 #402 #405 #406 #407)
 
 `/implement-spec #403` (Fable 5.1, medium): three implementers in worktrees on `spec/403-staging-fixes`, no merge conflicts. **#404/#402** `splitLetterhead` splits on a spaced dash too, but only on a line that carries an email or phone (a title like "Purchasing Manager - Ingredients & Packaging" stays whole); the English label list is gone — any run of `word:` labels left after the contact is taken out is dropped, so "Natel:", "Portable :" never reach the title. **#405** `cv-review.md` v3: About you is a third-person pitch (identity opener, two or three results, no closing list); the printed summary keeps its strict rules; brain doc updated. **#406** the stored advert already had its line breaks; one `white-space: pre-line` on the shared card shows them on the deck, the job screen and the tailor. **#407** Where you fit = the requirements the scorer counts as met, each with the verdict's `reason`; the bubble's first half is that reason or nothing; `CardFact` gains an optional `reason` in zod + oracle + golden (additive, no version bump — owner to confirm that reading of "change contracts only by versioning"); `card-judge.md` now writes reasons to the person as "you".
@@ -65,8 +78,3 @@ The push raised no CI run (unexplained); a hand-dispatched run (38955133132) wen
 Owner via /impeccable: walking check mode while the review still filled it in felt wrong, and the skills tags were too long. While the run goes check mode is now the reading lamp — her CV on the paper sheet, a lamplight band sweeping it, lines inking in per landed unit, one segment per unit, minutes left; the walk opens by itself when the run ends (a run stuck past 10 min opens it anyway, nothing said). The old "still running" walk paths were removed. Tags read "from <where>" (over 16 chars → first word, or two after an initial: "from BRED…", "from J.P. Morgan…"), full sentence for hover/screen readers, in check mode and on the profile. QA NO-GO first (check-mode-journey lost its work-rights answer in the rewrite) → GO on tree 2c37de3 (135/135 specs, 14 journeys). Pushed [skip ci], web deployed with flyctl.
 Owner, after the deploy: "it looks ok now". Not covered: /profile still shows content mid-run; the progress bars are faint at 0.
 **Next:** owner decides #394 AC7 and the #389 calls; then Chat with JobCrush (#350) — `/to-spec` (Opus 5.5).
-
-## 2026-10-16 — #392 follow-up: the discovery screen goes; the count ends the wait (4f3b169, deployed by hand)
-
-Owner on staging after ef915e5: "I still see the discovery screen" — AC1 ("no standalone step/screen … the flow goes straight on") had been read as the count sentence only. Now, once the role is known, discovery is only the wait: the #257 "We'll look for … in …" line over "Finding jobs like yours…", the count ticks and holds ~1.2 s, then it moves on by itself to check mode or the deck (router.replace, so Back skips it); no count → on at once. "Your search is set." + Continue are gone, which also settles #376 deviation 1. 17 journeys rewritten; QA was NO-GO first (six journeys pressed Save with the paced qa.click and missed the ~3 s screen — fixed with raw clicks, lesson filed), then GO on tree ac5b8d1 (23 tier-2 journeys, discovery.spec 10/10). Owner asked to skip CI for this one: pushed with [skip ci], web deployed to staging with flyctl from the local tree.
-**Next:** owner looks at the flow on staging; Chat with JobCrush (#350). The next normal push runs the full CI over this change.
