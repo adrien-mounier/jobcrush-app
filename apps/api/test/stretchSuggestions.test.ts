@@ -607,7 +607,8 @@ describe("#418 'Use for this job' swaps the line on this CV only (ADR-0020 claus
 });
 
 describe("#418 the requirement counts as met by a stretch on THIS job's card only", () => {
-  it("Use raises this job's % and marks the requirement 'stretched'; another job sharing nothing moves; its draft never carries the line; Undo restores the number", async () => {
+  // A second job SHARING the stretched requirement: the paste-door describe below.
+  it("Use raises this job's % and marks the requirement 'stretched'; another job's % stays; its draft never carries the line; Undo restores the number", async () => {
     const tailor = draftingLlm();
     const stretch = suggestingLlm();
     // fakeJudge: the first requirement met, every other 0.4 — a judged card, as on the real stack.
@@ -692,60 +693,70 @@ describe("#418 a used stretch counts only while the draft it was used on is the 
   });
 });
 
+/** broughtJobs.test.ts's shape: every pasted advert the injected reader reads into the SAME two
+ *  requirements — the fake judge meets slot 0, so the gap a suggestion answers sits in slot 1
+ *  ("vendor-governance"), on every job pasted. A signed-in person with a reviewed CV. */
+async function pastedJobs(email: string) {
+  const tailor = draftingLlm();
+  const stretch = suggestingLlm((gaps) => [
+    {
+      requirementId: gaps[0],
+      slot: { kind: "bullet", role: 0, bullet: 0 },
+      lineIn: "Governed three vendor teams against one programme budget.",
+      why: "The job asks for vendor governance. Your CV shows the programme.",
+      say: "I ran the vendor reviews myself.",
+      intendedClass: "Partially-Supported",
+      comparison: "The line in names what this job tests.",
+      better: true,
+    },
+  ]);
+  const readPastedAdvert = async (text: string) => ({
+    title: text.split("\n")[0]!.trim(), titleSource: "stated" as const, company: "Gradion", location: "Hong Kong", closingDate: null,
+  });
+  const readAd = async (posting: Posting): Promise<AdRequirementsV1> =>
+    AdRequirementsV1.parse({
+      schemaVersion: "1", adId: posting.id, curated: false, language: "en",
+      familyFit: { family: "it-project-delivery", confidence: 0.9 },
+      requirements: [
+        { id: "stakeholders", band: "essential", kind: "ordinary", requirement: "Coordinate business and technical stakeholders", sourceSpan: "coordinate" },
+        { id: "vendor-governance", band: "essential", kind: "ordinary", requirement: "Govern vendor teams against one budget", sourceSpan: "vendor" },
+      ],
+    });
+  const built = buildDeckServer({
+    readPastedAdvert, readAd, postings: new InMemoryPostingStore(), pasteRecords: new InMemoryPasteRecordStore(), store: new InMemoryJobStore(),
+    placeFamily: async () => IT_PROJECT_DELIVERY_PLACEMENT,
+    judge: fakeJudge(), tailorLlm: tailor.llm, stretchLlm: stretch.llm,
+  });
+  const { app, claims } = built;
+  const cookie = await anonSession(app);
+  await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager in Hong Kong" });
+  const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+  await claims.add(sid, floorClaim("end-to-end-delivery", "Owned delivery from planning through completion.", "Yes"));
+  await claims.add(sid, floorClaim("delivery-communication", "Weekly steering updates.", "Weekly steering updates"));
+  await built.sessions.setImportProof(sid, { outcome: "success", usefulFactCount: 1, representativeFacts: [], conflict: null });
+  await post(app, cookie, "/review/complete");
+  await signIn(app, cookie, email);
+  /** Pastes one advert under `title` and returns its job's id once the paste door has read it. */
+  const paste = async (title: string): Promise<string> => {
+    const started = await post(app, cookie, "/onboarding/paste", { text: `${title}\nGradion — Hong Kong\n\nRun a portfolio of technology programmes across APAC; coordinate business and technical stakeholders; govern vendor teams against one budget.` });
+    expect(started.statusCode).toBe(202);
+    for (let attempt = 0; attempt < 500; attempt += 1) {
+      const job = (await get(app, cookie, `/jobs/${started.json().jobId}`)).json() as JobRecord;
+      if (job.status === "completed" || job.status === "failed") return (job.progress as { paste?: PasteProgress }).paste!.result!.adId;
+      await new Promise((r) => setImmediate(r));
+    }
+    throw new Error("paste never settled");
+  };
+  /** The job's own screen's card. */
+  const screen = async (adId: string) => (await get(app, cookie, `/onboarding/jobs/${encodeURIComponent(adId)}`)).json().card;
+  return { app, claims, cookie, sid, paste, screen };
+}
+
 describe("#418 the job's own screen reads the same answer (a job he brought, through the paste door)", () => {
   it("GET /onboarding/jobs/:adId counts the used stretch as met, flags the fit row, and its % rises", async () => {
-    const tailor = draftingLlm();
-    const stretch = suggestingLlm((gaps) => [
-      {
-        requirementId: gaps[0],
-        slot: { kind: "bullet", role: 0, bullet: 0 },
-        lineIn: "Governed three vendor teams against one programme budget.",
-        why: "The job asks for vendor governance. Your CV shows the programme.",
-        say: "I ran the vendor reviews myself.",
-        intendedClass: "Partially-Supported",
-        comparison: "The line in names what this job tests.",
-        better: true,
-      },
-    ]);
-    // broughtJobs.test.ts's shape: a pasted advert the injected reader reads into two requirements —
-    // the fake judge meets slot 0, so the gap the suggestion answers sits in slot 1.
-    const readPastedAdvert = async (text: string) => ({
-      title: text.split("\n")[0]!.trim(), titleSource: "stated" as const, company: "Gradion", location: "Hong Kong", closingDate: null,
-    });
-    const readAd = async (posting: Posting): Promise<AdRequirementsV1> =>
-      AdRequirementsV1.parse({
-        schemaVersion: "1", adId: posting.id, curated: false, language: "en",
-        familyFit: { family: "it-project-delivery", confidence: 0.9 },
-        requirements: [
-          { id: "stakeholders", band: "essential", kind: "ordinary", requirement: "Coordinate business and technical stakeholders", sourceSpan: "coordinate" },
-          { id: "vendor-governance", band: "essential", kind: "ordinary", requirement: "Govern vendor teams against one budget", sourceSpan: "vendor" },
-        ],
-      });
-    const built = buildDeckServer({
-      readPastedAdvert, readAd, postings: new InMemoryPostingStore(), pasteRecords: new InMemoryPasteRecordStore(), store: new InMemoryJobStore(),
-      placeFamily: async () => IT_PROJECT_DELIVERY_PLACEMENT,
-      judge: fakeJudge(), tailorLlm: tailor.llm, stretchLlm: stretch.llm,
-    });
-    const { app, claims } = built;
-    const cookie = await anonSession(app);
-    await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager in Hong Kong" });
-    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
-    await claims.add(sid, floorClaim("end-to-end-delivery", "Owned delivery from planning through completion.", "Yes"));
-    await claims.add(sid, floorClaim("delivery-communication", "Weekly steering updates.", "Weekly steering updates"));
-    await built.sessions.setImportProof(sid, { outcome: "success", usefulFactCount: 1, representativeFacts: [], conflict: null });
-    await post(app, cookie, "/review/complete");
-    await signIn(app, cookie, "stretch-job-screen@example.com");
-
-    const started = await post(app, cookie, "/onboarding/paste", { text: "Senior Project Manager\nGradion — Hong Kong\n\nRun a portfolio of technology programmes across APAC; coordinate business and technical stakeholders; govern vendor teams against one budget." });
-    expect(started.statusCode).toBe(202);
-    let adId = "";
-    for (let attempt = 0; attempt < 500 && !adId; attempt += 1) {
-      const job = (await get(app, cookie, `/jobs/${started.json().jobId}`)).json() as JobRecord;
-      if (job.status === "completed" || job.status === "failed") adId = (job.progress as { paste?: PasteProgress }).paste!.result!.adId;
-      else await new Promise((r) => setImmediate(r));
-    }
-    const screen = () => get(app, cookie, `/onboarding/jobs/${encodeURIComponent(adId)}`);
-    const before = (await screen()).json().card;
+    const { app, claims, cookie, sid, paste, screen } = await pastedJobs("stretch-job-screen@example.com");
+    const adId = await paste("Senior Project Manager");
+    const before = await screen(adId);
     expect(before.scored).toBe("judged");
     expect(before.fit.map((f: { id: string }) => f.id)).toEqual(["stakeholders"]);
 
@@ -755,14 +766,40 @@ describe("#418 the job's own screen reads the same answer (a job he brought, thr
     expect(swap.requirementId).toBe("vendor-governance");
     await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
 
-    const after = (await screen()).json().card;
+    const after = await screen(adId);
     expect(after.fit).toContainEqual(expect.objectContaining({ id: "vendor-governance", stretched: true }));
     expect(after.matchPct).toBeGreaterThan(before.matchPct);
     expect(after.dontYet).toEqual([]);
 
     // A changed fact makes that draft stale: the job page stops counting the stretch.
     await claims.add(sid, floorClaim("meetups", "Speaks at local meetups.", "Yes"));
-    expect((await screen()).json().card.fit.some((f: { stretched?: boolean }) => f.stretched)).toBe(false);
+    expect((await screen(adId)).fit.some((f: { stretched?: boolean }) => f.stretched)).toBe(false);
+  });
+
+  it("a second job sharing the stretched requirement keeps its %: nothing on it reads met by a stretch", async () => {
+    const { app, cookie, paste, screen } = await pastedJobs("stretch-shared-requirement@example.com");
+    const used = await paste("Senior Project Manager");
+    const other = await paste("Programme Delivery Lead");
+    const otherBefore = await screen(other);
+    // The two jobs ask for the same thing, and neither CV meets it yet.
+    expect(otherBefore.dontYet.map((r: { id: string }) => r.id)).toEqual(["vendor-governance"]);
+    expect((await screen(used)).dontYet.map((r: { id: string }) => r.id)).toEqual(["vendor-governance"]);
+
+    await post(app, cookie, `/onboarding/cards/${encodeURIComponent(used)}/want`);
+    const [swap] = (await draftWithSuggestions(app, cookie)).stretch.suggestions;
+    expect(swap.requirementId).toBe("vendor-governance");
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    expect((await screen(used)).fit).toContainEqual(expect.objectContaining({ id: "vendor-governance", stretched: true }));
+
+    // The other job's own screen and its Tailor screen: the same %, the requirement still a gap.
+    const otherAfter = await screen(other);
+    expect(otherAfter.matchPct).toBe(otherBefore.matchPct);
+    expect(otherAfter.fit.some((f: { stretched?: boolean }) => f.stretched)).toBe(false);
+    expect(otherAfter.dontYet.map((r: { id: string }) => r.id)).toEqual(["vendor-governance"]);
+    await post(app, cookie, `/onboarding/cards/${encodeURIComponent(other)}/want`);
+    const otherTailor = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(otherTailor.card.matchPct).toBe(otherBefore.matchPct);
+    expect(otherTailor.requirements.find((r: { id: string }) => r.id === "vendor-governance").state).toBe("gap");
   });
 });
 
