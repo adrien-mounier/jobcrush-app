@@ -359,3 +359,12 @@ section is the instruction.
     job, never as a claim and never in the claim graph (ADR-0005 clause 2). "No" declines for this
     job only; another job's run may suggest the same line again. A suggestion left unanswered when
     the CV is approved is left out.
+11. **"Use for this job" is a mechanical swap, and the score follows the CV** (#418, ADR-0020
+    clause 4). The line in replaces the line out at its slot word for word, with no redraft (a skill
+    joins its group); it carries its proposal id where a fact line carries claim ids, so the lint and
+    the export gate accept exactly the lines the person used and nothing else without a fact. The
+    requirement then counts as met on **this job's match only**, labelled *met by a stretch* wherever
+    the card shows; no other job reads it. The application report is told the state `stretched` and
+    writes nothing for it: the app itself puts the used line and its *what to say if asked* under *Be
+    ready to explain*, exactly as stored (clause 6). Undo withdraws the answer and everything above
+    with it.

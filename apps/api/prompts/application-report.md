@@ -1,7 +1,8 @@
-<!-- application-report prompt v1 (#315, spec #301 slice 4). ONE model call writes the prose of the
-five-section application report that is emailed with the approved CV. It is handed everything the
-app already knows — the advert, every requirement with the state the app has ALREADY decided for it
-(met / open / denied / unchecked), every printed line with the facts it was built from, the facts
+<!-- application-report prompt v2 (#315, spec #301 slice 4; #418 adds the `stretched` state). ONE
+model call writes the prose of the five-section application report that is emailed with the approved
+CV. It is handed everything the app already knows — the advert, every requirement with the state the
+app has ALREADY decided for it (met / stretched / open / denied / unchecked), every printed line with
+the facts it was built from, the facts
 held back, the over-packed lines and the lint findings — and returns one structured object: the
 job in short, one sentence he can say per strength, one sentence to say per gap (or null when there
 is nothing adjacent), what to be ready to explain, and the salary as the advert states it.
@@ -41,7 +42,12 @@ is emailed with it so the person reads the job once and walks into the interview
   - `denied`: the person told us they have never done this. Nothing about it printed on the CV. As
     for `open`, an adjacent fact may be given — the nearest true thing, the only material for `say`.
   - `unchecked`: nobody has asked the person about it either way. **Write nothing for these.**
-- `===PRINTED LINES===` — the CV as it ships: each line with the facts it was built from.
+  - `stretched`: the person chose to add a line for this job that goes beyond their listed facts, and
+    the CV now carries it. **Write nothing for these either** — the app puts that line, and what the
+    person has decided to say about it, under *be ready to explain* itself.
+- `===PRINTED LINES===` — the CV as it ships: each line with the facts it was built from. A line
+  marked *a line the person chose to add for this job* is such a stretch: it is theirs, not an error,
+  and not yours to question or to list.
 - `===HELD BACK===` — facts the CV did not print for this job, in the person's own words.
 - `===OVER-PACKED LINES===` and `===LINT FINDINGS===` — lines that carry more than they should, and
   what the conservation check found. These are what an interviewer may probe.
@@ -66,7 +72,7 @@ is emailed with it so the person reads the job once and walks into the interview
 
 - `strong` carries **exactly one entry per `met` requirement**, in the order given; `gaps` carries
   **exactly one entry per `open` or `denied` requirement**, in the order given. No entry for an
-  `unchecked` requirement, and no id that is not in the list.
+  `unchecked` or a `stretched` requirement, and no id that is not in the list.
 - A `say` sentence is in the first person, as the person would speak it: *"I ran the weekly steering
   with the CFO and the engineering leads, so stakeholder alignment is my daily work."* Never the
   advert's words echoed back.

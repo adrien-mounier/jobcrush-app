@@ -39,6 +39,7 @@ import type { LlmClient } from "./llm.js";
 import type { Mailer } from "./mailer.js";
 import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js";
 import { tailorDraftView, type DraftInputs } from "./tailorDraft.js";
+import { applyUsedStretches, usedStretches } from "./stretchSuggestions.js";
 
 export interface ExportRefusal {
   status: 404 | 409;
@@ -80,12 +81,15 @@ export function exportGate(
  *  was built from. #390's Preview as CV downloads through this gate too — a preview has no
  *  approval press, but a page stating a denial must no more reach a printer than an employer. */
 export function conservationGate(stored: TailorDraftRecord, inputs: DraftInputs): ExportRefusal | null {
+  // #418: the page that would print — the used stretches in place — is what is checked, and the
+  // used ids are the only provenance a line with no claim id may cite.
   const fatal = conservationIssues(
     inputs.claimsDoc,
-    stored.draft,
+    applyUsedStretches(stored.draft, stored.stretch),
     inputs.opts.jobBlocks,
     inputs.opts.advertTests,
     inputs.opts.negatives,
+    new Set(usedStretches(stored.stretch).map((s) => s.id)),
   ).filter((issue) => issue.fatal);
   if (fatal.length > 0)
     return {
@@ -192,13 +196,15 @@ async function reportFor(
   record: TailorDraftRecord,
 ): Promise<ApplicationReport> {
   const { posting, inputs } = input;
-  const fingerprint = reportFingerprint(input.report, posting, record.draft, inputs.claimsDoc, inputs.opts);
+  // #418: the report reads the SHIPPED lines — the used stretches in place (tailorDraftView's render).
+  const shipped = applyUsedStretches(record.draft, record.stretch);
+  const fingerprint = reportFingerprint(input.report, posting, shipped, inputs.claimsDoc, inputs.opts);
   if (record.reportCheckpoint?.fingerprint === fingerprint) return record.reportCheckpoint.report;
   const report = await writeApplicationReport(
     deps.reportLlm,
     input.report,
     posting,
-    record.draft,
+    shipped,
     inputs.claimsDoc,
     inputs.opts,
   );

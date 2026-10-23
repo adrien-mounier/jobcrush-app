@@ -30,6 +30,7 @@ import type { LlmClient } from "./llm.js";
 import { extractJson } from "./miner.js";
 import { marketForLocationText } from "./postingRetrieval.js";
 import { conservationIssues, draftDisclosure, type Draft, type Posting, type TailorInputOpts } from "./preview.js";
+import { usedStretches, type StretchCheckpoint } from "./stretchSuggestions.js";
 import { advertDeniedRows } from "./tailor.js";
 import type { ExportRefusal } from "./tailorExport.js";
 import { findWorkRightsFact } from "./withdrawal.js";
@@ -56,7 +57,9 @@ export function reportGate(card: JobCardV1): ExportRefusal | null {
   };
 }
 
-export type RequirementState = "met" | "open" | "denied" | "unchecked";
+/** #418: `stretched` is met by a stretch the person used for this job (ADR-0020 clause 4) — the
+ *  model writes nothing for it; the app puts its line and interview line under *Be ready to explain*. */
+export type RequirementState = "met" | "stretched" | "open" | "denied" | "unchecked";
 
 export interface ReportRequirement {
   id: string;
@@ -92,9 +95,11 @@ export function requirementStates(
       ? "denied"
       : uncheckedIds.has(r.id)
         ? "unchecked"
-        : (verdict?.fit ?? 0) >= COVERAGE_THRESHOLD
-          ? "met"
-          : "open";
+        : verdict?.stretched
+          ? "stretched"
+          : (verdict?.fit ?? 0) >= COVERAGE_THRESHOLD
+            ? "met"
+            : "open";
     return { id: r.id, requirement: r.requirement, state, evidence, reason: verdict?.reason ?? null };
   });
 }
@@ -114,6 +119,10 @@ export interface ReportContext {
    *  checked — said plainly, unless the advert asks about work rights itself (then the requirement
    *  row already says "check it"). */
   locationUnplaced: boolean;
+  /** #418: the stretches the person used for this job — each line as it prints and what to say if
+   *  asked, exactly as stored (ADR-0005 clause 6). Printed under *Be ready to explain* by the app;
+   *  the model never sees or rewrites them. Absent on a context built before #418 — read as none. */
+  stretches?: { line: string; say: string }[];
 }
 
 /**
@@ -137,6 +146,8 @@ export function reportContext(args: {
   negatives: ClaimRecord[];
   facts: EligibilityFact[];
   broughtJob: BroughtJob | undefined;
+  /** #418: the record beside this job's draft — its used suggestions feed `stretches`. */
+  stretch?: StretchCheckpoint;
 }): ReportContext {
   const { posting, adReq, card, confirmed, negatives, facts } = args;
   const deniedIds = new Set(advertDeniedRows(adReq, confirmed, negatives).map((d) => d.requirement.id));
@@ -163,6 +174,7 @@ export function reportContext(args: {
     marketToCheck:
       market && !advertAsksWorkRights && !findWorkRightsFact(facts, posting.location) ? market : null,
     locationUnplaced: market === null && !advertAsksWorkRights,
+    stretches: usedStretches(args.stretch).map((s) => ({ line: s.claimText, say: s.interviewNarrative })),
   };
 }
 
@@ -221,7 +233,10 @@ export function buildReportInput(
       `${oneLine(role.role)} — ${oneLine(role.employer)}:`,
       ...role.bullets.map(
         (b) =>
-          `- ${oneLine(b.text)}\n  from: ${b.claimIds.map((id) => oneLine(factText.get(id) ?? id)).join(" | ")}`,
+          `- ${oneLine(b.text)}\n  from: ${
+            // #418: a used stretch cites no fact — the person chose the line for this job.
+            b.claimIds.length === 0 ? "a line the person chose to add for this job" : b.claimIds.map((id) => oneLine(factText.get(id) ?? id)).join(" | ")
+          }`,
       ),
     ]),
   ].join("\n");
@@ -230,7 +245,8 @@ export function buildReportInput(
   const overfull = disclosure.flatMap((d) =>
     d.overfull.map((o) => `- ${oneLine(o.text)} (${o.count} facts${o.lostResult ? ", result not in the line" : ""})`),
   );
-  const lint = conservationIssues(claims, draft, opts.jobBlocks, opts.advertTests, opts.negatives).map(
+  const usedIds = new Set(draft.experience.flatMap((r) => r.bullets.flatMap((b) => (b.stretchId ? [b.stretchId] : []))));
+  const lint = conservationIssues(claims, draft, opts.jobBlocks, opts.advertTests, opts.negatives, usedIds).map(
     (issue) => `- ${oneLine(issue.message)}`,
   );
   const block = (lines: string[]) => (lines.length ? lines.join("\n") : "(none)");
@@ -352,7 +368,8 @@ export async function writeApplicationReport(
         strong,
         gaps,
         unchecked: ctx.requirements.filter((r) => r.state === "unchecked").map((r) => r.requirement),
-        explain: doc.explain,
+        // #418: the used stretches lead section 4, exactly as stored — never through the model.
+        explain: [...(ctx.stretches ?? []).map((s) => REPORT_LINES.stretch(s.line, s.say)), ...doc.explain],
       };
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
@@ -387,6 +404,8 @@ export const REPORT_LINES = {
   nothingOpen: "Every requirement the advert states is covered.",
   nothingToExplain: "Nothing more came up to prepare.",
   checkBeforeSending: "Check before you send the CV:",
+  /** #418: a stretch the person used for this job — the line as it prints, and what to say if asked. */
+  stretch: (line: string, say: string) => `You chose to say "${line}" on this CV — say: "${say}"`,
 };
 
 /** The email body: five sections, in this order, and nothing else. The attachment is named in one

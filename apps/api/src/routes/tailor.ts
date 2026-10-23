@@ -599,13 +599,16 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         // before anything slow starts, and the states every section is built from are resolved
         // here, from the verdicts and his own answers — never by the model.
         const broughtJob = brought.find((job) => job.posting.id === posting.id);
-        const { judgement, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob !== undefined);
+        const { judgement: judged, years } = await judgeAndYears(session, adReq, confirmed, facts, blocks, broughtJob !== undefined);
+        // #418: the card the screen showed counts the used stretches as met by a stretch; the report
+        // reads the same verdicts and carries each used line to "Be ready to explain".
+        const judgement = withStretchedVerdicts(judged, stored!.stretch);
         const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated", years);
         const unjudged = reportGate(card);
         if (unjudged)
           return reply.status(unjudged.status).send({ error: { code: unjudged.code, message: unjudged.message } });
         const report = reportContext({
-          posting, adReq, card, verdicts: judgement!.verdicts, confirmed, negatives, facts, broughtJob,
+          posting, adReq, card, verdicts: judgement!.verdicts, confirmed, negatives, facts, broughtJob, stretch: stored!.stretch,
         });
         const runKey = JSON.stringify([session.id, posting.id]);
         const running = exportRuns.get(runKey);

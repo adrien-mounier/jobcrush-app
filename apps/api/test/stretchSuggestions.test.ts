@@ -720,3 +720,61 @@ describe("#418 the job's own screen reads the same answer (a job he brought, thr
     expect(after.dontYet).toEqual([]);
   });
 });
+
+describe("#418 the export prints the used line and the report carries its interview line", () => {
+  it("the exported bullet is the stored line in, word for word; section 4 of the email holds the line and what to say, verbatim", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const printed: string[] = [];
+    const capturingMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const sent: string[] = [];
+    const mailer: Mailer = {
+      live: false,
+      async sendLoginLink() {},
+      async sendFamilyReady() {},
+      async sendTailoredCv(_email, doc) {
+        sent.push(doc.text);
+      },
+    };
+    const report = reportingLlm();
+    const { app, claims } = buildServer({
+      tailorLlm: tailor.llm,
+      stretchLlm: stretch.llm,
+      judge: fakeJudge(),
+      reportLlm: report.llm,
+      documentMaker: capturingMaker,
+      mailer,
+      tailorDrafts: new InMemoryTailorDraftStore(),
+    });
+    const cookie = await anonSession(app);
+    const sid = await reachTailor({ app, claims }, cookie, "stretch-export@example.com");
+    const before = await claims.list(sid);
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(202);
+    const job = await awaitJob(app, cookie, res.json().jobId);
+    expect(job.status, JSON.stringify(job)).toBe("completed");
+    // The document that left: the line in at the slot, the line out gone, the unanswered one absent.
+    expect(printed[0]).toContain(`<li>${swap.claimText}</li>`);
+    expect(printed[0]).not.toContain(BULLET_TEXT);
+    expect(printed[0]).toContain(SECOND_BULLET);
+    expect(printed[0]).not.toContain(skill.claimText);
+    // The report: the model was told the state and wrote nothing for it; section 4 carries the
+    // used line and the interview line exactly as stored.
+    expect(report.prompts[0]).toContain(`- id: ${swap.requirementId}\n  state: stretched`);
+    expect(sent).toHaveLength(1);
+    const section4 = sent[0]!.split("4. Be ready to explain")[1]!.split("5. Salary")[0]!;
+    expect(section4).toContain(swap.claimText);
+    expect(section4).toContain(swap.interviewNarrative);
+    expect(sent[0]!.split("2. Where you are strong")[1]!.split("3. Where you are not")[0]).not.toContain(swap.requirementId);
+    expect(await claims.list(sid)).toEqual(before); // the used line never became a claim
+  });
+});

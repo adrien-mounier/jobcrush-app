@@ -451,3 +451,42 @@ describe("#315 reportEmailText — five sections, in order, and nothing else", (
     expect(text).toContain(REPORT_LINES.market("Vietnam"));
   });
 });
+
+// #418 (ADR-0020 clause 4): a requirement met by a used stretch is its own state. The model writes
+// nothing for it; the report's "Be ready to explain" carries the used line and its interview line
+// exactly as stored, put there by the app.
+describe("#418 a used stretch in the report", () => {
+  const opts = { jobBlocks: [], advertTests: [], negatives: [], openPoints: [] };
+  const stretchedVerdicts = (): JudgeVerdict[] =>
+    verdictsFor().map((v, i) => (i === 1 ? { ...v, fit: 1, stretched: true as const } : v));
+  const used = [{ line: "Led the whole programme to completion, covering vendor governance.", say: "I owned the programme from planning to go-live." }];
+
+  it("requirementStates reads the stretched verdict as 'stretched', never 'met'", () => {
+    const states = requirementStates(adReq, stretchedVerdicts(), confirmed, new Set(), new Set());
+    expect(states[1]!.state).toBe("stretched");
+    expect(states[0]!.state).toBe("met");
+  });
+
+  it("the report's explain opens with each used line and its interview line, verbatim, before the model's lines; a sentence for a stretched id fails the answer", async () => {
+    const ctx = context({ requirements: requirementStates(adReq, stretchedVerdicts(), confirmed, new Set(), new Set()), stretches: used });
+    const { llm, prompts } = reportingLlm();
+    const report = await writeApplicationReport(llm, ctx, posting, draft, claimsDoc, opts);
+    expect(report.explain[0]).toContain(used[0]!.line);
+    expect(report.explain[0]).toContain(used[0]!.say);
+    expect(report.explain.slice(1)).toEqual(["The steering line carries two facts."]);
+    expect(report.strong.map((s) => s.requirement)).toEqual([adReq.requirements[0]!.requirement]); // not the stretched one
+    expect(report.gaps.map((g) => g.requirement)).not.toContain(adReq.requirements[1]!.requirement);
+    expect(prompts[0]).toContain(`- id: ${ids[1]}\n  state: stretched`);
+    // The email prints them under section 4, word for word.
+    const text = reportEmailText(report, posting, 2, []);
+    const section4 = text.split("4. Be ready to explain")[1]!.split("5. Salary")[0]!;
+    expect(section4).toContain(used[0]!.line);
+    expect(section4).toContain(used[0]!.say);
+
+    const { llm: overreaching } = reportingLlm((doc, states) => ({
+      ...doc,
+      strong: [...(doc.strong as unknown[]), { requirementId: states[1]!.id, say: "I have done this too." }],
+    }));
+    await expect(writeApplicationReport(overreaching, ctx, posting, draft, claimsDoc, opts)).rejects.toBeInstanceOf(ReportValidationError);
+  });
+});
