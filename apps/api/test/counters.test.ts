@@ -46,6 +46,7 @@ describe("#103 posting-pool counters", () => {
       "adReader.family_clamped": 0,
       "adReader.industry_clamped": 0,
       "adReader.years_families_clamped": 0,
+      "adReader.degree_clamped": 0,
       "adReader.cost_reads_recorded": 0,
       "adReader.cost_input_tokens_total": 0,
       "adReader.cost_output_tokens_total": 0,

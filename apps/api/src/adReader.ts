@@ -36,6 +36,9 @@ const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts
 // years bar's fields map to), which a stored read under the old prompt could not name. Same lazy
 // re-read cost mechanism: one reader call per advert, at most once, on its next use. A stored read
 // lacking the field falls back to today's single-family scope until then (recordBars.ts).
+// #416 rides on the SAME "adreq/5": `degreeLevel` and `degreeFieldNamed` (the level a degree bar
+// asks for, and whether it names a field) landed in the same spec as #413, before any advert was
+// read under adreq/5 — one re-read per advert for both, never two.
 const PROMPT_CONTRACT_VERSION = "adreq/5";
 
 let cachedPrompt: string | null = null;
@@ -235,6 +238,21 @@ function clampYearsFamilies(parsed: AdRequirementsV1, families: ReaderFamily[]):
   return { ...parsed, requirements };
 }
 
+/** #416 — a degree level or field flag belongs only to a degree bar: riding on any other requirement
+ *  it names nothing and is DROPPED, counted per requirement, the twin of clampYearsFamilies's
+ *  "a list on a total bar names nothing". A degree bar carrying no level is left as it is — the
+ *  reader could not name one and the scorer reads it as today; never the nearest level. */
+function clampDegree(parsed: AdRequirementsV1): AdRequirementsV1 {
+  let clamped = 0;
+  const requirements = parsed.requirements.map((r) => {
+    if (r.eligibilityDimension === "degree" || (r.degreeLevel === undefined && r.degreeFieldNamed === undefined)) return r;
+    clamped++;
+    return { ...r, degreeLevel: undefined, degreeFieldNamed: undefined };
+  });
+  if (clamped > 0) addToCounter("adReader.degree_clamped", clamped);
+  return { ...parsed, requirements };
+}
+
 export interface AdReadCost {
   model: string;
   inputTokens: number | null;
@@ -385,12 +403,14 @@ export async function readAdvert(
         adId: posting.id,
         curated: false,
       };
-      const parsed = clampYearsFamilies(
-        clampIndustryScope(
-          clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families),
-          industries,
+      const parsed = clampDegree(
+        clampYearsFamilies(
+          clampIndustryScope(
+            clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families),
+            industries,
+          ),
+          families,
         ),
-        families,
       );
       addToCounter("adReader.requirements_produced", parsed.requirements.length);
       addToCounter(

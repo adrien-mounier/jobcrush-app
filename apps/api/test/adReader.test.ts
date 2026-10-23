@@ -965,3 +965,51 @@ describe("#413 the families a years bar names", () => {
     expect(result!.requirements.requirements[0]?.yearsFamilies).toBeUndefined();
   });
 });
+
+// #416 (ADR-0020 clause 5) — a degree bar names its LEVEL (bachelor, master, doctorate) and whether
+// it names a FIELD of study, so the record can decide the level (a Master's meets a bachelor's)
+// and the scorer judges only the field. Same contract version as #413's yearsFamilies.
+describe("#416 the level and field a degree bar names", () => {
+  const degreeReq = (over: Record<string, unknown>) => ({
+    id: "degree",
+    band: "standard",
+    kind: "ordinary",
+    requirement: "Bachelor's degree in Computer Science or related field",
+    eligibilityDimension: "degree",
+    sourceSpan: "Bachelor's degree in Computer Science or related field",
+    ...over,
+  });
+
+  it("the prompt the model reads asks for the level and the field flag", () => {
+    const input = buildAdReaderInput(posting(), FAMILIES, INDUSTRIES);
+    expect(input).toContain("`degreeLevel`");
+    expect(input).toContain("`degreeFieldNamed`");
+  });
+
+  it("keeps the level and the field flag the reader names on a degree bar", async () => {
+    const doc = { ...validDoc, requirements: [degreeReq({ degreeLevel: "bachelor", degreeFieldNamed: true })] };
+    const result = await readAdvert(posting(), fakeLlm([JSON.stringify(doc)]), FAMILIES, INDUSTRIES);
+    expect(result!.requirements.requirements[0]?.degreeLevel).toBe("bachelor");
+    expect(result!.requirements.requirements[0]?.degreeFieldNamed).toBe(true);
+  });
+
+  it("drops a level or flag riding on a requirement that is not a degree bar, counted", async () => {
+    const before = readCounters()["adReader.degree_clamped"];
+    const doc = {
+      ...validDoc,
+      requirements: [degreeReq({ eligibilityDimension: "certification", eligibilitySubject: "PMP", degreeLevel: "master", degreeFieldNamed: false })],
+    };
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const result = await readAdvert(posting(), llm, FAMILIES, INDUSTRIES);
+    expect(llm.calls).toHaveLength(1); // a clamp, not a retry — the read itself was good
+    expect(result!.requirements.requirements[0]?.degreeLevel).toBeUndefined();
+    expect(result!.requirements.requirements[0]?.degreeFieldNamed).toBeUndefined();
+    expect(readCounters()["adReader.degree_clamped"]).toBe(before + 1);
+  });
+
+  it("a degree bar whose level the reader could not name carries none — the scorer reads it as today", async () => {
+    const doc = { ...validDoc, requirements: [degreeReq({ requirement: "A relevant degree", sourceSpan: "A relevant degree" })] };
+    const result = await readAdvert(posting(), fakeLlm([JSON.stringify(doc)]), FAMILIES, INDUSTRIES);
+    expect(result!.requirements.requirements[0]?.degreeLevel).toBeUndefined();
+  });
+});
