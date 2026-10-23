@@ -197,9 +197,14 @@ describe("#221 AC1 — every dated job record carries a family placement", () =>
 
   // #231 — the published list travelled with the deck only so the screen could offer choices for an
   // unplaced job. Nobody is asked any more, so nothing reads it and it is no longer sent.
-  it("no longer serves the published families with the deck — nothing asks", async () => {
+  // #231 took the list off the deck because nothing read it; #414 puts it back for the one thing
+  // that does — the job page's Kind of work correction, which offers exactly the published
+  // families so the screen can never offer a choice the door would refuse. Still never a question.
+  it("serves the published families with the deck, for the correction picker (#414)", async () => {
     const s = await stack({ answerFor: () => UNMAPPED_ANSWER });
-    expect((await s.read() as Record<string, unknown>).families).toBeUndefined();
+    expect((await s.read() as { families?: unknown }).families).toEqual(
+      PUBLISHED.map(({ familyId, version, label }) => ({ familyId, version, label })),
+    );
   });
 });
 
@@ -352,6 +357,28 @@ describe("#221 AC5 — the label is correctable, and a correction outranks the m
       url: "/job-blocks/nordic-pm/correct",
       headers: { cookie: s.cookie },
       payload: { key: "family", value: { familyId: "underwater-basket-weaving", version: 1 } },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("unknown_family");
+    expect(familyOf((await s.read()).blocks, "nordic-pm").value?.outcome).toBe("unmapped");
+  });
+
+  // #414: the door takes one OR MORE families — and a list is checked name by name, so a
+  // published family cannot smuggle an unpublished one in beside it.
+  it("refuses a list that names a family nobody published, even beside a real one", async () => {
+    const s = await stack({ answerFor: () => UNMAPPED_ANSWER });
+    await s.mine();
+    const res = await s.server.app.inject({
+      method: "POST",
+      url: "/job-blocks/nordic-pm/correct",
+      headers: { cookie: s.cookie },
+      payload: {
+        key: "family",
+        value: [
+          { familyId: IT_DELIVERY.familyId, version: IT_DELIVERY.version },
+          { familyId: "underwater-basket-weaving", version: 1 },
+        ],
+      },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe("unknown_family");

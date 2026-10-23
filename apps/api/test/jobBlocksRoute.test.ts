@@ -35,8 +35,13 @@ describe("GET /job-blocks", () => {
     for (const entry of body.industries) {
       expect(Object.keys(entry).sort()).toEqual(["industryId", "label", "version"]);
     }
-    // No fourth key: the deck is blocks, totals and the vocabulary that names them, nothing else.
-    expect(Object.keys(body).sort()).toEqual(["blocks", "industries", "summary"]);
+    // #414: the published families on the same terms, for the Kind of work row and its picker.
+    expect(body.families).toContainEqual({ familyId: "it-project-delivery", label: "IT Project Manager", version: 2 });
+    for (const entry of body.families) {
+      expect(Object.keys(entry).sort()).toEqual(["familyId", "label", "version"]);
+    }
+    // No fifth key: the deck is blocks, totals and the vocabularies that name them, nothing else.
+    expect(Object.keys(body).sort()).toEqual(["blocks", "families", "industries", "summary"]);
   });
 });
 
