@@ -772,6 +772,25 @@
   font-size: 13px;
   line-height: 1.45;
 }
+/* #420: the line being edited in place, and the note that stands in for the old interview line. */
+.tailor .clip ins[contenteditable="true"] {
+  outline: 2px dashed var(--gold);
+  outline-offset: 3px;
+}
+.tailor .ifasked .re {
+  color: var(--hud-mute);
+  font-style: italic;
+}
+.tailor .stretch-card .acts .row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+/* The answers wait while a line is edited: they look it. */
+.tailor .stretch-card .b:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .tailor .ifasked b {
   display: block;
   margin-bottom: 2px;

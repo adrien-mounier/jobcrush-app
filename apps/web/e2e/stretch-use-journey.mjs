@@ -1,7 +1,8 @@
 // #418 (spec #412, ADR-0020 clause 4) — the new flow end to end, human-paced, over a REAL stack:
 // pick a job → the draft is the first thing on the screen → a stretch suggestion opens beside it,
-// previewed in place → "Use for this job" → the score moves (no "+N%") and the requirement reads
-// *met by a stretch* on the sheet → "Ready to send" lists the answer with Undo → approve → Done.
+// previewed in place → #420: its wording edited in place on the draft, what to say rewritten for
+// it → "Use for this job" → the score moves (no "+N%") and the requirement reads *met by a stretch*
+// on the sheet → "Ready to send" lists the answer with Undo → approve → Done.
 //
 // Nothing here is stubbed: discovery -> reveal -> sign-in -> deck -> swipe right -> /tailor -> draft
 // -> suggestion -> Use -> approve all run against the live Fastify API on the fake-model QA stack
@@ -110,7 +111,7 @@ await card.waitFor({ state: 'visible', timeout: 90_000 }).catch(() => {});
 await qa.expectVisible(card, 'the first stretch suggestion is open in the rail (the step ran after the draft)');
 const view = await api('/api/onboarding/tailor/draft');
 await assert(view.stretch?.status === 'ran' && view.stretch.suggestions.length > 0, `API: the step ran and found ${view.stretch?.suggestions?.length ?? 0} suggestion(s)`);
-const s = view.stretch.suggestions[0];
+let s = view.stretch.suggestions[0];
 const requirement = before.requirements.find((r) => r.id === s.requirementId);
 await qa.note(`suggestion 1 — requirement "${requirement?.text}" (${requirement?.state}) · line in "${s.claimText}" · line out "${s.lineOut}"`);
 await assert(requirement && requirement.state !== 'met', 'the suggestion answers a requirement the CV does not meet');
@@ -122,6 +123,29 @@ const useButton = card.getByRole('button', { name: new RegExp(`^${USE}`) });
 await qa.expectVisible(useButton, '"Use for this job" is the gold primary');
 await assert(/\bgold\b/.test(await useButton.getAttribute('class')), 'gold, as the owner approved');
 await assert(!/\+\d+%/.test(await page.locator('.tailor').innerText()), 'no "+N%" anywhere before the answer');
+
+// ---------------------------------------------------------------------------------------------
+// 3b. #420 Edit wording: E starts the edit IN PLACE on the draft (a computer), the line is typed
+//     where it stands, Esc ends it — and what to say if asked comes back rewritten for the edited
+//     line (qa-main's re-say fake derives it from the line it is handed). The rest of the journey
+//     then carries the edited line: Use prints it, the summary explains it, the reload keeps it.
+// ---------------------------------------------------------------------------------------------
+const EDITED = `${s.claimText}, across three vendor teams`;
+await qa.press(card.getByRole('heading'), 'e', 'E — edit the wording of the open suggestion');
+const line = page.frameLocator('.draft-frame').locator('ins');
+await qa.expectVisible(line, 'the line in is editable where it stands on the draft');
+await assert((await line.getAttribute('contenteditable')) === 'true', 'in place on the draft, not in a separate field');
+await qa.expectText(card, 'We will rewrite this to match your wording.', 'the old interview line is not shown beside a sentence being edited');
+await qa.fill(line, EDITED, 'type the new wording into the line');
+await qa.press(line, 'Escape', 'Esc ends the edit');
+const SAID = `If they ask, I explain the work behind it: ${EDITED}`;
+await card.getByText(SAID).waitFor({ timeout: 15_000 }).catch(() => {});
+await qa.expectText(card, SAID, 'what to say if asked is rewritten for the edited line');
+const edited = (await api('/api/onboarding/tailor/draft')).stretch.suggestions.find((x) => x.id === s.id);
+await assert(edited.claimText === EDITED && edited.interviewNarrative === SAID, 'API: the suggestion stores the edited line with its own interview line');
+await assert(!(await page.locator('.tailor').innerText()).includes(s.interviewNarrative), 'the old interview line is gone from the screen');
+await assert((await page.locator('.draft-frame').getAttribute('srcdoc')).includes(`<ins>${esc(EDITED)}</ins>`), 'the draft previews the edited line in place');
+s = edited;
 
 // ---------------------------------------------------------------------------------------------
 // 4. Use for this job: the line lands on the CV, the score moves, the requirement reads met by a
@@ -140,7 +164,7 @@ await assert(!/\+\d+%/.test(await page.locator('.tailor').innerText()), 'still n
 await qa.expectText('.tailor [aria-live="polite"]', `Match now ${after.card.matchPct}%`, 'the change is announced to a screen reader');
 await assert((await page.locator('.mote').count()) === 0, 'the mote is gone once it has landed');
 const srcAfter = await page.locator('.draft-frame').getAttribute('srcdoc');
-await assert(srcAfter.includes(`<li>${esc(s.claimText)}</li>`) && !srcAfter.includes(esc(s.lineOut)), 'the CV now carries the line in, word for word, where the line out was');
+await assert(srcAfter.includes(`<li>${esc(s.claimText)}</li>`) && !srcAfter.includes(esc(s.lineOut)), 'the CV now carries the edited line, word for word, where the line out was');
 await assert(!(await page.locator('.tailor .gaps').innerText().catch(() => '')).includes(requirement.text), '"Also asked, not on your CV" no longer names it');
 
 const met = after.requirements.filter((r) => r.state === 'met' || r.state === 'stretched').length;

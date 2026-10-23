@@ -1084,6 +1084,7 @@ export function renderPreviewHtml(
   li,.skill-group,.summary{position:relative;}
   del{color:#5A6675;text-decoration-color:rgba(90,102,117,.7);}
   ins{text-decoration:none;background:rgba(232,163,61,.22);border-radius:3px;box-shadow:0 0 0 3px rgba(232,163,61,.22);}
+  ins[contenteditable="true"]{outline:2px dashed #a8762b;outline-offset:3px;}
   .pin{position:absolute;left:-30px;top:1px;display:inline-grid;place-items:center;width:20px;height:20px;
     border-radius:50%;border:1px solid #5A6675;color:#5A6675;font-size:11px;font-weight:600;line-height:1;}
   .pin.open{border-color:#a8762b;background:#e8a33d;color:#1a1206;}

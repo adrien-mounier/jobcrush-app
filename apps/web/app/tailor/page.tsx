@@ -19,9 +19,10 @@ import { FactBadge } from "../factbadge";
 import { CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
-import { StretchCards, nextPending, pendingOf, type StretchRailView } from "./stretch";
+import { StretchCards, nextPending, pendingOf, type StretchEdit, type StretchEditNote, type StretchRailView } from "./stretch";
 import {
   answerStretch,
+  editStretchWording,
   answerTailorProfile,
   dropTailor,
   ensureSession,
@@ -134,6 +135,15 @@ export default function TailorPage() {
   const autoOpenedRef = useRef(false);
   const focusStretchRef = useRef(false);
   const stretchHeadingRef = useRef<HTMLHeadingElement>(null);
+  // #420: "Edit wording" — the line being edited (in place: the draft's frame on a computer, the
+  // card on a phone), the latest text typed (a ref: the editable line owns its own DOM text), the
+  // note after an edit, and the frame's revision (an ended edit loads a fresh document).
+  const [stretchEdit, setStretchEdit] = useState<StretchEdit>(null);
+  const [editNote, setEditNote] = useState<StretchEditNote>(null);
+  const [frameRev, setFrameRev] = useState(0);
+  const editTextRef = useRef<string | null>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const focusEditRef = useRef(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   // One heading per screen: the card's h2 on the question screen, the job's h1 beside the draft.
@@ -268,6 +278,7 @@ export default function TailorPage() {
   const openSuggestion = useCallback((id: string | null) => {
     focusStretchRef.current = id !== null;
     setOpenStretch(id);
+    setEditNote(null);
   }, []);
   useEffect(() => {
     if (!openStretch || !tailor || !focusStretchRef.current) return;
@@ -280,6 +291,52 @@ export default function TailorPage() {
       setLiveMessage(`Suggestion ${n} of ${stretch.suggestions.length}: ${text}`);
     }
   }, [openStretch, stretch, tailor]);
+
+  // #420: E (or "Edit wording") starts the edit; E, Esc or "Done editing" ends it. An ended edit
+  // with a new line is sent — the server rewrites what to say for it and stores the two together;
+  // an unchanged one sends nothing; an emptied one keeps the suggestion's wording and says so; a
+  // failed save keeps the person's text in the line to try again. Focus returns to the control.
+  function startStretchEdit(id: string) {
+    editTextRef.current = null;
+    setEditNote(null);
+    setStretchEdit({ id, saving: false });
+  }
+  async function endStretchEdit() {
+    const edit = stretchEdit;
+    if (!edit || edit.saving) return;
+    const current = stretch?.status === "ran" ? stretch.suggestions.find((s) => s.id === edit.id)?.claimText : undefined;
+    const typed = editTextRef.current;
+    const text = typed?.replace(/\s+/g, " ").trim();
+    focusEditRef.current = true;
+    if (typed === null || text === current) {
+      setStretchEdit(null);
+      setFrameRev((n) => n + 1);
+      return;
+    }
+    if (!text) {
+      setStretchEdit(null);
+      setEditNote({ id: edit.id, kind: "kept" });
+      setFrameRev((n) => n + 1);
+      return;
+    }
+    setStretchEdit({ id: edit.id, saving: true });
+    try {
+      const { stretch: next } = await editStretchWording(edit.id, text);
+      setStretch(next);
+      setStretchEdit(null);
+      setFrameRev((n) => n + 1);
+    } catch {
+      focusEditRef.current = false; // back into the line, with the text still in it
+      setEditNote({ id: edit.id, kind: "failed" });
+      setStretchEdit({ id: edit.id, saving: false });
+    }
+  }
+  const toggleStretchEdit = (id: string) => void (stretchEdit?.id === id ? endStretchEdit() : startStretchEdit(id));
+  useEffect(() => {
+    if (stretchEdit !== null || !focusEditRef.current) return;
+    focusEditRef.current = false;
+    editButtonRef.current?.focus();
+  }, [stretchEdit]);
 
   async function answerStretchNo(id: string) {
     if (stretchAnswering) return;
@@ -384,8 +441,18 @@ export default function TailorPage() {
     if (!showDraftNow || sheetOpen || dropConfirming) return;
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable='true']") || e.metaKey || e.ctrlKey || e.altKey) return;
+      const typing = !!target?.closest("input, textarea, [contenteditable='true']") || e.metaKey || e.ctrlKey || e.altKey;
       const key = e.key.toLowerCase();
+      // #420: while a line is edited, Esc ends the edit (it does not close the card), E ends it from
+      // outside the line, and nothing else answers.
+      if (stretchEdit) {
+        if (key === "escape" || (key === "e" && !typing)) {
+          e.preventDefault();
+          void endStretchEdit();
+        }
+        return;
+      }
+      if (typing) return;
       if (key === "escape") {
         if (openStretch) openSuggestion(null);
         return;
@@ -395,10 +462,14 @@ export default function TailorPage() {
       else if (key === "k") openSuggestion(nextPending(stretch, openStretch, -1));
       else if (key === "n" && openStretch) void answerStretchNo(openStretch);
       else if (key === "u" && openStretch) void answerStretchUse(openStretch);
+      else if (key === "e" && openStretch) {
+        e.preventDefault(); // the key starts the edit; it is not typed into the line
+        startStretchEdit(openStretch);
+      }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [showDraftNow, sheetOpen, dropConfirming, stretch, openStretch, openSuggestion, stretchAnswering]);
+  }, [showDraftNow, sheetOpen, dropConfirming, stretch, openStretch, openSuggestion, stretchAnswering, stretchEdit]);
 
   // useCallback (not a plain function) so it can be named, honestly, in the Escape effect's deps
   // below (discovery's cancelCorrection precedent, discovery/page.tsx:338-345) — this repo has no
@@ -689,7 +760,15 @@ export default function TailorPage() {
                 before the draft, following the live number like the ring above it. The deck card
                 and the job's own screen keep it at the card's foot (CardBody). */}
             <MatchBreakdown card={state.card} pct={displayPct} />
-            <TailorDraft key={lookAgain} open={openStretch} onStretch={onStretch} />
+            <TailorDraft
+              key={lookAgain}
+              open={openStretch}
+              onStretch={onStretch}
+              editing={stretchEdit !== null && !stretchEdit.saving && stretchEdit.id === openStretch}
+              onEditText={(text) => (editTextRef.current = text)}
+              onEditEnd={() => void endStretchEdit()}
+              rev={frameRev}
+            />
           </div>
           <aside className="rail">
             {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
@@ -710,7 +789,12 @@ export default function TailorPage() {
               onSkipRest={() => openSuggestion(null)}
               onLookAgain={() => setLookAgain((n) => n + 1)}
               headingRef={stretchHeadingRef}
-              answering={stretchAnswering}
+              answering={stretchAnswering || stretchEdit !== null}
+              edit={stretchEdit}
+              editNote={editNote}
+              onEdit={toggleStretchEdit}
+              onEditText={(text) => (editTextRef.current = text)}
+              editButtonRef={editButtonRef}
             />
             {askError && !state.questions.length && (
               <p className="err" role="alert">

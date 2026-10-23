@@ -287,8 +287,9 @@ export const COVERAGE = {
   "check-mode-work-rights-journey.mjs": union(CV_INTAKE, DISCOVERY, ELIGIBILITY, REVIEW, PROFILE, DECK),
   // #23: discovery -> reveal -> sign-in -> deck -> swipe -> tailor -> the ending and the exits.
   "tailor-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS),
-  // #418: the stretch flow end to end — the step, its prompt, the read-time swap and score, the
-  // approve press with the report. The qa-main fake it reads its suggestion from is in SHARED.
+  // #418: the stretch flow end to end — the step, its prompts (#420: the re-say mode of an edited
+  // wording), the read-time swap and score, the approve press with the report. The qa-main fake it
+  // reads its suggestion from is in SHARED.
   "stretch-use-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS, [
     "apps/api/src/stretchSuggestions.ts",
     "apps/api/src/tailorDraft.ts",
@@ -298,6 +299,7 @@ export const COVERAGE = {
     "apps/api/src/judgedScore.ts",
     "apps/api/src/recordBars.ts",
     "apps/api/prompts/stretch-suggestions.md",
+    "apps/api/prompts/stretch-resay.md",
     "apps/api/prompts/application-report.md",
     "apps/web/app/jobcard.tsx",
   ]),

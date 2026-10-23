@@ -113,7 +113,7 @@ function view(stretch: StretchView, open: string | null): TailorDraftView {
 /** Stubs the whole screen. `stretch` is mutable so an answer stub can move the state; `tailor` is
  *  what GET /onboarding/tailor answers, moved by "use" and "undo" the way the server composes it. */
 async function openTailor(page: Page, state: { stretch: StretchView; tailor?: TailorState }) {
-  const posts = { draft: 0, answers: [] as { id: string; answer: string }[] };
+  const posts = { draft: 0, answers: [] as { id: string; answer: string }[], wordings: [] as { id: string; text: string }[] };
   await page.route("**/api/sessions/me", (route) => route.fulfill({ json: { ok: true } }));
   await page.route("**/api/onboarding/tailor", (route) => route.fulfill({ json: state.tailor ?? STATE }));
   await page.route("**/api/onboarding/tailor/draft**", async (route) => {
@@ -141,6 +141,19 @@ async function openTailor(page: Page, state: { stretch: StretchView; tailor?: Ta
       };
     if (id === S1.id && answer === "use") state.tailor = USED_STATE;
     if (id === S1.id && answer === "undo") state.tailor = STATE;
+    await route.fulfill({ json: { stretch: state.stretch } });
+  });
+  // #420: an edited wording — the server stores the line with an interview line rewritten for it
+  // (derived here from the line, so a test reads back exactly what it typed).
+  await page.route("**/api/onboarding/tailor/suggestions/*/wording", async (route) => {
+    const id = route.request().url().split("/").slice(-2)[0]!;
+    const { text } = route.request().postDataJSON() as { text: string };
+    posts.wordings.push({ id, text });
+    if (state.stretch?.status === "ran")
+      state.stretch = {
+        status: "ran",
+        suggestions: state.stretch.suggestions.map((s) => (s.id === id ? { ...s, claimText: text, interviewNarrative: `Rewritten for: ${text}` } : s)),
+      };
     await route.fulfill({ json: { stretch: state.stretch } });
   });
   await page.goto("/tailor");
@@ -358,4 +371,99 @@ test("#418 (ADR-0020): while the stretch step runs the finished draft is already
   const rail = page.locator(".tailor .rail");
   await expect(rail.getByRole("status")).toContainText("Looking for ways to stretch it for this job");
   await expect(page.locator(".draft-wait-line")).toHaveCount(0); // the wait screen is gone
+});
+
+// ---------------------------------------------------------------------------------------------
+// #420 — "Edit wording": the edit happens in place (on the draft on a computer, on the card on a
+// phone); E starts and ends it, Esc ends it. The server rewrites what to say for the edited line;
+// the old interview line is never shown beside an edited sentence. An emptied edit keeps the
+// suggestion's wording and says so.
+// ---------------------------------------------------------------------------------------------
+
+const EDITED = "Led the checkout replatforming on an SAP estate, two months early";
+const RE = "We will rewrite this to match your wording.";
+
+test("#420 computer: E starts the edit in place on the draft and Esc ends it; the edited line comes back with its own interview line", async ({ page }) => {
+  const posts = await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  await expect(card.getByText(S1.interviewNarrative)).toBeVisible();
+  const line = page.frameLocator(".draft-frame").locator("ins");
+
+  await page.keyboard.press("e");
+  await expect(line).toHaveAttribute("contenteditable", "true");
+  await expect(line).toBeFocused();
+  await expect(card.getByRole("button", { name: /^Done editing/ })).toBeVisible();
+  // The old interview line is never shown beside a sentence being edited; the answers wait.
+  await expect(card.getByText(RE)).toBeVisible();
+  await expect(card.getByText(S1.interviewNarrative)).toHaveCount(0);
+  await expect(card.getByRole("button", { name: /^Use for this job/ })).toBeDisabled();
+  await expect(card.locator(".clip")).toBeHidden(); // in place on the draft, not on the card
+
+  await line.fill(EDITED);
+  await line.press("Escape");
+  await expect.poll(() => posts.wordings).toEqual([{ id: S1.id, text: EDITED }]);
+  await expect(card.getByText(`Rewritten for: ${EDITED}`)).toBeVisible();
+  await expect(card.getByText(S1.interviewNarrative)).toHaveCount(0);
+  await expect(card.getByText(RE)).toHaveCount(0);
+  await expect(page.locator(".draft-frame")).toHaveAttribute("srcdoc", new RegExp(`<ins>${EDITED}</ins>`));
+  await expect(line).not.toHaveAttribute("contenteditable", "true");
+  const edit = card.getByRole("button", { name: /^Edit wording/ });
+  await expect(edit).toBeFocused(); // focus returns to the control that started it
+  await expect(card.getByRole("button", { name: /^Use for this job/ })).toBeEnabled();
+
+  // E starts it again; with the focus off the line, E ends it — unchanged, so nothing is sent.
+  await page.keyboard.press("e");
+  await expect(line).toHaveAttribute("contenteditable", "true");
+  await card.getByRole("heading").click();
+  await page.keyboard.press("e");
+  await expect(line).not.toHaveAttribute("contenteditable", "true");
+  await expect(card.getByRole("button", { name: /^Edit wording/ })).toBeVisible();
+  expect(posts.wordings).toHaveLength(1);
+  expect(posts.answers).toEqual([]); // editing answers nothing
+});
+
+test("#420 phone (390px): the edit happens on the card's own line, not on the draft; Done editing ends it", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const posts = await openTailor(page, { stretch: RAN });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  await card.getByRole("button", { name: "Edit wording" }).click();
+  const line = card.locator(".clip ins");
+  await expect(line).toHaveAttribute("contenteditable", "true");
+  await expect(line).toBeFocused();
+  await expect(page.frameLocator(".draft-frame").locator("ins")).not.toHaveAttribute("contenteditable", "true");
+  await expect(card.getByText(RE)).toBeVisible();
+
+  await line.fill(EDITED);
+  await card.getByRole("button", { name: "Done editing" }).click();
+  await expect.poll(() => posts.wordings).toEqual([{ id: S1.id, text: EDITED }]);
+  await expect(card.locator(".clip ins")).toHaveText(EDITED);
+  await expect(card.locator(".clip ins")).not.toHaveAttribute("contenteditable", "true");
+  await expect(card.getByText(`Rewritten for: ${EDITED}`)).toBeVisible();
+
+  // Esc ends it on the card too.
+  await card.getByRole("button", { name: "Edit wording" }).click();
+  await expect(card.locator(".clip ins")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(card.locator(".clip ins")).not.toHaveAttribute("contenteditable", "true");
+  await expect(card).toBeVisible(); // Esc ended the edit, it did not close the card
+  expect(posts.wordings).toHaveLength(1);
+});
+
+test("#420 an emptied edit keeps the suggestion's wording and says so", async ({ page }) => {
+  const posts = await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  const line = page.frameLocator(".draft-frame").locator("ins");
+  await card.getByRole("button", { name: /^Edit wording/ }).click();
+  await expect(line).toBeFocused();
+  await line.fill("");
+  await line.press("Escape");
+
+  await expect(card.getByRole("status").filter({ hasText: "kept the suggested wording" })).toBeVisible();
+  await expect(line).toHaveText(S1.claimText); // the page shows the suggestion's own line again
+  await expect(card.getByText(S1.interviewNarrative)).toBeVisible(); // with its own interview line
+  expect(posts.wordings).toEqual([]); // nothing sent, nothing spent
+  // The note goes once the person moves on.
+  await page.keyboard.press("j");
+  await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
+  await expect(page.getByText("kept the suggested wording")).toHaveCount(0);
 });

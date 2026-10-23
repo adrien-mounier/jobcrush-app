@@ -565,6 +565,15 @@ export function answerStretch(id: string, answer: StretchAnswer): Promise<{ stre
   });
 }
 
+/** #420: the person's own wording for a pending suggestion's line in. The server rewrites what to say
+ *  if asked for it and stores the two together; returns the suggestions as the next read shows them. */
+export function editStretchWording(id: string, text: string): Promise<{ stretch: StretchView }> {
+  return jfetch(`/api/onboarding/tailor/suggestions/${encodeURIComponent(id)}/wording`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
 /** Starts (or joins) the draft build for the job being tailored. `ready` ⇒ the stored draft already
  *  matches the current facts and reading it costs nothing; otherwise the job to watch over the same
  *  `/api/jobs/:id/events` stream the paste door uses. */
