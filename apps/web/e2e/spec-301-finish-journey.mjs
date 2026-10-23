@@ -135,9 +135,8 @@ async function oneNumber(pasteJobId, adId, label) {
     Number.isFinite(job.pct) && job.pct === tailor.pct && job.pct === pasteResult && job.pct === tailorApi && (deck === undefined || deck === job.pct),
     `${label} #397 — one job, one percentage on every screen that names it (${job.pct}%)`,
   );
-  // #415: the tailor screen carries no Match breakdown pill until #411 puts it under the title —
-  // the band word is checked on the job screen alone until then.
-  await must(job.band !== '', `${label} #397 — the job screen carries its band word ("${job.band}"); the tailor screen's pill is #411's`);
+  // #411: the tailor screen's Match breakdown sits under its header, so its pill is read there too.
+  await must(job.band !== '' && job.band === tailor.band, `${label} #397 — one band word on both screens ("${job.band}" / "${tailor.band}")`);
   const live = ((await page.locator('.tailor [aria-live="polite"]').first().textContent().catch(() => '')) ?? '').trim();
   await qa.note(`${label} — the tailor's screen-reader announcement: "${live}"`);
   await must(live.length > 0 && !/\.\s*\.|“”|""|^\s*\./.test(live), `${label} #397 — the announcement has no empty slot ("${live}")`);

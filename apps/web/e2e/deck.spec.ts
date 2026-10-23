@@ -670,3 +670,19 @@ test("#407 an empty first half drops out of the bubble — only the gap is said"
   await openStubbedDeck(page, [{ ...CARD_BASE, bubble: { hit: "", open: "The gap is SAP." } }]);
   await expect(page.locator(".bubble")).toHaveText("The gap is SAP.");
 });
+
+// #411 moved the breakdown up on the Tailor screen ONLY — the deck card keeps #306's order: the
+// folded ad before what the machine says about the person, the breakdown last.
+test("#411 the deck card keeps its order: 'Read the ad in full' above the lists, the Match breakdown last", async ({
+  page,
+}) => {
+  await openStubbedDeck(page, [CARD_BASE]);
+  const order = await page.evaluate(() => {
+    const ad = document.querySelector(".jobcard details.ad")!;
+    const fit = document.querySelector(".jobcard .flat")!;
+    const bd = document.querySelector(".jobcard .breakdown")!;
+    const after = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return { adBeforeLists: after(ad, fit), listsBeforeBreakdown: after(fit, bd), breakdownLast: bd.nextElementSibling === null };
+  });
+  expect(order).toEqual({ adBeforeLists: true, listsBeforeBreakdown: true, breakdownLast: true });
+});

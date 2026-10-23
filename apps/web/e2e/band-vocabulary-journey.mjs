@@ -280,6 +280,9 @@ if ((await page.locator('.tailor .ask .q').count()) > 0) {
 await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await qa.expectVisible('.draft-frame', 'TAILOR: the draft is the page');
 await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'TAILOR: the score');
+// #411: the Match breakdown is the first block under the header, in the same words as the deck.
+await qa.expectText('.tailor .breakdown', 'Essential met', "AC5: Tailor's breakdown says \"Essential met\", same as the deck");
+await qa.expectText('.tailor .breakdown', 'Desirable met', "AC5: Tailor's breakdown says \"Desirable met\", same as the deck");
 await readThrough('.tailor .dgrid', 'read the draft and the rail beside it');
 
 // -------------------------------------------------------------------------------------------
@@ -327,6 +330,7 @@ await assert(
 await qa.goto('/tailor', 'reload Tailor — the migrated state must survive a fresh read');
 await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await qa.expectVisible('.draft-frame', 'TAILOR: the draft re-rendered after a reload');
+await qa.expectText('.tailor .breakdown', 'Essential met', 'AC5: still "Essential met" after a reload');
 await qa.scrollThrough('final read-through of the reloaded screen');
 const reloadLeaks = leakedBandLabels(await visibleText());
 await assert(reloadLeaks.length === 0, `no band token after a reload either (${JSON.stringify(reloadLeaks)})`);

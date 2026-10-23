@@ -644,3 +644,45 @@ test("#314 over two pages: the press narrates the shortening, then 'sent' says p
   // The draft's lint notice stays said once, in its own place.
   await expect(page.getByText("Your languages could not be placed on this draft.", { exact: false })).toHaveCount(1);
 });
+
+// ---------------------------------------------------------------------------------------------
+// #411 — the Match breakdown is the first block under the Tailor screen's header, and it still
+// follows the live score. (The deck card and the job's own screen keep their order: deck.spec.ts.)
+// ---------------------------------------------------------------------------------------------
+
+/** DOM order, as a reader meets the blocks: true when `a` comes before `b` in the document. */
+function precedes(page: Page, a: string, b: string) {
+  return page.evaluate(
+    ([a, b]) => {
+      const x = document.querySelector(a);
+      const y = document.querySelector(b);
+      return !!x && !!y && Boolean(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);
+    },
+    [a, b] as const,
+  );
+}
+
+test("#411 the Match breakdown sits under the header, above the draft, and moves with the live score", async ({
+  page,
+}) => {
+  await openTailor(page, { ...STATE_DRAFT, questions: [LANGUAGE_Q] });
+  await stubProfileAnswer(page, {
+    changed: LANGUAGE_KEPT_LOW,
+    state: { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, matchPct: 49 } },
+  });
+  await page.getByRole("button", { name: "I don't speak this one" }).click();
+  await expect(page.locator(".draft-frame")).toBeVisible();
+
+  const breakdown = page.getByRole("region", { name: "Match breakdown" });
+  await expect(breakdown).toBeVisible();
+  // The four facts, from the card — and the band word from the number the screen now shows (49).
+  await expect(breakdown.locator("dd")).toHaveText(["0/2", "0/1", "0/1", "Weak"]);
+  await expect(page.getByRole("img", { name: "49% match" })).toBeVisible();
+
+  // Order: the header (title, company, score) first, the breakdown next, the draft after it.
+  expect(await precedes(page, ".tailor .dbar h1", ".tailor .breakdown")).toBe(true);
+  expect(await precedes(page, ".tailor .dbar .score", ".tailor .breakdown")).toBe(true);
+  expect(await precedes(page, ".tailor .breakdown", ".tailor .draft-frame")).toBe(true);
+  // Nothing else stands between the header and the breakdown.
+  await expect(page.locator(".tailor .dbar + .dgrid > :first-child > :first-child")).toHaveClass(/breakdown/);
+});
