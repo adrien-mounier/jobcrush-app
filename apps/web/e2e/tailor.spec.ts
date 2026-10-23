@@ -249,7 +249,9 @@ test("#415 'Where you fit' opens as a side sheet on a computer, every requiremen
   await expect(sheet).toBeVisible();
   await expect(sheet.locator(".marks li .t")).toHaveText(["Own a €2M budget", "Their SAP version", "Public-sector delivery"]);
   await expect(sheet.locator(".marks li .s")).toHaveText(["met", "not on your CV", "not on your CV"]);
-  // A side sheet: docked to the right edge, the full height of the screen.
+  // A side sheet: docked to the right edge, the full height of the screen (measured once its
+  // rise has finished, not mid-flight).
+  await sheet.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
   const box = (await sheet.boundingBox())!;
   const viewport = page.viewportSize()!;
   expect(box.x).toBeGreaterThan(viewport.width / 2);
@@ -276,6 +278,7 @@ test("#415 on a phone the draft comes first and 'Where you fit' is a pull-up", a
   const sheet = page.getByRole("dialog", { name: /Where you fit/ });
   await expect(sheet).toBeVisible();
   await expect(sheet.locator(".marks li .t")).toHaveText(["Own a €2M budget", "Their SAP version", "Public-sector delivery"]);
+  await sheet.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished))); // measure after the rise
   const box = (await sheet.boundingBox())!;
   expect(Math.round(box.width)).toBe(390);
   expect(Math.abs(box.y + box.height - 844)).toBeLessThanOrEqual(1); // docked to the bottom edge (a 1px border)
