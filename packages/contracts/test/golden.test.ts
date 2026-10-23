@@ -429,6 +429,43 @@ describe("Ad requirements v1 (#102)", () => {
 
     expect(AdRequirementsV1.parse(valid).requirements[2]!.yearsFamilies).toBeUndefined();
   });
+
+  // #416 (ADR-0020 clause 5) — a degree bar names its LEVEL and whether it names a field of study,
+  // so the record can decide the level (a Master's meets a bachelor's) and the scorer judges only
+  // the field. Same contract version as #413's yearsFamilies: one bump, both fields.
+  it("a degree bar may name its level and whether it names a field of study", () => {
+    const value = structuredClone(valid);
+    value.requirements[0].eligibilityDimension = "degree";
+    value.requirements[0].degreeLevel = "bachelor";
+    value.requirements[0].degreeFieldNamed = true;
+    expect(validateAdRequirementsV1(value).ok).toBe(true);
+    const parsed = AdRequirementsV1.parse(value).requirements[0]!;
+    expect(parsed.degreeLevel).toBe("bachelor");
+    expect(parsed.degreeFieldNamed).toBe(true);
+
+    for (const level of ["master", "doctorate"]) {
+      const other = structuredClone(value);
+      other.requirements[0].degreeLevel = level;
+      expect(validateAdRequirementsV1(other).ok).toBe(true);
+      expect(AdRequirementsV1.safeParse(other).success).toBe(true);
+    }
+
+    // Malformed: a level outside the ladder (a grade, free text), and a flag that is not a boolean.
+    const mutations: Array<(v: any) => void> = [
+      (v) => (v.requirements[0].degreeLevel = "MSc"),
+      (v) => (v.requirements[0].degreeLevel = ""),
+      (v) => (v.requirements[0].degreeFieldNamed = "yes"),
+    ];
+    for (const mutate of mutations) {
+      const bad = structuredClone(value);
+      mutate(bad);
+      expect(validateAdRequirementsV1(bad).ok).toBe(false);
+      expect(AdRequirementsV1.safeParse(bad).success).toBe(false);
+    }
+
+    expect(AdRequirementsV1.parse(valid).requirements[0]!.degreeLevel).toBeUndefined();
+    expect(AdRequirementsV1.parse(valid).requirements[0]!.degreeFieldNamed).toBeUndefined();
+  });
 });
 
 describe("CandidateClaims v1", () => {
