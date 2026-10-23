@@ -22,8 +22,8 @@ const isStated = (s: StretchProposalV2 | undefined): s is StretchProposalV2 =>
 const suggestion = (checkpoint: StretchCheckpoint | undefined, id: string) =>
   checkpoint?.status === "ran" ? checkpoint.suggestions.find((s) => s.id === id) : undefined;
 
-/** The role the job at draft role `r` has on the master CV: a line the draft cites under it (the
- *  employer and title as the CV wrote them), else a line whose role names its employer (the join
+/** The role one draft job has on the master CV: a line the draft cites under it (the employer and
+ *  title as the CV wrote them), else a line whose role names its employer (the join
  *  draftDisclosure makes), else the draft's own employer and title. */
 function jobRole(role: Draft["experience"][number], confirmed: ClaimRecord[]): string {
   const cited = new Set([...role.bullets.flatMap((b) => b.claimIds), ...role.unprinted]);
@@ -102,9 +102,9 @@ export async function saveAnswer(
  * "It's true" line prints the way a used line does — at its slot, in place of the line out
  * (applyUsedStretches) — so the line is left out of this job's draft input for as long as the stored
  * draft is the one written without it. Otherwise the new fact would change this draft's
- * fingerprint, the draft would be written again, and the line could print twice. Only when leaving
- * those lines out reproduces the stored draft's input exactly; any other change writes the draft
- * from every fact, the new lines among them. Every other job's draft reads them like any fact.
+ * fingerprint, the draft would be written again, and the line could print twice. The lines are left
+ * out only while that reproduces the stored draft's input exactly: any other change writes the
+ * draft from every fact, the new lines among them. Every other job's draft reads them like any fact.
  */
 export function draftFacts<T extends { fingerprint: string }>(
   confirmed: ClaimRecord[],

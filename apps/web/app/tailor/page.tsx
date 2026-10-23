@@ -816,7 +816,7 @@ export default function TailorPage() {
       {toast && (
         <div className="toast" role="status">
           <span>{toast.text}</span>
-          <button type="button" className="link" onClick={() => void undoStretch(toast.id)}>
+          <button type="button" className="link" disabled={stretchAnswering} onClick={() => void undoStretch(toast.id)}>
             {T32}
           </button>
         </div>
