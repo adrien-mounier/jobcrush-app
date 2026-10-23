@@ -189,23 +189,6 @@
   color: var(--hud-ink);
 }
 
-/* #311: the "Changed? Add it" door on a named denial's row — a quiet way back in, styled like the
-   skip (an underlined text control, visibly not a fact of the card). */
-.tailor .row .grow-door {
-  appearance: none;
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--hud-mute);
-  font: inherit;
-  font-size: 12.5px;
-  text-decoration: underline;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
 /* #308: the skip ("Not sure yet" / "Not now") — visibly not one of the answers. */
 .tailor .ask .skip {
   appearance: none;
@@ -317,10 +300,6 @@
 }
 .tailor .exits button:hover {
   color: var(--hud-ink);
-}
-.tailor .exits .done-cta {
-  color: var(--gold);
-  font-weight: 620;
 }
 .tailor .exits .spacer {
   flex: 1;
@@ -437,26 +416,6 @@
   line-height: 1.5;
 }
 
-/* ---------- the ending ---------- */
-.tailor .finish {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  animation: tl-rise 560ms cubic-bezier(0.2, 1, 0.3, 1);
-}
-.tailor .finish .head {
-  font-size: 15.5px;
-  font-weight: 600;
-  margin: 0 0 2px;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-.tailor .finish .note {
-  font-size: 12.5px;
-  color: var(--hud-mute);
-  margin: 0 0 6px;
-  line-height: 1.45;
-}
 .tailor .btn-primary {
   width: 100%;
   appearance: none;
@@ -586,8 +545,8 @@
     padding: 14px 22px calc(16px + env(safe-area-inset-bottom));
   }
 
-  /* Promote the Done CTA to a full-width gold call-to-action at the bottom of the left column;
-     the Drop control stays as a quiet text link beneath it. Mobile exits row is unchanged. */
+  /* The exits stack in the left column; the Drop control is a quiet text link. Mobile exits row
+     is unchanged. */
   .tailor .exits {
     flex-direction: column;
     align-items: stretch;
@@ -596,25 +555,225 @@
   .tailor .exits .spacer {
     display: none;
   }
-  .tailor .exits .done-cta {
-    width: 100%;
-    min-height: auto;
-    padding: 16px;
-    border-radius: 12px;
-    background: var(--gold);
-    color: #1a1206;
-    font-weight: 660;
-    font-size: 15.5px;
-    justify-content: center;
-    box-shadow: 0 12px 28px -10px rgba(232, 163, 61, 0.5);
-    transition: transform 90ms ease;
-  }
-  .tailor .exits .done-cta:active {
-    transform: scale(0.985);
-  }
-  .tailor .exits button:not(.done-cta) {
+  .tailor .exits button:not(.btn-ghost) {
     align-self: flex-start;
     min-height: auto;
     padding: 4px 0;
+  }
+}
+
+/* ---------- #415: the question screen's right column before the draft exists ---------- */
+.tailor .cv-wait {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--hud-mute);
+}
+
+/* ---------- #415 (ADR-0020): the draft is the page, with a side rail ----------
+   From the approved prototype (prototype/stretch-suggestions-408, layout B on a computer): a
+   sticky bar with the job, the number and the "Where you fit" door; under it the paper column
+   and a 380px rail. Under 960px the two stack, the draft first (layout C's order), and the
+   sheet becomes a pull-up. The screen root is `fixed inset:0` with its own scroller (deck.css),
+   so `.dgrid` is the thing that scrolls. */
+.tailor .dbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 10px 16px 12px;
+  background: var(--hud-1);
+  border-bottom: 1px solid var(--hud-line);
+}
+.tailor .dbar .title {
+  flex: 1;
+  min-width: 0;
+}
+.tailor .dbar h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.tailor .dbar .co {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--hud-mute);
+}
+.tailor .dbar .score.lg {
+  flex: 0 0 auto;
+}
+.tailor .link {
+  appearance: none;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--hud-mute);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tailor .link:hover {
+  color: var(--hud-ink);
+}
+.tailor .dgrid {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+}
+.tailor .paper-col {
+  min-width: 0;
+}
+.tailor .rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.tailor .rail .ledger {
+  text-align: left;
+  margin: 0;
+}
+.tailor .rail .notice {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--hud-mute);
+}
+.tailor .gaps {
+  padding: 16px 18px;
+  border: 1px solid var(--hud-line);
+  border-radius: 16px;
+  background: var(--hud-1);
+}
+.tailor .gaps .h,
+.tailor .sheet h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+}
+.tailor .gaplist {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tailor .gaplist li {
+  margin: 0 0 4px;
+}
+.tailor .small {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--hud-mute);
+}
+.tailor .rail .exits {
+  margin-top: 0;
+}
+
+/* The sheet: a side sheet on a computer, a pull-up on a phone; the scrim closes it. */
+.tailor .scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(5, 7, 10, 0.55);
+}
+.tailor .sheet {
+  position: absolute;
+  z-index: 61;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--hud-1);
+  border-left: 1px solid var(--hud-line);
+  border-radius: 16px 0 0 16px;
+  animation: tl-rise 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tailor .sheet > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hud-line);
+}
+.tailor .sheet > header h2 {
+  margin: 0;
+}
+.tailor .marks {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 6px 18px 24px;
+}
+.tailor .marks li {
+  display: flex;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hud-line);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.tailor .marks li:last-child {
+  border-bottom: 0;
+}
+.tailor .marks .m {
+  flex: none;
+  width: 16px;
+  text-align: center;
+  color: var(--weak);
+}
+.tailor .marks li[data-state="met"] .m {
+  color: var(--gold);
+}
+.tailor .marks .t {
+  flex: 1;
+}
+.tailor .marks .s {
+  flex: none;
+  font-size: 12px;
+  color: var(--hud-mute);
+  white-space: nowrap;
+}
+
+@media (min-width: 960px) {
+  .tailor .dbar {
+    padding: 12px 28px;
+  }
+  .tailor .dgrid {
+    grid-template-columns: minmax(0, 720px) 380px;
+    justify-content: center;
+    gap: 36px;
+    padding: 24px 28px 80px;
+    align-items: start;
+  }
+  .tailor .rail {
+    position: sticky;
+    top: 0;
+  }
+}
+@media (max-width: 959px) {
+  .tailor .sheet {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 92%;
+    border-left: 0;
+    border-top: 1px solid var(--hud-line);
+    border-radius: 18px 18px 0 0;
   }
 }

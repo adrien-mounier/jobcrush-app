@@ -1,33 +1,31 @@
 "use client";
 
-// #23 Tailor (screen 3): re-score, the live card, and the exits. Reached from /deck's "I want this
-// one" -> tailorHandoff bridge. Renders the SAME card anatomy as /deck (jobcard.tsx's CardBody) over
-// a read-only CV paper (discovery's rendering convention) and a question dock (discovery's opts/
-// field convention) — this file wires the two together against the pinned TailorState contract.
-//
-// Every value on the card — matchPct, the bubble's two clauses, the fit/dontYet/askedClosed lists,
-// the ledger text — is server-composed. This screen never re-derives any of it: it tweens the
-// *display* of matchPct between two server-given numbers, keys rows so React remounts them when they
-// move lists (the ?->check flip), and renders ledger[].text verbatim.
+// #23 Tailor (screen 3), reshaped by #415 (ADR-0020 clauses 1, 2, 6). Reached from /deck's "I want
+// this one" -> tailorHandoff bridge. Two screens, decided by the server's queue:
+//   - a profile question is open (work rights, a language): the SAME card anatomy as /deck
+//     (jobcard.tsx's CardBody) over the question dock — answered once ever, then never again;
+//   - nothing is open: the draft is the page (TailorDraft), with a side rail beside it. The rail
+//     holds the after-line of the answer that led here, the "Also asked, not on your CV" list (no
+//     button until the CV chat ships, #350) and the exits; #417 drops its stretch suggestion cards
+//     into it (see the marked slot). "Where you fit" is a sheet: side on a computer, pull-up on a
+//     phone, every requirement in the job's own order.
+// Every value — matchPct, the requirements list and their verdicts, the after-line — is
+// server-composed. This screen never re-derives any of it.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../tailor.css";
-import { FactBadge, type FactChipFlight } from "../factbadge";
-import { CardBody, useReducedMotion } from "../jobcard";
+import { FactBadge } from "../factbadge";
+import { CardBody, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
 import {
-  answerTailor,
   answerTailorProfile,
   dropTailor,
   ensureSession,
   getTailor,
-  type CvSection,
-  type DiscoveryCvLine,
-  type GrowDoor,
-  type JobCard,
   type TailorQuestion,
+  type TailorRequirement,
   type TailorState,
 } from "../../lib/api";
 
@@ -46,30 +44,30 @@ const T3 = "Try again";
 const T4 = "Answer and this card moves";
 const T6 = "your CV for this job";
 const T7 = "Couldn't save that — try again.";
-const T8 = "I'm done — use this CV";
 const T9 = "Drop this job";
 const T10 = "Everything you told me stays on your profile.";
 const T11 = "Drop it";
 const T12 = "Keep it";
-const T13 = "This CV is as strong as I can make it for this job.";
 const T16 = "Save it and come back later";
 const T19 = "Saved";
 const T21 = "Back to the deck";
 const T22 = "Saved to your profile"; // #307: the gone screen's heading — the answer is kept; the job is not
-const T23 = "No change"; // #311: closes an open door without saving anything — his "No" stands
 const DROP_FAILED = "Couldn't drop this job — try again.";
+// #415: the draft screen's own voice (the approved prototype's words).
+const T24 = "your CV is written only from what is true about you";
+const T25 = "Answer this and your CV is written, from what is true about you.";
+const T26 = "Where you fit";
+const T27 = "Also asked, not on your CV";
+const T28 = "Your report gives you a sentence to say about this.";
+const T29 = "Close";
+const STATE_LABEL: Record<TailorRequirement["state"], string> = {
+  met: "met",
+  gap: "not on your CV",
+  untested: "not tested",
+};
 
 const SCORE_TWEEN_MS = 680;
 const SCORE_BUMP_MS = 470;
-const ROW_SETTLE_MS = 640;
-const HANDOFF_SCROLL_BOTTOM_PAD = 34;
-
-const SECTIONS: { key: CvSection; label: string }[] = [
-  { key: "summary", label: "Summary" },
-  { key: "experience", label: "Experience" },
-  { key: "skills", label: "Skills" },
-  { key: "education", label: "Education" },
-];
 
 // #309: the score may fall, and the fall is shown with its cause. When the new server number sits
 // below the last server number, the answer's own server-composed line is prefixed with the size of
@@ -78,13 +76,7 @@ function withFall(prevPct: number, nextPct: number, cause: string): string {
   return nextPct < prevPct ? `Down ${prevPct - nextPct}% — ${cause}` : cause;
 }
 
-function closedGapsLine(cg: { closed: number; asked: number }): string {
-  if (cg.closed === 0) return "Everything you told me is in there.";
-  if (cg.asked === 1) return "You closed the one gap this job asked about.";
-  return `You closed ${cg.closed} of the ${cg.asked} gaps this job asked about.`;
-}
-
-// #397: a job with no title (or a ledger with no line yet) leaves no empty slot behind — never
+// #397: a job with no title (or no after-line yet) leaves no empty slot behind — never
 // "“” is waiting" or "79% match. ." in the announcer.
 function savedLine(title: string, matchPct: number): string {
   const what = title ? `“${title}” is` : "This job is";
@@ -95,59 +87,6 @@ function sentences(...parts: Array<string | undefined | null>): string {
   return parts.filter((p) => p).map((p) => `${p}.`).join(" ");
 }
 
-// Ported from discovery/page.tsx's own keepInView, with an explicit topPad (here: the sticky card
-// head's own height + 14, so scrolling never tucks the changed row behind it) instead of a fixed one.
-function keepInView(wrap: HTMLElement, el: HTMLElement, topPad: number, reduced: boolean) {
-  const b = wrap.getBoundingClientRect();
-  const e = el.getBoundingClientRect();
-  let d = 0;
-  if (e.bottom > b.bottom - HANDOFF_SCROLL_BOTTOM_PAD) d = e.bottom - (b.bottom - HANDOFF_SCROLL_BOTTOM_PAD);
-  else if (e.top < b.top + topPad) d = e.top - (b.top + topPad);
-  if (Math.abs(d) > 1) wrap.scrollBy({ top: d, behavior: reduced ? "auto" : "smooth" });
-}
-
-// The row that just changed, found by diffing card.fit/card.askedClosed against the previous card.
-// A "yes" lands a new fit entry (#407: keyed by the requirement it now covers); a "no" lands a new
-// askedClosed entry, keyed by its claim id (tailor-<slug(adId)>-<reqId>) — so the diff, not the
-// answered requirementId, is what finds the `[data-req]` row in either list. No new entry in either
-// ⇒ nothing to scroll to (shouldn't happen, but scroll/flash are both no-ops on null).
-function resolveLandedId(prevCard: JobCard, nextCard: JobCard): string | null {
-  const prevFit = new Set(prevCard.fit.map((f) => f.id));
-  const newFit = nextCard.fit.find((f) => !prevFit.has(f.id));
-  if (newFit) return newFit.id;
-  const prevClosed = new Set(prevCard.askedClosed.map((f) => f.id));
-  const newClosed = nextCard.askedClosed.find((f) => !prevClosed.has(f.id));
-  return newClosed?.id ?? null;
-}
-
-function renderCv(cvLines: DiscoveryCvLine[]) {
-  const role = cvLines.find((l) => l.itemId === "role");
-  return (
-    <div className="cv">
-      <p className="cv-role">{role?.text ?? ""}</p>
-      {SECTIONS.map((s) => {
-        const lines = cvLines.filter((l) => l.itemId !== "role" && l.section === s.key);
-        return (
-          <section key={s.key} aria-labelledby={`tailor-cvsec-${s.key}`}>
-            <h2 id={`tailor-cvsec-${s.key}`} className="cv-sec">
-              {s.label}
-            </h2>
-            {lines.length === 0 ? (
-              <div className="cv-gap" />
-            ) : (
-              lines.map((l) => (
-                <p key={l.itemId} className="cv-line done">
-                  {l.text}
-                </p>
-              ))
-            )}
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function TailorPage() {
   const router = useRouter();
   const reducedMotion = useReducedMotion();
@@ -156,15 +95,11 @@ export default function TailorPage() {
   const [tailor, setTailor] = useState<TailorState | null>(null);
   const [displayPct, setDisplayPct] = useState(0);
   const [scoreBumped, setScoreBumped] = useState(false);
-  const [landedId, setLandedId] = useState<string | null>(null);
-  const [ledgerView, setLedgerView] = useState<{ key: string; text: string; gold: boolean; fell?: boolean } | null>(null);
-  const [finishedEarly, setFinishedEarly] = useState(false);
+  // #307: the after-line of a permanent answer — the one line saying what the answer did. Shown
+  // under the next question, or beside the draft when that answer was the last thing asked.
+  const [ledgerView, setLedgerView] = useState<{ key: string; text: string; fell?: boolean } | null>(null);
   const [answering, setAnswering] = useState<{ requirementId: string; answer: string } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
-  // #311: the open "Changed? Add it" door — the denial row turned back into a question. Renders in
-  // the same question dock and posts through answerTailor (the existing answer path); the server
-  // keeps the old "No" and lands a new fact dated by the tapped choice.
-  const [doorAsk, setDoorAsk] = useState<GrowDoor | null>(null);
   // #307: the after-line of a permanent answer that took the tailored job itself off the deck.
   const [goneNote, setGoneNote] = useState<string | null>(null);
   // #309 AC3: why THIS job went — the withdrawal's named reason, above the after-line.
@@ -173,38 +108,34 @@ export default function TailorPage() {
   const [dropBusy, setDropBusy] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
   const [returnDropFocus, setReturnDropFocus] = useState(false);
+  // #415: the "Where you fit" sheet — open/closed, and whether focus must go back to its trigger.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [returnSheetFocus, setReturnSheetFocus] = useState(false);
   const [liveMessage, setLiveMessage] = useState("");
   // #17 the profile badge: same seam as discovery — the parent owns the data, FactBadge owns motion.
+  // No chip flies on this screen any more (#415): a profile answer never moves the count.
   const [badgeCount, setBadgeCount] = useState(0);
-  const [fly, setFly] = useState<FactChipFlight | null>(null);
-  // The answered control's rect, captured on the root's capture-phase click (M2: a ref, not a
-  // DOMRect threaded through answerQuestion — discovery/page.tsx's own fix, same reasoning).
-  const flyFromRef = useRef<DOMRect | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const cardHeadingRef = useRef<HTMLHeadingElement>(null);
-  const endingHeadingRef = useRef<HTMLHeadingElement>(null);
+  // One heading per screen: the card's h2 on the question screen, the job's h1 beside the draft.
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
   const goneHeadingRef = useRef<HTMLHeadingElement>(null); // #307
 
-  const liveWrapRef = useRef<HTMLDivElement>(null);
-  // #51: on desktop .live-wrap is display:contents (no scroll box); the live-card itself scrolls.
-  // Used as the keepInView scroll container when live-wrap has no box.
-  const liveCardRef = useRef<HTMLDivElement>(null);
   const firstControlRef = useRef<HTMLElement | null>(null);
   const setFirstControl = (el: HTMLElement | null) => {
     firstControlRef.current = el;
   };
   const dropTriggerRef = useRef<HTMLButtonElement>(null);
   const dropItRef = useRef<HTMLButtonElement>(null);
+  const sheetTriggerRef = useRef<HTMLButtonElement>(null);
+  const sheetCloseRef = useRef<HTMLButtonElement>(null);
 
   const enteredRef = useRef(false);
   const askKeyInitRef = useRef(false);
   const prevAskKeyRef = useRef<string | null>(null);
-  const pendingScrollRef = useRef<string | null>(null);
   const rafRef = useRef<number | null>(null);
   const bumpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const landedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     setScreen("loading");
@@ -246,25 +177,26 @@ export default function TailorPage() {
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
-      if (landedTimerRef.current) clearTimeout(landedTimerRef.current);
     };
   }, []);
 
-  // Entry (§7.2): focus the card heading once, ever, on the first successful load. Announce once —
-  // every later announce (a new question, the ending) is the askKey effect below.
+  // Entry (§7.2): focus the screen's heading once, ever, on the first successful load. Announce
+  // once — every later announce (a new question, the draft) is the askKey effect below.
   useEffect(() => {
     if (screen !== "flow" || !tailor || enteredRef.current) return;
     enteredRef.current = true;
-    cardHeadingRef.current?.focus();
+    headingRef.current?.focus();
     setLiveMessage(sentences(tailor.card.title && `Tailoring ${tailor.card.title}`, `${tailor.card.matchPct}% match`));
   }, [screen, tailor]);
 
-  const showEnding = !!tailor && (tailor.done || tailor.questions.length === 0 || finishedEarly);
-  const askKey = !tailor ? null : showEnding ? "ending" : (tailor.questions[0]?.requirementId ?? null);
+  // #415: the queue is the profile questions alone — empty means the draft is the page.
+  const showDraft = !!tailor && tailor.questions.length === 0;
+  const askKey = !tailor ? null : showDraft ? "draft" : (tailor.questions[0]?.requirementId ?? null);
 
   // §7.3/§7.9: after each answer, focus the next question's first option and announce once
-  // (discovery's firstControlRef + askKey precedent); on reaching the ending, focus its own heading
-  // and announce the closed-gaps note instead (a different string from the heading — no true double).
+  // (discovery's firstControlRef + askKey precedent); on reaching the draft, focus its heading and
+  // announce the number with the answer's own after-line (a different string from the heading — no
+  // true double).
   useEffect(() => {
     if (!askKey || !tailor) return;
     if (!askKeyInitRef.current) {
@@ -274,14 +206,10 @@ export default function TailorPage() {
     }
     if (askKey === prevAskKeyRef.current) return;
     prevAskKeyRef.current = askKey;
-    if (askKey === "ending") {
-      endingHeadingRef.current?.focus();
-      setLiveMessage(closedGapsLine(tailor.closedGaps));
-    } else {
-      firstControlRef.current?.focus();
-      setLiveMessage(sentences(`${tailor.card.matchPct}% match`, tailor.ledger.at(-1)?.text));
-    }
-  }, [askKey, tailor]);
+    if (askKey === "draft") headingRef.current?.focus();
+    else firstControlRef.current?.focus();
+    setLiveMessage(sentences(`${tailor.card.matchPct}% match`, ledgerView?.text));
+  }, [askKey, tailor, ledgerView]);
 
   // F3: the one transition that unmounts the whole flow — nothing else moves focus off it, so it
   // silently drops to <body> without this. Mirrors the entry/askKey effects above: focus the heading,
@@ -302,35 +230,6 @@ export default function TailorPage() {
     goneHeadingRef.current?.focus();
     setLiveMessage(goneReason ? `${goneReason} ${goneNote}` : goneNote);
   }, [screen, goneNote, goneReason]);
-
-  // #311: an opened door is a new question in the dock — focus its first option and announce it,
-  // the same convention as the askKey effect above (which cannot see it: doors are not queue state).
-  useEffect(() => {
-    if (!doorAsk) return;
-    firstControlRef.current?.focus();
-    setLiveMessage(doorAsk.question);
-  }, [doorAsk]);
-
-  // Scrolls the row that just changed into view, then flashes it — never the other way round (the
-  // prototype's rule). Runs after `tailor` actually re-renders with the row in its new list, so the
-  // `[data-req]` lookup below always finds the element in its post-answer position.
-  useEffect(() => {
-    const id = pendingScrollRef.current;
-    if (!id || !tailor) return;
-    pendingScrollRef.current = null;
-    const wrap = liveWrapRef.current;
-    // #51: on desktop live-wrap is display:contents (zero-sized rect) — scroll the live-card
-    // instead, which is the left column's scroll box there. On mobile live-wrap has a real box
-    // and remains the scroller (card + CV share it).
-    const scrollBox =
-      wrap && wrap.getBoundingClientRect().width > 0 ? wrap : liveCardRef.current;
-    const row = liveCardRef.current?.querySelector<HTMLElement>(`[data-req="${id}"]`) ?? null;
-    const head = liveCardRef.current?.querySelector<HTMLElement>(".hd") ?? null;
-    if (scrollBox && row) keepInView(scrollBox, row, (head?.offsetHeight ?? 0) + 14, reducedMotion);
-    setLandedId(id);
-    if (landedTimerRef.current) clearTimeout(landedTimerRef.current);
-    landedTimerRef.current = setTimeout(() => setLandedId(null), ROW_SETTLE_MS);
-  }, [tailor, reducedMotion]);
 
   // useCallback (not a plain function) so it can be named, honestly, in the Escape effect's deps
   // below (discovery's cancelCorrection precedent, discovery/page.tsx:338-345) — this repo has no
@@ -361,10 +260,33 @@ export default function TailorPage() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [dropConfirming, closeDropConfirm]);
 
+  // #415: the sheet is a dialog — focus moves in (Close), Escape closes, focus returns to the
+  // trigger. Same shape as the drop confirm above.
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false);
+    setReturnSheetFocus(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sheetOpen) return;
+    sheetCloseRef.current?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeSheet();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [sheetOpen, closeSheet]);
+
+  useEffect(() => {
+    if (!returnSheetFocus) return;
+    sheetTriggerRef.current?.focus();
+    setReturnSheetFocus(false);
+  }, [returnSheetFocus]);
+
   // Tweens the ring + number from `from` to `to` (proto's rAF easing, job-card.prototype.html:387-402);
   // reduced motion (or a no-op change) snaps straight to the final value. #309: the score may FALL —
   // the old defensive Math.max(from, to) floor is gone with the server's own; an honest correction
-  // tweens the number down, and the ledger line beside it names the answer that did it.
+  // tweens the number down, and the after-line beside it names the answer that did it.
   function tweenScore(from: number, to: number) {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     setScoreBumped(true);
@@ -385,7 +307,7 @@ export default function TailorPage() {
   }
 
   // #307: a profile-level answer is permanent, so it takes its own door (answerTailorProfile) and
-  // its own after-line — the server's `changed` sentence lands in the ledger slot, or, when the
+  // its own after-line — the server's `changed` sentence lands in the after-line slot, or, when the
   // answer took this very job off the deck, on the gone screen (state === null; the target is
   // already cleared server-side). No flying fact chip: a profile fact never moves the badge count.
   async function answerProfileQuestion(requirementId: string, answer: string) {
@@ -406,52 +328,11 @@ export default function TailorPage() {
       setLedgerView({
         key: `profile:${requirementId}`,
         text: withFall(prevPct, state.card.matchPct, changed),
-        gold: false,
         fell: state.card.matchPct < prevPct,
       });
       setBadgeCount((c) => Math.max(c, state.factCount));
       setTailor(state);
       tweenScore(displayPct, state.card.matchPct);
-    } catch {
-      setAskError(T7);
-    } finally {
-      setAnswering(null);
-    }
-  }
-
-  async function answerQuestion(requirementId: string, answer: string) {
-    if (answering || !tailor) return;
-    setAnswering({ requirementId, answer });
-    setAskError(null);
-    const prevPct = tailor.card.matchPct; // the ledger's gold/quiet call is against the last *server* number
-    const prevCard = tailor.card;
-    try {
-      const next = await answerTailor(requirementId, answer);
-      // #309 (QA gate finding): the cause is the ANSWER JUST GIVEN, never another requirement's
-      // line — the ledger is in the advert's own rank order, so its last entry can belong to any
-      // earlier answer. Looked up by the requirement that was just posted.
-      const own = next.ledger.find((l) => l.requirementId === requirementId)?.text ?? "";
-      const fell = next.card.matchPct < prevPct;
-      // A "+N%" gain line is never blamed for a drop: a fall on a positive answer is the fresh
-      // honest re-score of that answer, and the line says so, naming the requirement.
-      const cause =
-        fell && own.startsWith("+") ? `re-scored on “${own.replace(/^\+\d+% · /, "")}”` : own;
-      setLedgerView({
-        key: `${requirementId}:${next.ledger.length}`,
-        text: withFall(prevPct, next.card.matchPct, cause),
-        gold: next.card.matchPct > prevPct,
-        fell,
-      });
-      pendingScrollRef.current = resolveLandedId(prevCard, next.card);
-      // #17: unconditional, same as discovery — FactBadge's own guard makes a correction's zero
-      // delta a no-op (this screen has no correction UI today, but the guard costs nothing to keep).
-      setBadgeCount((c) => Math.max(c, next.factCount));
-      if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: answer });
-      setDoorAsk(null); // #311: an answered door closes; the refreshed state no longer carries it
-      setTailor(next);
-      // the tween's `from` is what's actually on screen right now, not the last server number — if a
-      // prior tween is still mid-flight this keeps the new one visually continuous instead of jumping.
-      tweenScore(displayPct, next.card.matchPct);
     } catch {
       setAskError(T7);
     } finally {
@@ -476,14 +357,10 @@ export default function TailorPage() {
     }
   }
 
-  // Options-only: the API's tailorQuestion() unconditionally returns a Yes/No enumerable question
-  // (apps/api/src/tailor.ts), so `options: []` is never produced — the free-text branch spec'd for it
-  // was dead code no test could reach. One commit brings it back if a prose question ever ships.
+  // #415: every question in the queue is a profile question (tailorProfile.ts) — permanent, told
+  // before and after, with a skip that stores nothing.
   function renderQuestion(item: TailorQuestion) {
     const isAnswering = answering?.requirementId === item.requirementId;
-    // #307: a profile question posts to its own door, and says BEFORE the answer that it will be
-    // remembered (AC6's first line) — the muted .notice slot, never a warning colour.
-    const answerWith = item.kind === "profile" ? answerProfileQuestion : answerQuestion;
     return (
       <>
         <p className="q" id="tailor-ask-q">
@@ -533,7 +410,7 @@ export default function TailorPage() {
                 type="button"
                 className={cls}
                 disabled={isAnswering}
-                onClick={() => answerWith(item.requirementId, opt)}
+                onClick={() => answerProfileQuestion(item.requirementId, opt)}
               >
                 {opt}
               </button>
@@ -547,7 +424,7 @@ export default function TailorPage() {
             type="button"
             className="skip"
             disabled={isAnswering}
-            onClick={() => answerWith(item.requirementId, item.skip!)}
+            onClick={() => answerProfileQuestion(item.requirementId, item.skip!)}
           >
             {item.skip}
           </button>
@@ -567,7 +444,7 @@ export default function TailorPage() {
     );
   }
 
-  function renderExits(showDoneCta: boolean) {
+  function renderExits(showSave: boolean) {
     if (dropConfirming) {
       return (
         <div className="exits confirming" role="group" aria-labelledby="tailor-dropnote">
@@ -592,9 +469,9 @@ export default function TailorPage() {
     }
     return (
       <div className="exits">
-        {showDoneCta && (
-          <button type="button" className="done-cta" onClick={() => setFinishedEarly(true)}>
-            {T8}
+        {showSave && (
+          <button type="button" className="btn-ghost" onClick={() => setScreen("saved")}>
+            {T16}
           </button>
         )}
         <span className="spacer" />
@@ -605,19 +482,122 @@ export default function TailorPage() {
     );
   }
 
-  return (
-    <div
-      className="jobdeck tailor"
-      ref={rootRef}
-      // #17: captures the answered option's rect for the badge's flying chip (M2 — a ref, not a
-      // threaded DOMRect). Tailor has no keydown-triggered answer path (its free-text branch was
-      // deleted, #23 F4), so click-only, unlike discovery's click+keydown pair.
-      onClickCapture={(e) => {
-        flyFromRef.current = (
-          (e.target as HTMLElement).closest("button") ?? (e.target as HTMLElement)
-        ).getBoundingClientRect();
-      }}
+  // #415: the after-line slot — the one line a permanent answer leaves behind, under the next
+  // question or beside the draft. Keyed so a new line re-runs its rise.
+  const afterLine = (
+    <p
+      key={ledgerView?.key ?? "empty"}
+      className={["ledger", "quiet", ledgerView ? "show" : ""].filter(Boolean).join(" ")}
     >
+      {ledgerView?.text ?? ""}
+    </p>
+  );
+
+  function renderDraftScreen(state: TailorState) {
+    const metCount = state.requirements.filter((r) => r.state === "met").length;
+    const gaps = state.requirements.filter((r) => r.state === "gap");
+    const meta = [state.card.company, state.card.place].filter(Boolean).join(" · ");
+    return (
+      <>
+        <header className="dbar">
+          <div className="title">
+            <h1 tabIndex={-1} ref={headingRef}>
+              {state.card.title}
+            </h1>
+            <p className="co">{[meta, T24].filter(Boolean).join(" · ")}</p>
+          </div>
+          <ScoreRing pct={displayPct} bumped={scoreBumped} estimated={state.card.scored === "estimated"} />
+          <button type="button" className="link" ref={sheetTriggerRef} onClick={() => setSheetOpen(true)}>
+            {T26} · {metCount} of {state.requirements.length}
+          </button>
+        </header>
+        <div className="dgrid">
+          <div className="paper-col">
+            <TailorDraft />
+          </div>
+          <aside className="rail">
+            {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
+                found job) stays — and says why in one line. Server-composed, reload-stable. */}
+            {state.stayed && <p className="notice stayed">{state.stayed}</p>}
+            {ledgerView && afterLine}
+            {/* #417 — the stretch suggestion cards go HERE, above the gap list: one card per
+                suggestion, each with the requirement, why, the line in, the line out and what to
+                say; the answers Use / It's true / No. The rail is the column on a computer and
+                the block under the draft on a phone, so one component serves both. */}
+            {gaps.length > 0 && (
+              <section className="gaps" aria-labelledby="tailor-gaps-h">
+                <h2 id="tailor-gaps-h" className="h">
+                  {T27}
+                </h2>
+                {/* ADR-0020 clause 6: a list with no button until the CV chat's door ships (#350). */}
+                <ul className="gaplist">
+                  {gaps.map((r) => (
+                    <li key={r.id}>{r.text}</li>
+                  ))}
+                </ul>
+                <p className="small">{T28}</p>
+              </section>
+            )}
+            {renderExits(true)}
+          </aside>
+        </div>
+        {sheetOpen && (
+          <>
+            <div className="scrim" onClick={closeSheet} />
+            <section className="sheet" role="dialog" aria-modal="true" aria-labelledby="tailor-fit-h">
+              <header>
+                <h2 id="tailor-fit-h">
+                  {T26} · {metCount} of {state.requirements.length} met
+                </h2>
+                <button type="button" className="link" ref={sheetCloseRef} onClick={closeSheet}>
+                  {T29}
+                </button>
+              </header>
+              {/* The job's own order, never re-sorted — the list the server composed, verbatim. */}
+              <ul className="marks">
+                {state.requirements.map((r) => (
+                  <li key={r.id} data-state={r.state}>
+                    <span className="m" aria-hidden="true">
+                      {r.state === "met" ? "✓" : "–"}
+                    </span>
+                    <span className="t">{r.text}</span>
+                    <span className="s">{STATE_LABEL[r.state]}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </>
+        )}
+      </>
+    );
+  }
+
+  function renderQuestionScreen(state: TailorState) {
+    return (
+      <>
+        <div className="live-wrap">
+          <div className="live-card">
+            <CardBody card={state.card} headingRef={headingRef} pct={displayPct} bumped={scoreBumped} />
+          </div>
+          <div className="t-cv-col">
+            <div className="divider">{T6}</div>
+            <p className="cv-wait">{T25}</p>
+          </div>
+        </div>
+
+        <div className="ask">
+          {state.stayed && <p className="notice stayed">{state.stayed}</p>}
+          <p className="why">{T4}</p>
+          {state.questions[0] && renderQuestion(state.questions[0])}
+          {afterLine}
+          {renderExits(false)}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="jobdeck tailor" ref={rootRef}>
       <div aria-live="polite" className="sr-only">
         {liveMessage}
       </div>
@@ -665,94 +645,11 @@ export default function TailorPage() {
           <div className="topbar">
             <span className="wordmark">JobCrush</span>
             <span className="spacer" />
-            <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
+            <FactBadge count={badgeCount} fly={null} rootRef={rootRef} />
             {/* #303: the door's slot is the topbar's far right on every screen, badge or no badge. */}
             <PasteDoor />
           </div>
-
-          <div className="live-wrap" ref={liveWrapRef}>
-            <div className="live-card" ref={liveCardRef}>
-              <CardBody
-                card={tailor.card}
-                headingRef={cardHeadingRef}
-                pct={displayPct}
-                bumped={scoreBumped}
-                landedId={landedId}
-                // #311: the "Changed? Add it" door on each named denial's row — Tailor only (the
-                // door belongs with the questions, before the draft; the deck passes nothing).
-                onGrowDoor={(claimId) => {
-                  const door = tailor.doors.find((d) => d.claimId === claimId);
-                  if (door) setDoorAsk(door);
-                }}
-              />
-            </div>
-            <div className="t-cv-col">
-              <div className="divider">{T6}</div>
-              {/* #310: at the ending, "your CV for this job" stops being the mechanical fact list
-                  and becomes the CV brain's draft — with the #154 disclosure re-homed under it.
-                  #311: keyed on the ledger so a door answered AT the ending (a new fact) remounts
-                  it — the stored draft no longer matches the fact set, and the remount rebuilds. */}
-              {showEnding ? <TailorDraft key={tailor.ledger.length} /> : renderCv(tailor.cvLines)}
-            </div>
-          </div>
-
-          <div className="ask">
-            {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
-                found job) stays — and says why in one line. Server-composed, reload-stable. */}
-            {tailor.stayed && <p className="notice stayed">{tailor.stayed}</p>}
-            {/* #311: an open door takes the question slot — the row became a question again, on the
-                existing answer path. Available at the ending too: answering there honestly redrafts
-                (the checkpoint no longer matches the fact set), which is the price of growing late,
-                not a reason to lock the door. T23 closes it without saving; his "No" stands. */}
-            {doorAsk ? (
-              <>
-                {renderQuestion(doorAsk)}
-                <button type="button" className="skip" disabled={!!answering} onClick={() => setDoorAsk(null)}>
-                  {T23}
-                </button>
-              </>
-            ) : !showEnding ? (
-              <>
-                <p className="why">{T4}</p>
-                {tailor.questions[0] && renderQuestion(tailor.questions[0])}
-                <p
-                  key={ledgerView?.key ?? "empty"}
-                  className={["ledger", ledgerView && !ledgerView.gold ? "quiet" : "", ledgerView ? "show" : ""]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  {ledgerView?.text ?? ""}
-                </p>
-                {renderExits(true)}
-              </>
-            ) : (
-              <>
-                <div className="finish">
-                  <h2 className="head" tabIndex={-1} ref={endingHeadingRef}>
-                    {T13}
-                  </h2>
-                  <p className="note">{closedGapsLine(tailor.closedGaps)}</p>
-                  {/* #307: a PERMANENT answer's own line still shows when it also emptied the
-                      queue — AC6's "what changed" must not vanish behind the ending. Scoped to
-                      profile answers plus (#309) any answer that LOWERED the score: a fall's cause
-                      must never vanish behind the ending either. Other advert answers' lines
-                      staying off the ending is the pre-#307 behaviour, untouched. */}
-                  {ledgerView && (ledgerView.key.startsWith("profile:") || ledgerView.fell) && (
-                    <p key={ledgerView.key} className="ledger quiet show">
-                      {ledgerView.text}
-                    </p>
-                  )}
-                  {/* #313: no "Apply with this CV" button any more — approving IS sending, and
-                      the one press lives under the draft itself (draft.tsx's SendBlock). A second
-                      button with no decision behind it is what the ticket rules out. */}
-                  <button type="button" className="btn-ghost" onClick={() => setScreen("saved")}>
-                    {T16}
-                  </button>
-                </div>
-                {renderExits(false)}
-              </>
-            )}
-          </div>
+          {showDraft ? renderDraftScreen(tailor) : renderQuestionScreen(tailor)}
         </>
       )}
     </div>

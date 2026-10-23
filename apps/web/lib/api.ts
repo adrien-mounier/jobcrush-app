@@ -441,20 +441,14 @@ export interface TailorQuestion {
   consequence?: string;
 }
 
-export interface TailorLedgerEntry {
-  requirementId: string;
+/** #415 (ADR-0020 clause 6): one requirement of the job, with the verdict the card reached on it.
+ *  `gap` is a fit under the threshold as the card computes it, a denied capability included;
+ *  `untested` is #162 AC6's years bar with no readable work history. The vocabulary grows (#417
+ *  adds a stretch's own state). */
+export interface TailorRequirement {
+  id: string;
   text: string;
-}
-
-/** #311: one "Changed? Add it" door per denial the card names (an askedClosed row, matched by
- *  `claimId`). Tapping it turns the row back into a question — the server-composed `question` +
- *  `options` render through the same question dock and post through answerTailor, the existing
- *  answer path. The old "No" is kept server-side; the new fact lands dated by the tapped choice. */
-export interface GrowDoor {
-  claimId: string;
-  requirementId: string;
-  question: string;
-  options: string[];
+  state: "met" | "gap" | "untested";
 }
 
 export interface TailorState {
@@ -463,28 +457,20 @@ export interface TailorState {
   // `tailor.card.matchPct` etc. in this file keep type-checking as a plain number, with no `!`/`as`,
   // because the type itself states the invariant instead of the caller assuming it card-by-card.
   card: ScoredJobCard;
-  questions: TailorQuestion[]; // empty ⇒ the ending
-  ledger: TailorLedgerEntry[];
-  cvLines: DiscoveryCvLine[];
-  closedGaps: { closed: number; asked: number };
+  /** #415: the profile questions still open (work rights, a language) — empty ⇒ the draft is the
+   *  page. A requirement is never a question. */
+  questions: TailorQuestion[];
+  /** #415: every requirement of this job in the job's own order, never re-sorted — the "Where you
+   *  fit" sheet and the "Also asked, not on your CV" list (its `gap` rows) are both drawn from it. */
+  requirements: TailorRequirement[];
   /** #309 AC4 — only on a job the person brought that their own answers would have withdrawn were
    *  it a found job: the one line saying why it stays ("the gap is real"). Server-composed. */
   stayed?: string;
-  /** #311: the "Changed? Add it" doors — one per denial the card names, keyed by askedClosed row. */
-  doors: GrowDoor[];
-  done: boolean;
   factCount: number; // #17's profile badge count, on the tailor screen too
 }
 
 export function getTailor(): Promise<TailorState> {
   return jfetch("/api/onboarding/tailor");
-}
-
-export function answerTailor(requirementId: string, answer: string): Promise<TailorState> {
-  return jfetch("/api/onboarding/tailor/answer", {
-    method: "POST",
-    body: JSON.stringify({ requirementId, answer }),
-  });
 }
 
 /** #307: a profile-level answer — permanent, written to the profile, never re-asked. `changed` is
@@ -1018,7 +1004,6 @@ export type {
   PublishedIndustryChoice as PublishedIndustry,
 } from "@jobcrush/contracts";
 import type {
-  FamilyPlacement,
   IndustryPlacement,
   Kind as JobBlockKind,
   MinedDate,
@@ -1035,19 +1020,8 @@ export function getJobBlocks(): Promise<{
    *  deploy this client can be talking to an API that predates it, and a screen that renders
    *  "we couldn't work this out" beats one that throws. */
   industries?: import("@jobcrush/contracts").PublishedIndustryChoice[];
-  /** #414 — the published job families, on the same terms: what the Kind of work row names and
-   *  the correction panel offers. */
-  families?: PublishedFamily[];
 }> {
   return jfetch("/api/job-blocks");
-}
-
-/** #414 — one published job family as it travels to the screen: the reference a placement carries
- *  plus the display name. Same shape as PublishedIndustry, for the same reason. */
-export interface PublishedFamily {
-  familyId: string;
-  version: number;
-  label: string;
 }
 
 export function confirmJobBlock(id: string): Promise<{ ok: boolean }> {
@@ -1069,9 +1043,7 @@ export type JobBlockCorrection =
   // #221: the person's own answer to "what kind of work is this?" — a reference into the published
   // list, never free text. #231 removed the screen that ASKED it; the family stays a correctable
   // fact, so this door stays open for the correction surface that #128's machinery already has.
-  // #414: one family, or every family the job was (a job can be two kinds of work), or — the undo —
-  // the WHOLE placement she read before, exactly as the industry door takes it.
-  | { key: "family"; value: { familyId: string; version: number } | Array<{ familyId: string; version: number }> | FamilyPlacement }
+  | { key: "family"; value: { familyId: string; version: number } }
   // #281: her own answer to "what industry was this job in?" — a reference into the published
   // vocabulary, never free text. Unlike the family, this one HAS a surface (the correction panel's
   // industry picker), because the screen shows the machine's answer and a shown answer must be
