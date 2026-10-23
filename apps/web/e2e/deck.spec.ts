@@ -214,6 +214,23 @@ test("#311: a named denial reads 'You told me you don't have this', · mark, and
   await expect(page.getByText("✗", { exact: true })).toHaveCount(0);
 });
 
+// #415 (ADR-0020): the grow door is gone from every screen — the job's own screen renders the same
+// CardBody, so a named denial reads under its heading there too, with no control on the row.
+test("#415: the job screen names a denial with no 'Changed? Add it' door", async ({ page }) => {
+  await stubSession(page);
+  const denial = { id: "tailor-ad-1-sap", text: "Not applicable — SAP S/4HANA migration" };
+  await page.route("**/api/onboarding/jobs/ad-1", async (route) => {
+    await route.fulfill({ json: { card: { ...card("ad-1", "IT Project Manager", 82), askedClosed: [denial] } } });
+  });
+
+  await page.goto("/job/ad-1");
+
+  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
+  await expect(page.getByText(denial.text)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Changed? Add it" })).toHaveCount(0);
+  await expect(page.locator(".row.settled button")).toHaveCount(0);
+});
+
 test("screen 2b: 'Not for me' advances to the next card", async ({ page }) => {
   await openStubbedDeck(page, [
     card("ad-1", "IT Project Manager", 82),

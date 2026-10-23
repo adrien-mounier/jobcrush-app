@@ -270,41 +270,32 @@ await page.waitForURL('**/tailor', { timeout: 15_000 });
 await qa.expectVisible('.jobdeck.tailor', 'TAILOR: the handoff landed on /tailor');
 await page.waitForTimeout(800);
 
-await qa.expectVisible('.tailor .live-card h2', 'TAILOR: the job title heads the live card');
-await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'TAILOR: the score ring');
-await qa.expectVisible('.tailor .q', 'TAILOR: question one — derived from the v1 requirement list');
-await qa.expectText('.breakdown', 'Essential met', 'AC5: Tailor\'s card says "Essential met", same as the deck');
-await qa.expectText('.breakdown', 'Desirable met', 'AC5: Tailor\'s card says "Desirable met", same as the deck');
-await readThrough('.live-wrap', 'read Tailor\'s whole live card and the CV paper below it');
-
-// -------------------------------------------------------------------------------------------
-// 7. Tailor's questions — the phrasing and the order come off the requirement list the rename
-//    touched. Walk several and record every one verbatim.
-// -------------------------------------------------------------------------------------------
-const questionsAsked = [];
-for (let i = 0; i < 4 && (await page.locator('.tailor .opts .opt').count()) > 0; i++) {
-  const q = (await page.locator('.tailor .q').textContent()).trim();
-  questionsAsked.push(q);
-  await qa.expectText('.tailor .q', 'This job wants:', `TAILOR question ${i + 1} keeps the template wording`);
-  await qa.note(`TAILOR question ${i + 1}: ${q}`);
-  const leaks = leakedBandLabels(await visibleText());
-  await assert(leaks.length === 0, `TAILOR question ${i + 1}: no band token readable on screen (${JSON.stringify(leaks)})`);
-  await qa.click(page.getByRole('button', { name: 'Yes', exact: true }), `answer "Yes" to question ${i + 1}`);
-  await page.waitForTimeout(1200); // let the score tween + row flash play out
+// #415 (ADR-0020): the Tailor step asks nothing about the job's requirements — the draft is the
+// page, and the requirement list reaches the screen as "Where you fit" / "Also asked, not on your
+// CV", in the job's own order. A profile question (work rights, a language) may still come first.
+if ((await page.locator('.tailor .ask .q').count()) > 0) {
+  await qa.click(page.locator('.tailor .opts .opt').first(), 'a profile question this job left open — answer it once');
+  await page.waitForTimeout(1400);
 }
-await qa.note(`TAILOR asked ${questionsAsked.length} questions, in order: ${JSON.stringify(questionsAsked)}`);
-await assert(
-  questionsAsked.every((q) => /^This job wants: ".+\." Does that describe you\?$/.test(q)),
-  'AC6: every Tailor question is the unchanged template over the requirement\'s own sentence',
-);
-await assert(
-  new Set(questionsAsked).size === questionsAsked.length,
-  'AC6: no question is repeated — the requirement ids survived the migration intact',
-);
+await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+await qa.expectVisible('.draft-frame', 'TAILOR: the draft is the page');
+await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'TAILOR: the score');
+await readThrough('.tailor .dgrid', 'read the draft and the rail beside it');
 
-await qa.expectText('.tailor .ledger', '+', 'TAILOR: the ledger still names the gain (band weights survived the re-key)');
-await qa.note(`TAILOR ledger: "${await page.locator('.tailor .ledger').textContent()}"`);
-await readThrough('.live-wrap', 'read the tailored CV — the answers should be on it');
+// -------------------------------------------------------------------------------------------
+// 7. The requirement list the rename touched, as Tailor shows it: every requirement in the job's
+//    order on the "Where you fit" sheet, the unmet ones under "Also asked, not on your CV" — and
+//    no band token anywhere a person reads.
+// -------------------------------------------------------------------------------------------
+await qa.click(page.getByRole('button', { name: /Where you fit/ }), 'open "Where you fit"');
+const sheetRows = await page.locator('.tailor .marks li .t').allTextContents();
+await qa.note(`TAILOR "Where you fit" rows, in the job's order: ${JSON.stringify(sheetRows)}`);
+await assert(sheetRows.length > 0 && sheetRows.every((t) => t.trim().length > 0), 'AC6: every requirement renders as its own sentence on the sheet');
+await assert(new Set(sheetRows).size === sheetRows.length, 'AC6: no requirement is repeated — the requirement ids survived the migration intact');
+const sheetLeaks = leakedBandLabels(await visibleText());
+await assert(sheetLeaks.length === 0, `TAILOR sheet: no band token readable on screen (${JSON.stringify(sheetLeaks)})`);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
 
 const tailorLeaks = leakedBandLabels(await visibleText());
 await qa.expectVisible(
@@ -334,10 +325,9 @@ await assert(
 );
 
 await qa.goto('/tailor', 'reload Tailor — the migrated state must survive a fresh read');
-await page.waitForTimeout(900);
-await qa.expectVisible('.tailor .live-card', 'TAILOR: the card re-rendered after a reload');
-await qa.expectText('.breakdown', 'Essential met', 'AC5: still "Essential met" after a reload');
-await qa.scrollThrough('final read-through of the reloaded card');
+await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
+await qa.expectVisible('.draft-frame', 'TAILOR: the draft re-rendered after a reload');
+await qa.scrollThrough('final read-through of the reloaded screen');
 const reloadLeaks = leakedBandLabels(await visibleText());
 await assert(reloadLeaks.length === 0, `no band token after a reload either (${JSON.stringify(reloadLeaks)})`);
 

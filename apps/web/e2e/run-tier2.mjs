@@ -281,10 +281,8 @@ export const JOURNEYS = [
   // doors stand apart and the page carries its own theme (the gate's two findings). Measured
   // 2026-10-15: ~1 min, two front-door pastes, one magic-link sign-in.
   "cv-preview-journey.mjs",
-  // #387: a "Yes" at tailoring joins the profile in its section, wearing the job, and check mode
-  // invents no job for it. profile.spec.ts mocks the payload; this is the only flow that runs the
-  // tailor write and both readers (profile, check mode) together. QA-gate-born, 2026-10-15.
-  "tailoring-fact-joins-profile-journey.mjs",
+  // tailoring-fact-joins-profile-journey.mjs (#387) was retired by #415 (ADR-0020): the Tailor
+  // step takes no answer that writes a fact any more, so the tailor write it proved is gone.
   // #393 (QA-gate-born, 2026-10-15): no skills group is ever named after its own section. The
   // ONLY flow that reads the Skills screen and the profile off the real stack with the review held
   // and then released (the neutral label before the model names a group, a real name after), and

@@ -193,10 +193,11 @@ await qa.expectText('main .bigsub', 'Dec 2024', 'AC5 on screen — the job now r
 //
 // #339: both used to answer the same discovery floor, which is gone. A visitor with NO facts at all
 // is graded 0 on every requirement (judge.ts short-circuits), which would make "not lowered"
-// meaningless, so the no-history visitor gets her one fact the way a visitor without a CV now does:
-// a "Yes" to a requirement in the tailor step. The QA judge grades by requirement position, never by
-// the facts' content, so any non-empty fact set scores an advert alike — the years bar is what
-// can still move a score, and that is what this checks.
+// meaningless. #415: the Tailor step takes no answer that writes a fact any more, so the no-history
+// visitor pastes a CV whose job records the product cannot read (the QA stack's FAILTHISREAD
+// marker, #161 AC8): her facts are mined, her work history is not. The QA judge grades by
+// requirement position, never by the facts' content, so any non-empty fact set scores an advert
+// alike — the years bar is what can still move a score, and that is what this checks.
 await page.context().clearCookies();
 await qa.goto('/', 'a control visitor: a readable work history, no discovery answers');
 await api('POST', '/sessions/anonymous', {});
@@ -219,15 +220,12 @@ await assertTrue(
 await page.context().clearCookies();
 await qa.goto('/', 'a brand-new visitor, no CV, no work history at all');
 await api('POST', '/sessions/anonymous', {});
+// Her facts without a history: a CV the product can mine but whose job records it cannot read.
+await api('POST', '/cv/paste', { text: `${CV_TEXT}\n\nFAILTHISREAD` });
+await api('POST', '/review/complete'); // #338
+const unreadable = await (await api('GET', '/job-blocks')).json().catch(() => ({}));
+await qa.note(`the no-history visitor's job records: ${JSON.stringify({ blocks: (unreadable.blocks ?? []).length, summary: unreadable.summary })}`);
 await api('POST', '/onboarding/discovery/start', { role: ROLE });
-// Her one fact: sign in (the tailor step is past the wall), want a job, say "Yes" to its first question.
-const link = await (await api('POST', '/auth/request-link', { email: `years-nohistory-${Date.now()}@example.com` })).json();
-await api('POST', '/auth/verify', { token: new URL(`http://x${link.devLink}`).searchParams.get('token') });
-const firstDeck = await qa.cardsWhenRetrieved();
-await api('POST', `/onboarding/cards/${encodeURIComponent(firstDeck.cards[0].adId)}/want`, {});
-const tailorQ = ((await (await api('GET', '/onboarding/tailor')).json()).questions ?? []).find((q) => q.kind !== 'profile');
-const told = await api('POST', '/onboarding/tailor/answer', { requirementId: tailorQ?.requirementId, answer: 'Yes, across three vendor teams' });
-await qa.note(`the no-history visitor's one fact: "Yes" to "${tailorQ?.requirementId}" in the tailor step (HTTP ${told.status()})`);
 const noHistory = await qa.cardsWhenRetrieved();
 const untestedCard = (noHistory.cards ?? []).find((c) => (c.notTested ?? []).length > 0);
 await qa.note(`the advert with a years bar, for a visitor with no history: ${JSON.stringify(

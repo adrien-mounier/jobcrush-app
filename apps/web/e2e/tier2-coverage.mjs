@@ -406,9 +406,6 @@ export const COVERAGE = {
     AUTH,
     ["apps/api/src/contact.ts", "apps/api/src/routes/contact.ts"],
   ),
-  // #387: the tailor write, then the profile and check mode reading it — every surface the joined
-  // fact crosses (claims, graph's kind tag, cvReview's paper are in TAILOR/REVIEW already).
-  "tailoring-fact-joins-profile-journey.mjs": union(CV_INTAKE, REVIEW, PROFILE, TAILOR, AUTH, DECK),
   // #393: the Skills screen's group headings before and after the review names them, the two group
   // doors (routes/cv.ts, in REVIEW) and the profile's group headings; the split and the fallback
   // label live in skillsSplit.ts.
