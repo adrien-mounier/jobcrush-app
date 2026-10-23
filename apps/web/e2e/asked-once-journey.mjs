@@ -145,8 +145,9 @@ const nextQ = await txt('.tailor .ask .q');
 await qa.note(`after the answer the queue holds: ${JSON.stringify(nextQ)}`);
 await assert(nextQ === null,
   'ADR-0020 clause 1: with the profile question answered, nothing else is asked — the CV is written');
-await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
-await qa.expectVisible('.draft-frame', 'the draft is the page, with the after-line beside it');
+// The draft screen, not the document itself: this session deliberately holds no CV facts, so the
+// draft door honestly refuses to write (no_facts) — what matters here is that nothing is asked.
+await qa.expectVisible('.tailor .dgrid', 'the draft screen is the page, with the after-line beside it');
 
 // -------------------------------------------------------------------------------------------
 // 4. AC5 — the NEXT Hong Kong job with the same stated gate asks nothing.
@@ -158,8 +159,7 @@ const firstQOnB = await txt('.tailor .ask .q');
 await qa.note(`job B's first question: ${JSON.stringify(firstQOnB)}`);
 await assert(firstQOnB !== QUESTION,
   'AC5: the work-rights answer given on job A is never asked again — job B opens straight on its draft');
-await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
-await qa.expectVisible('.draft-frame', 'job B: the draft, with no question first');
+await qa.expectVisible('.tailor .dgrid', 'job B: the draft screen, with no question first');
 
 // -------------------------------------------------------------------------------------------
 // 5. Person two: "Not sure yet" first (#308 — stores nothing, returns on the next job), then
@@ -182,8 +182,7 @@ const afterSkipQ = await txt('.tailor .ask .q');
 await qa.note(`the queue after the skip: ${JSON.stringify(afterSkipQ)}`);
 await assert(afterSkipQ === null,
   "#308: the skipped question stepped aside — the draft follows, and this job never re-asks");
-await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
-await qa.expectVisible('.draft-frame', 'the skip still starts the draft (ADR-0020 clause 1)');
+await qa.expectVisible('.tailor .dgrid', 'the skip still leads to the draft screen (ADR-0020 clause 1)');
 
 await assert((await want(AD_B)) === 200, 'person two moves to job B — the next job that states the gate');
 await qa.goto('/tailor', 'the Tailor step for job B');

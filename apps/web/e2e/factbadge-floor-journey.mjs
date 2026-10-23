@@ -72,11 +72,15 @@ const server = () =>
   });
 
 const seen = []; // every count the badge has shown, in order — the monotonicity record
+// #392: discovery carries no topbar any more, so no badge there — on that screen the server's
+// own factCount (the number the badge is born from) stands in, and the monotone record is kept
+// over the same seam the badge reads. On the tailor screen the badge itself is read.
 async function readBadge(note) {
-  const b = await badge();
+  const onScreen = await badge();
   const s = await server();
-  if (b) seen.push(b.count);
-  await qa.expectVisible('a.prof', `${note} — badge reads ${b?.count} ("${b?.label}") · server factCount=${s.factCount} · raw-without-the-floor=${s.raw} · fact_floor=${s.factFloor}`);
+  const b = onScreen ?? { count: s.factCount, label: '(no badge on this screen since #392 — the server factCount stands in)', unit: '' };
+  seen.push(b.count);
+  await qa.expectVisible(onScreen ? 'a.prof' : 'body', `${note} — badge reads ${b.count} ("${b.label}") · server factCount=${s.factCount} · raw-without-the-floor=${s.raw} · fact_floor=${s.factFloor}`);
   return { b, s };
 }
 
