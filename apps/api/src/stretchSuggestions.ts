@@ -221,13 +221,18 @@ export async function suggestStretches(
   throw new Error(`stretch suggestions failed validation twice: ${lastError.slice(0, 500)}`);
 }
 
-/** The answers a suggestion takes. #417 builds "no"; "use" (#418) and "true" (#419) join here. */
-export const STRETCH_ANSWERS = ["no"] as const;
+/** The answers a suggestion takes (ADR-0020 clause 4). #417 built "no"; #418 adds "use" (this job
+ *  only) and "undo" (back to pending — the Ready-to-send summary's per-answer Undo); "true" (#419,
+ *  every job) joins here. */
+export const STRETCH_ANSWERS = ["no", "use", "undo"] as const;
 export type StretchAnswer = (typeof STRETCH_ANSWERS)[number];
 
-/** One answer on one suggestion, pure: "no" declines it for THIS job only (ADR-0005 clause 9 as
+/** One answer on one suggestion, pure. "no" declines it for THIS job only (ADR-0005 clause 9 as
  *  ADR-0020 amends it — another job's run may suggest the same line again, because the record is
- *  keyed by (person, job)). Returns null when no such pending suggestion exists. */
+ *  keyed by (person, job)); "use" approves it for this job only (clause 1: the line prints on this
+ *  CV and nowhere else); "undo" puts it back to pending, as if never answered. Every answer may
+ *  overwrite an earlier one — the record is the person's latest word. Returns null when no such
+ *  suggestion exists beside this draft. */
 export function answerSuggestion(
   checkpoint: StretchCheckpoint | undefined,
   id: string,
@@ -237,9 +242,46 @@ export function answerSuggestion(
   if (checkpoint?.status !== "ran") return null;
   const target = checkpoint.suggestions.find((s) => s.id === id);
   if (!target) return null;
-  const scope = answer === "no" ? ("this-job" as const) : null;
-  const decided = StretchProposalV2.parse({ ...target, state: "declined", decidedAt, scope });
+  const decided = StretchProposalV2.parse(
+    answer === "undo"
+      ? { ...target, state: "pending", decidedAt: null, scope: null }
+      : { ...target, state: answer === "no" ? "declined" : "approved", decidedAt, scope: "this-job" },
+  );
   return { ...checkpoint, suggestions: checkpoint.suggestions.map((s) => (s.id === id ? decided : s)) };
+}
+
+/** The suggestions the person approved for this CV — whatever their scope (#419's every-job
+ *  approval prints here the same way). Empty when the step did not run or ran dry. */
+export function usedStretches(checkpoint: StretchCheckpoint | undefined): StretchProposalV2[] {
+  return checkpoint?.status === "ran" ? checkpoint.suggestions.filter((s) => s.state === "approved") : [];
+}
+
+/**
+ * #418 — the mechanical swap, applied at READ TIME to the stored draft (never persisted into it):
+ * each used suggestion's line in replaces the draft line at its slot, word for word (ADR-0005
+ * clause 4: the swap shown is the swap made; clause 6: written once, printed verbatim); a skill
+ * joins its group and pushes nothing out. A used bullet carries the proposal id where a fact line
+ * carries claim ids — never a claim id, so nothing about it can be read back as a fact.
+ * Read-time because the stored draft is what the stretch step's checkpoint and the redraft are
+ * keyed on: an answer must change what prints without changing what was drafted, or every Use
+ * would re-run the step that made the suggestion. Undo is then simply the answer withdrawn.
+ * ponytail: applied by slot address, so a draft shortened after approval (#314's one re-tailor)
+ * prints the used line at the same address of the new draft; a slot-content check that re-finds
+ * the line out is the upgrade if that ever shows on a real document.
+ */
+export function applyUsedStretches(draft: Draft, checkpoint: StretchCheckpoint | undefined): Draft {
+  const used = usedStretches(checkpoint);
+  if (used.length === 0) return draft;
+  const next: Draft = structuredClone(draft);
+  for (const s of used) {
+    if (s.slot.kind === "summary") next.summary = s.claimText;
+    else if (s.slot.kind === "skill") next.skills[s.slot.group]?.items.push(s.claimText);
+    else {
+      const role = next.experience[s.slot.role];
+      if (role?.bullets[s.slot.bullet]) role.bullets[s.slot.bullet] = { text: s.claimText, claimIds: [], outcome: "", stretchId: s.id };
+    }
+  }
+  return next;
 }
 
 /** What is stored beside the draft. `ran` with an empty list is "found none"; `failed` is the step

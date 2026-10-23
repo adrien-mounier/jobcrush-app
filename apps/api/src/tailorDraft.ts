@@ -20,6 +20,7 @@ import { deniedCapabilities, negativeRequirementIds } from "./tailor.js";
 import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js";
 import type { TailorRequirement } from "./deck.js";
 import {
+  applyUsedStretches,
   stretchFingerprint,
   stretchInputFor,
   stretchView,
@@ -250,8 +251,10 @@ export function tailorDraftView(
   // document leaving the app is no longer a draft. Every screen read keeps the default.
   opts: { watermark?: boolean; marks?: StretchMarks } = {},
 ): TailorDraftView {
+  // #418: the lines the person chose to use for this job print in place of the lines they push out
+  // (applyUsedStretches — at read time, the stored draft untouched).
   const draft = {
-    ...record.draft,
+    ...applyUsedStretches(record.draft, record.stretch),
     contact: applyStoredContact(record.draft.contact, contact),
   };
   return {

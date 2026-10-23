@@ -240,16 +240,25 @@ export function matchPosting(
 // line. A bullet with no claim id fails validation here; conservationIssues() below then
 // cross-checks every id against the real source claims, so a fabricated id (well-formed but
 // never actually issued) is caught too, not just a missing one (#153, #158).
-const ExperienceBullet = z.object({
-  text: z.string().min(1),
-  claimIds: z.array(z.string().regex(SLUG)).min(1),
-  // #154: the result a multi-claim line keeps, and it must appear verbatim in `text`. Declaring it
-  // in a field the page never prints would let a scope list pass the check, so conservationIssues()
-  // checks containment, not presence. Absent/"" is correct for a single-claim bullet — the lane for
-  // a merged bullet that omits it is the LOSSY one (ship + tell), never a parse failure, because a
-  // person with a duty-only CV must still get a CV (#154 Q8).
-  outcome: z.string().default(""),
-});
+// #418 (ADR-0005 clauses 1-2, 6): a line the person chose to USE for this job carries its proposal
+// id (`stretchId`) INSTEAD of claim ids — it is a position, not a fact, and must never be traceable
+// to the profile. Only applyUsedStretches() (stretchSuggestions.ts) writes one, at read time; the
+// model's draft never carries it (an invented id fails the lint's provenance check below).
+const ExperienceBullet = z
+  .object({
+    text: z.string().min(1),
+    claimIds: z.array(z.string().regex(SLUG)),
+    // #154: the result a multi-claim line keeps, and it must appear verbatim in `text`. Declaring it
+    // in a field the page never prints would let a scope list pass the check, so conservationIssues()
+    // checks containment, not presence. Absent/"" is correct for a single-claim bullet — the lane for
+    // a merged bullet that omits it is the LOSSY one (ship + tell), never a parse failure, because a
+    // person with a duty-only CV must still get a CV (#154 Q8).
+    outcome: z.string().default(""),
+    stretchId: z.string().regex(SLUG).optional(),
+  })
+  .refine((b) => b.claimIds.length > 0 || b.stretchId !== undefined, {
+    message: "a bullet cites at least one claim id (or, for a used stretch, its proposal id)",
+  });
 
 export const Draft = z.object({
   name: z.string().min(1),
@@ -464,6 +473,9 @@ export function conservationIssues(
   // #311 (#287 c1/c2): denied capabilities, each in its own words (tailorDraft.ts's
   // deniedCapabilities — already unsuperseded and eligibility-free).
   denied: string[] = [],
+  // #418: the proposal ids of the stretches the person used for this job — the only provenance a
+  // bullet with no claim id may cite. Absent (the model's own draft) ⇒ none is legitimate.
+  usedStretchIds: ReadonlySet<string> = new Set(),
 ): ConservationIssue[] {
   const issues: ConservationIssue[] = [];
 
@@ -676,6 +688,15 @@ export function conservationIssues(
   const realIds = new Set(claims.claims.map((c) => c.id));
   for (const role of draft.experience) {
     for (const b of role.bullets) {
+      // #418: a line with no claim id is a used stretch, and only one the person actually used.
+      if (b.claimIds.length === 0 && !(b.stretchId && usedStretchIds.has(b.stretchId))) {
+        issues.push({
+          message:
+            `a bullet in "${role.role}" cites no claim id and no used stretch — every printed line is ` +
+            `either the person's fact or a stretch they chose for this job, never invented.`,
+          visitor: `One line under "${role.role}" could not be traced back to your CV — check it before sending.`,
+        });
+      }
       for (const id of b.claimIds) {
         if (!realIds.has(id)) {
           issues.push({

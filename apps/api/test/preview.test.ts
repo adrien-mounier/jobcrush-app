@@ -287,6 +287,28 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
     expect(conservationIssues(await recordedClaims(), sampleDraft)).toEqual([]);
   });
 
+  // #418 (ADR-0005 clauses 1-2, 6): a used stretch prints with its proposal id and no claim id. The
+  // lint accepts exactly the ids the person used, and nothing else without a claim id.
+  it("a used stretch line cites its proposal id in place of claim ids; an unknown one, or none, is untraceable", async () => {
+    const claims = await recordedClaims();
+    const withStretch = (stretchId?: string): Draft => ({
+      ...sampleDraft,
+      experience: [
+        {
+          ...sampleDraft.experience[0]!,
+          bullets: [{ text: "Led the replatforming on SAP S/4HANA", outcome: "", claimIds: [], ...(stretchId ? { stretchId } : {}) }, ...sampleDraft.experience[0]!.bullets.slice(1)],
+        },
+      ],
+    });
+    expect(conservationIssues(claims, withStretch("stretch-ad-sap"), [], [], [], new Set(["stretch-ad-sap"]))).toEqual([]);
+    const unknown = conservationIssues(claims, withStretch("stretch-ad-other"), [], [], [], new Set(["stretch-ad-sap"]));
+    expect(unknown.map((i) => i.message)).toEqual([expect.stringContaining("cites no claim id and no used stretch")]);
+    expect(unknown[0]!.fatal).toBeUndefined(); // ship and tell, like an unknown claim id
+    // The model's own draft never carries a stretch: a bullet with no claim id still fails to parse.
+    expect(Draft.safeParse(withStretch()).success).toBe(false);
+    expect(Draft.safeParse(withStretch("stretch-ad-sap")).success).toBe(true);
+  });
+
   it("flags dropped certifications and lost languages", async () => {
     const lossy: Draft = {
       ...sampleDraft,

@@ -546,3 +546,51 @@ describe("#417 the draft previews the open suggestion in place", () => {
     expect(open.html).toMatch(/<span class="pin open"[^>]*>2<\/span>/); // numbering stays stable
   });
 });
+
+describe("#418 'Use for this job' swaps the line on this CV only (ADR-0020 clause 4; ADR-0005 clauses 1, 4, 6)", () => {
+  it("Use puts the line in where the line out was, word for word; a skill joins its group; Undo restores the line out; the claims store never moves", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    const sid = await reachTailor({ app, claims }, cookie, "stretch-use@example.com");
+    const before = await claims.list(sid);
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+
+    const used = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    expect(used.statusCode).toBe(200);
+    expect(used.json().stretch.suggestions[0]).toMatchObject({ id: swap.id, state: "approved", scope: "this-job" });
+    expect(used.json().stretch.suggestions[0].decidedAt).not.toBeNull();
+
+    // The swap shown is the swap made: the line in prints at the slot, the line out is gone, every
+    // other line is as it was. Nothing was re-drafted and nothing was spent.
+    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(after.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(after.html).not.toContain(BULLET_TEXT);
+    expect(after.html).toContain(SECOND_BULLET);
+    expect(tailor.prompts).toHaveLength(1);
+    expect(stretch.prompts).toHaveLength(1);
+    expect(await claims.list(sid)).toEqual(before); // never a claim (ADR-0005 clause 2)
+    // The other suggestion still previews in place beside the used line.
+    const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${skill.id}`)).json();
+    expect(open.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(open.html).toContain(`<ins>${skill.claimText}</ins>`);
+
+    // A skill joins its group and pushes nothing out.
+    await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}`, { answer: "use" });
+    const both = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(both.html).toContain(`Jira, ${skill.claimText}</p>`);
+    expect(both.html).toContain(`<li>${swap.claimText}</li>`);
+
+    // Undo: the suggestion is pending again and the line out is back.
+    const undone = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" });
+    expect(undone.statusCode).toBe(200);
+    expect(undone.json().stretch.suggestions[0]).toMatchObject({ id: swap.id, state: "pending", decidedAt: null, scope: null });
+    const restored = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(restored.html).toContain(BULLET_TEXT);
+    expect(restored.html).not.toContain(swap.claimText);
+    expect(restored.html).toContain(`Jira, ${skill.claimText}</p>`); // the other answer stands
+    expect(await claims.list(sid)).toEqual(before);
+  });
+});
