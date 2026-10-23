@@ -1,0 +1,53 @@
+[
+  {
+    "schemaVersion": "2",
+    "id": "stretch-bred-vendor-tenders",
+    "adId": "posting:bred-hong-kong-digital-transformation-project-manager",
+    "requirementId": "vendor-tenders",
+    "why": "The job asks for tenders and statements of work. Your CV says you coordinate vendors.",
+    "claimText": "Ran vendor selection and contract follow-up for core banking integrations, from tender to statement of work.",
+    "intendedClass": "Partially-Supported",
+    "interviewNarrative": "At BRED I worked with our integration vendors every day. I took part in choosing them and checked their work against the contract.",
+    "slot": { "kind": "bullet", "role": 0, "bullet": 4 },
+    "lineOut": "Coordinate third-party vendors on core banking and card-service integrations.",
+    "derivedFrom": null,
+    "createdAt": "2026-10-23T09:00:00Z",
+    "state": "pending",
+    "decidedAt": null,
+    "scope": null
+  },
+  {
+    "schemaVersion": "2",
+    "id": "stretch-bred-business-cases",
+    "adId": "posting:bred-hong-kong-digital-transformation-project-manager",
+    "requirementId": "business-cases",
+    "why": "The job asks for business cases. Your CV shows reporting to leadership, but no business case.",
+    "claimText": "Business cases and steering-committee governance",
+    "intendedClass": "Unsupported-but-Plausible",
+    "interviewNarrative": "I wrote the cost and benefit part of the case for my projects and presented it to the department heads.",
+    "slot": { "kind": "skill", "group": 0 },
+    "lineOut": null,
+    "derivedFrom": null,
+    "createdAt": "2026-10-23T09:00:00Z",
+    "state": "declined",
+    "decidedAt": "2026-10-23T09:05:00Z",
+    "scope": "this-job"
+  },
+  {
+    "schemaVersion": "2",
+    "id": "stretch-bred-six-teams-edited",
+    "adId": "posting:bred-hong-kong-digital-transformation-project-manager",
+    "requirementId": "six-teams",
+    "why": "The job names six teams. Your CV names business and IT teams.",
+    "claimText": "Coordinated business, IT, operations, risk, compliance and finance teams on cross-border banking change.",
+    "intendedClass": "Partially-Supported",
+    "interviewNarrative": "Every change at BRED went through compliance and risk. Finance signed off the budget, and operations ran the rollout in each country.",
+    "slot": { "kind": "summary" },
+    "lineOut": "Senior Project Manager with 9+ years delivering banking technology in regulated environments.",
+    "derivedFrom": "stretch-bred-six-teams",
+    "createdAt": "2026-10-23T09:06:00Z",
+    "state": "approved",
+    "decidedAt": "2026-10-23T09:07:00Z",
+    "scope": "this-job"
+  }
+]

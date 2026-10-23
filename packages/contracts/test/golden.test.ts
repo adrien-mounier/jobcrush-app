@@ -18,6 +18,7 @@ import {
   PostingProviderPolicyV1,
   PostingRetrievalResultV1,
   ProviderPostingRecordV1,
+  StretchProposalV2,
 } from "../src/index.js";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateCandidateClaims } from "../oracle/validate_candidate_claims.mjs";
@@ -27,6 +28,8 @@ import { validateMinedJobBlocks } from "../oracle/validate_job_block.mjs";
 import { validateGraph } from "../oracle/validate_graph.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateInbox } from "../oracle/validate_proposal.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateStretchProposalV2 } from "../oracle/validate_stretch_proposal_v2.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateJobCardV1 } from "../oracle/validate_job_card_v1.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
@@ -728,6 +731,45 @@ describe("Contract 3 — enrichment inbox", () => {
       const port = Inbox.safeParse(inbox).success;
       expect(port, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
       expect(oracle).toBe(false);
+    }
+  });
+});
+
+// #417 (ADR-0020 clause 3, ADR-0005's four changes + the line out): a stretch suggestion beside one
+// job's finished draft. Versioned beside Contract 3, never in its place.
+describe("Stretch proposal v2", () => {
+  const proposals = fixture("stretch-proposal-v2.valid.json");
+
+  it("valid fixtures (pending, declined for this job, approved from an edit) pass oracle and zod", () => {
+    for (const proposal of proposals) {
+      expect(validateStretchProposalV2(proposal), JSON.stringify(validateStretchProposalV2(proposal).errors)).toMatchObject({ ok: true });
+      expect(StretchProposalV2.safeParse(proposal).success).toBe(true);
+    }
+  });
+
+  it("per-invariant mutations keep oracle and zod in agreement, each one rejected", () => {
+    const mutations: Array<(p: any) => void> = [
+      (p) => (p.schemaVersion = "1"),
+      (p) => (p.adId = ""), // the job reference is required (ADR-0005 clause 7)
+      (p) => (p.lineOut = null), // a bullet slot pushes a line out, shown in full (clause 4)
+      (p) => (p.slot = { kind: "skill", group: 0 }), // a skill slot pushes nothing out
+      (p) => (p.slot = { kind: "bullet", role: -1, bullet: 0 }),
+      (p) => (p.interviewNarrative = ""), // every stretch carries what to say
+      (p) => (p.why = ""), // every suggestion states why it fired (clause 3)
+      (p) => ((p.state = "declined"), (p.decidedAt = "2026-10-23T09:05:00Z")), // a decline says its scope (clause 9)
+      (p) => ((p.state = "declined"), (p.decidedAt = "2026-10-23T09:05:00Z"), (p.scope = "never")),
+      (p) => ((p.state = "approved"), (p.scope = "this-job")), // decided ⇒ decidedAt
+      (p) => (p.scope = "this-job"), // pending ⇒ no scope
+      (p) => (p.derivedFrom = "Not A Slug"),
+      (p) => (p.state = "parked"),
+    ];
+    for (const mutate of mutations) {
+      const proposal = JSON.parse(JSON.stringify(proposals[0]));
+      mutate(proposal);
+      const oracle = validateStretchProposalV2(proposal).ok;
+      const port = StretchProposalV2.safeParse(proposal).success;
+      expect(port, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
+      expect(oracle, `accepted after ${mutate.toString()}`).toBe(false);
     }
   });
 });
