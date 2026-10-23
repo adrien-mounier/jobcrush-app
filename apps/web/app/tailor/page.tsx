@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../tailor.css";
 import { FactBadge } from "../factbadge";
-import { CardBody, ScoreRing, useReducedMotion } from "../jobcard";
+import { CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
 import {
@@ -513,6 +513,10 @@ export default function TailorPage() {
         </header>
         <div className="dgrid">
           <div className="paper-col">
+            {/* #411 (owner, 2026-10-23): the Match breakdown is the first block under the header —
+                before the draft, following the live number like the ring above it. The deck card
+                and the job's own screen keep it at the card's foot (CardBody). */}
+            <MatchBreakdown card={state.card} pct={displayPct} />
             <TailorDraft />
           </div>
           <aside className="rail">

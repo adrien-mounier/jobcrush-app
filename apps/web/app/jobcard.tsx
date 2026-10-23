@@ -52,7 +52,9 @@ function matchQuality(pct: number): { label: string; grade: "strong" | "partial"
   return { label: "Weak", grade: "weak" };
 }
 
-function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
+// #411: exported for the Tailor screen's draft frame, which places it under the header rather than
+// at the card's foot. The deck card and the job's own screen keep it last (CardBody below).
+export function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
   // #117: null on a pending card — nothing to render yet. This narrows `card` itself (breakdown is
   // `MatchBreakdown` on one union member, `null` on the other), so `card.matchPct` below is a plain
   // number, not `number | null` — no `!`/`as` needed.

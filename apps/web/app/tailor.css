@@ -632,6 +632,14 @@
 .tailor .paper-col {
   min-width: 0;
 }
+/* #411: under the header the breakdown opens the column, so the card-foot rule and gap it carries
+   on the deck (deck.css) come off; capped so four cells don't stretch across a 720px paper. */
+.tailor .paper-col .breakdown {
+  margin: 0 0 18px;
+  padding-top: 0;
+  border-top: 0;
+  max-width: 480px;
+}
 .tailor .rail {
   display: flex;
   flex-direction: column;
