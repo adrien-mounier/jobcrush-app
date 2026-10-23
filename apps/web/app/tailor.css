@@ -189,23 +189,6 @@
   color: var(--hud-ink);
 }
 
-/* #311: the "Changed? Add it" door on a named denial's row — a quiet way back in, styled like the
-   skip (an underlined text control, visibly not a fact of the card). */
-.tailor .row .grow-door {
-  appearance: none;
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--hud-mute);
-  font: inherit;
-  font-size: 12.5px;
-  text-decoration: underline;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
 /* #308: the skip ("Not sure yet" / "Not now") — visibly not one of the answers. */
 .tailor .ask .skip {
   appearance: none;
@@ -317,10 +300,6 @@
 }
 .tailor .exits button:hover {
   color: var(--hud-ink);
-}
-.tailor .exits .done-cta {
-  color: var(--gold);
-  font-weight: 620;
 }
 .tailor .exits .spacer {
   flex: 1;
@@ -437,26 +416,6 @@
   line-height: 1.5;
 }
 
-/* ---------- the ending ---------- */
-.tailor .finish {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  animation: tl-rise 560ms cubic-bezier(0.2, 1, 0.3, 1);
-}
-.tailor .finish .head {
-  font-size: 15.5px;
-  font-weight: 600;
-  margin: 0 0 2px;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-.tailor .finish .note {
-  font-size: 12.5px;
-  color: var(--hud-mute);
-  margin: 0 0 6px;
-  line-height: 1.45;
-}
 .tailor .btn-primary {
   width: 100%;
   appearance: none;
@@ -586,8 +545,8 @@
     padding: 14px 22px calc(16px + env(safe-area-inset-bottom));
   }
 
-  /* Promote the Done CTA to a full-width gold call-to-action at the bottom of the left column;
-     the Drop control stays as a quiet text link beneath it. Mobile exits row is unchanged. */
+  /* The exits stack in the left column; the Drop control is a quiet text link. Mobile exits row
+     is unchanged. */
   .tailor .exits {
     flex-direction: column;
     align-items: stretch;
@@ -596,23 +555,7 @@
   .tailor .exits .spacer {
     display: none;
   }
-  .tailor .exits .done-cta {
-    width: 100%;
-    min-height: auto;
-    padding: 16px;
-    border-radius: 12px;
-    background: var(--gold);
-    color: #1a1206;
-    font-weight: 660;
-    font-size: 15.5px;
-    justify-content: center;
-    box-shadow: 0 12px 28px -10px rgba(232, 163, 61, 0.5);
-    transition: transform 90ms ease;
-  }
-  .tailor .exits .done-cta:active {
-    transform: scale(0.985);
-  }
-  .tailor .exits button:not(.done-cta) {
+  .tailor .exits button:not(.btn-ghost) {
     align-self: flex-start;
     min-height: auto;
     padding: 4px 0;

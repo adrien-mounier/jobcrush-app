@@ -1,10 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { ScoredJobCard, TailorDraftView, TailorState } from "../lib/api";
 
-// #23 Tailor (screen 3): re-score, the live card, and the exits. Stubbed at the route layer exactly
-// like deck.spec.ts's screen 2b tests — GET/POST /api/onboarding/tailor* aren't necessarily wired
-// server-side yet (the ticket's own contract note), so every call is mocked and this rides straight
-// to /tailor (deck.spec.ts already covers the /deck -> tailorHandoff -> /tailor bridge itself).
+// #23 Tailor (screen 3), as #415 (ADR-0020) reshaped it: the step asks only the profile questions
+// (work rights, a language) and then writes the CV — the draft is the page, with a side rail that
+// lists what the job asks that the CV does not meet, and a "Where you fit" sheet in the job's own
+// order. Stubbed at the route layer exactly like deck.spec.ts's screen 2b tests: every call is
+// mocked and this rides straight to /tailor (deck.spec.ts already covers the /deck ->
+// tailorHandoff -> /tailor bridge itself).
 
 // #117: ScoredJobCard, not the JobCard union — TailorState.card is never the deck's pending variant.
 const CARD_FIRST: ScoredJobCard = {
@@ -35,92 +37,17 @@ const CARD_FIRST: ScoredJobCard = {
   adExcerpt: "Lead the replacement of a legacy finance platform across four European sites.",
 };
 
-const STATE_FIRST: TailorState = {
+// #415: nothing open about eligibility — the draft is the first thing the person sees. The
+// requirements list is the job's own order (budget, sap, public), never re-sorted by band.
+const STATE_DRAFT: TailorState = {
   card: CARD_FIRST,
-  questions: [
-    {
-      requirementId: "sap",
-      question: "They want SAP S/4HANA. Have you worked on that version?",
-      options: ["Yes, ran a project on it", "Only the older ECC", "Never touched it"],
-    },
-    {
-      requirementId: "public",
-      question: "Has any of your work been for a government or public body?",
-      options: ["Yes, several", "One contract", "No"],
-    },
-  ],
-  ledger: [],
-  cvLines: [{ itemId: "role", section: "summary", text: "Senior IT Project Manager" }],
-  closedGaps: { closed: 0, asked: 0 },
-  doors: [],
-  done: false,
-  factCount: 24,
-};
-
-// Real claim ids (apps/api/src/tailor.ts's tailorClaimId): `tailor-<slug(adId)>-<reqId>`. An
-// askedClosed row and a cvLine are keyed by the claim id, never the bare requirementId — what F1 got
-// wrong. #407: a fit row is keyed by the REQUIREMENT it covers, so the "sap" row flips in place.
-const SAP_CLAIM_ID = "tailor-ad-1-sap";
-const PUBLIC_CLAIM_ID = "tailor-ad-1-public";
-
-// Answering "sap" — a gain (+9%), the row moves fit-ward under its claim id, the bubble's gap clause
-// moves to the next open requirement, a gold ledger line lands, and the tailored fact joins the CV.
-const STATE_AFTER_SAP: TailorState = {
-  card: {
-    ...CARD_FIRST,
-    matchPct: 70,
-    breakdown: {
-      essential: { met: 1, total: 1 },
-      desirable: { met: 0, total: 1 },
-    },
-    bubble: { hit: CARD_FIRST.bubble.hit, open: "The gap is public-sector delivery." },
-    fit: [...CARD_FIRST.fit, { id: "sap", text: "Their SAP version" }],
-    dontYet: [{ id: "public", band: "standard", requirement: "Public-sector delivery" }],
-  },
-  questions: [
-    {
-      requirementId: "public",
-      question: "Has any of your work been for a government or public body?",
-      options: ["Yes, several", "One contract", "No"],
-    },
-  ],
-  ledger: [{ requirementId: "sap", text: "+9% · SAP S/4HANA" }],
-  cvLines: [
-    ...STATE_FIRST.cvLines,
-    { itemId: SAP_CLAIM_ID, section: "experience", text: "Ran an S/4HANA project, through cutover" },
-  ],
-  closedGaps: { closed: 1, asked: 1 },
-  doors: [],
-  done: false,
-  factCount: 25,
-};
-
-// Answering "public" with a bare "No" — no gain, the requirement LEAVES dontYet and lands only in
-// askedClosed under its claim id (never a cross, never left sitting in both lists — the backend fix
-// this fixture now pins), nothing left to ask: the natural ending.
-const STATE_ENDED: TailorState = {
-  card: {
-    ...STATE_AFTER_SAP.card,
-    bubble: { hit: STATE_AFTER_SAP.card.bubble.hit, open: "Nothing they ask for is still open." },
-    dontYet: [],
-    askedClosed: [{ id: PUBLIC_CLAIM_ID, text: "Public-sector delivery" }],
-  },
   questions: [],
-  ledger: [...STATE_AFTER_SAP.ledger, { requirementId: "public", text: "asked and closed · 1 still open" }],
-  cvLines: STATE_AFTER_SAP.cvLines,
-  closedGaps: { closed: 1, asked: 2 },
-  // #311: the ended card names the "public" denial, so it carries the row's door.
-  doors: [
-    {
-      claimId: PUBLIC_CLAIM_ID,
-      requirementId: "public",
-      question:
-        'This job wants: "Public-sector delivery." You told me you don\'t have this. Changed? Since when?',
-      options: ["This year", "1-2 years ago", "3 or more years ago"],
-    },
+  requirements: [
+    { id: "budget", text: "Own a €2M budget", state: "met" },
+    { id: "sap", text: "Their SAP version", state: "gap" },
+    { id: "public", text: "Public-sector delivery", state: "gap" },
   ],
-  done: true,
-  factCount: 26,
+  factCount: 24,
 };
 
 async function stubSession(page: Page) {
@@ -129,7 +56,7 @@ async function stubSession(page: Page) {
   });
 }
 
-// #310 — the ending's draft: the CV brain's rendered document plus the re-homed #154 disclosure.
+// #310 — the draft: the CV brain's rendered document plus the re-homed #154 disclosure.
 const DRAFT_VIEW: TailorDraftView = {
   html:
     "<!doctype html><html><body><h1>Maria Kowalski</h1>" +
@@ -157,29 +84,26 @@ const DRAFT_VIEW: TailorDraftView = {
 };
 
 /** The draft endpoints, stubbed on the checkpoint-hit path by default: POST answers `ready`, GET
- *  hands the view. Registered by openTailor so every test that lands the ending has a draft. */
+ *  hands the view. Counts the POSTs so a test can prove the draft really started by itself. */
 async function stubDraft(page: Page, view: TailorDraftView = DRAFT_VIEW) {
+  const posts = { count: 0 };
   await page.route("**/api/onboarding/tailor/draft", async (route) => {
-    if (route.request().method() === "POST") await route.fulfill({ json: { ready: true } });
-    else await route.fulfill({ json: view });
+    if (route.request().method() === "POST") {
+      posts.count += 1;
+      await route.fulfill({ json: { ready: true } });
+    } else await route.fulfill({ json: view });
   });
+  return posts;
 }
 
 async function openTailor(page: Page, state: TailorState) {
   await stubSession(page);
-  await stubDraft(page);
+  const posts = await stubDraft(page);
   await page.route("**/api/onboarding/tailor", async (route) => {
     await route.fulfill({ json: state });
   });
   await page.goto("/tailor");
-}
-
-async function stubAnswer(page: Page, responses: Record<string, TailorState>) {
-  await page.route("**/api/onboarding/tailor/answer", async (route) => {
-    const { requirementId, answer } = route.request().postDataJSON() as { requirementId: string; answer: string };
-    const state = responses[`${requirementId}:${answer}`];
-    await route.fulfill({ json: state });
-  });
+  return posts;
 }
 
 async function stubDrop(page: Page) {
@@ -187,6 +111,10 @@ async function stubDrop(page: Page) {
     await route.fulfill({ json: { stage: "deck" } });
   });
 }
+
+// What the person must never see again on this screen (#415 AC3/AC4), paired below with the
+// positive assertions on what replaced them so a rename cannot pass the negatives silently.
+const RETIRED = [/\+\d+%/, /I'm done/, /Changed\? Add it/, /Does that describe you\?/];
 
 test("#30 a signed-out visitor opening /tailor directly is routed to the deck, then the wall — never stuck on a retry-only error", async ({
   page,
@@ -209,154 +137,158 @@ test("#30 a signed-out visitor opening /tailor directly is routed to the deck, t
   await expect(page.getByRole("link", { name: "Continue with Google" })).toBeVisible();
 });
 
-test("the first question already offers \"I'm done — use this CV\"", async ({ page }) => {
-  await openTailor(page, STATE_FIRST);
+// ---------------------------------------------------------------------------------------------
+// #415 — the draft is the page; a requirement is never a question.
+// ---------------------------------------------------------------------------------------------
 
-  await expect(page.getByRole("heading", { name: "Senior IT Project Manager" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "61% match" })).toBeVisible();
-  await expect(page.getByText("They want SAP S/4HANA. Have you worked on that version?")).toBeVisible();
-  await expect(page.getByRole("button", { name: "I'm done — use this CV" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Drop this job" })).toBeVisible();
-});
-
-// QA on #407: the reason under a "Where you fit" row shared its class name with the tailor's own
-// uppercase mono eyebrow (`.tailor .why`), so on this screen it read "YOU HAVE DONE THIS BEFORE."
-// It is a sentence, in the body face, on the deck and here alike.
-test("#407 the reason under a Where you fit row reads as a sentence on the tailor screen", async ({ page }) => {
-  await openTailor(page, {
-    ...STATE_FIRST,
-    card: { ...CARD_FIRST, fit: [{ id: "budget", text: "Own a €2M budget", reason: "You have owned a budget this size." }] },
+test("#415 with nothing open about eligibility, no question appears: the CV is being written, then the draft is the page", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await page.route("**/api/onboarding/tailor", async (route) => {
+    await route.fulfill({ json: STATE_DRAFT });
   });
-  const why = page.locator(".tailor .row.fit .fit-why");
-  await expect(why).toHaveText("You have owned a budget this size.");
-  await expect(why).toHaveCSS("text-transform", "none");
-  const eyebrowFont = await page.locator(".tailor p.why").evaluate((el) => getComputedStyle(el).fontFamily);
-  expect(await why.evaluate((el) => getComputedStyle(el).fontFamily)).not.toBe(eyebrowFont);
-});
+  let draftPosts = 0;
+  await page.route("**/api/onboarding/tailor/draft", async (route) => {
+    if (route.request().method() === "POST") {
+      draftPosts += 1;
+      // Hold the 202 briefly so the writing line is assertable, not a flash.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await route.fulfill({ status: 202, json: { jobId: "draft-job-1" } });
+    } else {
+      await route.fulfill({ json: DRAFT_VIEW });
+    }
+  });
+  await page.route("**/api/jobs/draft-job-1/events", async (route) => {
+    const snapshot = { id: "draft-job-1", status: "completed", error: null, progress: { tailorDraft: { ready: true } } };
+    await route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(snapshot)}\n\n` });
+  });
 
-// #397: the announcer never prints an empty slot — no "Tailoring . 61% match." for a job with no
-// title, no "61% match. ." before the first ledger line lands.
-test("#397 the announcer omits a missing title and a missing ledger line instead of an empty slot", async ({ page }) => {
-  await openTailor(page, STATE_FIRST);
-  const live = page.locator('.tailor [aria-live="polite"]');
-  await expect(live).toHaveText("Tailoring Senior IT Project Manager. 61% match.");
+  await page.goto("/tailor");
 
-  // A ledger-less re-ask: the same first state answered into a second question with no line yet.
-  const noLedgerNext: TailorState = { ...STATE_FIRST, questions: STATE_FIRST.questions.slice(1) };
-  await stubAnswer(page, { "sap:Yes, ran a project on it": noLedgerNext });
-  await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
-  await expect(live).toHaveText("61% match.");
-});
+  // The draft starts by itself, in the screen's own voice — no question screen first.
+  await expect(page.getByText("Writing your CV for this job…")).toBeVisible();
+  await expect(page.locator(".tailor .ask .q")).toHaveCount(0);
+  expect(draftPosts).toBeGreaterThan(0);
 
-test("#397 a job with no title announces the number alone", async ({ page }) => {
-  await openTailor(page, { ...STATE_FIRST, card: { ...CARD_FIRST, title: "" } });
-  await expect(page.locator('.tailor [aria-live="polite"]')).toHaveText("61% match.");
-});
-
-test("answering a gap re-scores up, flips the ? to a check, rewrites the bubble, and lands a ledger line", async ({
-  page,
-}) => {
-  await openTailor(page, STATE_FIRST);
-  await stubAnswer(page, { "sap:Yes, ran a project on it": STATE_AFTER_SAP });
-
-  await expect(page.getByRole("heading", { name: "Where you don't — yet" })).toBeVisible();
-  await expect(page.getByText("Their SAP version", { exact: true })).toBeVisible();
-
-  await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
-
-  // F1: the row that landed is found by diffing card.fit against the previous card. Checked BEFORE
-  // the tween-completion assertion below on purpose: the flash clears ~640ms after landing, shorter
-  // than the ~680ms score tween, so waiting for "70% match" first would race past it every time
-  // (both by design — "in the same glance", spec §4). #407: the row names the requirement met.
-  const flippedRow = page.locator(".row.fit").filter({ hasText: "Their SAP version" });
-  await expect(flippedRow).toHaveClass(/landed/);
-  const breakdown = page.getByRole("region", { name: "Match breakdown" });
-  await expect(breakdown.locator("dd")).toHaveText(["1/2", "1/1", "0/1", "Partial"]);
-  // AC1: the visible % re-scores up.
-  await expect(page.getByRole("img", { name: "70% match" })).toBeVisible();
-  await expect(breakdown.getByText("Strong", { exact: true })).toBeVisible();
-  // AC2: the grey "?" is gone from "where you don't — yet" and its gold check is in "where you fit" —
-  // the pinned contract's own words for the flip (the row moved between the server's three lists).
-  await expect(page.locator(".row.open").filter({ hasText: "Their SAP version" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Where you fit" })).toBeVisible();
-  await expect(flippedRow).toBeVisible();
-  // F2: the tailored fact also joins the CV paper (cvLines), not just the card's own lists.
-  await expect(page.locator(".cv").getByText("Ran an S/4HANA project, through cutover")).toBeVisible();
-  // The bubble's gap clause rewrote to name the next open requirement.
-  await expect(page.locator(".tailor .bubble")).toContainText("The gap is public-sector delivery.");
-  // AC3: a ledger line landed, verbatim, and gold (the % rose on this answer).
-  const ledger = page.locator(".tailor .ledger");
-  await expect(ledger).toHaveText("+9% · SAP S/4HANA");
-  await expect(ledger).not.toHaveClass(/quiet/);
-});
-
-// #309: the inverse of the old "never drops" pin — the defensive client clamp is gone with the
-// server's floor. A lower server number is the truth, and the screen shows it, with its cause.
-test("#309 a lower server tick really shows — no client clamp holds the % up", async ({ page }) => {
-  await openTailor(page, STATE_FIRST);
-  const lowerTick: TailorState = { ...STATE_AFTER_SAP, card: { ...STATE_AFTER_SAP.card, matchPct: 50 } };
-  await stubAnswer(page, { "sap:Yes, ran a project on it": lowerTick });
-
-  await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
-
-  await expect(page.locator(".row.fit").filter({ hasText: "Their SAP version" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "50% match" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "61% match" })).toHaveCount(0);
-  // The fall carries its cause: the drop's size, the requirement JUST answered (never another
-  // line's), and never a "+N%" gain blamed for a drop (QA gate finding, run 1).
-  await expect(page.locator(".tailor .ledger")).toHaveText("Down 11% — re-scored on “SAP S/4HANA”");
-});
-
-test('running out of questions lands the ending — the same one "I\'m done" reaches', async ({ page }) => {
-  await openTailor(page, STATE_AFTER_SAP); // one requirement still open: "public"
-  await stubAnswer(page, { "public:No": STATE_ENDED });
-
-  await page.getByRole("button", { name: "No", exact: true }).click();
-
-  // F1/backend "no" fix: the requirement leaves "where you don't — yet" and lands, once, only in
-  // "asked and closed" under its claim id — never a cross, never still sitting in dontYet too.
-  const settledRow = page.locator(".row.settled").filter({ hasText: "Public-sector delivery" });
-  await expect(settledRow).toHaveClass(/landed/);
-  await expect(page.getByText("Public-sector delivery", { exact: true })).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Where you don't — yet" })).toHaveCount(0);
-
-  const heading = page.getByRole("heading", { name: "This CV is as strong as I can make it for this job." });
+  // Then the draft is the page, headed by the job, with the one approve press beneath it.
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.locator(".draft-frame")).toHaveAttribute("srcdoc", /Maria Kowalski/);
+  const heading = page.getByRole("heading", { name: "Senior IT Project Manager" });
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
-  // scoped to `.note` — the same sentence is also in the (visually-hidden) live region.
-  await expect(page.locator(".finish .note")).toHaveText("You closed 1 of the 2 gaps this job asked about.");
-  // #313: approving IS sending — the old Apply button (a press with no decision behind it) is gone;
-  // the one real press lives in the draft column (SendBlock) once the draft is ready.
-  await expect(page.getByRole("button", { name: "Apply with this CV" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save it and come back later" })).toBeVisible();
-  // Only Drop remains in the exits row — "I'm done" served its purpose getting here.
-  await expect(page.getByRole("button", { name: "I'm done — use this CV" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Drop this job" })).toBeVisible();
-  await expect(page.getByText(/stopped early/i)).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "61% match" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve and email me this CV" })).toBeVisible();
+
+  // Nothing of the retired queue remains on the screen.
+  for (const words of RETIRED) await expect(page.locator(".tailor")).not.toContainText(words);
+  await expect(page.locator(".tailor .ask")).toHaveCount(0);
 });
 
-test('pressing "I\'m done" early lands the identical ending, with questions still open', async ({ page }) => {
-  await openTailor(page, STATE_FIRST); // two requirements still open, nothing answered yet
-
-  await page.getByRole("button", { name: "I'm done — use this CV" }).click();
-
-  const heading = page.getByRole("heading", { name: "This CV is as strong as I can make it for this job." });
-  await expect(heading).toBeVisible();
-  await expect(heading).toBeFocused();
-  // scoped to `.note` — the same sentence is also in the (visually-hidden) live region.
-  await expect(page.locator(".finish .note")).toHaveText("Everything you told me is in there.");
-  // #313: approving IS sending — the old Apply button (a press with no decision behind it) is gone;
-  // the one real press lives in the draft column (SendBlock) once the draft is ready.
-  await expect(page.getByRole("button", { name: "Apply with this CV" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save it and come back later" })).toBeVisible();
-  await expect(page.getByText(/stopped early/i)).toHaveCount(0);
-});
-
-test("Drop this job shows the reassurance copy inline; Esc keeps it, Drop it clears and returns to the deck", async ({
+test("#415 an open work-rights question comes first, told it will be remembered; answering it starts the draft", async ({
   page,
 }) => {
-  await openTailor(page, STATE_FIRST);
+  const posts = await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q] });
+  await stubProfileAnswer(page, { changed: AFTER_YES, state: STATE_DRAFT });
+
+  // Before the answer: the permanent question, the remember line, two answers and the skip.
+  await expect(page.locator(".tailor .ask .q")).toHaveText(PROFILE_Q.question);
+  await expect(page.locator(".tailor .ask .notice")).toHaveText(PROFILE_Q.remember);
+  await expect(page.locator(".tailor .opts .opt")).toHaveCount(2);
+  await expect(page.locator(".tailor .ask .skip")).toHaveText("Not sure yet");
+  await expect(page.locator(".draft-frame")).toHaveCount(0);
+  expect(posts.count).toBe(0); // the draft waits for the answer
+
+  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
+
+  // After: the one line saying what changed, and the draft — no requirement question follows.
+  await expect(page.locator(".tailor .ledger")).toHaveText(AFTER_YES);
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.locator(".tailor .ask .q")).toHaveCount(0);
+  expect(posts.count).toBeGreaterThan(0);
+  for (const words of RETIRED) await expect(page.locator(".tailor")).not.toContainText(words);
+});
+
+test("#415 'Not sure yet' stores nothing and still starts the draft", async ({ page }) => {
+  const posts = await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q] });
+  const answers: string[] = [];
+  await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
+    answers.push((route.request().postDataJSON() as { answer: string }).answer);
+    await route.fulfill({ json: { changed: SKIPPED_LINE, state: STATE_DRAFT } });
+  });
+
+  await page.locator(".tailor .ask .skip").click();
+
+  await expect(page.locator(".tailor .ledger")).toHaveText(SKIPPED_LINE);
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  expect(answers).toEqual(["Not sure yet"]); // posted as the skip, which the server stores nothing for
+  expect(posts.count).toBeGreaterThan(0);
+});
+
+test("#415 'Also asked, not on your CV' lists the unmet and denied requirements in the job's order, with no button", async ({
+  page,
+}) => {
+  await openTailor(page, STATE_DRAFT);
+
+  const gaps = page.getByRole("region", { name: "Also asked, not on your CV" });
+  await expect(gaps).toBeVisible();
+  await expect(gaps.getByRole("listitem")).toHaveText(["Their SAP version", "Public-sector delivery"]);
+  await expect(gaps.getByRole("button")).toHaveCount(0);
+  await expect(gaps.getByRole("link")).toHaveCount(0);
+  // The met requirement is not on the list — it is on the sheet, as met.
+  await expect(gaps).not.toContainText("Own a €2M budget");
+});
+
+test("#415 'Where you fit' opens as a side sheet on a computer, every requirement in the job's order", async ({ page }) => {
+  await openTailor(page, STATE_DRAFT);
+
+  const trigger = page.getByRole("button", { name: "Where you fit · 1 of 3" });
+  await trigger.click();
+
+  const sheet = page.getByRole("dialog", { name: /Where you fit/ });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator(".marks li .t")).toHaveText(["Own a €2M budget", "Their SAP version", "Public-sector delivery"]);
+  await expect(sheet.locator(".marks li .s")).toHaveText(["met", "not on your CV", "not on your CV"]);
+  // A side sheet: docked to the right edge, the full height of the screen.
+  const box = (await sheet.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(box.x).toBeGreaterThan(viewport.width / 2);
+  expect(Math.round(box.x + box.width)).toBe(viewport.width);
+  expect(Math.round(box.height)).toBe(viewport.height);
+  await expect(sheet.getByRole("button", { name: "Close" })).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("#415 on a phone the draft comes first and 'Where you fit' is a pull-up", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTailor(page, STATE_DRAFT);
+
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  const paper = (await page.locator(".tailor .paper-col").boundingBox())!;
+  const rail = (await page.locator(".tailor .rail").boundingBox())!;
+  expect(paper.y).toBeLessThan(rail.y);
+  expect(Math.round(paper.width)).toBeLessThanOrEqual(390);
+
+  await page.getByRole("button", { name: /Where you fit/ }).click();
+  const sheet = page.getByRole("dialog", { name: /Where you fit/ });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator(".marks li .t")).toHaveText(["Own a €2M budget", "Their SAP version", "Public-sector delivery"]);
+  const box = (await sheet.boundingBox())!;
+  expect(Math.round(box.width)).toBe(390);
+  expect(Math.round(box.y + box.height)).toBe(844);
+  expect(box.y).toBeGreaterThan(0);
+});
+
+test("#415 the draft screen keeps Save and Drop; Drop shows the reassurance inline, Esc keeps it, Drop it returns to the deck", async ({
+  page,
+}) => {
+  await openTailor(page, STATE_DRAFT);
   await stubDrop(page);
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save it and come back later" })).toBeVisible();
 
   const dropTrigger = page.getByRole("button", { name: "Drop this job" });
   await dropTrigger.click();
@@ -375,8 +307,38 @@ test("Drop this job shows the reassurance copy inline; Esc keeps it, Drop it cle
   await page.waitForURL("/deck");
 });
 
+// QA on #407: the reason under a "Where you fit" row shared its class name with the tailor's own
+// uppercase mono eyebrow (`.tailor .why`), so on this screen it read "YOU HAVE DONE THIS BEFORE."
+// It is a sentence, in the body face, on the deck and here alike. The card renders on the
+// question screen (#415), so that is where it is checked.
+test("#407 the reason under a Where you fit row reads as a sentence on the tailor screen", async ({ page }) => {
+  await openTailor(page, {
+    ...STATE_DRAFT,
+    questions: [PROFILE_Q],
+    card: { ...CARD_FIRST, fit: [{ id: "budget", text: "Own a €2M budget", reason: "You have owned a budget this size." }] },
+  });
+  const why = page.locator(".tailor .row.fit .fit-why");
+  await expect(why).toHaveText("You have owned a budget this size.");
+  await expect(why).toHaveCSS("text-transform", "none");
+  const eyebrowFont = await page.locator(".tailor p.why").evaluate((el) => getComputedStyle(el).fontFamily);
+  expect(await why.evaluate((el) => getComputedStyle(el).fontFamily)).not.toBe(eyebrowFont);
+});
+
+// #397: the announcer never prints an empty slot — no "Tailoring . 61% match." for a job with no
+// title, no "61% match. ." before any after-line lands.
+test("#397 the announcer omits a missing title and a missing after-line instead of an empty slot", async ({ page }) => {
+  await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q] });
+  const live = page.locator('.tailor [aria-live="polite"]');
+  await expect(live).toHaveText("Tailoring Senior IT Project Manager. 61% match.");
+});
+
+test("#397 a job with no title announces the number alone", async ({ page }) => {
+  await openTailor(page, { ...STATE_DRAFT, card: { ...CARD_FIRST, title: "" } });
+  await expect(page.locator('.tailor [aria-live="polite"]')).toHaveText("61% match.");
+});
+
 // ---------------------------------------------------------------------------------------------
-// #307 — the queue's PROFILE-LEVEL question: permanent, told before and after, its own door.
+// #307 / #308 — the queue's PROFILE-LEVEL questions: permanent, told before and after, own door.
 // ---------------------------------------------------------------------------------------------
 
 const PROFILE_Q = {
@@ -389,13 +351,9 @@ const PROFILE_Q = {
   skip: "Not sure yet", // #308: the third option — stores nothing, returns on the next job
 };
 
-const STATE_PROFILE_FIRST: TailorState = {
-  ...STATE_FIRST,
-  questions: [PROFILE_Q, ...STATE_FIRST.questions],
-};
-
 const AFTER_YES = "Remembered: you can work in Hong Kong. No job will ask you this again.";
 const AFTER_NO = "Hidden 2 Hong Kong jobs from your deck — change this any time in your profile.";
+const SKIPPED_LINE = "Nothing saved — I'll ask again on another job in Hong Kong.";
 
 function stubProfileAnswer(page: Page, response: { changed: string; state: TailorState | null }) {
   return page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
@@ -403,42 +361,10 @@ function stubProfileAnswer(page: Page, response: { changed: string; state: Tailo
   });
 }
 
-test("#307 the profile question leads the queue with the remember line, and its after-line lands in the ledger slot", async ({
-  page,
-}) => {
-  await openTailor(page, STATE_PROFILE_FIRST);
-  await stubProfileAnswer(page, { changed: AFTER_YES, state: STATE_FIRST });
-
-  // Before the answer: the permanent question first, the remember line under it, no decline.
-  await expect(page.locator(".tailor .ask .q")).toHaveText(PROFILE_Q.question);
-  await expect(page.locator(".tailor .ask .notice")).toHaveText(PROFILE_Q.remember);
-  await expect(page.locator(".tailor .opts .opt")).toHaveCount(2);
-
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-
-  // After: the one line saying what changed, and the advert's own question (no remember line).
-  await expect(page.locator(".tailor .ledger")).toHaveText(AFTER_YES);
-  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
-  await expect(page.locator(".tailor .ask .notice")).toHaveCount(0);
-});
-
-test("#307 a profile answer that empties the queue still shows its after-line at the ending", async ({ page }) => {
-  await openTailor(page, { ...STATE_PROFILE_FIRST, questions: [PROFILE_Q] });
-  await stubProfileAnswer(page, {
-    changed: AFTER_YES,
-    state: { ...STATE_FIRST, questions: [], done: true },
-  });
-
-  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
-
-  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
-  await expect(page.locator(".finish .ledger")).toHaveText(AFTER_YES);
-});
-
 test("#307 a profile answer that withdrew the job lands the gone screen: the honest line and the way back", async ({
   page,
 }) => {
-  await openTailor(page, { ...STATE_PROFILE_FIRST, questions: [PROFILE_Q] });
+  await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q] });
   await stubProfileAnswer(page, { changed: AFTER_NO, state: null });
 
   await page.getByRole("button", { name: "Not yet — I'd need sponsorship" }).click();
@@ -451,12 +377,6 @@ test("#307 a profile answer that withdrew the job lands the gone screen: the hon
   await page.getByRole("button", { name: "Back to the deck" }).click();
   await page.waitForURL("/deck");
 });
-
-// ---------------------------------------------------------------------------------------------
-// #308 — the skip ("not sure yet" / "Not now") and the graded language question, in the queue.
-// ---------------------------------------------------------------------------------------------
-
-const SKIPPED_LINE = "Nothing saved — I'll ask again on another job in Hong Kong.";
 
 // The ladder, as the queue serves it (tailorProfile.ts's LanguageProfileAsk): six situations,
 // descending, the one answer with a cost last, and "Not now" as the way out.
@@ -479,34 +399,25 @@ const LANGUAGE_Q = {
   skip: "Not now",
 };
 
-test("#308 'Not sure yet' is not one of the answers: it posts, the line lands, and the queue moves on", async ({
+test("#308 the graded language question: why and cost before six rungs, the costly answer last, 'Not now' offered; then the draft", async ({
   page,
 }) => {
-  await openTailor(page, STATE_PROFILE_FIRST);
-  await stubProfileAnswer(page, { changed: SKIPPED_LINE, state: STATE_FIRST });
-
-  // The skip renders apart from the answers — two options, one visibly different way out.
-  await expect(page.locator(".tailor .opts .opt")).toHaveCount(2);
-  const skip = page.locator(".tailor .ask .skip");
-  await expect(skip).toHaveText("Not sure yet");
-
-  await skip.click();
-
-  // The honest line lands in the ledger slot, and the advert's own question follows —
-  // which offers no skip of its own.
-  await expect(page.locator(".tailor .ledger")).toHaveText(SKIPPED_LINE);
-  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
-  await expect(page.locator(".tailor .ask .skip")).toHaveCount(0);
-});
-
-test("#308 the graded language question: why and cost before six rungs, the costly answer last, 'Not now' offered", async ({
-  page,
-}) => {
-  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q, ...STATE_FIRST.questions] });
+  await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q, LANGUAGE_Q] });
   await stubProfileAnswer(page, {
     changed: "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
-    state: STATE_FIRST,
+    state: STATE_DRAFT,
   });
+  // The work-rights question leads; the ladder is the second and last thing asked.
+  await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
+    const { requirementId } = route.request().postDataJSON() as { requirementId: string };
+    if (requirementId === PROFILE_Q.requirementId)
+      await route.fulfill({ json: { changed: AFTER_YES, state: { ...STATE_DRAFT, questions: [LANGUAGE_Q] } } });
+    else
+      await route.fulfill({
+        json: { changed: "Remembered for Mandarin: I get by day to day. No job will ask you this again.", state: STATE_DRAFT },
+      });
+  });
+  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
 
   await expect(page.locator(".tailor .ask .q")).toHaveText(LANGUAGE_Q.question);
   // Why THIS advert asks, the remember line, and the cost — all said BEFORE the rungs.
@@ -531,26 +442,26 @@ test("#308 the graded language question: why and cost before six rungs, the cost
   await expect(page.locator(".tailor .ledger")).toHaveText(
     "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
   );
-  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
+  await expect(page.locator(".draft-frame")).toBeVisible();
 });
 
 // #398: the owner's English answer took ~8 s on staging and the screen sat still — he clicked again.
 // While an answer posts, the screen says it is saving; once it lands, the line goes.
 test("#398 a slow answer says it is saving until it lands", async ({ page }) => {
-  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q, ...STATE_FIRST.questions] });
+  await openTailor(page, { ...STATE_DRAFT, questions: [LANGUAGE_Q] });
   let land!: () => void;
   const landed = new Promise<void>((resolve) => (land = resolve));
   await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
     await landed;
-    await route.fulfill({ json: { changed: "Remembered for Mandarin: I can negotiate a contract in it.", state: STATE_FIRST } });
+    await route.fulfill({ json: { changed: "Remembered for Mandarin: I can negotiate a contract in it.", state: STATE_DRAFT } });
   });
 
   await page.getByRole("button", { name: "I can negotiate a contract in it" }).click();
   await expect(page.locator(".tailor .ask").getByRole("status")).toHaveText("Saving your answer…");
 
   land();
-  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
-  await expect(page.locator(".tailor .ask").getByRole("status")).toHaveCount(0);
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.locator(".tailor .ask")).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -565,39 +476,29 @@ const WITHDRAW_REASON =
 const STAYED_LINE =
   "You brought this job, so it stays and I'll draft for it — but it needs the right to work in Hong Kong, and that gap is real.";
 
-test("#309 a permanent answer that lowers the score tweens the ring DOWN and names the fall's size with its cause", async ({
+test("#309 a permanent answer that lowers the score shows the lower number on the draft screen and names the fall's size with its cause", async ({
   page,
 }) => {
-  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q, ...STATE_FIRST.questions] });
+  await openTailor(page, { ...STATE_DRAFT, questions: [LANGUAGE_Q] });
   await stubProfileAnswer(page, {
     changed: LANGUAGE_KEPT_LOW,
-    state: { ...STATE_FIRST, card: { ...STATE_FIRST.card, matchPct: 49 } },
+    state: { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, matchPct: 49 } },
   });
 
   await expect(page.getByRole("img", { name: "61% match" })).toBeVisible();
   await page.getByRole("button", { name: "I don't speak this one" }).click();
 
-  // The fall is shown with its cause: the drop's size prefixed onto the answer's own line…
+  // The fall is shown with its cause: the drop's size prefixed onto the answer's own line, kept
+  // visible on the draft screen the answer led to…
   await expect(page.locator(".tailor .ledger")).toHaveText(`Down 12% — ${LANGUAGE_KEPT_LOW}`);
-  // …and the ring really falls — no client-side clamp holds it at 61.
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  // …and the number really falls — no client-side clamp holds it at 61.
   await expect(page.getByRole("img", { name: "49% match" })).toBeVisible();
-});
-
-test("#309 a fall on the answer that empties the queue keeps its cause visible at the ending", async ({ page }) => {
-  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q] });
-  await stubProfileAnswer(page, {
-    changed: LANGUAGE_KEPT_LOW,
-    state: { ...STATE_FIRST, card: { ...STATE_FIRST.card, matchPct: 49 }, questions: [], done: true },
-  });
-
-  await page.getByRole("button", { name: "I don't speak this one" }).click();
-
-  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
-  await expect(page.locator(".finish .ledger")).toHaveText(`Down 12% — ${LANGUAGE_KEPT_LOW}`);
+  await expect(page.getByRole("img", { name: "61% match" })).toHaveCount(0);
 });
 
 test("#309 a withdrawal mid-tailor names its reason on the gone screen, above the honest count", async ({ page }) => {
-  await openTailor(page, { ...STATE_PROFILE_FIRST, questions: [PROFILE_Q] });
+  await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q] });
   await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
     await route.fulfill({ json: { changed: AFTER_NO, state: null, withdrawal: WITHDRAW_REASON } });
   });
@@ -609,50 +510,21 @@ test("#309 a withdrawal mid-tailor names its reason on the gone screen, above th
   await expect(page.locator(".loadstate p:not(.gone-reason)")).toHaveText(AFTER_NO);
 });
 
-test("#309 a brought job that stays despite the gap says why, on the flow and at the ending", async ({ page }) => {
-  await openTailor(page, { ...STATE_FIRST, stayed: STAYED_LINE });
+test("#309 a brought job that stays despite the gap says why, on the question screen and beside the draft", async ({ page }) => {
+  await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q], stayed: STAYED_LINE });
   await expect(page.locator(".tailor .ask .stayed")).toHaveText(STAYED_LINE);
 
-  await openTailor(page, { ...STATE_FIRST, stayed: STAYED_LINE, questions: [], done: true });
-  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
-  await expect(page.locator(".tailor .ask .stayed")).toHaveText(STAYED_LINE);
+  await openTailor(page, { ...STATE_DRAFT, stayed: STAYED_LINE });
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.locator(".tailor .rail .stayed")).toHaveText(STAYED_LINE);
 });
 
-// QA gate run 2's adversarial gap: with a one-line ledger, a regression back to `.at(-1)` still
-// passes the test above. Here the answered requirement's line is deliberately NOT last.
-test("#309 the fall's cause is the answer JUST GIVEN, even when its ledger line is not last", async ({ page }) => {
-  // "public" was answered earlier, so its line sits LAST in the advert's rank-ordered ledger; the
-  // sap answer that causes this fall sits first. Also covers a fall landing on the ending screen.
-  const publicAnswered: TailorState = {
-    ...STATE_FIRST,
-    questions: [STATE_FIRST.questions[0]!], // only sap still open
-    ledger: [{ requirementId: "public", text: "asked and closed · 2 still open" }],
-  };
-  const fallen: TailorState = {
-    ...publicAnswered,
-    card: { ...STATE_FIRST.card, matchPct: 50 },
-    questions: [],
-    done: true,
-    ledger: [
-      { requirementId: "sap", text: "+9% · SAP S/4HANA" },
-      { requirementId: "public", text: "asked and closed · 2 still open" },
-    ],
-  };
-  await openTailor(page, publicAnswered);
-  await stubAnswer(page, { "sap:Yes, ran a project on it": fallen });
+// --- #310: the draft is the CV brain's, and it shows what it held back ---
 
-  await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
-
-  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
-  await expect(page.locator(".finish .ledger")).toHaveText("Down 11% — re-scored on “SAP S/4HANA”");
-});
-
-// --- #310: the ending's draft is the CV brain's, and it shows what it held back ---
-
-test("#310 the ending renders the real draft and the re-homed #154 panel — document, held-back facts, over-full line, notice", async ({
+test("#310 the draft screen renders the real document and the re-homed #154 panel — held-back facts, over-full line, notice", async ({
   page,
 }) => {
-  await openTailor(page, STATE_ENDED);
+  await openTailor(page, STATE_DRAFT);
 
   // The document reaches the screen: the sandboxed frame is visible and carries the server render.
   const frame = page.locator(".draft-frame");
@@ -660,8 +532,8 @@ test("#310 the ending renders the real draft and the re-homed #154 panel — doc
   await expect(frame).toHaveAttribute("srcdoc", /Maria Kowalski/);
   await expect(frame).toHaveAttribute("srcdoc", /Led the checkout replatforming/);
 
-  // The #154 disclosure, on the Tailor step's ending: the choice (held back), in the profile's own
-  // words, behind its "show them" control…
+  // The #154 disclosure, beside the draft: the choice (held back), in the profile's own words,
+  // behind its "show them" control…
   const panel = page.locator(".disclose");
   await expect(panel).toBeVisible();
   await expect(panel).toContainText("Nordic Retail Group — IT Project Manager");
@@ -678,44 +550,14 @@ test("#310 the ending renders the real draft and the re-homed #154 panel — doc
     page.getByText("Your languages could not be placed on this draft.", { exact: false }),
   ).toBeVisible();
 
-  // And the ending's own controls are still there beneath it — the draft is ready here, so the
-  // #313 approve-is-send press is the one that shows.
+  // And the one real press is there beneath it — the #313 approve-is-send press.
   await expect(page.getByRole("button", { name: "Approve and email me this CV" })).toBeVisible();
-});
-
-test("#310 a fresh draft narrates its wait over the job stream, then the document lands", async ({ page }) => {
-  await stubSession(page);
-  await page.route("**/api/onboarding/tailor", async (route) => {
-    await route.fulfill({ json: STATE_ENDED });
-  });
-  await page.route("**/api/onboarding/tailor/draft", async (route) => {
-    if (route.request().method() === "POST") {
-      // Hold the 202 briefly so the writing line is assertable, not a flash.
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      await route.fulfill({ status: 202, json: { jobId: "draft-job-1" } });
-    } else {
-      await route.fulfill({ json: DRAFT_VIEW });
-    }
-  });
-  await page.route("**/api/jobs/draft-job-1/events", async (route) => {
-    const snapshot = { id: "draft-job-1", status: "completed", error: null, progress: { tailorDraft: { ready: true } } };
-    await route.fulfill({
-      contentType: "text/event-stream",
-      body: `data: ${JSON.stringify(snapshot)}\n\n`,
-    });
-  });
-
-  await page.goto("/tailor");
-
-  await expect(page.getByText("Writing your CV for this job…")).toBeVisible();
-  await expect(page.locator(".draft-frame")).toBeVisible();
-  await expect(page.locator(".draft-frame")).toHaveAttribute("srcdoc", /Maria Kowalski/);
 });
 
 test("#310 a failed draft says so in plain words, and Try again really retries", async ({ page }) => {
   await stubSession(page);
   await page.route("**/api/onboarding/tailor", async (route) => {
-    await route.fulfill({ json: STATE_ENDED });
+    await route.fulfill({ json: STATE_DRAFT });
   });
   // Every build attempt fails first (an attempt COUNTER would break under React strict mode's
   // double mount — dev runs every effect twice, so the very first paint already makes two POSTs);
@@ -761,7 +603,7 @@ test("#310 a failed draft says so in plain words, and Try again really retries",
 test("#314 over two pages: the press narrates the shortening, then 'sent' says plainly what the email says", async ({
   page,
 }) => {
-  await openTailor(page, STATE_ENDED);
+  await openTailor(page, STATE_DRAFT);
   await page.route("**/api/onboarding/tailor/approve", async (route) => {
     await route.fulfill({ status: 202, json: { jobId: "export-job-314" } });
   });
@@ -802,67 +644,4 @@ test("#314 over two pages: the press narrates the shortening, then 'sent' says p
   await expect(send.locator(".draft-notice")).toHaveCount(1);
   // The draft's lint notice stays said once, in its own place.
   await expect(page.getByText("Your languages could not be placed on this draft.", { exact: false })).toHaveCount(1);
-});
-
-// --- #311: a "No" never prints, and growing is one step --------------------------------------------
-
-const GROWN_CLAIM_ID = "tailor-ad-1-public-grew";
-// What the server answers a door's "1-2 years ago" with: the dated fact in fit (a NEW claim id — the
-// old "No" is kept server-side, never overwritten), the named denial and its door gone, +N% earned.
-const STATE_GROWN: TailorState = {
-  ...STATE_ENDED,
-  card: {
-    ...STATE_ENDED.card,
-    matchPct: 76,
-    fit: [...STATE_ENDED.card.fit, { id: GROWN_CLAIM_ID, text: "Public-sector delivery (since 2025)." }],
-    askedClosed: [],
-  },
-  ledger: [
-    ...STATE_ENDED.ledger.slice(0, 1),
-    { requirementId: "public", text: "+9% · Public-sector delivery" },
-  ],
-  closedGaps: { closed: 2, asked: 2 },
-  doors: [],
-};
-
-test("#311 the door: a named denial grows in one step, through the existing answer path", async ({ page }) => {
-  await openTailor(page, STATE_ENDED);
-  await stubAnswer(page, { "public:1-2 years ago": STATE_GROWN });
-
-  // The denial is named under its own heading, and its row carries the door.
-  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
-  const door = page.getByRole("button", { name: "Changed? Add it" });
-  await expect(door).toBeVisible();
-
-  // Tapping it turns the row back into a question — server-composed, coarse dates, a way out.
-  await door.click();
-  // #tailor-ask-q, not getByText: the sr-only live region announces the same question (by design).
-  await expect(page.locator("#tailor-ask-q")).toHaveText(/Changed\? Since when\?/);
-  await expect(page.getByRole("button", { name: "This year" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "3 or more years ago" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "No change" })).toBeVisible();
-
-  await page.getByRole("button", { name: "1-2 years ago" }).click();
-
-  // The dated fact lands in fit; the named denial and its door are gone with it.
-  await expect(page.locator(".row.fit").filter({ hasText: "Public-sector delivery (since 2025)." })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Changed? Add it" })).toHaveCount(0);
-});
-
-test("#311 'No change' closes the door with nothing posted — his 'No' stands", async ({ page }) => {
-  await openTailor(page, STATE_ENDED);
-  let answerPosts = 0;
-  await page.route("**/api/onboarding/tailor/answer", async (route) => {
-    answerPosts += 1;
-    await route.fulfill({ json: STATE_ENDED });
-  });
-
-  await page.getByRole("button", { name: "Changed? Add it" }).click();
-  await expect(page.locator("#tailor-ask-q")).toHaveText(/Changed\? Since when\?/);
-  await page.getByRole("button", { name: "No change" }).click();
-
-  await expect(page.locator("#tailor-ask-q")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
-  expect(answerPosts).toBe(0);
 });

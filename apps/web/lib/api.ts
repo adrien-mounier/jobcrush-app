@@ -441,20 +441,14 @@ export interface TailorQuestion {
   consequence?: string;
 }
 
-export interface TailorLedgerEntry {
-  requirementId: string;
+/** #415 (ADR-0020 clause 6): one requirement of the job, with the verdict the card reached on it.
+ *  `gap` is a fit under the threshold as the card computes it, a denied capability included;
+ *  `untested` is #162 AC6's years bar with no readable work history. The vocabulary grows (#417
+ *  adds a stretch's own state). */
+export interface TailorRequirement {
+  id: string;
   text: string;
-}
-
-/** #311: one "Changed? Add it" door per denial the card names (an askedClosed row, matched by
- *  `claimId`). Tapping it turns the row back into a question — the server-composed `question` +
- *  `options` render through the same question dock and post through answerTailor, the existing
- *  answer path. The old "No" is kept server-side; the new fact lands dated by the tapped choice. */
-export interface GrowDoor {
-  claimId: string;
-  requirementId: string;
-  question: string;
-  options: string[];
+  state: "met" | "gap" | "untested";
 }
 
 export interface TailorState {
@@ -463,28 +457,20 @@ export interface TailorState {
   // `tailor.card.matchPct` etc. in this file keep type-checking as a plain number, with no `!`/`as`,
   // because the type itself states the invariant instead of the caller assuming it card-by-card.
   card: ScoredJobCard;
-  questions: TailorQuestion[]; // empty ⇒ the ending
-  ledger: TailorLedgerEntry[];
-  cvLines: DiscoveryCvLine[];
-  closedGaps: { closed: number; asked: number };
+  /** #415: the profile questions still open (work rights, a language) — empty ⇒ the draft is the
+   *  page. A requirement is never a question. */
+  questions: TailorQuestion[];
+  /** #415: every requirement of this job in the job's own order, never re-sorted — the "Where you
+   *  fit" sheet and the "Also asked, not on your CV" list (its `gap` rows) are both drawn from it. */
+  requirements: TailorRequirement[];
   /** #309 AC4 — only on a job the person brought that their own answers would have withdrawn were
    *  it a found job: the one line saying why it stays ("the gap is real"). Server-composed. */
   stayed?: string;
-  /** #311: the "Changed? Add it" doors — one per denial the card names, keyed by askedClosed row. */
-  doors: GrowDoor[];
-  done: boolean;
   factCount: number; // #17's profile badge count, on the tailor screen too
 }
 
 export function getTailor(): Promise<TailorState> {
   return jfetch("/api/onboarding/tailor");
-}
-
-export function answerTailor(requirementId: string, answer: string): Promise<TailorState> {
-  return jfetch("/api/onboarding/tailor/answer", {
-    method: "POST",
-    body: JSON.stringify({ requirementId, answer }),
-  });
 }
 
 /** #307: a profile-level answer — permanent, written to the profile, never re-asked. `changed` is
