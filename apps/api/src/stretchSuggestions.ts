@@ -284,6 +284,22 @@ export const suggestStretches = (
     gateSuggestions(SuggestionAnswer.parse(doc).suggestions, draft, requirements, denied, adId, new Date().toISOString()),
   );
 
+/**
+ * #417 (review): the step redone on a draft that stands keeps the person's word on every suggestion
+ * that comes back — the same id (one per job and requirement) at the same slot, pushing out the same
+ * line, so the swap he answered is the swap still on offer. That suggestion is kept as he left it:
+ * its answer and scope, and any wording he edited with the interview line rewritten for it. Every
+ * other one is the fresh run's, and an answer to a suggestion that did not come back is dropped.
+ */
+export function carryAnswers(fresh: StretchProposalV2[], previous: StretchCheckpoint | undefined): StretchProposalV2[] {
+  if (previous?.status !== "ran") return fresh;
+  const before = new Map(previous.suggestions.map((s) => [s.id, s]));
+  return fresh.map((s) => {
+    const was = before.get(s.id);
+    return was && was.lineOut === s.lineOut && JSON.stringify(was.slot) === JSON.stringify(s.slot) ? was : s;
+  });
+}
+
 /** The answers a suggestion takes (ADR-0020 clause 4). #417 built "no"; #418 adds "use" (this job
  *  only) and "undo" (back to pending — the Ready-to-send summary's per-answer Undo); #419 adds "true"
  *  (every job: the line joins the master CV — stretchFact.ts writes it). */

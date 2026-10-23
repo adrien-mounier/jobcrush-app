@@ -973,6 +973,13 @@ describe("#419 It's true keeps the line on the master CV, under the job it was s
     expect(tailor.prompts[1]).toContain(`] ${swap.claimText}`); // written from every fact
     expect(redraft.html.split(swap.claimText)).toHaveLength(2); // the fact prints once
     expect((await post(app, cookie, "/onboarding/tailor/draft")).json()).toEqual({ ready: true });
+    // The answer went with the old draft; the line stays on the master CV, and the profile's own
+    // removal is the way to take it off.
+    expect(redraft.stretch.suggestions.every((s: { state: string }) => s.state === "pending")).toBe(true);
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(statedClaimId(swap.id));
+    expect((await app.inject({ method: "PUT", url: `/cv/lines/${statedClaimId(swap.id)}`, headers: { cookie }, payload: { state: "kept" } })).statusCode).toBe(200);
+    expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain(statedClaimId(swap.id));
   });
 
   it("Undo takes the line off the master CV and puts this CV's line out and score back, with nothing re-drafted", async () => {
@@ -1233,6 +1240,66 @@ describe("#420 what an edit cannot do", () => {
     expect(failed.statusCode).toBe(502);
     expect(stretch.resays).toHaveLength(3); // one retry
     expect((await read()).suggestions[0]).toMatchObject({ claimText: EDITED, interviewNarrative: `Rewritten for: ${EDITED}` });
+  });
+});
+
+describe("#417 a redone suggestion step keeps the answers to the suggestions that come back", () => {
+  it("the draft stands and the step's input changes: a suggestion back with the same id and line out keeps its answer, scope and edited wording; one back elsewhere starts again; one not back is dropped", async () => {
+    const tailor = draftingLlm();
+    // Run 1 suggests four lines; run 2 brings A and B back at the same slots (new wording from the
+    // model), C at a different slot, and E not at all. The ids are the product's (job, requirement).
+    let run = 0;
+    let first: string[] = [];
+    const line = (id: string, slot: Record<string, unknown>) => ({
+      requirementId: id,
+      slot,
+      lineIn: `Run ${run}: led the work on ${id}.`,
+      why: `The job asks for ${id}.`,
+      say: `Run ${run}: I can walk through ${id}.`,
+      intendedClass: "Partially-Supported",
+      comparison: "The line in names what this job tests.",
+      better: true,
+    });
+    const suggest = suggestingLlm((gaps) => {
+      run += 1;
+      if (run === 1) first = gaps;
+      const [a, b, c, e] = first as [string, string, string, string];
+      const bullet = (n: number) => ({ kind: "bullet", role: 0, bullet: n });
+      return run === 1
+        ? [line(a, bullet(0)), line(b, { kind: "skill", group: 0 }), line(c, bullet(1)), line(e, { kind: "summary" })]
+        : [line(a, bullet(0)), line(b, { kind: "skill", group: 0 }), line(c, { kind: "summary" })];
+    });
+    const stretch = withResay(suggest.llm);
+    // The judge later meets a fifth requirement: the suggestions' input changes, the draft's does not.
+    const judged = fakeJudge();
+    let flipped: string | null = null;
+    const judge: JudgeFn = async (adReq, facts) => {
+      const j = await judged(adReq, facts);
+      return j && flipped ? { ...j, verdicts: j.verdicts.map((v) => (v.requirementId === flipped ? { ...v, fit: 0.9 } : v)) } : j;
+    };
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-carry@example.com");
+    const [a, b, c, e] = (await draftWithSuggestions(app, cookie)).stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${a.id}`, { answer: "use" });
+    expect((await post(app, cookie, `/onboarding/tailor/suggestions/${b.id}/wording`, { text: EDITED })).statusCode).toBe(200);
+    await post(app, cookie, `/onboarding/tailor/suggestions/${c.id}`, { answer: "no" });
+    await post(app, cookie, `/onboarding/tailor/suggestions/${e.id}`, { answer: "use" });
+
+    flipped = first[4]!;
+    const redone = await draftWithSuggestions(app, cookie);
+    expect(tailor.prompts).toHaveLength(1); // the draft stood
+    expect(suggest.prompts).toHaveLength(2);
+    const byId = new Map(redone.stretch.suggestions.map((s: { id: string }) => [s.id, s]));
+    expect([...byId.keys()]).toEqual([a.id, b.id, c.id]); // E did not come back: dropped
+    // A: the line he used, still used for this job, still printed.
+    expect(byId.get(a.id)).toMatchObject({ state: "approved", scope: "this-job", claimText: a.claimText, decidedAt: expect.any(String) });
+    expect(redone.html).toContain(`<li>${a.claimText}</li>`);
+    // B: still open, with his own wording and the interview line rewritten for it.
+    expect(byId.get(b.id)).toMatchObject({ state: "pending", claimText: EDITED, interviewNarrative: `I can stand behind it: ${EDITED}` });
+    // C: back at another slot, so another swap — a fresh suggestion, unanswered.
+    expect(byId.get(c.id)).toMatchObject({ state: "pending", scope: null, slot: { kind: "summary" }, claimText: `Run 2: led the work on ${c.requirementId}.` });
+    expect(redone.html).not.toContain(e.claimText);
   });
 });
 

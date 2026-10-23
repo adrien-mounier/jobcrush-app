@@ -21,6 +21,7 @@ import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js"
 import type { TailorRequirement } from "./deck.js";
 import {
   applyUsedStretches,
+  carryAnswers,
   stretchFingerprint,
   stretchInputFor,
   stretchView,
@@ -187,7 +188,8 @@ export async function runTailorDraftJob(
       await deps.jobs.update(jobId, { progress: { tailorDraft: { step: "suggesting" } } });
       await deps.tailorDrafts.put(sessionId, posting.id, {
         ...record,
-        stretch: await stretchStep(deps.stretchLlm, posting, stretch, record.draft, inputs),
+        // A draft that stands keeps the answers to the suggestions that come back (carryAnswers).
+        stretch: await stretchStep(deps.stretchLlm, posting, stretch, record.draft, inputs, existing?.stretch),
       });
     }
     await deps.jobs.update(jobId, { status: "completed", progress: { tailorDraft: { ready: true } } });
@@ -210,13 +212,14 @@ async function stretchStep(
   stretch: StretchContext,
   draft: Draft,
   inputs: DraftInputs,
+  previous?: StretchCheckpoint,
 ): Promise<StretchCheckpoint> {
   const input = stretchInputFor(posting, stretch.requirements, draft, inputs);
   const fingerprint = stretchFingerprint(input);
   try {
     const denied = inputs.opts.negatives ?? [];
     const suggestions = await suggestStretches(llm, input, draft, stretch.requirements, denied, posting.id);
-    return { fingerprint, status: "ran", suggestions };
+    return { fingerprint, status: "ran", suggestions: carryAnswers(suggestions, previous) };
   } catch (err) {
     console.error(`[ops] stretch suggestions failed: ${err instanceof Error ? err.message : String(err)}`);
     return { fingerprint, status: "failed" };

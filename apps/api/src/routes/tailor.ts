@@ -486,8 +486,9 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       // otherwise the job below re-makes the suggestions alone, the draft untouched and unspent.
       let draftCurrent = stored?.inputFingerprint === target.inputs.fingerprint;
       if (draftCurrent && (!stretch || stretchIsCurrent(stored!, posting, stretch.requirements, target.inputs))) return { ready: true };
-      // #419: re-making the suggestions drops their answers, so a draft that stands only without its
-      // own "It's true" lines would then match no fact set — it is written again from every fact.
+      // #419: re-made suggestions keep only the answers whose suggestion comes back (carryAnswers), so
+      // a draft that stands only without its own "It's true" lines could then match no fact set — it
+      // is written again from every fact. Those lines stay on the master CV; the profile removes them.
       if (draftCurrent && target.draftConfirmed !== confirmed) {
         const { negatives, blocks, adReq, header } = target;
         target = { ...target, draftConfirmed: confirmed, inputs: composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header) };
