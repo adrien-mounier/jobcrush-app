@@ -831,6 +831,8 @@ describe("JobCard v1", () => {
       (card) => (card.applicationUrl = "HTTPS://example.com/apply"),
       // #407: the scorer's reason on a fit row.
       (card) => (card.fit[0].reason = "You have owned a budget of this size."),
+      // #418: a requirement met by a stretch the person used for this job (ADR-0020 clause 4).
+      (card) => (card.fit[0].stretched = true),
     ];
     for (const mutate of present) {
       const card = fixture("job-card-v1.valid.json");
@@ -850,6 +852,8 @@ describe("JobCard v1", () => {
       (card) => (card.applicationUrl = 42),
       (card) => (card.fit[0].reason = 1),
       (card) => (card.fit[0].reason = null),
+      (card) => (card.fit[0].stretched = false), // a plain met row omits the flag; "false" is a lie waiting to be read as true
+      (card) => (card.fit[0].stretched = "yes"),
     ];
     for (const mutate of malformed) {
       const card = fixture("job-card-v1.valid.json");

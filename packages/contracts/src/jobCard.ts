@@ -11,7 +11,15 @@ const BandBreakdown = z.object({ met: Count, total: Count }).superRefine((value,
 /** #407 — `reason` is optional and additive (like `notTested`, `ageing`, `applicationUrl`): on a judged
  *  card's `fit` rows it carries the scorer's one-sentence reason why this requirement counts as met;
  *  absent on an estimated card's rows and on every `askedClosed` row, so pre-#407 payloads are unchanged. */
-export const CardFact = z.object({ id: z.string(), text: z.string(), reason: z.string().optional() });
+/** #418 (ADR-0020 clause 4) — `stretched` is optional and additive the same way: present (and only ever
+ *  `true`) on a `fit` row the person met by using a stretch for this job, so every surface can label
+ *  it *met by a stretch* rather than pass it off as a plain match. Absent on every other row. */
+export const CardFact = z.object({
+  id: z.string(),
+  text: z.string(),
+  reason: z.string().optional(),
+  stretched: z.literal(true).optional(),
+});
 export type CardFact = z.infer<typeof CardFact>;
 
 // band: the SAME RankBand used by AdRequirementV1.band and FloorItem.rankBand (#86 decision, #102) —
