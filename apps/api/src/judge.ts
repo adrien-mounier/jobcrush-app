@@ -10,7 +10,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { AdRequirementsV1 } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1, DegreeLevel } from "@jobcrush/contracts";
+import { highestDegree, meetsDegreeBar } from "./degreeLevel.js";
 import { extractJson } from "./miner.js";
 import { completeWithCost, addNullable, type AdReadCost } from "./adReader.js";
 import { canonicalModelName, type LlmClient } from "./llm.js";
@@ -20,8 +21,11 @@ import type { JudgementRecord, JudgementStore } from "./judgementStore.js";
 const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "card-judge.md");
 
 // Hand-bumped, same idiom as adReader.ts's PROMPT_CONTRACT_VERSION: bump this whenever the verdict
-// shape (JudgeVerdict below) changes what a valid answer looks like.
-const PROMPT_CONTRACT_VERSION = "judge/1";
+// shape (JudgeVerdict below) changes what a valid answer looks like — or what the model is asked.
+// #416 bumped this from "judge/1": a field-named degree bar's item now carries a note settling its
+// level (degreeNote below), so a verdict judged without it is stale and re-judged once, lazily, on
+// its next use — the same one-advert-at-a-time re-spend adReader.ts's bumps carry.
+const PROMPT_CONTRACT_VERSION = "judge/2";
 
 let cachedPrompt: string | null = null;
 export function judgePrompt(): string {
@@ -63,9 +67,22 @@ function sanitizeFactText(text: string): string {
   return text.replace(/[\r\n]+/g, " ").trim();
 }
 
+// #416 (ADR-0020 clause 5) — on a degree bar naming a field of study, the level is the record's
+// (degreeLevel.ts, read from these same facts) and the scorer judges only the field: it is told the
+// degree held and that a higher degree meets a lower bar. Nothing is said on a bar naming no field
+// (recordBars.ts decides it outright), on a degree short of the bar, or when either level is
+// unknown — the scorer then reads as today. One line, in the requirement's own item, so the model
+// sees it beside the sentence it qualifies.
+function degreeNote(r: AdRequirementV1, held: DegreeLevel | null): string {
+  if (r.eligibilityDimension !== "degree" || !r.degreeLevel || !r.degreeFieldNamed || !held) return "";
+  if (!meetsDegreeBar(held, r.degreeLevel)) return "";
+  return `\n  note: the candidate holds a ${held}'s degree, which meets this requirement's ${r.degreeLevel}'s level (a higher degree meets a lower bar). Judge only whether their field of study fits.`;
+}
+
 export function buildJudgeInput(adReq: AdRequirementsV1, facts: JudgeFact[]): string {
+  const held = highestDegree(facts);
   const requirementLines = adReq.requirements
-    .map((r) => `- id: ${r.id}\n  band: ${r.band}\n  requirement: ${r.requirement}`)
+    .map((r) => `- id: ${r.id}\n  band: ${r.band}\n  requirement: ${r.requirement}${degreeNote(r, held)}`)
     .join("\n");
   const factLines = facts.length
     ? facts.map((f) => `- id: ${f.id}\n  text: ${sanitizeFactText(f.text)}`).join("\n")
