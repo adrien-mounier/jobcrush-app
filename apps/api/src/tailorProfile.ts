@@ -58,15 +58,16 @@ interface ProfileAskBase {
   skip: string;
 }
 
-/** One profile-level queue entry. Rides in TailorState.questions AHEAD of the advert's own
- *  questions (#292 ruling 3: he never answers five requirement questions about a job he cannot
- *  legally take). Discriminated on `dimension` — the route dispatches the write path on it, so
+/** One profile-level queue entry — the whole of TailorState.questions since #415 (ADR-0020
+ *  clause 1: only eligibility comes before the CV; #292 ruling 3: he never answers requirement
+ *  questions about a job he cannot legally take). Discriminated on `dimension` — the route
+ *  dispatches the write path on it, so
  *  the after-line is always derived from the answer he actually gave, never a store re-read.
  *
  *  `requirementId` is what the client posts back untouched: the eligibility itemId for
  *  work-rights (never collides with a reader id — those are kebab ids, never "eligibility-"
- *  prefixed), and the advert requirement's own id for a language (the same id
- *  profileOwnedRequirementIds subtracts from the advert's questions). */
+ *  prefixed), and the advert requirement's own id for a language. #415 (ADR-0020): the queue is
+ *  these asks alone — a requirement is never a question, so nothing is subtracted any more. */
 export interface WorkRightsProfileAsk extends ProfileAskBase {
   dimension: "work-rights";
   /** The market the answer is a fact about — display name ("Hong Kong"), for the after-line. */
@@ -145,39 +146,6 @@ export function tailorProfileAsks(
     });
   }
   return asks.filter((ask) => !skips.has(ask.requirementId));
-}
-
-/** Requirement ids whose question IS the profile question — one queue means one question. Without
- *  this, the advert's own work-rights requirement would also surface as a plain "This job wants:
- *  …" Yes/No (tailorQuestions has no eligibility awareness by design), one screen after the
- *  permanent ask: the indistinguishable-twin defect #292 ruling 2 exists to close — and answering
- *  THAT one would write the advert-scoped claim AC4 forbids. buildTailorState subtracts this set
- *  from the advert's questions, and the answer route refuses these ids outright.
- *
- *  Work-rights is scoped to a PLACEABLE market: when the posting's market cannot be resolved, no
- *  profile question exists to own the requirement, so it stays an ordinary advert question — the
- *  pre-#307 behaviour, unchanged, rather than a requirement with no door to answer it at all.
- *
- *  #308: a language requirement WITH a subject is owned unconditionally — the graded ladder is the
- *  only door a language answer may take (AC4: graded, never yes-or-no), its door needs no market,
- *  and once the level is answered the question is closed everywhere (asked once per language
- *  ever), never reopened as a Yes/No. A language requirement with NO subject stays an ordinary
- *  advert question: there is no safe way to know which language is meant. Ownership deliberately
- *  ignores skips — a skipped ladder must step aside, not reappear as its own Yes/No twin. */
-export function profileOwnedRequirementIds(
-  adReq: AdRequirementsV1,
-  postingLocation: string | null | undefined,
-): Set<string> {
-  const marketPlaced = marketForLocationText(postingLocation ?? "") !== null;
-  return new Set(
-    adReq.requirements
-      .filter(
-        (r) =>
-          (marketPlaced && r.eligibilityDimension === "work-rights") ||
-          (r.eligibilityDimension === "language" && r.eligibilitySubject),
-      )
-      .map((r) => r.id),
-  );
 }
 
 /** How many jobs THIS answer just removed from his deck — the honest number the after-line carries.

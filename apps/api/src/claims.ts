@@ -51,7 +51,7 @@ export interface ClaimRecord extends CandidateClaim {
    *  moved one claim at a time by setGroup(); a correction upsert never touches it. */
   groupName: string | null;
   /** #28: a monotonic per-session ordinal — the order this claim's answer was FIRST RECORDED, so a
-   *  derived view (tailor.ts's buildTailorLedger) can replay confirmed() and negatives() — two
+   *  derived view can replay confirmed() and negatives() — two
    *  separately-ordered lists — as ONE true answer order instead of stamping every line from today's
    *  totals. PgClaimStore's `seq` bigserial column already backs list/confirmed/negatives' own
    *  `ORDER BY seq`; this just surfaces it on the record. Optional: a couple of pre-existing test

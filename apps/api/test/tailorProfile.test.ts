@@ -25,7 +25,6 @@ import {
   newlyHiddenCount,
   NOT_SURE_YET,
   profileChangeLine,
-  profileOwnedRequirementIds,
   skippedLine,
   tailorProfileAsks,
   withdrawalReasonLine,
@@ -239,34 +238,6 @@ describe("#308 languageChangeLine + skippedLine — the after-lines", () => {
     );
     expect(skippedLine(asks[1] as LanguageProfileAsk)).toBe(
       "Nothing saved — I'll ask about Mandarin again on another job that needs it.",
-    );
-  });
-});
-
-describe("#307 profileOwnedRequirementIds — one queue means one question", () => {
-  it("the profile question owns the advert's work-rights requirement, so no Yes/No twin is asked", () => {
-    expect(profileOwnedRequirementIds(workRightsAd("ad-1"), HK_LOCATION)).toEqual(
-      new Set(["right-to-work-hk"]),
-    );
-    expect(profileOwnedRequirementIds(plainAd("ad-1"), HK_LOCATION)).toEqual(new Set());
-  });
-  it("an unplaceable market owns no work-rights requirement — it keeps its ordinary question rather than losing every door", () => {
-    expect(profileOwnedRequirementIds(workRightsAd("ad-1"), "Shenzhen, Guangdong, China")).toEqual(new Set());
-  });
-  // #308 AC4: the graded ladder is the only door a language answer may take — a Yes/No twin for a
-  // subject-carrying language requirement would write the advert-scoped claim the ticket forbids.
-  it("#308: a language requirement with a subject is owned everywhere, even where no market places", () => {
-    expect(
-      profileOwnedRequirementIds(workRightsAd("ad-1", [mandarinPlus]), "Shenzhen, Guangdong, China"),
-    ).toEqual(new Set(["mandarin-advantage"]));
-    expect(profileOwnedRequirementIds(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION)).toEqual(
-      new Set(["right-to-work-hk", "mandarin-advantage"]),
-    );
-    // No subject means no safe way to know WHICH language — it stays an ordinary advert question.
-    const noSubject = { ...mandarinPlus, id: "some-language" };
-    delete (noSubject as { eligibilitySubject?: string }).eligibilitySubject;
-    expect(profileOwnedRequirementIds(workRightsAd("ad-1", [noSubject]), HK_LOCATION)).toEqual(
-      new Set(["right-to-work-hk"]),
     );
   });
 });

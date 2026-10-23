@@ -278,7 +278,7 @@ test("#415 on a phone the draft comes first and 'Where you fit' is a pull-up", a
   await expect(sheet.locator(".marks li .t")).toHaveText(["Own a €2M budget", "Their SAP version", "Public-sector delivery"]);
   const box = (await sheet.boundingBox())!;
   expect(Math.round(box.width)).toBe(390);
-  expect(Math.round(box.y + box.height)).toBe(844);
+  expect(Math.abs(box.y + box.height - 844)).toBeLessThanOrEqual(1); // docked to the bottom edge (a 1px border)
   expect(box.y).toBeGreaterThan(0);
 });
 
@@ -403,10 +403,6 @@ test("#308 the graded language question: why and cost before six rungs, the cost
   page,
 }) => {
   await openTailor(page, { ...STATE_DRAFT, questions: [PROFILE_Q, LANGUAGE_Q] });
-  await stubProfileAnswer(page, {
-    changed: "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
-    state: STATE_DRAFT,
-  });
   // The work-rights question leads; the ladder is the second and last thing asked.
   await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
     const { requirementId } = route.request().postDataJSON() as { requirementId: string };

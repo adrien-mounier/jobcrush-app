@@ -110,9 +110,8 @@ const norm = (s: string): string => s.trim().toLowerCase();
 // requirementId), but the ANSWER stays keyed by (session, language) in the eligibility store —
 // "already answered" is read back from that stored rung, never from a question record.
 export interface LanguageLevelAsk {
-  /** #308 — the advert requirement this ask answers for. The queue posts it back untouched, and
-   *  profileOwnedRequirementIds subtracts it from the advert's own questions (one queue, one
-   *  question — never a graded ask and a Yes/No twin one tap apart). */
+  /** #308 — the advert requirement this ask answers for. The queue posts it back untouched. (#415:
+   *  the graded ask is the only question a language ever raises — no Yes/No twin exists.) */
   requirementId: string;
   /** The language, in the STORE's canonical casing when this session already declared it, else the
    *  advert's own word. Never a normalised token — this string is shown to a person. */
