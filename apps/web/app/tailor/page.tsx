@@ -134,6 +134,9 @@ export default function TailorPage() {
   // "look again" counter that remounts the draft so a failed step runs once more.
   const [stretch, setStretch] = useState<StretchRailView>(undefined);
   const [openStretch, setOpenStretch] = useState<string | null>(null);
+  // One answer at a time. The guard is the ref (CODING_STANDARDS: event-ordering guards live in refs —
+  // a second key press in the same tick reads it already set); the state only draws the disabled look.
+  const stretchAnsweringRef = useRef(false);
   const [stretchAnswering, setStretchAnswering] = useState(false);
   const [lookAgain, setLookAgain] = useState(0);
   const autoOpenedRef = useRef(false);
@@ -346,19 +349,26 @@ export default function TailorPage() {
     editButtonRef.current?.focus();
   }, [stretchEdit]);
 
-  async function answerStretchNo(id: string) {
-    if (stretchAnswering) return;
+  async function oneAnswerAtATime(work: () => Promise<void>) {
+    if (stretchAnsweringRef.current) return;
+    stretchAnsweringRef.current = true;
     setStretchAnswering(true);
     try {
-      const { stretch: next } = await answerStretch(id, "no");
-      setStretch(next);
-      openSuggestion(nextPending(next, id));
+      await work();
     } catch {
       setAskError(T7);
     } finally {
+      stretchAnsweringRef.current = false;
       setStretchAnswering(false);
     }
   }
+
+  const answerStretchNo = (id: string) =>
+    oneAnswerAtATime(async () => {
+      const { stretch: next } = await answerStretch(id, "no");
+      setStretch(next);
+      openSuggestion(nextPending(next, id));
+    });
 
   // #418 (ADR-0020 clause 4): "Use for this job". The server swaps the line and re-composes the
   // card; this screen re-reads the state and moves the number with the reward beat — a gold mote
@@ -366,11 +376,9 @@ export default function TailorPage() {
   // ever written: the number is the statement. Reduced motion swaps the number at once.
   // #419: "It's true" lands the same way, and confirms with a toast that says where the line was
   // kept on the master CV and carries an Undo — a permanent change is never one silent tap.
-  async function approveStretch(id: string, answer: "use" | "true") {
-    if (stretchAnswering) return;
-    setStretchAnswering(true);
-    const from = stretchHeadingRef.current?.getBoundingClientRect();
-    try {
+  const approveStretch = (id: string, answer: "use" | "true") =>
+    oneAnswerAtATime(async () => {
+      const from = stretchHeadingRef.current?.getBoundingClientRect();
       const { stretch: next, keptUnder } = await answerStretch(id, answer);
       setStretch(next);
       openSuggestion(nextPending(next, id));
@@ -378,20 +386,13 @@ export default function TailorPage() {
       const state = await getTailor();
       setTailor(state);
       await moveScore(state.card.matchPct, from);
-    } catch {
-      setAskError(T7);
-    } finally {
-      setStretchAnswering(false);
-    }
-  }
+    });
 
   // #418: Undo from the "Ready to send" summary — the answer is withdrawn, the suggestion reopens
-  // (pending again), and the number counts down quietly: no mote, no glow.
-  async function undoStretch(id: string) {
-    if (stretchAnswering) return;
-    setStretchAnswering(true);
-    if (toast?.id === id) showToast(null);
-    try {
+  // (pending again), and the number counts down quietly: no mote, no bump, no glow.
+  const undoStretch = (id: string) =>
+    oneAnswerAtATime(async () => {
+      if (toast?.id === id) showToast(null);
       const { stretch: next } = await answerStretch(id, "undo");
       setStretch(next);
       openSuggestion(id);
@@ -399,12 +400,7 @@ export default function TailorPage() {
       setTailor(state);
       setLiveMessage(T30(state.card.matchPct));
       tweenScore(displayPct, state.card.matchPct);
-    } catch {
-      setAskError(T7);
-    } finally {
-      setStretchAnswering(false);
-    }
-  }
+    });
 
   function showToast(next: { id: string; text: string } | null) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -421,6 +417,7 @@ export default function TailorPage() {
       if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
       glowTimerRef.current = setTimeout(() => setScoreLit(false), GLOW_MS);
     }
+    bumpScore();
     tweenScore(displayPct, to);
   }
 
@@ -546,11 +543,9 @@ export default function TailorPage() {
   // reduced motion (or a no-op change) snaps straight to the final value. #309: the score may FALL —
   // the old defensive Math.max(from, to) floor is gone with the server's own; an honest correction
   // tweens the number down, and the after-line beside it names the answer that did it.
+  // #418: the bump is its own beat (bumpScore), so an Undo can count down quietly.
   function tweenScore(from: number, to: number) {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    setScoreBumped(true);
-    if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
-    bumpTimerRef.current = setTimeout(() => setScoreBumped(false), SCORE_BUMP_MS);
     if (reducedMotion || from === to) {
       setDisplayPct(to);
       return;
@@ -563,6 +558,13 @@ export default function TailorPage() {
       rafRef.current = k < 1 ? requestAnimationFrame(tick) : null;
     };
     rafRef.current = requestAnimationFrame(tick);
+  }
+
+  /** The 470ms bump on the ring that marks an answer landing (#23's re-score beat). */
+  function bumpScore() {
+    setScoreBumped(true);
+    if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
+    bumpTimerRef.current = setTimeout(() => setScoreBumped(false), SCORE_BUMP_MS);
   }
 
   // #307: a profile-level answer is permanent, so it takes its own door (answerTailorProfile) and
@@ -591,6 +593,7 @@ export default function TailorPage() {
       });
       setBadgeCount((c) => Math.max(c, state.factCount));
       setTailor(state);
+      bumpScore();
       tweenScore(displayPct, state.card.matchPct);
     } catch {
       setAskError(T7);

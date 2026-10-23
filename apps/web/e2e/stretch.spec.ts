@@ -348,6 +348,44 @@ test("#418 key U answers Use; with reduced motion the number changes at once and
   await expect(page.locator('.tailor [aria-live="polite"]')).toContainText("Match now 71%");
 });
 
+// #418: "Undo counts the number down quietly." Use earns the beat (mote, bump, glow); Undo earns none.
+test("#418 Undo counts the number down quietly: no mote, no bump and no glow", async ({ page }) => {
+  await openTailor(page, { stretch: { status: "ran", suggestions: [S1, S2] } });
+  const ring = page.locator(".dbar .score");
+  await page.keyboard.press("u");
+  await expect(ring).toHaveAttribute("aria-label", "71% match", { timeout: 10_000 });
+  await expect(ring).not.toHaveClass(/bumped|lit/, { timeout: 5_000 }); // Use's own beat is over
+  // From here on, record any beat the page plays: a bump or a glow on the ring, a mote added.
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { beats: string[] }).beats = seen;
+    const score = document.querySelector(".dbar .score")!;
+    new MutationObserver(() => {
+      if (/\b(bumped|lit)\b/.test(score.className)) seen.push(score.className);
+    }).observe(score, { attributes: true, attributeFilter: ["class"] });
+    new MutationObserver((records) => {
+      for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.classList.contains("mote")) seen.push("mote");
+    }).observe(document.body, { childList: true });
+  });
+  await page.keyboard.press("Escape");
+  const summary = page.getByRole("region", { name: "Ready to send" });
+  await summary.getByRole("listitem").filter({ hasText: "Their SAP version" }).getByRole("button", { name: "Undo" }).click();
+  await expect(ring).toHaveAttribute("aria-label", "61% match", { timeout: 10_000 });
+  await expect(page.locator('.tailor [aria-live="polite"]')).toContainText("Match now 61%");
+  expect(await page.evaluate(() => (window as unknown as { beats: string[] }).beats)).toEqual([]);
+});
+
+// CODING_STANDARDS: event-ordering guards live in refs, not state. Two key presses in one tick read
+// the same render; a guard held in state lets both through.
+test("#418 two quick U presses send one answer", async ({ page }) => {
+  const posts = await openTailor(page, { stretch: RAN });
+  await page.evaluate(() => {
+    for (let i = 0; i < 2; i++) document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "u", bubbles: true }));
+  });
+  await expect(page.locator(".dbar .score")).toHaveAttribute("aria-label", "71% match", { timeout: 10_000 });
+  expect(posts.answers).toEqual([{ id: S1.id, answer: "use" }]);
+});
+
 test("#418 phone (390px): Use is the first of the stacked answers", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openTailor(page, { stretch: RAN });
