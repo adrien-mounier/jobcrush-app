@@ -269,8 +269,9 @@ function unmappedLabelFor(evidence: JobIndustryEvidence): string {
  *  ponytail: matched on the EMPLOYER substring, case-insensitively, and only when the employer is
  *  long enough not to sweep the whole CV. Two jobs at the same employer therefore share their lines,
  *  which is the right failure (both were at the same business) — tighten to employer+title only if
- *  the grid shows served-industry answers bleeding between roles. */
-async function linesFor(
+ *  the grid shows served-industry answers bleeding between roles.
+ *  #414: the family labeler reads the same lines, on the same match. */
+export async function linesFor(
   claims: Pick<ClaimStore, "list"> | undefined,
   sessionId: string,
   employer: string,

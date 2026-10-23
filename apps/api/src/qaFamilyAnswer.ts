@@ -21,6 +21,14 @@ export const QA_SECOND_FAMILY_ID = "business-analysis";
 /** #361: the third family. Same reason as the second: the registry grew, so the fake grows with it. */
 export const QA_THIRD_FAMILY_ID = "product-management";
 
+/** #414: whether a rendered prompt is the family labeler's at all — qa-main routes on this. Matched
+ *  on the prompt's own section heading rather than its opening sentence: the heading is structure
+ *  the fake below also reads, so a wording pass on the prompt cannot quietly stop the fake matching
+ *  while every tier stays green (which #414's own edit did to the old opening-line match). */
+export function isFamilyLabelerPrompt(prompt: string): boolean {
+  return /## The role to place\s/.test(prompt);
+}
+
 /** Reads the role out of a rendered family-labeler prompt. `\s+` rather than `\n\n`:
  *  prompts/family-labeler.md is read straight off disk, and this repo's git checkout rewrites line
  *  endings on Windows — a literal `\n\n` would quietly stop matching there and place every role as

@@ -8,7 +8,8 @@
 //     zero vs the unaccounted-years fallback, plus the confidence attenuation on a REAL card score
 //     (#231 AC6's other half; CONFIDENCE_WEIGHT's production caller is deck.ts's rankAttenuation).
 import { describe, expect, it } from "vitest";
-import type { FamilyPlacement, MinedJobBlock, PlacementConfidence } from "@jobcrush/contracts";
+import type { FamilyPlacement, JobBlockView, MinedJobBlock, PlacementConfidence } from "@jobcrush/contracts";
+import type { FastifyInstance } from "fastify";
 // #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
 // corpus wired at that seam — same adverts, same requirement sets, reached the way production
 // reaches them. See fixtureDeck.ts.
@@ -16,7 +17,8 @@ import { buildDeckServer as buildServer, injectSettled, liveIdFor } from "./fixt
 import type { JudgeFn } from "../src/judge.js";
 import { orderCardsForReveal, rankAttenuation, type SessionYears } from "../src/deck.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { makeJobBlockLabeler } from "../src/familyLabeler.js";
+import { makeJobBlockLabeler, publishedFamilies } from "../src/familyLabeler.js";
+import { initialProductionFamilyFloors } from "../src/familyFloors.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
 import { InMemorySessionStore } from "../src/sessions.js";
@@ -30,6 +32,9 @@ import {
 } from "../src/yearsWorked.js";
 
 const FAMILY = "it-project-delivery"; // the one published family — the session's confirmed floor
+const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
+const jobBlocksOf = async (app: FastifyInstance, cookie: string): Promise<JobBlockView[]> =>
+  (await app.inject({ method: "GET", url: "/job-blocks", headers: { cookie } })).json().blocks;
 const OTHER = "field-marketing"; // a family the advert is NOT in (labels need no publication to be stored)
 // The motivating advert (spec #219): "8+ years of IT experience including 5+ years as a Project
 // Manager" — now two scoped bars in the fixture (total >= 8, family >= 5).
@@ -307,6 +312,45 @@ describe("#222 the single writer stores one fact per family, and keeps them hone
     expect(await eligibility.numeric(sessionId, "years-experience", FAMILY)).toBe(6);
     expect(await eligibility.get(sessionId, "years-experience", OTHER)).toBeNull(); // stale copy gone
     expect(await eligibility.numeric(sessionId, "years-experience", ANY_FAMILY)).toBe(6); // total once
+  });
+
+  // #414 / ADR-0020 clause 5 — the person can say a job was BOTH kinds of work. Each family counts
+  // the job in full (amendment 1 decision 4); the career total counts it once.
+  it("a correction naming two families counts the job toward both, and the career total once", async () => {
+    const { app, cookie, sessionId, eligibility } = await seededDeck(
+      [block("b1", 2018, 2023)],
+      { b1: placed([OTHER]) },
+    );
+    const [delivery, product] = ["it-project-delivery", "product-management"].map((familyId) => {
+      const found = PUBLISHED.find((family) => family.familyId === familyId)!;
+      return { familyId: found.familyId, version: found.version, label: found.label };
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/job-blocks/b1/correct",
+      headers: { cookie },
+      payload: {
+        key: "family",
+        value: [delivery, product].map(({ familyId, version }) => ({ familyId, version })),
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    // Told in the families' own published names, both of them.
+    expect(res.json().downstream).toBe(
+      `We'll count this job as ${delivery!.label} and ${product!.label} from now on.`,
+    );
+    const stored = (await jobBlocksOf(app, cookie)).find((b) => b.id === "b1")!.family.value;
+    expect(stored).toEqual({
+      schemaVersion: "2",
+      outcome: "confirmed",
+      families: [delivery, product].map(({ familyId, version }) => ({ familyId, version })),
+      confidence: "certain",
+    });
+    expect(await eligibility.numeric(sessionId, "years-experience", "it-project-delivery")).toBe(6);
+    expect(await eligibility.numeric(sessionId, "years-experience", "product-management")).toBe(6);
+    expect(await eligibility.get(sessionId, "years-experience", OTHER)).toBeNull();
+    expect(await eligibility.numeric(sessionId, "years-experience", ANY_FAMILY)).toBe(6); // once
   });
 
   it("confidence NEVER changes the years fact, at any scope (#231 AC6 regression)", async () => {

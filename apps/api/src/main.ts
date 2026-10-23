@@ -205,6 +205,8 @@ const { app } = buildServer({
       // them itself, like every other door that changes a job record.
       eligibility,
       unmappedLabels,
+      // #414: placement follows the lines written under the job, never its title alone.
+      claims,
     ),
     // #281: and every mined JOB is placed in an industry — the second axis, its own vocabulary, its
     // own call. Deliberately on the DEFAULT (Anthropic) client rather than the Fireworks family
