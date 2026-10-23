@@ -174,7 +174,11 @@ export function reportContext(args: {
     marketToCheck:
       market && !advertAsksWorkRights && !findWorkRightsFact(facts, posting.location) ? market : null,
     locationUnplaced: market === null && !advertAsksWorkRights,
-    stretches: usedStretches(args.stretch).map((s) => ({ line: s.claimText, say: s.interviewNarrative })),
+    // #419: a line the person said is true is their fact, not a stretch to defend — only the lines
+    // used for this job are carried to "Be ready to explain".
+    stretches: usedStretches(args.stretch)
+      .filter((s) => s.scope === "this-job")
+      .map((s) => ({ line: s.claimText, say: s.interviewNarrative })),
   };
 }
 

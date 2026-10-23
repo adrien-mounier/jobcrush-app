@@ -19,6 +19,7 @@ import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
 import type { Mailer } from "../src/mailer.js";
 import { fakeJudge, reportingLlm } from "./reportFakes.js";
+import type { JudgeFn } from "../src/judge.js";
 
 const ROLE = "IT project manager in Paris";
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -56,8 +57,9 @@ const floorClaim = (itemId: string, text: string, answer: string): CandidateClai
   grill_hint: null,
 });
 
-/** tailorDraft.test.ts's walk: three facts, one "No" (risks), sign in, retrieval, want. */
-async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie: string, email: string) {
+/** tailorDraft.test.ts's walk: three facts, one "No" (risks), sign in, retrieval, want. #419: `cvLines`
+ *  are lines read from the CV (confirmed), seeded before the search so the job's card is found. */
+async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie: string, email: string, cvLines: CandidateClaim[] = []) {
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
   const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
   await claims.add(sid, floorClaim("end-to-end-delivery", "Owned delivery from planning through completion.", "Yes"));
@@ -67,6 +69,8 @@ async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie
     floorClaim(RISKS, "Not applicable — Have you acted on delivery risks, dependencies, timelines, or budgets?", "No"),
   );
   await claims.add(sid, floorClaim("delivery-communication", "Weekly steering updates.", "Weekly steering updates"));
+  await claims.seed(sid, cvLines);
+  for (const c of cvLines) await claims.confirm(sid, c.id);
   await signIn(app, cookie, email);
   await warmRetrieval(app, cookie);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
@@ -778,3 +782,238 @@ describe("#418 the export prints the used line and the report carries its interv
     expect(await claims.list(sid)).toEqual(before); // the used line never became a claim
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// #419 (ADR-0020 clause 4, second row; ADR-0005 clause 5 as amended; ADR-0008; ADR-0018 clause 9):
+// "It's true: keep it on my CV for every job" — the person states the line as their own fact.
+// ---------------------------------------------------------------------------------------------
+
+/** A job's own line, read from the CV: its role is the employer and title as written — the job the
+ *  profile heads a block with. Seeded last, so the fake draft cites it from the role's second bullet. */
+const JOB_ROLE = "Endava Vietnam — IT Project Manager";
+const JOB_LINE: CandidateClaim = {
+  ...floorClaim("vendor-teams", "Coordinated three vendor teams on the payments release.", "Coordinated three vendor teams"),
+  id: "coordinated-three-vendor-teams",
+  semantic_key: "coordinated-three-vendor-teams",
+  role: JOB_ROLE,
+};
+const reachTailorWithJob = (server: { app: App; claims: Claims }, cookie: string, email: string) =>
+  reachTailor(server, cookie, email, [JOB_LINE]);
+/** sample-postings.json's own title and company for FIXTURE_AD_ID. */
+const ADDED_FOR = "Senior Project Manager at Endava Vietnam";
+
+describe("#419 It's true keeps the line on the master CV, under the job it was suggested for", () => {
+  it("no claim is written before the tap; the tap adds a confirmed line under that job's employer, tagged with the job; the line out stays", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    const sid = await reachTailorWithJob({ app, claims }, cookie, "stretch-true@example.com");
+    const before = await claims.list(sid);
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    // The suggestion step ran and nothing joined the master CV: a suggestion is never a claim.
+    expect(view.stretch.status).toBe("ran");
+    expect(await claims.list(sid)).toEqual(before);
+
+    const res = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().stretch.suggestions[0]).toMatchObject({ id: swap.id, state: "approved", scope: "every-job" });
+    expect(res.json().keptUnder).toBe(JOB_ROLE);
+
+    // The master CV: the line under the job it was suggested for, the person its origin, tagged.
+    const profile = (await get(app, cookie, "/profile")).json();
+    const experience = profile.domains.find((d: { tag: string }) => d.tag === "experience");
+    expect(experience.facts).toContainEqual(
+      expect.objectContaining({ text: swap.claimText, job: JOB_ROLE, source: "told", addedFor: ADDED_FOR }),
+    );
+    // The line it pushed out on this CV is written from a fact that is still on the master CV.
+    const facts = profile.domains.flatMap((d: { facts: { text: string }[] }) => d.facts.map((f) => f.text));
+    expect(facts).toContain("Owned delivery from planning through completion.");
+    expect((await claims.list(sid)).filter((c) => !before.some((b) => b.id === c.id))).toHaveLength(1);
+    for (const c of before) expect(await claims.list(sid)).toContainEqual(c);
+  });
+
+  it("this CV prints the line once, where the line out was, with nothing re-drafted or re-suggested; the requirement reads met, not met by a stretch; a second job's draft can print it", async () => {
+    const tailor = printingStatedLines(draftingLlm());
+    const stretch = suggestingLlm();
+    // fakeJudge: the first requirement met, every other 0.4 — a judged card, as on the real stack.
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge: fakeJudge() });
+    const cookie = await anonSession(app);
+    await reachTailorWithJob({ app, claims }, cookie, "stretch-true-cv@example.com");
+    const before = (await get(app, cookie, "/onboarding/tailor")).json();
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    expect(before.requirements.find((r: { id: string }) => r.id === swap.requirementId).state).toBe("gap");
+
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" });
+    // The facts changed, yet this draft stands: nothing is re-drafted and nothing re-suggested.
+    const again = await post(app, cookie, "/onboarding/tailor/draft");
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toEqual({ ready: true });
+    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(after.html.split(swap.claimText)).toHaveLength(2); // printed once, at the slot
+    expect(after.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(after.html).not.toContain(BULLET_TEXT);
+    expect(after.stretch.suggestions[0]).toMatchObject({ id: swap.id, state: "approved", scope: "every-job" });
+    expect(tailor.prompts).toHaveLength(1);
+    expect(stretch.prompts).toHaveLength(1);
+
+    // The requirement reads plainly met on this job's card, and the number rose.
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.requirements.find((r: { id: string }) => r.id === swap.requirementId).state).toBe("met");
+    expect(state.card.fit).toContainEqual(expect.objectContaining({ id: swap.requirementId }));
+    expect(state.card.fit.find((f: { id: string }) => f.id === swap.requirementId).stretched).toBeUndefined();
+    expect(state.card.matchPct).toBeGreaterThan(before.card.matchPct);
+
+    // A second job's draft is written from the facts, the new line among them, and may print it.
+    await post(app, cookie, `/onboarding/cards/${liveIdFor(SECOND_FIXTURE_AD_ID)}/want`);
+    const other = await draftWithSuggestions(app, cookie);
+    expect(tailor.prompts).toHaveLength(2);
+    expect(tailor.prompts[1]).toContain(`] ${swap.claimText}`);
+    expect(other.html).toContain(`<li>${swap.claimText}</li>`);
+  });
+
+  it("a draft that stands only without its own It's-true line, whose suggestions must be made again, is written again from every fact — never left matching no fact set", async () => {
+    const tailor = printingStatedLines(draftingLlm());
+    const stretch = suggestingLlm();
+    // The judge goes quiet after the answer: the card reads "estimated", so the suggestions' input
+    // changes while the facts the draft was written from do not.
+    const judged = fakeJudge();
+    let judgeDown = false;
+    const judge: JudgeFn = async (adReq, facts) => (judgeDown ? null : judged(adReq, facts));
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge });
+    const cookie = await anonSession(app);
+    await reachTailorWithJob({ app, claims }, cookie, "stretch-true-stale@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" });
+
+    judgeDown = true;
+    const redraft = await draftWithSuggestions(app, cookie);
+    expect(tailor.prompts).toHaveLength(2);
+    expect(tailor.prompts[1]).toContain(`] ${swap.claimText}`); // written from every fact
+    expect(redraft.html.split(swap.claimText)).toHaveLength(2); // the fact prints once
+    expect((await post(app, cookie, "/onboarding/tailor/draft")).json()).toEqual({ ready: true });
+  });
+
+  it("Undo takes the line off the master CV and puts this CV's line out and score back, with nothing re-drafted", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm, judge: fakeJudge() });
+    const cookie = await anonSession(app);
+    const sid = await reachTailorWithJob({ app, claims }, cookie, "stretch-true-undo@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const before = (await get(app, cookie, "/onboarding/tailor")).json();
+    const confirmedBefore = await claims.confirmed(sid);
+    const [swap] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" });
+    expect((await get(app, cookie, "/onboarding/tailor")).json().card.matchPct).toBeGreaterThan(before.card.matchPct);
+
+    const undone = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" });
+    expect(undone.statusCode).toBe(200);
+    expect(undone.json().stretch.suggestions[0]).toMatchObject({ id: swap.id, state: "pending", scope: null });
+    // Off the master CV: the profile no longer lists it, and no draft reads it.
+    const profile = (await get(app, cookie, "/profile")).json();
+    const texts = profile.domains.flatMap((d: { facts: { text: string }[] }) => d.facts.map((f) => f.text));
+    expect(texts).not.toContain(swap.claimText);
+    expect(await claims.confirmed(sid)).toEqual(confirmedBefore);
+    // This CV: the line out is back, the number and the requirements are as before, nothing re-spent.
+    expect((await post(app, cookie, "/onboarding/tailor/draft")).json()).toEqual({ ready: true });
+    const restored = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(restored.html).toContain(BULLET_TEXT);
+    expect(restored.html).not.toContain(swap.claimText);
+    const after = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(after.card.matchPct).toBe(before.card.matchPct);
+    expect(after.requirements).toEqual(before.requirements);
+    expect(tailor.prompts).toHaveLength(1);
+    expect(stretch.prompts).toHaveLength(1);
+
+    // Said again, the line comes back — the same line, not a second one.
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" });
+    expect((await claims.confirmed(sid)).filter((c) => c.text === swap.claimText)).toHaveLength(1);
+  });
+
+  it("a skill said to be true joins the suggestion's skills group on the master CV, tagged with the job", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const { app, claims } = buildServer({ tailorLlm: tailor.llm, stretchLlm: stretch.llm });
+    const cookie = await anonSession(app);
+    await reachTailorWithJob({ app, claims }, cookie, "stretch-true-skill@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const skill = view.stretch.suggestions[1];
+    expect(skill.slot.kind).toBe("skill");
+
+    const res = await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}`, { answer: "true" });
+    expect(res.json().keptUnder).toBe("Skills");
+    const profile = (await get(app, cookie, "/profile")).json();
+    const skills = profile.domains.find((d: { tag: string }) => d.tag === "skill");
+    // "Delivery" is the fake draft's own skills group (draftingLlm).
+    expect(skills.facts).toContainEqual(expect.objectContaining({ text: skill.claimText, group: "Delivery", addedFor: ADDED_FOR }));
+    const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
+    expect(after.html).toContain(`Jira, ${skill.claimText}</p>`);
+  });
+
+  it("the document that leaves prints the line; the report reads the requirement met and asks nothing to be ready to explain about it", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const printed: string[] = [];
+    const capturingMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const sent: string[] = [];
+    const mailer: Mailer = {
+      live: false,
+      async sendLoginLink() {},
+      async sendFamilyReady() {},
+      async sendTailoredCv(_email, doc) {
+        sent.push(doc.text);
+      },
+    };
+    const report = reportingLlm();
+    const { app, claims } = buildServer({
+      tailorLlm: tailor.llm,
+      stretchLlm: stretch.llm,
+      judge: fakeJudge(),
+      reportLlm: report.llm,
+      documentMaker: capturingMaker,
+      mailer,
+    });
+    const cookie = await anonSession(app);
+    await reachTailorWithJob({ app, claims }, cookie, "stretch-true-export@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "true" });
+
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(202);
+    const job = await awaitJob(app, cookie, res.json().jobId);
+    expect(job.status, JSON.stringify(job)).toBe("completed");
+    expect(printed[0]).toContain(`<li>${swap.claimText}</li>`);
+    expect(printed[0]).not.toContain(BULLET_TEXT);
+    expect(report.prompts[0]).toContain(`- id: ${swap.requirementId}\n  state: met`);
+    const section4 = sent[0]!.split("4. Be ready to explain")[1]!.split("5. Salary")[0]!;
+    expect(section4).not.toContain(swap.interviewNarrative);
+  });
+});
+
+/** #419: the fake tailor model, also printing every line an "It's true" answer added (a tailor-
+ *  claim) as a bullet citing it — the way a real draft may use any fact. */
+function printingStatedLines({ prompts, llm }: ReturnType<typeof draftingLlm>) {
+  return {
+    prompts,
+    llm: {
+      model: llm.model,
+      async complete(prompt: string): Promise<string> {
+        const doc = JSON.parse(await llm.complete(prompt));
+        const claimsBlock = prompt.split("Claims:\n")[1] ?? "";
+        for (const [, id, text] of claimsBlock.matchAll(/^- (tailor-[a-z0-9-]+) \[[^\]]*\] (.+)$/gm))
+          doc.experience[0].bullets.push({ text, claimIds: [id], outcome: "" });
+        return JSON.stringify(doc);
+      },
+    } satisfies LlmClient,
+  };
+}

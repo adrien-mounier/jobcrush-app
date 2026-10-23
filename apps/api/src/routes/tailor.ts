@@ -44,8 +44,8 @@ import { answerLanguageLevel, rungForSituation } from "../languageLevel.js";
 import type { JobStore } from "../jobs.js";
 import { letterheadText, type ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
-import type { TailorDraftStore } from "../tailorDraftStore.js";
-import { composeDraftInputs, runTailorDraftJob, tailorDraftView, type StretchContext } from "../tailorDraft.js";
+import type { TailorDraftRecord, TailorDraftStore } from "../tailorDraftStore.js";
+import { composeDraftInputs, runTailorDraftJob, tailorDraftView, type DraftInputs, type StretchContext } from "../tailorDraft.js";
 import {
   STRETCH_ANSWERS,
   answerSuggestion,
@@ -54,6 +54,7 @@ import {
   stretchView,
   withStretchedVerdicts,
 } from "../stretchSuggestions.js";
+import { draftFacts, saveAnswer } from "../stretchFact.js";
 import { exportGate, runTailorExportJob } from "../tailorExport.js";
 import { reportContext, reportGate } from "../applicationReport.js";
 import type { AuthStore } from "../auth.js";
@@ -397,6 +398,13 @@ export function tailorRoutes(deps: TailorRouteDeps) {
        *  the market to check) and the brought job (apply link, ageing line). */
       facts: EligibilityFact[];
       brought: BroughtJob[];
+      /** #419: the facts this job's draft is written from — every confirmed fact but the lines its
+       *  own "It's true" answers added (stretchFact.ts draftFacts) — the draft input composed from
+       *  them, the stored draft, and the letterhead the input carries. */
+      draftConfirmed: ClaimRecord[];
+      inputs: DraftInputs;
+      stored: TailorDraftRecord | null;
+      header: string;
     }
     type DraftTargetResult =
       | { refused: { status: 404 | 409; code: string; message: string }; target?: undefined }
@@ -415,7 +423,14 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         await deps.sessions.clearTailorTarget(session.id);
         return { refused: NO_TARGET };
       }
-      return { target: { ...target, confirmed, negatives, blocks, facts, brought } };
+      // #310 (QA gate D1): the CV's letterhead, stored at mine time — without it the engine's own
+      // rule 3 prints "Your name here" on a real person's CV.
+      const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
+      const stored = await deps.tailorDrafts.get(session.id, target.posting.id);
+      const { claims: draftConfirmed, inputs } = draftFacts(confirmed, stored, (claims) =>
+        composeDraftInputs(claims, negatives, blocks, target.posting, target.adReq, header),
+      );
+      return { target: { ...target, confirmed, negatives, blocks, facts, brought, draftConfirmed, inputs, stored, header } };
     };
 
     // #417: the requirements with the card's verdicts, composed exactly as the screen's own list
@@ -423,10 +438,12 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // ones it does not read as met.
     const stretchContext = async (session: SessionRecord, t: DraftTarget): Promise<StretchContext | undefined> => {
       if (!deps.stretchLlm) return undefined;
+      // #419: read from the draft's own facts, so a fact this draft's "It's true" answer added
+      // never re-keys the suggestions it came from.
       const { judgement, years } = await judgeAndYears(
-        session, t.adReq, t.confirmed, t.facts, t.blocks, isBrought(t.brought, t.posting.id),
+        session, t.adReq, t.draftConfirmed, t.facts, t.blocks, isBrought(t.brought, t.posting.id),
       );
-      return { requirements: buildTailorState(t.posting, t.adReq, t.confirmed, t.negatives, judgement, years).requirements };
+      return { requirements: buildTailorState(t.posting, t.adReq, t.draftConfirmed, t.negatives, judgement, years).requirements };
     };
 
     // #310: one in-flight run per (session, advert, fact set) — a reload mid-write joins the run
@@ -449,23 +466,28 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         return reply.status(503).send({
           error: { code: "draft_unavailable", message: "writing the tailored CV is switched off on this deployment" },
         });
-      const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+      let target = resolved.target;
+      const { posting, confirmed, stored } = target;
       // CandidateClaims requires at least one claim; structurally unreachable through the product
       // (reaching tailor means discovery answered), kept honest rather than thrown from the engine.
       if (confirmed.length === 0)
         return reply
           .status(409)
           .send({ error: { code: "no_facts", message: "no confirmed facts to draft from" } });
-      // #310 (QA gate D1): the CV's letterhead, stored at mine time — without it the engine's own
-      // rule 3 prints "Your name here" on a real person's CV.
-      const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
-      const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
-      const stored = await deps.tailorDrafts.get(session.id, posting.id);
-      const stretch = await stretchContext(session, resolved.target);
+      let stretch = await stretchContext(session, target);
       // #417: a draft that matches the facts is ready only once its suggestions are current too;
       // otherwise the job below re-makes the suggestions alone, the draft untouched and unspent.
-      const draftCurrent = stored?.inputFingerprint === inputs.fingerprint;
-      if (draftCurrent && (!stretch || stretchIsCurrent(stored!, posting, stretch.requirements, inputs))) return { ready: true };
+      let draftCurrent = stored?.inputFingerprint === target.inputs.fingerprint;
+      if (draftCurrent && (!stretch || stretchIsCurrent(stored!, posting, stretch.requirements, target.inputs))) return { ready: true };
+      // #419: re-making the suggestions drops their answers, so a draft that stands only without its
+      // own "It's true" lines would then match no fact set — it is written again from every fact.
+      if (draftCurrent && target.draftConfirmed !== confirmed) {
+        const { negatives, blocks, adReq, header } = target;
+        target = { ...target, draftConfirmed: confirmed, inputs: composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header) };
+        stretch = await stretchContext(session, target);
+        draftCurrent = false;
+      }
+      const { inputs } = target;
       const runKey = JSON.stringify([session.id, posting.id, inputs.fingerprint]);
       const running = draftRuns.get(runKey);
       if (running) return reply.status(202).send({ jobId: running });
@@ -500,10 +522,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         const { status, code, message } = resolved.refused;
         return reply.status(status).send({ error: { code, message } });
       }
-      const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
-      const stored = await deps.tailorDrafts.get(session.id, posting.id);
-      const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
-      const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
+      const { posting, inputs, stored } = resolved.target;
       // A stored draft whose fingerprint no longer matches the current fact set reads as no draft
       // at all — "a supported answer changes the draft consistently" holds on EVERY door, not only
       // the POST the shipped screen happens to call first. The remedy is the same as a plain miss:
@@ -538,18 +557,16 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           const { status, code, message } = resolved.refused;
           return reply.status(status).send({ error: { code, message } });
         }
-        const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
-        const header = letterheadText(await deps.contact.getRecord(session.id));
-        const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
-        const stored = await deps.tailorDrafts.get(session.id, posting.id);
+        const { posting, confirmed, inputs, stored } = resolved.target;
         const answered =
           stored && stored.inputFingerprint === inputs.fingerprint
             ? answerSuggestion(stored.stretch, req.params.id, req.body.answer, new Date().toISOString())
             : null;
         if (!stored || !answered)
           return reply.status(404).send({ error: { code: "unknown_suggestion", message: "no such suggestion for this draft" } });
-        await deps.tailorDrafts.put(session.id, posting.id, { ...stored, stretch: answered });
-        return { stretch: stretchView(answered) };
+        // #419: "It's true" adds the line to the master CV (and Undo takes it off) — stretchFact.ts.
+        const { keptUnder } = await saveAnswer(deps, session.id, posting, stored, answered, req.params.id, confirmed);
+        return { stretch: stretchView(answered), ...(keptUnder ? { keptUnder } : {}) };
       },
     );
 
@@ -578,10 +595,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           return reply.status(503).send({
             error: { code: "export_unavailable", message: "making the PDF is switched off on this deployment" },
           });
-        const { posting, adReq, confirmed, negatives, blocks, facts, brought } = resolved.target;
-        const header = letterheadText(await deps.contact.getRecord(session.id)); // #381: the saved fields
-        const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
-        const stored = await deps.tailorDrafts.get(session.id, posting.id);
+        const { posting, adReq, confirmed, negatives, blocks, facts, brought, inputs, stored } = resolved.target;
         // Both server-side gates — the current draft carries his approval AND the conservation
         // lint raises nothing fatal — live in exportGate, pure and directly tested.
         const refused = exportGate(stored, inputs, req.body.draftedAt);

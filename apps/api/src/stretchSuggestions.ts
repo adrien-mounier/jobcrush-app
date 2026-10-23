@@ -223,15 +223,16 @@ export async function suggestStretches(
 }
 
 /** The answers a suggestion takes (ADR-0020 clause 4). #417 built "no"; #418 adds "use" (this job
- *  only) and "undo" (back to pending — the Ready-to-send summary's per-answer Undo); "true" (#419,
- *  every job) joins here. */
-export const STRETCH_ANSWERS = ["no", "use", "undo"] as const;
+ *  only) and "undo" (back to pending — the Ready-to-send summary's per-answer Undo); #419 adds "true"
+ *  (every job: the line joins the master CV — stretchFact.ts writes it). */
+export const STRETCH_ANSWERS = ["no", "use", "undo", "true"] as const;
 export type StretchAnswer = (typeof STRETCH_ANSWERS)[number];
 
 /** One answer on one suggestion, pure. "no" declines it for THIS job only (ADR-0005 clause 9 as
  *  ADR-0020 amends it — another job's run may suggest the same line again, because the record is
  *  keyed by (person, job)); "use" approves it for this job only (clause 1: the line prints on this
- *  CV and nowhere else); "undo" puts it back to pending, as if never answered. Every answer may
+ *  CV and nowhere else); "true" approves it for every job (#419: the person states it as their
+ *  fact); "undo" puts it back to pending, as if never answered. Every answer may
  *  overwrite an earlier one — the record is the person's latest word. Returns null when no such
  *  suggestion exists beside this draft. */
 export function answerSuggestion(
@@ -246,7 +247,7 @@ export function answerSuggestion(
   const decided = StretchProposalV2.parse(
     answer === "undo"
       ? { ...target, state: "pending", decidedAt: null, scope: null }
-      : { ...target, state: answer === "no" ? "declined" : "approved", decidedAt, scope: "this-job" },
+      : { ...target, state: answer === "no" ? "declined" : "approved", decidedAt, scope: answer === "true" ? "every-job" : "this-job" },
   );
   return { ...checkpoint, suggestions: checkpoint.suggestions.map((s) => (s.id === id ? decided : s)) };
 }
@@ -264,13 +265,19 @@ export function usedStretches(checkpoint: StretchCheckpoint | undefined): Stretc
  * record rules (recordBars.ts), never persisted — the cached judgement describes the facts; the
  * answer is a record beside this job's draft, so no other job's card can read it. A null judgement
  * (an estimated card) passes through untouched, exactly as the record rules do.
+ * #419: a line the person said is true ("every-job") is their fact — the requirement reads fit 1
+ * and plainly met, never *met by a stretch*.
  */
 export function withStretchedVerdicts(judgement: JudgementRecord | null, checkpoint: StretchCheckpoint | undefined): JudgementRecord | null {
-  const stretched = new Set(usedStretches(checkpoint).map((s) => s.requirementId));
-  if (!judgement || stretched.size === 0) return judgement;
+  const scopes = new Map(usedStretches(checkpoint).map((s) => [s.requirementId, s.scope]));
+  if (!judgement || scopes.size === 0) return judgement;
   return {
     ...judgement,
-    verdicts: judgement.verdicts.map((v) => (stretched.has(v.requirementId) ? { ...v, fit: 1, stretched: true as const } : v)),
+    verdicts: judgement.verdicts.map((v) => {
+      const scope = scopes.get(v.requirementId);
+      if (!scope) return v;
+      return scope === "every-job" ? { ...v, fit: 1 } : { ...v, fit: 1, stretched: true as const };
+    }),
   };
 }
 
