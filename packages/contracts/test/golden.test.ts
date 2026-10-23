@@ -397,6 +397,38 @@ describe("Ad requirements v1 (#102)", () => {
     expect(validateAdRequirementsV1(none).ok).toBe(true);
     expect(AdRequirementsV1.parse(none).requirements[2]!.yearsIndustry).toBeUndefined();
   });
+
+  // #413 (ADR-0020 clause 5) — a family-scope years bar names EVERY published family its fields map
+  // to ("8+ years in project management, consulting, or business transformation"). Additive on the
+  // same terms: absent is valid (a pre-#413 stored read, or a bar naming no field — today's
+  // single-family reading), and an EMPTY list is valid and distinct from absent — the bar named
+  // fields and none is published, so it is not tested.
+  it("a family-scope years bar may name the published families it counts", () => {
+    const value = structuredClone(valid);
+    value.requirements[2].yearsFamilies = ["it-project-delivery", "management-consulting"];
+    expect(validateAdRequirementsV1(value).ok).toBe(true);
+    expect(AdRequirementsV1.parse(value).requirements[2]!.yearsFamilies).toEqual([
+      "it-project-delivery",
+      "management-consulting",
+    ]);
+
+    const none = structuredClone(valid);
+    none.requirements[2].yearsFamilies = [];
+    expect(validateAdRequirementsV1(none).ok).toBe(true);
+    expect(AdRequirementsV1.parse(none).requirements[2]!.yearsFamilies).toEqual([]);
+
+    // Malformed lists: an empty id inside the list, and a bare string where the list should be.
+    const emptyId = structuredClone(valid);
+    emptyId.requirements[2].yearsFamilies = ["it-project-delivery", ""];
+    expect(validateAdRequirementsV1(emptyId).ok).toBe(false);
+    expect(AdRequirementsV1.safeParse(emptyId).success).toBe(false);
+    const notAList = structuredClone(valid);
+    notAList.requirements[2].yearsFamilies = "it-project-delivery";
+    expect(validateAdRequirementsV1(notAList).ok).toBe(false);
+    expect(AdRequirementsV1.safeParse(notAList).success).toBe(false);
+
+    expect(AdRequirementsV1.parse(valid).requirements[2]!.yearsFamilies).toBeUndefined();
+  });
 });
 
 describe("CandidateClaims v1", () => {
