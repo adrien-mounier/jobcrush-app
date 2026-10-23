@@ -22,6 +22,7 @@ import {
   STRETCH_PROPOSAL_SCHEMA_VERSION,
   StretchProposalV2,
   StretchSlot,
+  type CandidateClaim,
   type CandidateClaims,
 } from "@jobcrush/contracts";
 import { completeWithCost } from "./adReader.js";
@@ -359,12 +360,50 @@ export function withStretchedVerdicts(judgement: JudgementRecord | null, checkpo
   };
 }
 
+/** #419: the id an "It's true" line is kept under on the master CV — a tailor id (tailor.ts
+ *  isTailorClaimId), so the posting search never reads a fact added while tailoring as new search
+ *  evidence, and the job being tailored stays found (postingRetrieval.ts). */
+export const statedClaimId = (proposalId: string): string => `tailor-${proposalId}`;
+
+/** #419: an "It's true" line as the fact it is — the person's own statement, the tap its warrant.
+ *  stretchFact.ts writes it to the master CV under its job; this CV's line cites it. */
+export function statedClaim(s: StretchProposalV2): CandidateClaim {
+  const id = statedClaimId(s.id);
+  return {
+    id,
+    semantic_key: id,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text: s.claimText,
+    machine_touch: "verbatim",
+    classification: "Verified",
+    source_quote: s.claimText.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+  };
+}
+
+/** #419 (ADR-0020 clause 4): the facts the printed page cites — the draft's own, plus each line said
+ *  to be true here, which prints citing its new claim (applyUsedStretches) — so the report and the
+ *  lint read that line as the fact it is, never as a line chosen for this job. */
+export function printedClaims(claims: CandidateClaims, checkpoint: StretchCheckpoint | undefined): CandidateClaims {
+  const have = new Set(claims.claims.map((c) => c.id));
+  const stated = usedStretches(checkpoint)
+    .filter((s) => s.scope === "every-job")
+    .map(statedClaim)
+    .filter((c) => !have.has(c.id));
+  return stated.length ? { ...claims, claims: [...claims.claims, ...stated] } : claims;
+}
+
 /**
  * #418 — the mechanical swap, applied at READ TIME to the stored draft (never persisted into it):
  * each used suggestion's line in replaces the draft line at its slot, word for word (ADR-0005
  * clause 4: the swap shown is the swap made; clause 6: written once, printed verbatim); a skill
- * joins its group and pushes nothing out. A used bullet carries the proposal id where a fact line
- * carries claim ids — never a claim id, so nothing about it can be read back as a fact.
+ * joins its group and pushes nothing out. A line used for this job carries the proposal id where a
+ * fact line carries claim ids — never a claim id, so nothing about it can be read back as a fact.
+ * #419: a line said to be true IS a fact — it carries its new claim's id (statedClaimId).
  * Read-time because the stored draft is what the stretch step's checkpoint and the redraft are
  * keyed on: an answer must change what prints without changing what was drafted, or every Use
  * would re-run the step that made the suggestion. Undo is then simply the answer withdrawn.
@@ -381,7 +420,11 @@ export function applyUsedStretches(draft: Draft, checkpoint: StretchCheckpoint |
     else if (s.slot.kind === "skill") next.skills[s.slot.group]?.items.push(s.claimText);
     else {
       const role = next.experience[s.slot.role];
-      if (role?.bullets[s.slot.bullet]) role.bullets[s.slot.bullet] = { text: s.claimText, claimIds: [], outcome: "", stretchId: s.id };
+      if (role?.bullets[s.slot.bullet])
+        role.bullets[s.slot.bullet] =
+          s.scope === "every-job"
+            ? { text: s.claimText, claimIds: [statedClaimId(s.id)], outcome: "" }
+            : { text: s.claimText, claimIds: [], outcome: "", stretchId: s.id };
     }
   }
   return next;

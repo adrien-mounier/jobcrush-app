@@ -12,13 +12,8 @@ import type { JobBlockView } from "./jobBlockStore.js";
 import { composeDraftInputs } from "./tailorDraft.js";
 import type { Draft, Posting } from "./preview.js";
 import { SECTIONS } from "./rootcv.js";
-import { usedStretches, type StretchCheckpoint } from "./stretchSuggestions.js";
+import { statedClaim, statedClaimId, usedStretches, type StretchCheckpoint } from "./stretchSuggestions.js";
 import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js";
-
-/** The id an "It's true" line is written under — a tailor id (tailor.ts isTailorClaimId), so the
- *  posting search never reads a fact added while tailoring as new search evidence, and the job
- *  being tailored stays found (postingRetrieval.ts). */
-export const statedClaimId = (proposalId: string): string => `tailor-${proposalId}`;
 
 const isStated = (s: StretchProposalV2 | undefined): s is StretchProposalV2 =>
   s?.state === "approved" && s.scope === "every-job";
@@ -44,21 +39,7 @@ function statedLine(
   confirmed: ClaimRecord[],
   posting: Posting,
 ): { claim: SeedClaim; group: string | null; under: string } {
-  const id = statedClaimId(s.id);
-  const base = {
-    id,
-    semantic_key: id,
-    field_key: null,
-    field_value: null,
-    field_label: null,
-    text: s.claimText,
-    machine_touch: "verbatim" as const, // the person's own statement — the tap is the warrant
-    classification: "Verified" as const,
-    source_quote: s.claimText.slice(0, 200),
-    needs_grill: false,
-    grill_hint: null,
-    addedFor: `${posting.title} at ${posting.company}`,
-  };
+  const base = { ...statedClaim(s), addedFor: `${posting.title} at ${posting.company}` };
   if (s.slot.kind === "bullet") {
     // The slot is one the draft prints (gateSuggestions dropped every other).
     const under = jobRole(draft.experience[s.slot.role]!, confirmed);

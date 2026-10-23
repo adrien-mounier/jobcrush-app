@@ -20,7 +20,7 @@ import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.j
 import type { Mailer } from "../src/mailer.js";
 import { fakeJudge, reportingLlm } from "./reportFakes.js";
 import type { JudgeFn } from "../src/judge.js";
-import { statedClaimId } from "../src/stretchFact.js";
+import { statedClaimId } from "../src/stretchSuggestions.js";
 
 const ROLE = "IT project manager in Paris";
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -1080,8 +1080,16 @@ describe("#419 It's true keeps the line on the master CV, under the job it was s
     expect(printed[0]).toContain(`<li>${swap.claimText}</li>`);
     expect(printed[0]).not.toContain(BULLET_TEXT);
     expect(report.prompts[0]).toContain(`- id: ${swap.requirementId}\n  state: met`);
+    // ADR-0020 clause 4: on this CV the line prints as an ordinary fact — cited by its new claim, so
+    // the report reads it from that fact, never as a line chosen for this job, and the lint knows it.
+    // The input's own block (the prompt above it names the block too).
+    const printedLines = report.prompts[0]!.split("===PRINTED LINES===\n").at(-1)!.split("\n\n===HELD BACK===")[0]!;
+    expect(printedLines).toContain(`- ${swap.claimText}\n  from: ${swap.claimText}`);
+    expect(printedLines).not.toContain("a line the person chose to add for this job");
+    expect(report.prompts[0]!.split("===LINT FINDINGS===")[1]).not.toContain(statedClaimId(swap.id));
     const section4 = sent[0]!.split("4. Be ready to explain")[1]!.split("5. Salary")[0]!;
     expect(section4).not.toContain(swap.interviewNarrative);
+    expect(section4).not.toContain(swap.claimText);
   });
 });
 

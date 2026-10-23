@@ -39,7 +39,7 @@ import type { LlmClient } from "./llm.js";
 import type { Mailer } from "./mailer.js";
 import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js";
 import { tailorDraftView, type DraftInputs } from "./tailorDraft.js";
-import { applyUsedStretches, usedStretches } from "./stretchSuggestions.js";
+import { applyUsedStretches, printedClaims, usedStretches } from "./stretchSuggestions.js";
 
 export interface ExportRefusal {
   status: 404 | 409;
@@ -82,9 +82,10 @@ export function exportGate(
  *  approval press, but a page stating a denial must no more reach a printer than an employer. */
 export function conservationGate(stored: TailorDraftRecord, inputs: DraftInputs): ExportRefusal | null {
   // #418: the page that would print — the used stretches in place — is what is checked, and the
-  // used ids are the only provenance a line with no claim id may cite.
+  // used ids are the only provenance a line with no claim id may cite. #419: a line said to be true
+  // cites its own fact (printedClaims).
   const fatal = conservationIssues(
-    inputs.claimsDoc,
+    printedClaims(inputs.claimsDoc, stored.stretch),
     applyUsedStretches(stored.draft, stored.stretch),
     inputs.opts.jobBlocks,
     inputs.opts.advertTests,
@@ -197,17 +198,12 @@ async function reportFor(
 ): Promise<ApplicationReport> {
   const { posting, inputs } = input;
   // #418: the report reads the SHIPPED lines — the used stretches in place (tailorDraftView's render).
+  // #419: a line said to be true is read from its fact (printedClaims).
   const shipped = applyUsedStretches(record.draft, record.stretch);
-  const fingerprint = reportFingerprint(input.report, posting, shipped, inputs.claimsDoc, inputs.opts);
+  const claims = printedClaims(inputs.claimsDoc, record.stretch);
+  const fingerprint = reportFingerprint(input.report, posting, shipped, claims, inputs.opts);
   if (record.reportCheckpoint?.fingerprint === fingerprint) return record.reportCheckpoint.report;
-  const report = await writeApplicationReport(
-    deps.reportLlm,
-    input.report,
-    posting,
-    shipped,
-    inputs.claimsDoc,
-    inputs.opts,
-  );
+  const report = await writeApplicationReport(deps.reportLlm, input.report, posting, shipped, claims, inputs.opts);
   await deps.tailorDrafts.put(input.sessionId, posting.id, { ...record, reportCheckpoint: { fingerprint, report } });
   return report;
 }
