@@ -10,6 +10,7 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 - Phone: a one-line bar, 61px (it was ~230px; #422 closed into this). "See where the job asks this" jumps to the lit line, "Read the job" to the top.
 - `/code-review`: tests pinned exactly, the heading-steals-the-numeral case fixed, T added to the keys test. A self-inflicted journey crash taught a lesson: a spec run rebuilds `.next` under a live journey stack.
 QA **GO** on tree 3d37dc5: api 2221, mocked 299/299, six Tailor journeys plus the new `tailor-the-job-tab-journey.mjs` 78/0. Filed #424 (4px tab clip on a phone; the swap line while The job shows). `spec-301-finish` was rewritten but not run (needs `QA_PDF_PAGES=3`).
+Pushed `afff42d..9f85927`, which also carried another session's unpushed 1b4f466 (the watermark removal). CI run 40076699572 was green and deployed it to staging. The leftovers from other sessions were killed on the owner's word: the #411 worktree's `next start` on 34110 and a stuck `stretch-use` journey on 34220.
 **Next:** the owner's re-proof on a fresh staging account (roadmap finish line, step 2).
 
 ## 2026-10-24 — Spec #412 shipped: the CV is written first, only stretches are suggested (#413–#420, #411; d411ecc)

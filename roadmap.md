@@ -21,7 +21,7 @@ defects. Five shipped and were owner-checked the same day (~~#403~~). The sixth 
 The CV is written first, and only stretches are suggested beside it. Its build, spec
 ~~[#412](https://github.com/adrien-mounier/jobcrush-app/issues/412)~~ (#413–#420, plus #411), shipped 2026-10-24 (d411ecc).
 Then ~~#423~~ (9469733): the Tailor screen takes the #408 prototype's layout, with "Your CV | The job" tabs and
-each suggestion's number on the job line it answers (it closes ~~#422~~).
+each suggestion's number on the job line it answers (it closes ~~#422~~). Both are live on staging (CI green, 2026-10-24).
 
 **Finish line, what remains (v1 before the chat):**
 1. ~~**Owner:** type `/implement-spec #412` (Fable 5.1, high).~~ Shipped 2026-10-24 on a `/qa-gate` GO.
@@ -53,7 +53,7 @@ run); `/implement` is for a lone ticket. Never point `/implement` at a parent or
 ## Milestones
 
 - S0–S2.5 **done** (Jul 2026); S2.75 CV quality: A **done** (#11), B (how `cv-authoring-rules.md` is fed) **open, unticketed**; Phase 1 live-deck honesty **done** (Aug 2026; #250 parked).
-- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); its four follow-ups under #301 **done** 2026-10-21; #398 and #403 **done** 2026-10-22 and owner-checked on staging; #408 decided 2026-10-23 (ADR-0020); spec #412 **done** 2026-10-24; the final whole-journey re-proof remains.
+- V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 **done** (#312, #313, #314, #315, 2026-10-18); #316/#317 replaced by #350. Finish line run 2026-10-19 (NO-GO, fixed); its four follow-ups under #301 **done** 2026-10-21; #398 and #403 **done** 2026-10-22 and owner-checked on staging; #408 decided 2026-10-23 (ADR-0020); spec #412 and #423 **done** 2026-10-24, live on staging; the final whole-journey re-proof remains.
 - V6 — discovery redesign (#326 decided, spec #332): **built**, 12 of 13 closed (#345 left); its review page was replaced by V6b.
 - V6b — the profile's check mode (ADR-0018, parent #375): **done** 2026-10-14 (482ca57).
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
