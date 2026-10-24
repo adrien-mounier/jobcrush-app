@@ -207,7 +207,7 @@ textarea {
 
 /* --- Verified master CV (the ready screen) --- */
 
-/* Resolves the preview's watermark promise: this is the certified, un-watermarked CV. */
+/* The verified master CV's seal. */
 .verified-seal {
   display: inline-flex;
   align-items: center;

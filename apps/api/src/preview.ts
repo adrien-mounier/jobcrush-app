@@ -1,7 +1,7 @@
 // JC-16 instant draft preview: pick 1 posting from the static curated set (title-keyword
 // match — the real cluster engine is S3/JC-31), tailor a draft from the mined candidate
-// claims via the ported tailor prompt, and render HTML with the watermark burned into the
-// document itself (background + banner are part of the server render, not a UI overlay).
+// claims via the ported tailor prompt, and render HTML with the DRAFT banner burned into the
+// document itself (part of the server render, not a UI overlay).
 // PDF export is deliberately absent until the facts are verified (S3/JC-40).
 //
 // The draft schema, prompt, and renderer mirror the JobCrush engine's canonical CV structure
@@ -959,12 +959,6 @@ const esc = (s: string) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-const WATERMARK_SVG = encodeURIComponent(
-  `<svg xmlns='http://www.w3.org/2000/svg' width='420' height='280'>` +
-    `<text x='50%' y='50%' font-family='Helvetica' font-size='26' fill='rgba(160,20,20,0.10)'` +
-    ` text-anchor='middle' transform='rotate(-28 210 140)'>DRAFT — NOT VERIFIED</text></svg>`,
-);
-
 /**
  * Render the draft as a self-contained HTML document styled like the engine's DOCX output
  * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, left-aligned two-line header (name, then
@@ -990,9 +984,10 @@ const sameSlot = (a: StretchSlot, b: StretchSlot) =>
 export function renderPreviewHtml(
   draft: Draft,
   posting: Posting,
-  opts: { watermark?: boolean; marks?: StretchMarks } = {},
+  opts: { banner?: boolean; marks?: StretchMarks } = {},
 ): string {
-  const watermark = opts.watermark ?? true;
+  // The DRAFT banner shows on every render but the approved one; the diagonal watermark is gone (owner, 2026-10-24).
+  const banner = opts.banner ?? true;
   const section = (title: string, body: string) =>
     body ? `<h2>${esc(title)}</h2>${body}` : "";
 
@@ -1063,9 +1058,7 @@ export function renderPreviewHtml(
 <meta name="robots" content="noindex">
 <style>
   body{font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#1d2126;max-width:760px;margin:0 auto;
-    padding:34px 44px 36px;line-height:1.4;font-size:14px;${
-      watermark ? `\n    background-image:url("data:image/svg+xml,${WATERMARK_SVG}");` : ""
-    }}
+    padding:34px 44px 36px;line-height:1.4;font-size:14px;}
   .banner{background:#fbeaea;border:1px solid #d99;color:#8a1f1f;
     font-size:12px;padding:8px 14px;border-radius:6px;margin-bottom:24px;}
   h1{font-size:23px;margin:0;color:#1F4E79;text-align:left;letter-spacing:.01em;}
@@ -1104,7 +1097,7 @@ export function renderPreviewHtml(
   }
 </style></head><body>
 ${
-  watermark
+  banner
     ? `<div class="banner">DRAFT — tailored for “${esc(posting.title)}” at ${esc(
         posting.company,
       )}. Facts not yet verified by the candidate; not for submission.</div>\n`

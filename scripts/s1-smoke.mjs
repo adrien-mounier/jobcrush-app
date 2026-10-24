@@ -73,4 +73,4 @@ writeFileSync(out, html, "utf8");
 
 const secs = ((Date.now() - tUpload) / 1000).toFixed(1);
 console.log(stamp(), `PREVIEW READY — upload→preview ${secs}s (budget: 120s p50)`);
-console.log(stamp(), `watermark present: ${html.includes("DRAFT")}, saved to ${out}`);
+console.log(stamp(), `draft banner present: ${html.includes("DRAFT")}, saved to ${out}`);

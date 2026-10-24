@@ -250,9 +250,9 @@ export function tailorDraftView(
   claimsDoc: CandidateClaims,
   posting: Posting,
   contact: StoredContact = { phone: null, email: null },
-  // #313: the approved export prints the same render WITHOUT the DRAFT watermark/banner — the
+  // #313: the approved export prints the same render WITHOUT the DRAFT banner — the
   // document leaving the app is no longer a draft. Every screen read keeps the default.
-  opts: { watermark?: boolean; marks?: StretchMarks } = {},
+  opts: { banner?: boolean; marks?: StretchMarks } = {},
 ): TailorDraftView {
   // #418: the lines the person chose to use for this job print in place of the lines they push out
   // (applyUsedStretches — at read time, the stored draft untouched).

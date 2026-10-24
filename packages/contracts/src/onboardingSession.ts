@@ -6,7 +6,7 @@ export const ONBOARDING_STAGES = [
   "intake", // target titles + eligibility
   "import", // door chosen, upload/paste in progress
   "parsing", // extraction + mining jobs running
-  "preview", // watermarked draft shown; signup ask lives here
+  "preview", // draft shown (DRAFT banner); signup ask lives here
   "deck", // confirm deck + interleaved grill
   "review", // draft CV review + audit sign-off
   "ready", // quality gate passed; first hunt triggered

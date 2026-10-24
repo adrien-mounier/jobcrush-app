@@ -222,9 +222,9 @@ export async function runTailorExportJob(
   // The narrated states the screen renders from — typed so a misspelled step cannot ship.
   const push = (step: "printing" | "tightening" | "reporting" | "sending" | "sent", patch?: Record<string, unknown>) =>
     deps.jobs.update(jobId, { progress: { tailorExport: { step, ...patch } } });
-  // The approved document is not a draft: no watermark, no banner.
+  // The approved document is not a draft: no banner.
   const render = (record: TailorDraftRecord) =>
-    tailorDraftView(record, input.inputs.claimsDoc, input.posting, input.contact, { watermark: false });
+    tailorDraftView(record, input.inputs.claimsDoc, input.posting, input.contact, { banner: false });
   try {
     await deps.jobs.update(jobId, { status: "running" });
     await push("printing");

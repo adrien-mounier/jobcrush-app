@@ -42,7 +42,7 @@ export function cvPreviewRoutes(deps: CvPreviewRouteDeps) {
 
     /** The hold (ADR-0019 clause 3) as a refusal, else everything the three doors read: the
      *  person's own job as the engine's target, the inputs whose fingerprint keys the row, and the
-     *  stored row's render (the PDF's own — no draft watermark: it is the person's CV, not a
+     *  stored row's render (the PDF's own — no draft banner: it is the person's CV, not a
      *  proposal). */
     const resolve = async (session: SessionRecord) => {
       const blocks = await deps.jobBlocks.list(session.id);
@@ -64,7 +64,7 @@ export function cvPreviewRoutes(deps: CvPreviewRouteDeps) {
             inputs.claimsDoc,
             posting,
             { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
-            { watermark: false },
+            { banner: false },
           )
         : null;
       return { refused: undefined, job: door.job, posting, inputs, stored, view } as const;

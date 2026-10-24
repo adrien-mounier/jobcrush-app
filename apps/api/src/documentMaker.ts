@@ -70,7 +70,7 @@ export function makeBrowserDocumentMaker(): DocumentMaker {
         const pdf = await page.pdf({
           format: "A4",
           margin: { top: "12mm", bottom: "12mm", left: "12mm", right: "12mm" },
-          // Background images (the DRAFT watermark is one) do not print at all without this.
+          // Background images and colours do not print at all without this.
           printBackground: true,
         });
         return { pdf, pages: await countPdfPages(pdf) };

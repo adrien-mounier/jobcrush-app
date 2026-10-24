@@ -98,11 +98,13 @@ describe("JC-16 posting match + render", () => {
     expect(eligiblePostings(["en", "zh"]).some((p) => p.id === zh!.id)).toBe(true);
   });
 
-  it("burns the watermark into the rendered document itself", () => {
+  it("burns the DRAFT banner into the rendered document itself, with no diagonal watermark", () => {
     const posting = matchPosting(["Project Manager"]);
     const html = renderPreviewHtml(sampleDraft, posting);
     expect(html).toContain("DRAFT");
-    expect(html).toContain("background-image"); // watermark is part of the render
+    // Owner, 2026-10-24: the diagonal "DRAFT — NOT VERIFIED" watermark is gone; the banner stays.
+    expect(html).not.toContain("background-image");
+    expect(html).not.toContain("NOT VERIFIED");
     expect(html).toContain("Facts not yet verified");
     expect(html).toContain("Maria Kowalski");
     expect(html).not.toContain("<script"); // self-contained, no active content
@@ -158,8 +160,8 @@ describe("JC-16 posting match + render", () => {
     ).rejects.toThrow();
   });
 
-  it("rating-pair render (watermark off) has no draft banner or watermark", () => {
-    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { watermark: false });
+  it("rating-pair render (banner off) has no draft banner", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
     expect(html).not.toContain("DRAFT");
     expect(html).not.toContain("background-image");
     expect(html).not.toContain("Facts not yet verified");
@@ -190,7 +192,7 @@ describe("JC-16 posting match + render", () => {
         { ...sampleDraft.experience[0]!, dates: "Mar 2021 – Present" },
       ],
     };
-    const html = renderPreviewHtml(glyphy, matchPosting([]), { watermark: false });
+    const html = renderPreviewHtml(glyphy, matchPosting([]), { banner: false });
     expect(html).toContain("Mar 2021 - Present");
     expect(html).toContain("Warsaw · maria@example.com");
     expect(html).not.toContain("–");
@@ -907,7 +909,7 @@ describe("#159 summary prints only when it earns its place — schema + render",
 
 describe("#159 header — left-aligned, two-line, no filler (BINDING DESIGN #157 item 1 variant C)", () => {
   it("left-aligns the name instead of centering it", () => {
-    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { watermark: false });
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
     // Whitespace-tolerant (code review take-if-cheap): a harmless "h1{" -> "h1 {" reformat must
     // not redden this, only an actual alignment regression should.
     expect(html).toMatch(/h1\s*\{[^}]*text-align:\s*left/);
@@ -915,7 +917,7 @@ describe("#159 header — left-aligned, two-line, no filler (BINDING DESIGN #157
   });
 
   it("folds the headline and contact onto one line, joined by a dash, not a pipe", () => {
-    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { watermark: false });
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
     expect(html).toContain(
       `<span class="role-word">${sampleDraft.headline}</span> - ${sampleDraft.contact}`,
     );
@@ -930,7 +932,7 @@ describe("#159 header — left-aligned, two-line, no filler (BINDING DESIGN #157
   // 3-line header, would break this exact substring.
   it("adds no filler block when the summary is absent — header runs straight into Experience", () => {
     const html = renderPreviewHtml({ ...sampleDraft, summary: "" }, matchPosting([]), {
-      watermark: false,
+      banner: false,
     });
     expect(html).toContain("</p>\n\n<h2>Professional Experience</h2>");
     expect(html).not.toContain("<h2>Professional Summary</h2>");

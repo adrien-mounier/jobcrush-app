@@ -54,7 +54,7 @@ const posting = {
   language: "en",
 };
 
-const html = renderPreviewHtml(draft, posting, { watermark: false });
+const html = renderPreviewHtml(draft, posting, { banner: false });
 const started = Date.now();
 const { pdf, pages } = await makeBrowserDocumentMaker().printCv(html);
 const elapsed = Date.now() - started;

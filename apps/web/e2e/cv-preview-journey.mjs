@@ -141,7 +141,7 @@ try {
   const text = await cvPageText();
   await qa.note(`the CV page opens: "${text.slice(0, 300)}…"`);
   for (const v of Object.values(DETAILS)) await assert(text.includes(v), `the letterhead prints her saved "${v}"`);
-  await assert(!/\bdraft\b/i.test(text), 'no draft watermark on the page');
+  await assert(!/\bdraft\b/i.test(text), 'no draft banner on the page');
   const look = await page.locator('button.preview-download').evaluate((b) => getComputedStyle(b).backgroundColor);
   await assert(!/rgba\(0, 0, 0, 0\)|transparent/.test(look), `Download PDF looks like a button: a filled background (${look})`);
   await qa.scrollThrough('reads the CV page');

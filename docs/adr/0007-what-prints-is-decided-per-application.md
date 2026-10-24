@@ -67,8 +67,8 @@ Three facts about the live product framed the decision:
   dimension already asks *"Can you already work in {city} without visa sponsorship?"*, stores the
   answer, and withdraws jobs on it. That is the line a Singapore employer wants. **Nationality is never
   needed to say it.**
-- **A photograph cannot print.** `renderPreviewHtml()` has no image slot; the only image in the
-  renderer is the draft watermark, and no photo is read off the uploaded document. Of Singapore's
+- **A photograph cannot print.** `renderPreviewHtml()` has no image slot (the draft watermark, its one
+  image, was removed 2026-10-24), and no photo is read off the uploaded document. Of Singapore's
   trio (photo, date of birth, nationality), the photo is inert for us.
 
 ## Decision

@@ -450,10 +450,10 @@ function BuildOutcome({
 
   return (
     <main style={{ maxWidth: 720 }}>
-      <div className="verified-seal">✓ Verified · watermark removed</div>
+      <div className="verified-seal">✓ Verified</div>
       <h1>You own your facts</h1>
       <p className="lede">
-        The watermark&apos;s off. This is your verified master CV — every line traces to a fact you
+        This is your verified master CV — every line traces to a fact you
         confirmed, and nothing you didn&apos;t. It&apos;s yours to keep. Spot something off? Fix the
         fact behind the line and the CV re-renders.
       </p>

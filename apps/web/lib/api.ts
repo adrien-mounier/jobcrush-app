@@ -513,7 +513,7 @@ export interface JobDisclosure {
 
 export interface TailorDraftView {
   /** The rendered CV document — self-contained HTML for a sandboxed iframe (the server render,
-   *  watermark included; never re-derived here). #417: read with `open`, the open suggestion
+   *  DRAFT banner included; never re-derived here). #417: read with `open`, the open suggestion
    *  previews in place on it (line out struck, line in marked; the others as margin numerals). */
   html: string;
   disclosure: JobDisclosure[];

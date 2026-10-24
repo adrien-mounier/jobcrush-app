@@ -236,8 +236,8 @@ describe("#313 one press: approve → lint → document → email, through the s
     expect(sent[0]!.filename).toMatch(/^CV - .+\.pdf$/);
     expect(sent[0]!.text).toContain("2 pages");
 
-    // The approved document is not a draft: the screen's render carries the DRAFT banner and
-    // watermark, the printed one must not.
+    // The approved document is not a draft: the screen's render carries the DRAFT banner, the
+    // printed one must not.
     expect(view.html).toContain("DRAFT");
     expect(printedHtml[0]).not.toContain("DRAFT");
 

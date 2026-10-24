@@ -34,7 +34,7 @@ Every tailoring run produces two things that must never be mixed without labelli
    candidate to confirm before the CV reaches an employer.
 
 Never present proposed content as unquestionably true. Anti-fabrication governs what reaches
-**employers**, not what the candidate may see on their own screen (a watermarked, non-exportable
+**employers**, not what the candidate may see on their own screen (a draft-bannered, non-exportable
 preview of unconfirmed content is fine; a submitted CV of unconfirmed content is not).
 
 ## 2. Target roles (the role taxonomy the tailor reasons over)

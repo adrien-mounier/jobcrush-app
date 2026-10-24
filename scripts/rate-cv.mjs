@@ -68,8 +68,8 @@ const headerText = rawCv.blocks
   .map((b) => b.text)
   .join("\n");
 const draft = await tailorDraft(mined, posting, llm, headerText);
-// Rating pairs are judged blind against the original — no watermark, no banner.
-writeFileSync(out(".draft.html"), renderPreviewHtml(draft, posting, { watermark: false }), "utf8");
+// Rating pairs are judged blind against the original — no banner.
+writeFileSync(out(".draft.html"), renderPreviewHtml(draft, posting, { banner: false }), "utf8");
 
 const issues = conservationIssues(mined, draft);
 if (issues.length) {
