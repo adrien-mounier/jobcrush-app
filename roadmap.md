@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-24 (spec #412 shipped — the CV is written first; the owner's re-proof is what remains of v1)_
+_Last updated: 2026-10-24 (spec #412 and #423 shipped — the CV is written first, the Tailor screen has the prototype's layout; the owner's re-proof is what remains of v1)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -20,6 +20,8 @@ defects. Five shipped and were owner-checked the same day (~~#403~~). The sixth 
 ~~#408~~, decided 2026-10-23 in [ADR-0020](docs/adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md).
 The CV is written first, and only stretches are suggested beside it. Its build, spec
 ~~[#412](https://github.com/adrien-mounier/jobcrush-app/issues/412)~~ (#413–#420, plus #411), shipped 2026-10-24 (d411ecc).
+Then ~~#423~~ (9469733): the Tailor screen takes the #408 prototype's layout, with "Your CV | The job" tabs and
+each suggestion's number on the job line it answers (it closes ~~#422~~).
 
 **Finish line, what remains (v1 before the chat):**
 1. ~~**Owner:** type `/implement-spec #412` (Fable 5.1, high).~~ Shipped 2026-10-24 on a `/qa-gate` GO.
@@ -30,7 +32,8 @@ The CV is written first, and only stretches are suggested beside it. Its build, 
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
-  Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #422 Tailor's phone top bar too tall (both Opus 5.5, medium).
+  Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
+  Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
@@ -61,7 +64,7 @@ first candidates #171, #168, #203) or when real visitors return, and then #288 g
 
 ## Backlog
 
-- Parked pool: #250 · #276 · #277 · #286 · #288 · #289 · #298 · #318 — not yet ordered: #275 · #328 · #329 · #330 · #331
+- Parked pool: #250 · #276 · #277 · #286 · #288 · #289 · #298 — not yet ordered: #275 · #328 · #329 · #330 · #331
 - Unticketed ideas (archive, "Later"): an advisory "improve your profile"; how `cv-authoring-rules.md` is fed (S2.75 question B, near #328)
 
 ## Live risks / ops notes
@@ -70,6 +73,6 @@ first candidates #171, #168, #203) or when real visitors return, and then #288 g
 - **CI minutes:** solved 2026-10-08, repo made public (free Actions minutes). Nothing secret goes in a tracked file.
 - **Real visitors gate:** #288 (sign-in refusal reads as a crash) and #298 (warm machine, $7.23/month) un-park before anyone but the owner is let in.
 - **Stretch rewrites are capped at 200 per session** (failed calls count too; raised from 20 on the owner's call, 2026-10-24, since a session lasts for the life of the account): at most ~$1.60, or ~$3.20 if every call fails and retries. The FactBadge chip has no live surface since #415 removed the yes/no queue.
-- **Tablet widths are untested:** no browser check drives 641–899px (#318). Un-park it on the first slice that restyles a top bar.
+- **Tablet widths are untested:** no browser check drives 641–959px (#318). #423 gave the Tailor screen's 641–959 band the one-line phone bar, so #318 is un-parked (2026-10-24).
 
 Full pre-2026-10-06 roadmap (phase tables, ordering constraints, design history): [`docs/archive/roadmap-2026-10-06.md`](docs/archive/roadmap-2026-10-06.md).

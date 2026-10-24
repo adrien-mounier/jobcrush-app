@@ -168,6 +168,7 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
 - A phone-emulation pass reports `(hover: none)` — every desktop/hover path never runs. Add a desktop context.
 - Reproduce a route-mocked flake on a production build (`build && start`), as CI does; the dev server hides readiness races.
 - Run one spec with `cd apps/web && npx playwright test e2e/x.spec.ts`; `pnpm --filter … e2e -- <file>` runs the whole suite.
+- `qa.scrollThrough` scrolls the window; the Tailor screen scrolls inside `.dgrid`, so a journey's "read-through" there moves nothing. And the driver scrolls back to each element it outlines, so measure a jump (`toBeInViewport`, a rect) before the next `qa.expect*` (#423's gate).
 
 ### QA-stack fixture traps
 - qa-main's fake judge covers exactly `requirements[0]` — a requirement that must stay *open* goes anywhere but slot 0; say so in a comment on the fixture.
@@ -222,7 +223,7 @@ Playwright, don't curl.
 
 ### Next and turbo build traps
 - `next dev` and `next build`/`start` against the same `.next` → `start` serves 400s for chunks; the page never hydrates. Attach `page.on("requestfailed")` before blaming the feature.
-- Rebuilding under a running `next start` swaps its chunks; restart after a rebuild.
+- Rebuilding under a running `next start` swaps its chunks; restart after a rebuild. Any `playwright test` run (`e2e:mocked`, one spec) is such a rebuild — its config runs `next build` into the same `.next`, so a journey stack in that checkout crashes mid-run ("Application error", 401 no_session). Finish the journeys first (#423).
 - Deleting a page leaves `tsc` red via `.next/types` until `pnpm exec next build`.
 - `API_URL` is baked at build time (`SHARED_INFRA.md`), and turbo neither hashes it (cache restores the wrong port) nor passes undeclared env: for a custom API port, `rm -rf .next && API_URL=… npx next build` in `apps/web`, not through turbo.
 - Mirroring CI by hand in one checkout: run the turbo `pnpm build` *before* the e2e web build — it bakes the dead `:3001` fallback.
