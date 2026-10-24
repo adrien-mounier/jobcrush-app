@@ -367,7 +367,11 @@ answering it is the transition away. A warning deleted because it became false m
 its risk moved. Hiding a state from one view means auditing every count that still includes it
 (badge 54, screen 47) — one `shown()` source of truth. #392 again (2026-10-16): removing discovery's
 hand-off silently dropped #257's "We'll look for … in …" line, and the journey rewrite stopped
-checking it rather than noticing; the spec reviewer caught it.
+checking it rather than noticing; the spec reviewer caught it. It also applies to a question, not
+only a screen. #376 moved the languages question off the start, and that question was the only
+thing that could keep a job needing an unlisted language out of the first deck. The gap stayed
+silent until the owner's re-proof two weeks later (#425). Before moving a question, list what reads
+its answer, and when (`grep` the fact's dimension).
 The other half: read "no standalone step/screen" as the **whole screen, its button included**. #392
 first shipped with only the count sentence changed and the screen and its Continue kept, and the
 owner had to come back with "I still see the discovery screen".
