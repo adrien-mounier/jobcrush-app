@@ -20,8 +20,9 @@ const C_LANGUAGES = "Which languages do you speak?";
 const C_LANGUAGES_LABEL = "Languages, separated by commas";
 const C_LANGUAGES_HINT = "e.g. English, French";
 const C_SAVE = "Save";
-// What the discovery question said before the answer (#165): leaving a language out costs nothing.
-const C_LANGUAGES_SAFE = "Nothing you leave out counts against you.";
+// #425: leaving a language out has a cost again (the card shows when the CV lists none), so the line
+// says what it is and that the deck names it.
+const C_LANGUAGES_COST = "A job that requires a language you don't list stays out of your deck. I'll tell you when that happens.";
 const C_COMPLETIONS = "Languages I know";
 const offListCopy = (word: string) => `"${word}" isn't on my list. I'll keep it as you wrote it.`;
 
@@ -106,7 +107,7 @@ export function LanguagesCard({
       }}
     >
       <h3 className="ctitle">{C_LANGUAGES}</h3>
-      <p className="conseq">{C_LANGUAGES_SAFE}</p>
+      <p className="conseq">{C_LANGUAGES_COST}</p>
       <div className="fields">
         <label>
           {C_LANGUAGES_LABEL}

@@ -73,7 +73,8 @@ export interface EligibilityStore {
   put(sessionId: string, fact: EligibilityFact): Promise<void>;
   list(sessionId: string): Promise<EligibilityFact[]>;
   /** One fact, or null when never asked. **Null means UNKNOWN, never "does not have it"** — the
-   *  distinction #86 decision 3 rests on: an unknown must never withdraw a card. */
+   *  distinction #86 decision 3 rests on: an unknown must never withdraw a card. (#425's one
+   *  exception lives in withdrawal.ts: a required language on neither the CV nor the profile.) */
   get(
     sessionId: string,
     dimension: EligibilityDimension,

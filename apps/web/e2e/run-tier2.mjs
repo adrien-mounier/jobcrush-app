@@ -102,6 +102,11 @@ export const JOURNEYS = [
   "word-choices-journey.mjs",
   "job-blocks-confirm-journey.mjs",
   "language-ladder-journey.mjs",
+  // #425: the only journey that reads a CV level word's effect off the screens — "English (Fluent)"
+  // shows the requirement met on a pasted job's card and the Tailor step never asks it, while a B1
+  // German stays open and is asked. Against the fake judge, only the record rule can put that row
+  // under "Where you fit". ~1 min, one sign-in.
+  "cv-language-level-journey.mjs",
   // #308 (left by the QA gate, adopted): the adversarial half of the skip — no Yes/No twin
   // anywhere in the queue payload, refused doors (404s), an unchanged profile payload after
   // "Not now", and per-advert skip memory surviving an A → B → A detour. ~3 min, fake-model API.

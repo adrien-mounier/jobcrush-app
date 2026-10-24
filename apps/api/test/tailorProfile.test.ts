@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdRequirementsV1, FamilyPlacement, MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
-import { liveIdFor, warmRetrieval, getCardsWhenRetrieved } from "./fixtureDeck.js";
+import { discoveryFact, liveIdFor, warmRetrieval, getCardsWhenRetrieved } from "./fixtureDeck.js";
 import type { Posting } from "../src/preview.js";
 import type { JudgeFn } from "../src/judge.js";
 import { advertYearsFamilyId } from "../src/deck.js";
@@ -36,6 +36,7 @@ import type { EligibilityFact } from "../src/eligibility.js";
 import type { BroughtJob } from "../src/broughtJobs.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
 import { InMemoryPasteRecordStore } from "../src/pasteRecordStore.js";
+import { LANGUAGE_CLAIM_PREFIX } from "../src/cvLanguages.js";
 
 // --- the advert shapes ------------------------------------------------------------------------
 
@@ -106,7 +107,7 @@ const hkFact = (value: string): EligibilityFact => ({
 
 describe("#307 tailorProfileAsks", () => {
   it("asks the work-rights question when the advert states the requirement and nothing is stored", () => {
-    const asks = tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, []);
+    const asks = tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [], []);
     expect(asks).toHaveLength(1);
     const [ask] = asks;
     expect(ask!.kind).toBe("profile");
@@ -122,8 +123,8 @@ describe("#307 tailorProfileAsks", () => {
   });
 
   it("AC7: an advert that states no work-rights requirement raises no question, whatever the market", () => {
-    expect(tailorProfileAsks(plainAd("ad-1"), HK_LOCATION, [])).toEqual([]);
-    expect(tailorProfileAsks(plainAd("ad-2"), "Singapore", [])).toEqual([]);
+    expect(tailorProfileAsks(plainAd("ad-1"), HK_LOCATION, [], [])).toEqual([]);
+    expect(tailorProfileAsks(plainAd("ad-2"), "Singapore", [], [])).toEqual([]);
   });
 
   it("AC8: a years bar NEVER becomes a profile question — years are worked out, not asked", () => {
@@ -136,23 +137,23 @@ describe("#307 tailorProfileAsks", () => {
       eligibilityDimension: "years-experience",
       sourceSpan: "8+ years of IT project delivery",
     });
-    expect(tailorProfileAsks(ad, HK_LOCATION, [])).toEqual([]);
+    expect(tailorProfileAsks(ad, HK_LOCATION, [], [])).toEqual([]);
   });
 
   it("AC5: a stored fact at the posting's market means no question — asked once, ever", () => {
-    expect(tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [hkFact("eligible")])).toEqual([]);
+    expect(tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [hkFact("eligible")], [])).toEqual([]);
     // The prior "No" also closes the question: he answered; the answer is remembered either way.
-    expect(tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [hkFact("needs-sponsorship")])).toEqual([]);
+    expect(tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [hkFact("needs-sponsorship")], [])).toEqual([]);
   });
 
   it("a fact for a DIFFERENT market does not close the question — a Sydney answer says nothing about Hong Kong", () => {
     const sydney: EligibilityFact = { ...hkFact("eligible"), familyId: "australia" };
-    expect(tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [sydney])).toHaveLength(1);
+    expect(tailorProfileAsks(workRightsAd("ad-1"), HK_LOCATION, [sydney], [])).toHaveLength(1);
   });
 
   it("an unplaceable posting market asks nothing — never guess a market for a permanent question", () => {
-    expect(tailorProfileAsks(workRightsAd("ad-1"), "Shenzhen, Guangdong, China", [])).toEqual([]);
-    expect(tailorProfileAsks(workRightsAd("ad-1"), null, [])).toEqual([]);
+    expect(tailorProfileAsks(workRightsAd("ad-1"), "Shenzhen, Guangdong, China", [], [])).toEqual([]);
+    expect(tailorProfileAsks(workRightsAd("ad-1"), null, [], [])).toEqual([]);
   });
 });
 
@@ -160,7 +161,7 @@ describe("#307 tailorProfileAsks", () => {
 
 describe("#308 tailorProfileAsks — the graded language question, in the queue", () => {
   it("AC3/AC4: an advert naming a language raises the ladder — graded rungs, never Yes/No, work-rights first", () => {
-    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, []);
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, [], []);
     expect(asks).toHaveLength(2);
     expect(asks[0]!.dimension).toBe("work-rights"); // #292 ruling 3's order, kept
     const lang = asks[1] as LanguageProfileAsk;
@@ -182,7 +183,7 @@ describe("#308 tailorProfileAsks — the graded language question, in the queue"
   });
 
   it("the ladder needs no market: a language ask fires even where work-rights cannot", () => {
-    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), "Shenzhen, Guangdong, China", []);
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), "Shenzhen, Guangdong, China", [], []);
     expect(asks).toHaveLength(1);
     expect(asks[0]!.dimension).toBe("language");
   });
@@ -194,7 +195,7 @@ describe("#308 tailorProfileAsks — the graded language question, in the queue"
       value: "gets-by",
       label: "Mandarin — I get by day to day",
     };
-    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, [placed]);
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, [placed], []);
     expect(asks.map((a) => a.dimension)).toEqual(["work-rights"]);
   });
 
@@ -202,13 +203,13 @@ describe("#308 tailorProfileAsks — the graded language question, in the queue"
     const ad = workRightsAd("ad-1", [mandarinPlus]);
     const workRightsId = "eligibility-work-rights-hong-kong";
     expect(
-      tailorProfileAsks(ad, HK_LOCATION, [], new Set([workRightsId])).map((a) => a.dimension),
+      tailorProfileAsks(ad, HK_LOCATION, [], [], new Set([workRightsId])).map((a) => a.dimension),
     ).toEqual(["language"]);
     expect(
-      tailorProfileAsks(ad, HK_LOCATION, [], new Set([workRightsId, "mandarin-advantage"])),
+      tailorProfileAsks(ad, HK_LOCATION, [], [], new Set([workRightsId, "mandarin-advantage"])),
     ).toEqual([]);
     // An empty skip set is every pre-#308 caller unchanged.
-    expect(tailorProfileAsks(ad, HK_LOCATION, [])).toHaveLength(2);
+    expect(tailorProfileAsks(ad, HK_LOCATION, [], [])).toHaveLength(2);
   });
 });
 
@@ -232,7 +233,7 @@ describe("#308 languageChangeLine + skippedLine — the after-lines", () => {
     );
   });
   it("a skip says both halves out loud: nothing saved, and the question comes back", () => {
-    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, []);
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, [], []);
     expect(skippedLine(asks[0] as WorkRightsProfileAsk)).toBe(
       "Nothing saved — I'll ask again on another job in Hong Kong.",
     );
@@ -255,18 +256,18 @@ describe("#307 newlyHiddenCount", () => {
   const plain = candidate("plain", HK_LOCATION, plainAd("plain"));
 
   it("counts only the jobs THIS answer withdrew", () => {
-    expect(newlyHiddenCount([hkA, hkB, plain], [], [hkFact("needs-sponsorship")], [])).toBe(2);
-    expect(newlyHiddenCount([hkA, hkB, plain], [], [hkFact("eligible")], [])).toBe(0);
+    expect(newlyHiddenCount([hkA, hkB, plain], [], [hkFact("needs-sponsorship")], [], [])).toBe(2);
+    expect(newlyHiddenCount([hkA, hkB, plain], [], [hkFact("eligible")], [], [])).toBe(0);
   });
 
   it("a job already withdrawn before the answer is never re-counted", () => {
     const before = [hkFact("needs-sponsorship")];
-    expect(newlyHiddenCount([hkA, hkB], before, before, [])).toBe(0);
+    expect(newlyHiddenCount([hkA, hkB], before, before, [], [])).toBe(0);
   });
 
   it("a job he brought never counts — it never withdraws (#294 c1)", () => {
     const brought = [{ posting: { id: "hk-a" } }] as unknown as BroughtJob[];
-    expect(newlyHiddenCount([hkA, hkB], [], [hkFact("needs-sponsorship")], brought)).toBe(1);
+    expect(newlyHiddenCount([hkA, hkB], [], [hkFact("needs-sponsorship")], [], brought)).toBe(1);
   });
 });
 
@@ -316,6 +317,21 @@ describe("#309 withdrawalReasonLine + broughtStaysLine", () => {
     );
     expect(broughtStaysLine(mandarinBlocking, null)).toBe(
       "You brought this job, so it stays and I'll draft for it — but it needs Mandarin, and that gap is real.",
+    );
+  });
+
+  // #425: a language he simply has not listed is not a gap he confirmed — and a requirement naming
+  // two languages is named by the one it is over.
+  it("#425: names the one language it is over, and calls a language he never listed only that", () => {
+    const pair = { ...mandarinBlocking, eligibilitySubject: "Cantonese and English" };
+    expect(broughtStaysLine(pair, null, { language: "Cantonese", missing: true })).toBe(
+      "You brought this job, so it stays and I'll draft for it — but it needs Cantonese, which isn't on your profile.",
+    );
+    expect(broughtStaysLine(pair, null, { language: "Cantonese", missing: false })).toBe(
+      "You brought this job, so it stays and I'll draft for it — but it needs Cantonese, and that gap is real.",
+    );
+    expect(withdrawalReasonLine(pair, null, { language: "Cantonese", missing: false })).toBe(
+      "This job needs Cantonese, and your answer says you don't have it — so it has come off your deck.",
     );
   });
 });
@@ -727,6 +743,49 @@ describe("#308 the language ladder in the queue, through the HTTP seam", () => {
     expect(
       next.questions.some((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
     ).toBe(true);
+  });
+});
+
+// --- #425 AC6: the CV's own level word, through the HTTP seam -------------------------------------
+// The owner's 2026-10-24 CV. "English (Fluent)" opens the Tailor step with no English question;
+// "Spanish (Conversational)" keeps a job that requires Spanish in the deck, and the step still asks.
+describe("#425 the CV's level word settles a required language, through the HTTP seam", () => {
+  const required = (language: string): AdRequirementsV1["requirements"][number] => ({
+    id: `${language.toLowerCase()}-required`,
+    band: "essential",
+    kind: "blocking",
+    requirement: `Fluent written and spoken ${language}`,
+    cvSection: "skills",
+    eligibilityDimension: "language",
+    eligibilitySubject: language,
+    sourceSpan: `Test fixture (#425): fluent ${language} required.`,
+  });
+  const plantCv = async (built: ReturnType<typeof workRightsServer>, cookie: string) => {
+    const sessionId = (await get(built.app, cookie, "/sessions/me")).json().id as string;
+    const lines = ["French (Native)", "English (Fluent)", "Spanish (Conversational)", "Thai (Beginner)"];
+    for (const [n, text] of lines.entries())
+      await built.claims.add(sessionId, { ...discoveryFact(`cv-lang-${n}`, text), id: `${LANGUAGE_CLAIM_PREFIX}${n}` });
+  };
+  const languageAsks = (state: { questions: { requirementId: string }[] }) =>
+    state.questions.map((q) => q.requirementId).filter((id) => id.endsWith("-required"));
+
+  it("asks nothing about English, still asks about Spanish — and the job is in his deck to want", async () => {
+    const built = workRightsServer([required("English"), required("Spanish")]);
+    const cookie = await anonSession(built.app);
+    await plantCv(built, cookie); // before the deck: CV facts are part of what the search is keyed on
+    await reachDeck(built.app, cookie, "cv-level-word@example.com");
+    expect((await post(built.app, cookie, `/onboarding/cards/${AD_A}/want`)).statusCode).toBe(200);
+
+    const state = (await get(built.app, cookie, "/onboarding/tailor")).json();
+    expect(languageAsks(state)).toEqual(["spanish-required"]);
+  });
+
+  it("with the same CV, a job that requires Cantonese is no want target — it left his deck", async () => {
+    const built = workRightsServer([required("English"), required("Cantonese")]);
+    const cookie = await anonSession(built.app);
+    await plantCv(built, cookie);
+    await reachDeck(built.app, cookie, "cv-cantonese@example.com");
+    expect((await post(built.app, cookie, `/onboarding/cards/${AD_A}/want`)).statusCode).toBe(404);
   });
 });
 

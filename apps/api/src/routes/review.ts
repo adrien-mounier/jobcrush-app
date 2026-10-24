@@ -12,8 +12,14 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { requireSession } from "../server.js";
 import { DRAFT_FLAGS, SUGGESTION_KINDS, VAGUE_SOURCES } from "../cvReviewStore.js";
 import { answerWorkRights, WORK_RIGHTS_ANSWERS } from "../workRightsCard.js";
-import { answerEligibilityItem, LANGUAGE_ITEM_ID, MAX_LANGUAGES } from "../eligibilityDiscovery.js";
-import { MAX_LANGUAGE_WORD } from "../languageLevel.js";
+import {
+  answerEligibilityItem,
+  isValidLanguageSelection,
+  languageDeclarationPlan,
+  LANGUAGE_ITEM_ID,
+  MAX_LANGUAGES,
+} from "../eligibilityDiscovery.js";
+import { declaredLanguages, MAX_LANGUAGE_WORD } from "../languageLevel.js";
 import { resolvedMarketsFor } from "../postingRetrieval.js";
 import { answerStatus, Refusal, refusal } from "./refusal.js";
 import {
@@ -288,6 +294,29 @@ export function reviewRoutes(deps: ReviewDeps) {
           answers: req.body.languages,
         });
         if (!result.ok) return reply.status(answerStatus(result)).send(refusal(result));
+        return { ok: true as const };
+      },
+    );
+
+    // #425: the deck's "I speak it" — ONE language added to the list, never a whole list replaced
+    // (the deck does not hold the list). The same declaration plan as above, so a language already
+    // declared or placed on the ladder is left as it is, and a pre-#165 "none" is overwritten. The
+    // whole list it would make passes the languages question's own check (a store key, and a cap).
+    app.post(
+      "/review/languages/spoken",
+      {
+        schema: {
+          body: z.object({ language: z.string().trim().min(1).max(MAX_LANGUAGE_WORD) }),
+          response: { 200: Ok, 400: Refusal },
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const stored = await deps.eligibility.list(session.id);
+        if (!isValidLanguageSelection([...new Set([...declaredLanguages(stored), req.body.language])]))
+          return reply.status(400).send(refusal({ code: "invalid_answer", message: "unrecognized language" }));
+        const { put } = languageDeclarationPlan([req.body.language], stored);
+        for (const write of put) await deps.eligibility.put(session.id, { dimension: "language", ...write });
         return { ok: true as const };
       },
     );

@@ -489,7 +489,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // #103: an ad this session's languages can't read isn't a valid want target either, even if
         // guessed directly by id — same dual gate (posting AND requirement-set language) as the deck.
         // #412 review: that gate is deck.ts's tailorTarget, the one the tailor step resolves with.
-        const [confirmed, negatives, , facts] = await discoveryReads(deps, session.id);
+        const [confirmed, negatives, claims, facts] = await discoveryReads(deps, session.id);
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
         // #305: a job he brought is in no snapshot — it is stitched in from storage (broughtJobs.ts).
         const brought = (await deps.broughtJobs?.(session.id)) ?? [];
@@ -501,7 +501,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // card, so a session can never distinguish "never existed" from "genuinely can't take it".
         // #305: `brought` is passed because a job he brought is never withdrawn (#294 c1) — the rule
         // lives in the predicate, so this door cannot hold a different opinion from the deck's.
-        if (findWithdrawingRequirement(adReq, facts, posting.location, brought))
+        if (findWithdrawingRequirement(adReq, facts, claims, posting.location, brought))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
         await deps.sessions.setTailorTarget(session.id, req.params.adId);

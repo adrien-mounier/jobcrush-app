@@ -26,6 +26,7 @@ import type { JudgementRecord } from "../src/judgementStore.js";
 import type { LlmClient } from "../src/llm.js";
 import type { ClaimRecord } from "../src/claims.js";
 import type { EligibilityFact } from "../src/eligibility.js";
+import { LANGUAGE_CLAIM_PREFIX } from "../src/cvLanguages.js";
 import type { Draft, Posting } from "../src/preview.js";
 
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -134,7 +135,7 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
 
   it("names a placeable market he holds no work-rights fact for, on an advert that does not ask — and only then", () => {
     expect(adReq.requirements.some((r) => r.eligibilityDimension === "work-rights")).toBe(false);
-    const base = { posting, adReq, card: judgedCard(), verdicts: verdictsFor(), confirmed, negatives: [], broughtJob: undefined };
+    const base = { posting, adReq, card: judgedCard(), verdicts: verdictsFor(), confirmed, claims: confirmed, negatives: [], broughtJob: undefined };
     expect(reportContext({ ...base, facts: [] }).marketToCheck).toBe("Vietnam");
     expect(reportContext({ ...base, facts: [vnWorkRights] }).marketToCheck).toBeNull();
   });
@@ -149,11 +150,11 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
     };
     const verdicts = [{ requirementId: "work-rights-vn", fit: 0, supportingFactId: null, reason: "No fact." }, ...verdictsFor()];
     const card = buildJobCard(posting, asking, confirmed, [], judgement(verdicts), "estimated");
-    const ctx = reportContext({ posting, adReq: asking, card, verdicts, confirmed, negatives: [], facts: [], broughtJob: undefined });
+    const ctx = reportContext({ posting, adReq: asking, card, verdicts, confirmed, claims: confirmed, negatives: [], facts: [], broughtJob: undefined });
     expect(ctx.requirements[0]).toMatchObject({ id: "work-rights-vn", state: "unchecked" });
     expect(ctx.marketToCheck).toBeNull();
     // Answered: no longer unchecked.
-    const answered = reportContext({ posting, adReq: asking, card, verdicts, confirmed, negatives: [], facts: [vnWorkRights], broughtJob: undefined });
+    const answered = reportContext({ posting, adReq: asking, card, verdicts, confirmed, claims: confirmed, negatives: [], facts: [vnWorkRights], broughtJob: undefined });
     expect(answered.requirements[0]!.state).toBe("open");
   });
 
@@ -176,7 +177,7 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
     const remote = { ...posting, location: "Remote — somewhere" };
     const card = buildJobCard(remote, asking, confirmed, [], judgement(verdicts), "estimated");
     const german: EligibilityFact = { dimension: "language", familyId: "German", value: "meetings", label: "German" } as EligibilityFact;
-    const ctx = reportContext({ posting: remote, adReq: asking, card, verdicts, confirmed, negatives: [], facts: [german], broughtJob: undefined });
+    const ctx = reportContext({ posting: remote, adReq: asking, card, verdicts, confirmed, claims: confirmed, negatives: [], facts: [german], broughtJob: undefined });
     const state = (id: string) => ctx.requirements.find((r) => r.id === id)!.state;
     expect(state("wr")).toBe("unchecked");
     expect(state("lang-de")).toBe("met"); // answered — the verdict decides
@@ -186,8 +187,36 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
     expect(ctx.locationUnplaced).toBe(false);
   });
 
+  // #425 (QA gate finding): "still unchecked" here is the Tailor queue's own rule (unsettledLanguage).
+  // A working level word on the CV settles a language the queue never asks; "Cantonese and English"
+  // and "Putonghua" read by the language-name rules, so answering every question the queue asked
+  // leaves nothing "not checked".
+  it("#425: a language the CV settles, or one answered under its other name, is never 'not checked'", () => {
+    const language = (id: string, subject: string) =>
+      ({ id, band: "essential", kind: "blocking", requirement: `Fluent ${subject}`, eligibilityDimension: "language", eligibilitySubject: subject }) as const;
+    const asking: AdRequirementsV1 = {
+      ...adReq,
+      requirements: [language("english", "English"), language("pair", "Cantonese and English"), language("putonghua", "Putonghua"), ...adReq.requirements],
+    };
+    const ids3 = ["english", "pair", "putonghua"];
+    const verdicts = [...ids3.map((id) => ({ requirementId: id, fit: 0.9, supportingFactId: null, reason: "Looks fine." })), ...verdictsFor()];
+    const card = buildJobCard(posting, asking, confirmed, [], judgement(verdicts), "estimated");
+    const rung = (familyId: string) => ({ dimension: "language", familyId, value: "meetings", label: familyId }) as EligibilityFact;
+    const states = (claims: ClaimRecord[], facts: EligibilityFact[]) => {
+      const ctx = reportContext({ posting, adReq: asking, card, verdicts, confirmed, claims, negatives: [], facts, broughtJob: undefined });
+      return ids3.map((id) => ctx.requirements.find((r) => r.id === id)!.state);
+    };
+    // Nothing said yet: all three still to check.
+    expect(states(confirmed, [])).toEqual(["unchecked", "unchecked", "unchecked"]);
+    // "English (Fluent)" on the CV, Cantonese and Mandarin placed on the ladder: nothing left to check.
+    const fluentEnglish = { ...confirmed[0]!, id: `${LANGUAGE_CLAIM_PREFIX}english`, text: "English (Fluent)" };
+    expect(states([...confirmed, fluentEnglish], [rung("Cantonese"), rung("Mandarin")])).toEqual(["met", "met", "met"]);
+    // The CV's word alone settles English, and only English.
+    expect(states([...confirmed, fluentEnglish], [])).toEqual(["met", "unchecked", "unchecked"]);
+  });
+
   it("#401 a location the lookup cannot place, on an advert that does not ask about work rights, is flagged for section 4", () => {
-    const base = { adReq, verdicts: verdictsFor(), confirmed, negatives: [], facts: [], broughtJob: undefined };
+    const base = { adReq, verdicts: verdictsFor(), confirmed, claims: confirmed, negatives: [], facts: [], broughtJob: undefined };
     const brussels = { ...posting, location: "Brussels, Belgium" };
     expect(marketForLocationText(brussels.location)).toBeNull();
     const ctx = reportContext({ ...base, posting: brussels, card: buildJobCard(brussels, adReq, confirmed, [], judgement(), "estimated") });
@@ -201,7 +230,7 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
     const card = buildJobCard(posting, adReq, confirmed, [], judgement(), "estimated", years);
     expect(card.notTested?.length).toBeGreaterThan(0);
     const ctx = reportContext({
-      posting, adReq, card, verdicts: verdictsFor(), confirmed, negatives: [], facts: [],
+      posting, adReq, card, verdicts: verdictsFor(), confirmed, claims: confirmed, negatives: [], facts: [],
       broughtJob: { posting, ageing: "You pasted this 9 days ago. We cannot check whether it is still open.", applicationUrl: "https://jobs.example/apply" },
     });
     for (const bar of card.notTested!) expect(ctx.requirements.find((r) => r.id === bar.id)!.state).toBe("unchecked");

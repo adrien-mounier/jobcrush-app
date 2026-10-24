@@ -26,6 +26,7 @@ import "../deck.css";
 import { CardBody, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import {
+  addSpokenLanguage,
   ensureSession,
   chooseFallback,
   getCards,
@@ -143,19 +144,23 @@ function revealText(n: number): string {
 // #123 addendum (2026-08-04) — QA NO-GO fix: the languages question is always discovery's last
 // question, so confirming it used to fall straight into this reveal, past the notice area L3/L4
 // and "Fix that?" live in. A visitor was never told a job had been removed. L7 says so here instead.
-function joinLanguages(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+// L7 (addendum §A2) — only when something was actually removed; an empty list means render nothing,
+// no reserved space (§A5). #425: one line per language that caused a removal, with its own count. A
+// language that is not on her profile asks whether she speaks it, and the button beside it brings
+// those jobs back; one she said she doesn't speak only says so (the ladder's answer stands).
+function withdrawnLines(w: WithdrawnSummary): Array<{ language: string; missing: boolean; text: string }> {
+  return w.byLanguage.map(({ language, count, missing }) => {
+    const jobs = `I left out ${count} ${count === 1 ? "job that needs" : "jobs that need"} ${language}`;
+    return {
+      language,
+      missing,
+      text: missing ? `${jobs}, which isn't on your profile. Do you speak it?` : `${jobs}, because you said you don't speak it.`,
+    };
+  });
 }
-// L7 (addendum §A2) — only when something was actually removed; `null` means render nothing, no
-// reserved space (§A5). `{langList}` names only the languages that caused a removal, in the join
-// order §6 already established elsewhere on this screen's sibling copy.
-function withdrawnLine(w: WithdrawnSummary): string | null {
-  if (w.total <= 0 || w.byLanguage.length === 0) return null;
-  const langs = joinLanguages(w.byLanguage.map((l) => l.language));
-  return `${w.total} more needed ${langs} — I left ${w.total === 1 ? "it" : "them"} out.`;
-}
+const SPEAK = (language: string) => `Yes, I speak ${language}`;
+const SPEAKING = "Saving…";
+const SPEAK_FAILED = "Couldn't save that — try again.";
 
 function isUnknownCardError(error: unknown) {
   return (
@@ -205,7 +210,11 @@ export default function DeckPage() {
   const focusReopenRef = useRef(false);
   // Declared here (not near the render below) because the reveal-entry effect further down needs
   // it in its dependency array, and a `const` can't be read before its own declaration.
-  const withdrawalCopy = withdrawn ? withdrawnLine(withdrawn) : null;
+  const withdrawal = withdrawn ? withdrawnLines(withdrawn) : [];
+  const withdrawalCopy = withdrawal.length > 0 ? withdrawal.map((l) => l.text).join(" ") : null;
+  // #425: the language whose "I speak it" is saving, and a failed save's line.
+  const [speaking, setSpeaking] = useState<string | null>(null);
+  const [speakError, setSpeakError] = useState<string | null>(null);
   const [wallError, setWallError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
   const reducedMotion = useReducedMotion();
@@ -417,7 +426,7 @@ export default function DeckPage() {
       } else if (login === "error") {
         setWallError(W13);
         setScreen("wall");
-      } else if (params.get("claimed") === "1" && res.authed && !(res.withdrawn && withdrawnLine(res.withdrawn))) {
+      } else if (params.get("claimed") === "1" && res.authed && !res.withdrawn?.byLanguage.length) {
         // #64 AC3: she pressed "See them", signed in, and came straight back. The reveal has already
         // been read and the count already earned — showing the curtain a second time would make her
         // buy the same reward twice. The deck opens on its first card, which is the highest-ranked
@@ -467,6 +476,22 @@ export default function DeckPage() {
     } catch {
       // E1 is fixed copy (design §2's copy table), not the raw fetch error.
       setScreen("error");
+    }
+  }, [applyCardsResponse]);
+
+  // #425: "Yes, I speak it" — the language joins her profile, and the deck is read again: the jobs it
+  // took out come back, the count grows and the line goes. The reveal's own entry effect then moves
+  // focus to the heading and announces the new count, since the button she pressed is gone.
+  const onSpeak = useCallback(async (language: string) => {
+    setSpeaking(language);
+    setSpeakError(null);
+    try {
+      await addSpokenLanguage(language);
+      applyCardsResponse(await getCards());
+    } catch {
+      setSpeakError(SPEAK_FAILED);
+    } finally {
+      setSpeaking(null);
     }
   }, [applyCardsResponse]);
 
@@ -636,7 +661,13 @@ export default function DeckPage() {
           setSwipeStatus("idle");
           setWidening(false);
           // She is long past the reveal and the wall by the time she reaches a dead end, so the new
-          // deck opens directly rather than re-running the curtain.
+          // deck opens directly rather than re-running the curtain — unless it left jobs out for a
+          // language (#425): the line lives on the reveal, and being told beats one more tap (the
+          // claimed-return shortcut above makes the same call).
+          if (res.withdrawn?.byLanguage.length) {
+            setScreen("reveal");
+            return;
+          }
           setScreen("deck");
           setLiveMessage(`Showing job 1 of ${res.cards.length}.`);
           return;
@@ -751,6 +782,35 @@ export default function DeckPage() {
   // asked for it back. Never while the accepted search is still running.
   const showFallbackOffer =
     !widening && !!fallback && !fallback.active && (fallback.offered || (fallback.declined && offerReopened));
+  // #425: a line per language the deck left out; a language not on her profile gets "Yes, I speak
+  // it", which adds it and reads the deck again with those jobs back. Said on the reveal, and on the
+  // empty deck — when the rule took every job, that is the one case that must not be silent.
+  // aria-disabled, not disabled, while one saves: a disabled button drops the focus she put on it,
+  // and after a failed save she is still on it, with the error announced.
+  const withdrawalNotice = withdrawal.length > 0 && (
+    <>
+      {withdrawal.map((line) => (
+        <p key={`${line.missing}:${line.language}`} className="aside">
+          {line.text}
+          {line.missing && (
+            <button
+              type="button"
+              className="speak"
+              aria-disabled={speaking !== null}
+              onClick={() => speaking === null && onSpeak(line.language)}
+            >
+              {speaking === line.language ? SPEAKING : SPEAK(line.language)}
+            </button>
+          )}
+        </p>
+      ))}
+      {speakError && (
+        <p className="speakerr" role="alert">
+          {speakError}
+        </p>
+      )}
+    </>
+  );
 
   return (
     <div className="jobdeck">
@@ -808,6 +868,7 @@ export default function DeckPage() {
       {screen === "empty" && (
         <div className="loadstate">
           <p className="big">{Z1}</p>
+          {withdrawalNotice}
           {widening ? (
             <p>{F6}</p>
           ) : showFallbackOffer ? (
@@ -856,13 +917,8 @@ export default function DeckPage() {
                   See them
                 </button>
                 {/* #123 addendum §A1/§A5: below the CTA (provenance for the number), not above it
-                    (a caveat on the reward); nothing rendered — no reserved space — when k === 0.
-                    §A4's "Fix my languages" undo is NOT built here: it needs a way to reopen an
-                    already-answered eligibility question with its prior ticks restored, and no
-                    such route exists yet (verified — see the session report). Shipping a link to
-                    nowhere would be worse than the silent removal this fix exists to close, so
-                    this only lands the visibility half for now. */}
-                {withdrawalCopy && <p className="aside">{withdrawalCopy}</p>}
+                    (a caveat on the reward); nothing rendered — no reserved space — when k === 0. */}
+                {withdrawalNotice}
               </>
             ) : (
               <WallPanel headingRef={wallHeadingRef} initialError={wallError} />

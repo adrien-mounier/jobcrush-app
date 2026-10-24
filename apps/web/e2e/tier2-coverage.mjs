@@ -365,6 +365,26 @@ export const COVERAGE = {
     PROFILE,
     AUTH,
   ),
+  // #425: a CV level word's effect on a pasted job's card (the record rule puts the row under "Where
+  // you fit") and on the Tailor queue (no question for a working language). It pastes a CV through
+  // the intake and a job through the paste door, so both of those can redden it too.
+  "cv-language-level-journey.mjs": union(
+    [
+      "apps/api/src/languageLevel.ts",
+      "apps/api/src/cvLanguages.ts",
+      "apps/api/src/recordBars.ts",
+      "apps/api/src/withdrawal.ts",
+      "apps/web/app/jobcard.tsx",
+    ],
+    CV_INTAKE,
+    PASTE,
+    BROUGHT,
+    JOB_SCREEN,
+    DECK,
+    TAILOR,
+    PROFILE,
+    AUTH,
+  ),
   // #308: the skip, adversarially — the queue payload's no-Yes/No-twin guarantee, the refused
   // doors, the untouched profile after "Not now", and per-advert skip memory across a detour.
   // Same reach as the ladder journey (it drives the same queue over the same canned adverts).

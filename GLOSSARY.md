@@ -176,8 +176,12 @@ _Avoid_: Fatal mismatch, stretch match
 **Blocking requirement**:
 A requirement the user must meet for the job to be available to them at all. An unmet blocking
 requirement withdraws the posting from that user's deck entirely, however well they match otherwise.
-It is established only when the advert states the requirement as mandatory and the user has
-explicitly said they do not meet it; a vague advert or an unasked question never establishes one.
+It is established only when the advert states the requirement as mandatory and the user's own
+record says they do not meet it. For work rights, that is an explicit "no"; an unasked question never
+establishes one. For a language (#425, 2026-10-24), it is a language that is neither on their CV nor
+declared on their profile, or an explicit "I don't speak this one"; the deck names each such
+language with a one-tap "I speak it". A vague advert never establishes one, and a job the user
+brought is never withdrawn.
 _Avoid_: Important gap, hard filter, knockout
 
 **Eligibility fact**:

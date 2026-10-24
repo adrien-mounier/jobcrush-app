@@ -125,6 +125,16 @@ const edited = await page.evaluate(async (runTag) => {
 }, RUN_TAG);
 await qa.note(`her CV was read and reviewed (${facts} facts); one line edited in her own words so this run's facts are unique: ${JSON.stringify(edited)}`);
 if (edited.status !== 200) throw new Error(`could not make this run's facts unique: ${JSON.stringify(edited)}`);
+// #425: two of the three extra adverts require Mandarin or Cantonese, which her CV does not list —
+// they would leave the deck and shrink the pool back towards the bound. She says she speaks both
+// (the reveal's own "Yes, I speak it" door), so the pool stays at 11.
+const spoken = await page.evaluate(async () =>
+  Promise.all(["Mandarin", "Cantonese"].map((language) =>
+    fetch("/api/review/languages/spoken", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ language }),
+    }).then((r) => r.status))));
+await qa.note(`#425: "Yes, I speak" Mandarin and Cantonese — HTTP ${spoken.join(", ")}`);
+if (spoken.some((s) => s !== 200)) throw new Error(`could not declare her languages: ${spoken}`);
 
 // 2) The cold deck. The reveal is the few seconds the poll is designed to hide behind.
 const t0 = Date.now();

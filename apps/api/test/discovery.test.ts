@@ -976,11 +976,11 @@ describe("#123 the languages question", () => {
     expect(language.multiSelect).toBe(true);
     expect(language.typeAhead).toBe(true);
     expect(language.question).toBe("Which languages do you speak? Start typing — I'll suggest as you go.");
-    // #165: the consequence no longer threatens a removal, because listing languages no longer causes
-    // one — the only thing that withdraws is a deliberate "I don't speak this one" on the ladder.
+    // #425: leaving a language out has a cost again — a job requiring it leaves the deck — so the
+    // line says so, and that the deck names it with a one-tap way back.
     expect(language.consequence).toBe(
-      "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
-        " When one of them matters for a real job, I'll ask how well you speak it, and say why.",
+      "A job that requires a language that isn't here or on your CV stays out of your deck. I'll tell you when that happens," +
+        " and one tap brings those jobs back. When a language matters for a job, I'll ask how well you speak it, and say why.",
     );
     expect(language.options).toEqual(["English", "Mandarin", "Cantonese", "Vietnamese", DECLINE_OPTION]);
   });

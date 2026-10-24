@@ -20,7 +20,7 @@ const LANGUAGES_QUESTION = {
   questionId: 'eligibility-languages',
   question: "Which languages do you speak? Start typing — I'll suggest as you go.",
   consequence:
-    "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck. When one of them matters for a real job, I'll ask how well you speak it, and say why.",
+    "A job that requires a language that isn't here or on your CV stays out of your deck. I'll tell you when that happens, and one tap brings those jobs back. When a language matters for a job, I'll ask how well you speak it, and say why.",
   options: ['English', 'Mandarin', 'Cantonese', 'Vietnamese', 'Ask me later'],
   answer: null,
 };

@@ -326,7 +326,8 @@ two NULLs never collide; use a sentinel (`'*'`).
 would have withdrawn every Australian posting for an Australian in Hong Kong. A tick-box `none` meant
 "not at the meeting bar" and withdrawal read it as "not at all". **Apply:** a category key
 (`language`) instead of a thing (`Mandarin`) silently matches the wrong instance; an unknown scope
-returns `null` and never withdraws; store the grade, not a boolean, when consumers may read it at a
+returns `null` and never withdraws (except a required language, since #425: on neither the CV nor the
+profile, it withdraws, and the deck names it with a one-tap "I speak it"); store the grade, not a boolean, when consumers may read it at a
 different bar; a model label wired to a destructive action (`blocking`) carries an explicit
 definition, a boundary regression test, and a firing-rate counter. **Check what the judging model
 can see before trusting its fit.** The card judge sees requirement and fact text only, with no dates

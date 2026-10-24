@@ -10,7 +10,9 @@
 //   THE LANGUAGES TYPE-AHEAD (a known word
 //   completed from the list, and a word OFF the list kept in the person's own spelling, with
 //   Mandarin and Cantonese deliberately LEFT OUT) -> sign in -> the deck, where
-//     * the Mandarin-MANDATORY posting is STILL THERE (leaving a language out costs nothing),
+//     * #425: the Mandarin- and Cantonese-MANDATORY postings are left out, and the reveal names
+//       each with its count and a "Yes, I speak it" that brings the job back (the owner reversed
+//       #165's "leaving a language out costs nothing" on 2026-10-24),
 //     * the deck card itself no longer asks anything (#308 — the ladder is retired off it),
 //     * wanting the job lands the Tailor queue, where the graded question is asked with THIS
 //       advert's own line as the reason and the cost said before the rungs,
@@ -141,8 +143,9 @@ const oldBoxes = await card.locator('input[type=checkbox]').count();
 await assert(oldBoxes === 0, `the #123 tick-list is gone — ${oldBoxes} checkboxes on screen (the box whose unticked state wrote a hard "no")`);
 await assert(!/unticked|treat as a no/i.test(langQ ?? ''),
   `the question no longer threatens the visitor with a "no" it will infer — "${langQ}"`);
-await assert(/still stays in your deck|nothing you leave out/i.test(conseq ?? ''),
-  `AC2 said ON THE SCREEN, before the answer: leaving a language out costs nothing — "${conseq}"`);
+// #425 (owner decision 1): leaving a language out has a cost again, and the card says so up front.
+await assert(/stays out of your deck/i.test(conseq ?? '') && /tell you/i.test(conseq ?? ''),
+  `#425 said ON THE SCREEN, before the answer: a job needing a language she leaves out stays out, and she is told — "${conseq}"`);
 
 // (a) a KNOWN word completes from the list.
 await qa.fill(card.locator('input'), 'Eng', 'AC1: type three letters of a language on the list');
@@ -151,8 +154,8 @@ await qa.note(`completions offered for "Eng": ${JSON.stringify(engSuggestions)}`
 await assert(engSuggestions.some((s) => s.trim() === 'English'), 'AC1: a known language COMPLETES from the list as the person types');
 await qa.click(card.locator('.sugg button', { hasText: 'English' }).first(), 'tap the completion "English"');
 
-// (b) the list really does know Mandarin — and this visitor still leaves it out. This is the whole
-//     point of AC2: the omission below must cost her nothing.
+// (b) the list really does know Mandarin — and this visitor still leaves it out. #425: the omission
+//     now takes the Mandarin-mandatory job out, and the reveal names it with a one-tap way back.
 await qa.fill(card.locator('input'), 'English, Man', 'type "Man" — proving Mandarin IS on the list…');
 const manSuggestions = await card.locator('.sugg button').allTextContents();
 await qa.note(`completions offered for "Man": ${JSON.stringify(manSuggestions)}`);
@@ -177,17 +180,23 @@ await assert(saved.join('|') === `English|${OFF_LIST_WORD}`,
   `"${OFF_LIST_WORD}" is a first-class entry in what the server now holds, not a warning — ${JSON.stringify(saved)}`);
 
 // -------------------------------------------------------------------------------------------
-// 6. 🚨 THE HEADLINE PROMISE — leaving a language out removes NOTHING.
+// 6. #425 — a job that REQUIRES a language she did not list leaves her deck, and the reveal says so
+//    with a one-tap "Yes, I speak it". (#165's "leaving a language out removes nothing" was the old
+//    promise; the owner reversed it on 2026-10-24 — her CV and this list are what count.)
 // -------------------------------------------------------------------------------------------
 const afterAnswer = await deck();
 await qa.note(`deck after the language answer: ${JSON.stringify(afterAnswer)}`);
-const advertsPresent = afterAnswer.ok
-  && afterAnswer.ids.includes(MANDARIN_BLOCKING_AD)
-  && afterAnswer.ids.includes(CANTONESE_BLOCKING_AD);
-await assert(afterAnswer.ok && afterAnswer.withdrawn && afterAnswer.withdrawn.total === 0,
-  `AC2: after listing her languages WITHOUT Mandarin or Cantonese, nothing at all was withdrawn (${JSON.stringify(afterAnswer.withdrawn)})`);
+const missing = (afterAnswer.withdrawn?.byLanguage ?? [])
+  .filter((l) => l.missing)
+  .map((l) => `${l.language}:${l.count}`)
+  .sort();
+const advertsPresent = afterAnswer.ok && afterAnswer.ids.includes(CANTONESE_PLUS_AD);
+await assert(missing.join('|') === 'Cantonese:1|Mandarin:1',
+  `#425 AC1: listing English and Wolof only takes out exactly the Mandarin- and Cantonese-MANDATORY jobs, named as missing (${JSON.stringify(afterAnswer.withdrawn)})`);
+await assert(afterAnswer.ok && !afterAnswer.ids.includes(MANDARIN_BLOCKING_AD) && !afterAnswer.ids.includes(CANTONESE_BLOCKING_AD),
+  '#425 AC1: neither mandatory job is in her deck');
 await assert(advertsPresent,
-  `AC2: both the Mandarin-MANDATORY and the Cantonese-MANDATORY postings are STILL IN HER DECK — the #123 harm is gone`);
+  'and the job where Cantonese is only "an advantage" STAYS — an ordinary requirement never removes a job');
 
 if (!advertsPresent) {
   await qa.note('SKIPPING the deck half: the API is not serving the language adverts this journey needs (see the ADVERT NOTE at the top).');
@@ -211,6 +220,35 @@ if (!advertsPresent) {
     return { ok: verify.ok, status: verify.status };
   });
   await assert(signedIn.ok, `signed in before the reveal (${JSON.stringify(signedIn)})`);
+
+  // -----------------------------------------------------------------------------------------
+  // 7b. #425 AC5 — THE REVEAL'S LINE: one per language, its count, and "Yes, I speak it".
+  // -----------------------------------------------------------------------------------------
+  await qa.goto('/deck', 'open the deck — the reveal says what it left out');
+  await qa.expectVisible(page.getByRole('button', { name: 'See them' }), 'the reveal, before the deck');
+  const revealCount = async () => Number(((await txt('.curtain h1')) ?? '').match(/\d+/)?.[0] ?? NaN);
+  const before = await revealCount();
+  const mandarinLine = page.locator('.curtain .aside', { hasText: 'Mandarin' });
+  await qa.expectText(mandarinLine, "I left out 1 job that needs Mandarin, which isn't on your profile. Do you speak it?",
+    '#425 AC5: the line names the language and how many jobs it took out, and asks');
+  await qa.expectVisible(page.locator('.curtain .aside', { hasText: 'Cantonese' }), 'Cantonese has its own line');
+  await qa.click(mandarinLine.getByRole('button', { name: 'Yes, I speak Mandarin' }), "she does speak Mandarin — 'Yes, I speak Mandarin'");
+  await page.waitForFunction(
+    (n) => Number(document.querySelector('.curtain h1')?.textContent?.match(/\d+/)?.[0]) === n + 1,
+    before,
+    { timeout: 10_000 },
+  );
+  await assert((await revealCount()) === before + 1, `the reveal's count grows by the job it brought back (${before} → ${await revealCount()})`);
+  await assert((await page.locator('.curtain .aside', { hasText: 'Mandarin' }).count()) === 0, 'the Mandarin line is gone');
+  await assert(await page.evaluate(() => document.activeElement === document.querySelector('.curtain h1')),
+    'a11y: the button she pressed is gone, so focus moves to the heading, which announces the new count');
+  await assert((await deck()).ids.includes(MANDARIN_BLOCKING_AD), '#425 AC5: the Mandarin-mandatory job is back in her deck');
+  // Cantonese too, so the ladder's Cantonese half below has its jobs — she will answer "I don't speak
+  // this one" for it there, the explicit no that still wins.
+  await qa.click(page.locator('.curtain .aside', { hasText: 'Cantonese' }).getByRole('button', { name: 'Yes, I speak Cantonese' }),
+    "'Yes, I speak Cantonese'");
+  await page.waitForFunction(() => !document.querySelector('.curtain .aside'), null, { timeout: 10_000 });
+  await assert((await deck()).ids.includes(CANTONESE_BLOCKING_AD), 'the Cantonese-mandatory job is back too');
 
   // Walk the deck, card by card, exactly as a person does, until the named advert is on screen.
   const openCard = async (adId, why) => {
@@ -236,8 +274,8 @@ if (!advertsPresent) {
     return false;
   };
 
-  const foundMandarin = await openCard(MANDARIN_BLOCKING_AD, 'the Mandarin-mandatory posting she never listed Mandarin for');
-  await assert(foundMandarin, 'AC2 ON THE SCREEN: the Mandarin-mandatory job is reachable in her deck, card by card');
+  const foundMandarin = await openCard(MANDARIN_BLOCKING_AD, 'the Mandarin-mandatory posting "Yes, I speak Mandarin" brought back');
+  await assert(foundMandarin, '#425 ON THE SCREEN: the Mandarin-mandatory job is reachable in her deck, card by card');
   await qa.scrollThrough('read the whole card, top to bottom');
 
   // -----------------------------------------------------------------------------------------
@@ -356,7 +394,7 @@ if (!advertsPresent) {
   // The card walk cannot pick this one out by eye: three fixture postings share the literal title
   // "Senior Project Manager" with it, and the deck renders no per-card id. Target it through the
   // same /want route the card's own button posts to (asked-once-journey's pattern) — its presence
-  // in her deck was already asserted above (advertsPresent).
+  // in her deck was already asserted above ("Yes, I speak Cantonese").
   const wantedBlocking = await page.evaluate(
     (id) => fetch(`/api/onboarding/cards/${encodeURIComponent(id)}/want`, { method: 'POST', credentials: 'include' })
       .then((r) => r.status),

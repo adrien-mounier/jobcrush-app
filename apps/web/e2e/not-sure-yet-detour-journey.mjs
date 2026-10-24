@@ -14,7 +14,8 @@
 //   BASE_URL=http://127.0.0.1:34100 node apps/web/e2e/not-sure-yet-detour-journey.mjs
 //
 // Uses qa-main.ts's canned language adverts (armed for this run, put back at the end), the same
-// knob language-ladder-journey.mjs uses. The visitor's side is never seeded beyond question 1.
+// knob language-ladder-journey.mjs uses. The visitor's side is never seeded beyond question 1 and
+// (#425) her "Yes, I speak it" for Mandarin and Cantonese, which declares them with no level.
 import { createSession } from './qa-driver.mjs';
 import { liveAdId } from './live-ad-id.mjs';
 
@@ -75,6 +76,13 @@ try {
   await assert(!!link.json?.devLink, `sign-in link issued (HTTP ${link.status})`);
   const token = new URL('http://x' + link.json.devLink).searchParams.get('token');
   await api('/api/auth/verify', 'POST', { token });
+  // #425: a job that requires a language on neither her CV nor her profile leaves the deck. She
+  // says she speaks both — the reveal's own "Yes, I speak it" door — so the jobs stay and every
+  // level stays unknown: the ladder still has everything to ask.
+  for (const language of ['Mandarin', 'Cantonese']) {
+    const spoken = await api('/api/review/languages/spoken', 'POST', { language });
+    await assert(spoken.status === 200, `#425: "Yes, I speak ${language}" (HTTP ${spoken.status})`);
+  }
 
   const cards = await qa.cardsWhenRetrieved();
   const ids = (cards?.cards ?? []).map((c) => c.adId);

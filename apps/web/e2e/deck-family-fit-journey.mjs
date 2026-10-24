@@ -238,9 +238,14 @@ const seeded = await page.evaluate(async () => {
   // Arm the QA stack's three canned live-read adverts, so the deck holds adverts the READER
   // stamped, not only hand-authored fixtures.
   codes.stack = await send("/api/qa/stack", "POST", { languageAdverts: true });
+  // #425: two of them require Mandarin or Cantonese, and a job needing a language that is on
+  // neither her CV nor her profile leaves the deck. She says she speaks both (the reveal's own
+  // "Yes, I speak it" door), so this deck is about family fit alone.
+  codes.mandarin = await send("/api/review/languages/spoken", "POST", { language: "Mandarin" });
+  codes.cantonese = await send("/api/review/languages/spoken", "POST", { language: "Cantonese" });
   return codes;
 });
-qa.note(`seeded over the real API — intent ${seeded.intent}, discovery start ${seeded.start}, reader armed ${seeded.stack}`);
+qa.note(`seeded over the real API — intent ${seeded.intent}, discovery start ${seeded.start}, reader armed ${seeded.stack}, Mandarin ${seeded.mandarin}, Cantonese ${seeded.cantonese}`);
 
 const shipped = await page.evaluate(async (placementsBefore) => {
   const before = (await fetch("/api/ops/counters").then((r) => r.json()))["deck.family_dropped"];

@@ -495,9 +495,10 @@ const fakeLlm: LlmClient = {
 //
 // The journey needs three distinct shapes and names each one by adId (overridable via
 // QA_MANDARIN_BLOCKING_AD / QA_CANTONESE_PLUS_AD / QA_CANTONESE_BLOCKING_AD): a language stated as
-// mandatory (which must NOT withdraw when the person simply never listed it), a language named
-// only as an advantage (which must still trigger the level question), and a second mandatory one
-// (the only advert the deliberate "I don't speak this one" may ever remove).
+// mandatory (#425: withdrawn while the language is on neither her CV nor her profile, and brought
+// back by the reveal's "Yes, I speak it"), a language named only as an advantage (never withdraws,
+// and must still trigger the level question), and a second mandatory one (where the deliberate
+// "I don't speak this one" removes it again).
 const QA_LANGUAGE_ADVERTS: Record<string, unknown> = {
   "2026-07-05_okx_senior-strategy-project-manager-vip-institutions": {
     schemaVersion: "1",
@@ -835,15 +836,22 @@ function qaPastedRequirements(posting: Posting) {
     curated: false,
     language: posting.language,
     familyFit: { family: "it-project-delivery", confidence: 0.9 },
-    requirements: bullets.map((requirement, index) => ({
-      id: `pasted-${index + 1}`,
-      // RankBand is ["essential","standard","nice-to-have"] (packages/contracts/src/familyFloor.ts)
-      // — "desirable" is the word the CARD prints, not a band the contract has.
-      band: index < 2 ? ("essential" as const) : ("standard" as const),
-      kind: "ordinary" as const,
-      requirement,
-      sourceSpan: requirement,
-    })),
+    requirements: bullets.map((bullet, index) => {
+      // #425: "- Required language: English — Fluent written and spoken English" reads as a blocking
+      // language requirement, so a journey can paste a job that needs a language.
+      const language = /^Required language:\s*(.+?)\s+—\s+(.+)$/.exec(bullet);
+      const requirement = language ? language[2]! : bullet;
+      return {
+        id: `pasted-${index + 1}`,
+        // RankBand is ["essential","standard","nice-to-have"] (packages/contracts/src/familyFloor.ts)
+        // — "desirable" is the word the CARD prints, not a band the contract has.
+        band: index < 2 ? ("essential" as const) : ("standard" as const),
+        kind: language ? ("blocking" as const) : ("ordinary" as const),
+        requirement,
+        sourceSpan: requirement,
+        ...(language ? { eligibilityDimension: "language" as const, eligibilitySubject: language[1]! } : {}),
+      };
+    }),
   };
 }
 

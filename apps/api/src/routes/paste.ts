@@ -207,9 +207,10 @@ export function pasteRoutes(deps: PasteDeps) {
      *  `brought` is passed to the deck pass, which holds it out of the withdrawal filter, so the only
      *  way this returns no card is a reading we could not finish. */
     const cardFor = async (session: SessionRecord, brought: BroughtJob): Promise<CardOutcome> => {
-      const [confirmed, negatives, facts, blocks] = await Promise.all([
+      const [confirmed, negatives, claims, facts, blocks] = await Promise.all([
         deps.claims.confirmed(session.id),
         deps.claims.negatives(session.id),
+        deps.claims.list(session.id),
         deps.eligibility.list(session.id),
         deps.jobBlocks.list(session.id),
       ]);
@@ -217,7 +218,7 @@ export function pasteRoutes(deps: PasteDeps) {
       const langs = readingLanguages(session);
       const { cards } = await buildDeckCards(
         eligiblePostings(langs, [brought.posting]),
-        { confirmed, negatives, facts, blocks, years, deckFamilyId: null, langs, brought: [brought], sessionId: session.id },
+        { confirmed, negatives, claims, facts, blocks, years, deckFamilyId: null, langs, brought: [brought], sessionId: session.id },
         deps,
       );
       // No card left means we did not finish READING the advert — the requirements read timed out or

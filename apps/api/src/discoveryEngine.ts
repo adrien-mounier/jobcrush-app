@@ -251,7 +251,8 @@ export async function answerQuestionOne(
 }
 
 /** Every read the discovery screen and the deck are built from, fired in parallel. Third element
- *  (rejected) is #35's — no new store method, just the existing list() filtered. Fourth (facts) is
+ *  (claims) is every claim — #35's list() read, unfiltered since #425: the CV's language lines count
+ *  as the person's languages whether they print or not (cvLanguages drops the rejected). Fourth (facts) is
  *  #106's stored eligibility facts. Fifth (blocks) is #162's dated job records, whose unknown ends
  *  are asked instead of a years total (ADR-0008 clause 3). Callers that need fewer destructure fewer.
  *  #376: the CV's languages no longer ride here — nothing asks the languages question any more. */
@@ -266,7 +267,7 @@ export async function discoveryReads(
     deps.eligibility.list(sessionId),
     deps.jobBlocks.list(sessionId),
   ]);
-  return [confirmed, negatives, all.filter((c) => c.decision === "rejected"), facts, blocks];
+  return [confirmed, negatives, all, facts, blocks];
 }
 
 /** #246 — the promise's number is read off the session, where question 1's search recorded it

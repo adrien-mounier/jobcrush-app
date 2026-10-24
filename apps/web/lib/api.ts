@@ -328,9 +328,11 @@ export type JobCard = JobCardV1;
 // contract) — the backend is building this exact shape. `byLanguage` is desc by count, then name
 // asc, and names only languages that actually caused a removal — never the full unticked set.
 // `total: 0` with an empty `byLanguage` means nothing was withdrawn; render nothing for that case.
+// #425: `missing` — the language is not on the person's profile (the reveal offers "I speak it");
+// false when they said "I don't speak this one".
 export interface WithdrawnSummary {
   total: number;
-  byLanguage: Array<{ language: string; count: number }>;
+  byLanguage: Array<{ language: string; count: number; missing: boolean }>;
 }
 
 // #308: the language ladder no longer rides on the deck card — the graded question moved into the
@@ -914,6 +916,11 @@ export function setWorkRights(itemId: string, answer: WorkRightsAnswer): Promise
 // #376: the Languages card — the whole list the person speaks.
 export function setLanguages(languages: string[]): Promise<{ ok: true }> {
   return jfetch("/api/review/languages", { method: "PUT", body: JSON.stringify({ languages }) });
+}
+
+// #425: the deck's "I speak it" — one language added to the person's list, nothing else touched.
+export function addSpokenLanguage(language: string): Promise<{ ok: true }> {
+  return jfetch("/api/review/languages/spoken", { method: "POST", body: JSON.stringify({ language }) });
 }
 
 // #378: No thanks on a draft (dismissed: true) — never proposed again — or its Undo (false).

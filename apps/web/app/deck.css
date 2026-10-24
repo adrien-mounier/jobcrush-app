@@ -143,11 +143,36 @@
 /* #123 addendum §A3: the withdrawal footnote, below the CTA — provenance for the number, not a
    caveat on it. Muted is correct here (it's the app's existing "quiet line" pattern, matching
    .discovery .notice) — gold stays reserved for the reward. */
-.jobdeck .curtain .aside {
+.jobdeck .curtain .aside,
+.jobdeck .speakerr {
   margin: 20px 0 0;
   font-size: 13px;
   line-height: 1.45;
   color: var(--hud-mute);
+}
+/* #425: the line's one-tap way back — a quiet outlined pill like the wall's, never gold. On the
+   reveal and on the empty deck alike. */
+.jobdeck .speak {
+  appearance: none;
+  display: block;
+  margin: 10px auto 0;
+  min-height: 44px;
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  font: inherit;
+  font-weight: 620;
+  cursor: pointer;
+}
+.jobdeck .speak:hover,
+.jobdeck .speak:focus-visible {
+  border-color: var(--gold);
+}
+.jobdeck .speak[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* ---------- the account wall at the reveal (#22) — swaps in for .curtain .go, never a new

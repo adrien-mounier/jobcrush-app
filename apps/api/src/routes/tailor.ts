@@ -39,7 +39,7 @@ import {
   withYearsShortfall,
   type ReadAdFn,
 } from "../deck.js";
-import { findWithdrawingRequirement } from "../withdrawal.js";
+import { findWithdrawal, findWithdrawingRequirement } from "../withdrawal.js";
 import { answerEligibilityItem, mapEligibilityAnswer } from "../eligibilityDiscovery.js";
 import { answerLanguageLevel, rungForSituation } from "../languageLevel.js";
 import type { JobStore } from "../jobs.js";
@@ -127,14 +127,15 @@ export function tailorRoutes(deps: TailorRouteDeps) {
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
 
-    // The tailor slice of the spine's discoveryReads — same one Promise.all shape, minus the
-    // rejected-claims read nothing here consumes.
+    // The tailor slice of the spine's discoveryReads, in its own order. #425: `claims` (LAST here,
+    // third there) is every claim, for the CV's language lines, printed or not.
     const reads = (sessionId: string) =>
       Promise.all([
         deps.claims.confirmed(sessionId),
         deps.claims.negatives(sessionId),
         deps.eligibility.list(sessionId),
         deps.jobBlocks.list(sessionId),
+        deps.claims.list(sessionId),
       ]);
 
     // #308 (the #307 review's own deferral): the resolve-judgement → years → buildTailorState tail
@@ -176,6 +177,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       negatives: ClaimRecord[],
       facts: EligibilityFact[],
       blocks: JobBlockView[],
+      claims: ClaimRecord[],
       skips: ReadonlySet<string>,
       broughtJob: boolean,
     ) => {
@@ -189,15 +191,15 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       const state = buildTailorState(
         posting, adReq, confirmed, negatives, judgement, years,
         // #307/#308: the profile-level questions THIS advert still has open — #415: the whole queue.
-        tailorProfileAsks(adReq, posting.location, facts, skips),
+        tailorProfileAsks(adReq, posting.location, facts, claims, skips),
       );
       state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
       // #309 AC4: a job he brought that the same answers WOULD withdraw were it found (the empty
       // brought list asks the predicate with nobody exempt) says in one line why it stays. Derived
       // from the stored facts on every compose, so it holds across reloads, not just the answer.
       if (broughtJob) {
-        const gap = findWithdrawingRequirement(adReq, facts, posting.location);
-        if (gap) state.stayed = broughtStaysLine(gap, marketForLocationText(posting.location ?? ""));
+        const gap = findWithdrawal(adReq, facts, claims, posting.location);
+        if (gap) state.stayed = broughtStaysLine(gap.req, marketForLocationText(posting.location ?? ""), gap.gap);
       }
       return state;
     };
@@ -216,7 +218,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         return reply
           .status(409)
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      const [confirmed, negatives, facts, blocks] = await reads(session.id);
+      const [confirmed, negatives, facts, blocks, claims] = await reads(session.id);
       const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
       const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want.
       const target = await tailorTarget(session, adId, deps.readAd, fingerprint, facts, brought);
@@ -228,14 +230,14 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       // not appear as a greyed-out card, a 'you can't apply' state, or a rejection message"). Clearing
       // it here means a reload doesn't keep landing back on the same dead target.
       // #305: and never for a job he brought — it stays, whatever his own answers say (#294 c1).
-      if (findWithdrawingRequirement(adReq, facts, posting.location, brought)) {
+      if (findWithdrawingRequirement(adReq, facts, claims, posting.location, brought)) {
         await deps.sessions.clearTailorTarget(session.id);
         return reply
           .status(409)
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
       }
       return composeTailorState(
-        session, posting, adReq, confirmed, negatives, facts, blocks, tailorSkipsFor(session, adId),
+        session, posting, adReq, confirmed, negatives, facts, blocks, claims, tailorSkipsFor(session, adId),
         isBrought(brought, adId),
       );
     });
@@ -262,7 +264,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           return reply
             .status(409)
             .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        const [confirmed, negatives, factsBefore, blocks] = await reads(session.id);
+        const [confirmed, negatives, factsBefore, blocks, claims] = await reads(session.id);
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
         const brought = (await deps.broughtJobs?.(session.id)) ?? [];
         const target = await tailorTarget(session, adId, deps.readAd, fingerprint, factsBefore, brought);
@@ -273,7 +275,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         // for anything else (never asked, already answered, skipped on this job, or not this
         // advert's market) is a 404, the same fail-closed shape as /tailor/answer's.
         const skips = tailorSkipsFor(session, adId);
-        const ask = tailorProfileAsks(adReq, posting.location, factsBefore, skips).find(
+        const ask = tailorProfileAsks(adReq, posting.location, factsBefore, claims, skips).find(
           (a) => a.requirementId === req.body.requirementId,
         );
         if (!ask)
@@ -289,7 +291,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           await deps.sessions.addTailorSkip(session.id, tailorSkipKey(adId, ask.requirementId));
           skips.add(ask.requirementId);
           const state = await composeTailorState(
-            session, posting, adReq, confirmed, negatives, factsBefore, blocks, skips,
+            session, posting, adReq, confirmed, negatives, factsBefore, blocks, claims, skips,
             isBrought(brought, adId),
           );
           return { changed: skippedLine(ask), state };
@@ -364,6 +366,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           [...candidates.filter((c) => isBrought(brought, c.posting.id)), ...kept],
           factsBefore,
           factsAfter,
+          claims,
           brought,
         );
         const changed = changedFor(hidden);
@@ -372,18 +375,18 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         // Same clear as GET's M3 rule; the client gets `state: null` and the deck to go back to.
         // #309 AC3: the withdrawal names its reason — he just answered, so silence here would read
         // as a bug, not a rule. The reason is the withdrawing requirement itself, in his own terms.
-        const withdrawing = findWithdrawingRequirement(adReq, factsAfter, posting.location, brought);
+        const withdrawing = findWithdrawal(adReq, factsAfter, claims, posting.location, brought);
         if (withdrawing) {
           await deps.sessions.clearTailorTarget(session.id);
           return {
             changed,
             state: null,
-            withdrawal: withdrawalReasonLine(withdrawing, marketForLocationText(posting.location ?? "")),
+            withdrawal: withdrawalReasonLine(withdrawing.req, marketForLocationText(posting.location ?? ""), withdrawing.gap),
           };
         }
         // The answered question is gone from the rebuilt queue (its fact is stored now).
         const state = await composeTailorState(
-          session, posting, adReq, confirmed, negatives, factsAfter, blocks, skips,
+          session, posting, adReq, confirmed, negatives, factsAfter, blocks, claims, skips,
           isBrought(brought, adId),
         );
         return { changed, state };
@@ -405,6 +408,8 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       /** #315: the report's deterministic facts read these — the eligibility facts (unchecked,
        *  the market to check) and the brought job (apply link, ageing line). */
       facts: EligibilityFact[];
+      /** #425: every claim — the report reads the CV's language lines as the Tailor queue does. */
+      claims: ClaimRecord[];
       brought: BroughtJob[];
       /** #419: the facts this job's draft is written from — every confirmed fact but the lines its
        *  own "It's true" answers added (stretchFact.ts draftFacts) — the draft input composed from
@@ -421,13 +426,13 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     const resolveDraftTarget = async (session: SessionRecord): Promise<DraftTargetResult> => {
       const adId = session.tailorAdId;
       if (!adId) return { refused: NO_TARGET };
-      const [confirmed, negatives, facts, blocks] = await reads(session.id);
+      const [confirmed, negatives, facts, blocks, claims] = await reads(session.id);
       const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
       const brought = (await deps.broughtJobs?.(session.id)) ?? [];
       const target = await tailorTarget(session, adId, deps.readAd, fingerprint, facts, brought);
       if (!target)
         return { refused: { status: 404, code: "not_found", message: "unknown card" } };
-      if (findWithdrawingRequirement(target.adReq, facts, target.posting.location, brought)) {
+      if (findWithdrawingRequirement(target.adReq, facts, claims, target.posting.location, brought)) {
         await deps.sessions.clearTailorTarget(session.id);
         return { refused: NO_TARGET };
       }
@@ -438,7 +443,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       const { claims: draftConfirmed, inputs } = draftFacts(confirmed, stored, (claims) =>
         composeDraftInputs(claims, negatives, blocks, target.posting, target.adReq, header),
       );
-      return { target: { ...target, confirmed, negatives, blocks, facts, brought, draftConfirmed, inputs, stored, header } };
+      return { target: { ...target, confirmed, negatives, blocks, facts, claims, brought, draftConfirmed, inputs, stored, header } };
     };
 
     // #417: the requirements with the card's verdicts, composed exactly as the screen's own list
@@ -681,7 +686,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           return reply.status(503).send({
             error: { code: "export_unavailable", message: "making the PDF is switched off on this deployment" },
           });
-        const { posting, adReq, confirmed, negatives, blocks, facts, brought, inputs, stored } = resolved.target;
+        const { posting, adReq, confirmed, negatives, blocks, facts, claims, brought, inputs, stored } = resolved.target;
         // Both server-side gates — the current draft carries his approval AND the conservation
         // lint raises nothing fatal — live in exportGate, pure and directly tested.
         const refused = exportGate(stored, inputs, req.body.draftedAt);
@@ -708,7 +713,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         if (unjudged)
           return reply.status(unjudged.status).send({ error: { code: unjudged.code, message: unjudged.message } });
         const report = reportContext({
-          posting, adReq, card, verdicts: judgement!.verdicts, confirmed, negatives, facts, broughtJob, stretch: stored!.stretch,
+          posting, adReq, card, verdicts: judgement!.verdicts, confirmed, negatives, facts, claims, broughtJob, stretch: stored!.stretch,
         });
         const runKey = JSON.stringify([session.id, posting.id]);
         const running = exportRuns.get(runKey);

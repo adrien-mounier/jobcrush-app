@@ -10,6 +10,7 @@ import { buildDeckCards, hasOpenDiscoveryQuestions, newToFamily, orderCardsForRe
 // reaches them. See fixtureDeck.ts.
 import { buildDeckServer as buildServer, discoveryFact, fixtureReadAd, injectSettled, liveIdFor, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
+import { LANGUAGE_CLAIM_PREFIX } from "../src/cvLanguages.js";
 import { listAdRequirements } from "../src/e5stub.js";
 import { deniedClaim } from "./denial.js";
 import type { Posting } from "../src/preview.js";
@@ -18,7 +19,7 @@ import { makeAdReader } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
-import { DECLINE_OPTION, eligibilityCandidates, languagesQuestion } from "../src/eligibilityDiscovery.js";
+import { DECLINE_OPTION, eligibilityCandidates, languagesQuestion, MAX_LANGUAGES } from "../src/eligibilityDiscovery.js";
 import { answerLanguageLevel } from "../src/languageLevel.js";
 import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
 import { discoveryClaimId } from "../src/discovery.js";
@@ -758,6 +759,7 @@ describe("#116 the deck holds its reveal under ONE shared read budget", () => {
   const input = () => ({
     confirmed: [],
     negatives: [],
+    claims: [],
     facts: [],
     blocks: [],
     years: resolveSessionYears([], [], null),
@@ -1039,6 +1041,19 @@ const sessionId = async (app: ReturnType<typeof buildServer>["app"], cookie: str
   return me.json().id as string;
 };
 
+// #425: the CV's language lines count as the person's languages. One `lang-` claim per language —
+// the miner's own contract (cvLanguages.ts) — planted confirmed, as a finished review leaves them.
+const cvLanguageLine = (n: number, text: string) => ({ ...discoveryFact(`cv-lang-${n}`, text), id: `${LANGUAGE_CLAIM_PREFIX}${n}` });
+const plantCv = async (built: Pick<ReturnType<typeof buildServer>, "app" | "claims">, cookie: string, ...lines: string[]) => {
+  const sid = await sessionId(built.app, cookie);
+  for (const [n, text] of lines.entries()) await built.claims.add(sid, cvLanguageLine(n, text));
+};
+
+interface WithdrawnSummary {
+  total: number;
+  byLanguage: Array<{ language: string; count: number; missing: boolean }>;
+}
+
 // #308: the ladder's HTTP door (POST /onboarding/language-level) was deleted with the card ladder
 // — owner decision, 2026-09-29. Tests place a rung through the ladder's own write function, the
 // exact call the tailor queue's profile-answer route makes; the function still validates (a
@@ -1101,17 +1116,80 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     expect(body.cards.map((c) => c.adId)).toContain(target.id);
   });
 
-  it("AC3: a posting explicitly requiring fluent Mandarin appears — the requirement open, not silently met — for a user never asked about Mandarin", async () => {
+  // #425 rewrote AC3 (owner decision 1, 2026-10-24): a user never asked about Mandarin, whose CV
+  // lists none, no longer sees a job that requires it — and the response names Mandarin as missing,
+  // so the reveal can say so and offer "I speak it". The cases after it show what still keeps it.
+  it("#425 AC3: a posting requiring fluent Mandarin leaves the deck when neither the CV nor the profile lists Mandarin", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd }); // no eligibility answer recorded at all — never asked
+    const deckFor = async (...cv: string[]) => {
+      const built = buildServer({ readAd }); // no eligibility answer recorded at all — never asked
+      const cookie = await anonSession(built.app);
+      await plantCv(built, cookie, ...cv);
+      return (await get(built.app, cookie, "/onboarding/cards")).json() as { cards: JobCard[]; withdrawn: WithdrawnSummary };
+    };
+    const control = await deckFor("English (Fluent)", "Mandarin (Fluent)");
+    const body = await deckFor("English (Fluent)");
+    expect(control.cards.map((c) => c.adId)).toContain(target.id);
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
+    // Only this job left: the same deck as the control's, one card shorter.
+    expect(body.cards.map((c) => c.adId)).toEqual(control.cards.map((c) => c.adId).filter((id) => id !== target.id));
+    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1, missing: true }] });
+  });
 
-    const cookie = await anonSession(app);
-    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+  it("#425 AC6: with 'Mandarin (Conversational)' on the CV it stays — the requirement open, not silently met", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const built = buildServer({ readAd });
+    const cookie = await anonSession(built.app);
+    await plantCv(built, cookie, "Mandarin (Conversational)");
+
+    const body = (await get(built.app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const card = body.cards.find((c) => c.adId === target.id);
     expect(card).toBeDefined(); // appears
     expect(card!.dontYet.map((r) => r.id)).toContain("mandarin-required"); // open, not asserted met
+  });
+
+  it("#425 AC6: with 'Mandarin (Fluent)' on the CV it stays and its card counts the requirement met, whatever the scorer said", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    // A scorer that reads every requirement as barely met — the record has to overrule it.
+    const judge = async (adReq: AdRequirementsV1, facts: { id: string; text: string }[]) => ({
+      verdicts: adReq.requirements.map((r) => ({ requirementId: r.id, fit: 0.1, supportingFactId: null, reason: "r" })),
+      version: "test",
+      cost: { model: "none", inputTokens: 0, outputTokens: 0, judgedAt: new Date().toISOString() },
+      facts,
+    });
+    const cardFor = async (line: string) => {
+      const built = buildServer({ readAd, judge, judgeMaxCards: 999 });
+      const cookie = await anonSession(built.app);
+      await plantCv(built, cookie, line);
+      const body = (await get(built.app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+      return body.cards.find((c) => c.adId === target.id)!;
+    };
+    expect((await cardFor("Mandarin (Fluent)")).dontYet.map((r) => r.id)).not.toContain("mandarin-required");
+    expect((await cardFor("Mandarin (Beginner)")).dontYet.map((r) => r.id)).toContain("mandarin-required");
+  });
+
+  // "Any line not rejected": a line that does not print — still pending, or unticked — is still his.
+  it("#425 AC1: a CV language line that does not print counts as his too; a rejected one does not", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const built = buildServer({ readAd });
+    const cookie = await anonSession(built.app);
+    const sid = await sessionId(built.app, cookie);
+    await built.claims.seed(sid, [cvLanguageLine(0, "Mandarin (Fluent)")]); // mined, never confirmed
+
+    const kept = (await get(built.app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(kept.cards.map((c) => c.adId)).toContain(target.id);
+
+    await built.claims.reject(sid, `${LANGUAGE_CLAIM_PREFIX}0`);
+    const gone = (await get(built.app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(gone.cards.map((c) => c.adId)).not.toContain(target.id);
   });
 
   // "conversational" ("Some, but not for work") is not "I don't speak it" — the spec's own second
@@ -1385,11 +1463,11 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     expect(body.cards.map((c) => c.adId)).toContain(target.id); // the Cantonese-blocking posting survives
   });
 
-  // 🚨 #165 AC2, end to end through the real routes, and the inversion of the #123 test that used to
-  // stand here. Leaving Mandarin off the list USED to withdraw every Mandarin posting — a mistap cost
-  // real jobs. It must now cost nothing at all: the posting stays, and the only route to a withdrawal
-  // is the ladder's own bottom rung, tapped deliberately, which the second half of this test walks.
-  it("#165 AC2: leaving Mandarin off the list withdraws NOTHING — only 'I don't speak this one' does", async () => {
+  // #425 rewrote #165 AC2 ("leaving Mandarin off the list withdraws NOTHING"), end to end through the
+  // real routes. Leaving it off the list AND the CV withdraws it now — as missing, which the reveal
+  // names with a one-tap "I speak it" (the deck's own way back, POST /review/languages/spoken, below).
+  // 'I don't speak this one' still withdraws, and beats a CV that lists it.
+  it("#425: leaving Mandarin off the list and the CV withdraws it; 'I speak it' brings it back; 'I don't speak this one' beats the CV", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
@@ -1399,15 +1477,25 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     const itemId = await languageItemId(app, cookie);
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // Mandarin not listed
+    const gone = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[]; withdrawn: WithdrawnSummary };
+    expect(gone.cards.map((c) => c.adId)).not.toContain(target.id);
+    expect(gone.withdrawn.byLanguage).toEqual([{ language: "Mandarin", count: 1, missing: true }]);
 
-    const kept = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
-    expect(kept.cards.map((c) => c.adId)).toContain(target.id);
+    // The reveal's "Yes, I speak Mandarin": one language added, the list he gave kept.
+    expect((await post(app, cookie, "/review/languages/spoken", { language: "Mandarin" })).statusCode).toBe(200);
+    expect(await built.eligibility.get(await sessionId(app, cookie), "language", "English")).toMatchObject({ value: "declared" });
+    const back = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[]; withdrawn: WithdrawnSummary };
+    expect(back.cards.map((c) => c.adId)).toContain(target.id);
+    expect(back.withdrawn).toEqual({ total: 0, byLanguage: [] });
 
-    // The one deliberate answer that does withdraw it.
+    // The one deliberate answer that withdraws it, even with Mandarin on the CV — and as a no, so
+    // the reveal does not offer "I speak it" back.
+    await plantCv(built, cookie, "Mandarin (Native)");
     const said = await placeLevel(built, cookie, "Mandarin", "not-at-all");
     expect(said).toEqual({ ok: true });
-    const after = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    const after = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[]; withdrawn: WithdrawnSummary };
     expect(after.cards.map((c) => c.adId)).not.toContain(target.id);
+    expect(after.withdrawn.byLanguage).toEqual([{ language: "Mandarin", count: 1, missing: false }]);
   });
 
   // ADR-0003 clause 8(a) end to end: being BELOW an advert's bar never withdraws.
@@ -1439,15 +1527,45 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     expect(body.cards.map((c) => c.adId)).toContain(target.id);
   });
 
-  it("AC4: a visitor who has not yet answered the languages question loses nothing on a language ground", async () => {
-    const target = uncachedEnglishPostings()[0]!;
-    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
-      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd }); // discovery never started — the languages question never answered
+  // The "I speak it" door is a trust boundary whose word becomes a store key: it refuses what the
+  // languages question refuses — a word that is not one line, and a 21st language — and stores nothing.
+  it("#425: 'I speak it' refuses what the languages question refuses, and stores nothing", async () => {
+    const built = buildServer();
+    const cookie = await anonSession(built.app);
+    const sid = await sessionId(built.app, cookie);
+    const spoken = (language: string) => post(built.app, cookie, "/review/languages/spoken", { language });
 
-    const cookie = await anonSession(app);
-    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
-    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+    expect((await spoken("Man\ndarin")).statusCode).toBe(400);
+    expect(await built.eligibility.list(sid)).toEqual([]);
+
+    const twenty = Array.from({ length: MAX_LANGUAGES }, (_, n) => `Language ${n}`);
+    for (const language of twenty) expect((await spoken(language)).statusCode).toBe(200);
+    expect((await spoken("Language 0")).statusCode).toBe(200); // already his — not a 21st
+    expect((await spoken("Lao")).statusCode).toBe(400);
+    expect((await built.eligibility.list(sid)).map((f) => f.familyId)).toEqual(twenty);
+  });
+
+  // #425 rewrote AC4 ("a visitor who has not yet answered loses nothing on a language ground"): since
+  // #376 nothing asks before the deck, so the CV is what speaks for him — a language it lists keeps
+  // the job, one it does not withdraws it.
+  it("#425 AC4: a visitor who answered nothing keeps the job his CV's languages meet, and loses the one they don't", async () => {
+    const [mandarinTarget, englishTarget] = uncachedEnglishPostings();
+    const englishBlocking = (adId: string): AdRequirementsV1 => ({
+      ...mandarinBlocking(adId),
+      requirements: [{ ...mandarinBlocking(adId).requirements[0]!, id: "english-required", eligibilitySubject: "English" }],
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => {
+      if (posting.id === mandarinTarget!.id) return mandarinBlocking(posting.id);
+      if (posting.id === englishTarget!.id) return englishBlocking(posting.id);
+      return stubRequirements(posting.id);
+    };
+    const built = buildServer({ readAd }); // discovery never started — the languages question never answered
+    const cookie = await anonSession(built.app);
+    await plantCv(built, cookie, "French (Native)", "English (Fluent)", "Spanish (Conversational)", "Thai (Beginner)");
+
+    const body = (await get(built.app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(englishTarget!.id);
+    expect(body.cards.map((c) => c.adId)).not.toContain(mandarinTarget!.id);
   });
 
   it("AC6: correcting a 'I don't speak this one' to a real rung brings the withdrawn posting back", async () => {
@@ -1468,10 +1586,11 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
   });
 
   // Owner requirement (mid-build): the language list must be safe to grow (e.g. adding Laos later)
-  // without hurting a visitor who already answered under a shorter list. A requirement naming a
-  // language outside today's supported set has no fact to match against — unknown, never a "no" —
-  // exactly the same never-withdraws guarantee withdrawal.ts already gives any never-asked scope.
-  it("growing the language list later stays safe: a language outside today's list never withdraws, even after a real answer", async () => {
+  // without hurting a visitor who already answered under a shorter list. #425 rewrote the guarantee:
+  // a language outside today's list is matched like any other — his CV or his own typed word keeps
+  // the job (a word off the list is kept as typed, #165), and naming it nowhere withdraws it as
+  // missing, which the reveal names with a one-tap "I speak it".
+  it("growing the language list later stays safe: a language outside today's list is matched like any other", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const laoBlocking = (adId: string): AdRequirementsV1 => ({
       ...mandarinBlocking(adId),
@@ -1499,15 +1618,19 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
       answers: ["English", "Mandarin", "Cantonese", "Vietnamese"],
     });
 
-    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
-    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+    const gone = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[]; withdrawn: WithdrawnSummary };
+    expect(gone.cards.map((c) => c.adId)).not.toContain(target.id);
+    expect(gone.withdrawn.byLanguage).toEqual([{ language: "Lao", count: 1, missing: true }]);
+
+    // A word off today's list, typed by him, is kept as typed (#165) — and matches the advert.
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId,
+      answers: ["English", "Mandarin", "Cantonese", "Vietnamese", "Lao"],
+    });
+    const back = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(back.cards.map((c) => c.adId)).toContain(target.id);
   });
 });
-
-interface WithdrawnSummary {
-  total: number;
-  byLanguage: Array<{ language: string; count: number }>;
-}
 
 // Coordinator request (2026-08-04): the reveal's undo line ("N jobs needed Mandarin — I left them
 // out") needs the server to REPORT what it silently dropped — a withdrawn posting was previously
@@ -1530,7 +1653,7 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
       withdrawn: WithdrawnSummary;
     };
     expect(body.cards.map((c) => c.adId)).not.toContain(target.id); // the posting really is missing
-    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1 }] });
+    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1, missing: false }] });
   });
 
   it("two different languages each removing one posting are both reported, sorted by count then name", async () => {
@@ -1569,8 +1692,8 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     expect(body.withdrawn).toEqual({
       total: 2,
       byLanguage: [
-        { language: "Cantonese", count: 1 }, // tied at count 1 — name ascending breaks the tie
-        { language: "Mandarin", count: 1 },
+        { language: "Cantonese", count: 1, missing: false }, // tied at count 1 — name ascending breaks the tie
+        { language: "Mandarin", count: 1, missing: false },
       ],
     });
   });
@@ -1610,7 +1733,7 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     expect(body.cards.map((c) => c.adId)).not.toContain(failedTarget!.id);
     expect(body.cards.map((c) => c.adId)).not.toContain(mandarinTarget!.id);
     // Only the Mandarin posting counts — the unreadable one was never a candidate to begin with.
-    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1 }] });
+    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1, missing: false }] });
   });
 });
 
@@ -1628,8 +1751,10 @@ describe("#308 the deck card no longer asks the language ladder", () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
+    await plantCv(built, cookie, "Mandarin (Conversational)"); // #425: on his CV, so the job stays — level unknown
 
     const cards = await cardsOf(app, cookie);
     expect(cards.map((c) => c.adId)).toContain(target.id); // the posting is there — it just no longer asks

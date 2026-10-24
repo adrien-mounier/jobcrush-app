@@ -34,6 +34,10 @@ try {
     return (await fetch('/api/auth/verify', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }) })).ok;
   });
   await assert(signedIn, 'signed in');
+  // #425: the job requires Mandarin, which a job leaves the deck for unless she has it. She says she
+  // speaks it (the reveal's "Yes, I speak it" door), with no level — so the Tailor step still asks.
+  const spoken = await page.evaluate(() => fetch('/api/review/languages/spoken', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ language: 'Mandarin' }) }).then((r) => r.status));
+  await assert(spoken === 200, `"Yes, I speak Mandarin" (HTTP ${spoken})`);
   const wanted = await page.evaluate((id) => fetch(`/api/onboarding/cards/${encodeURIComponent(id)}/want`, { method: 'POST', credentials: 'include' }).then((r) => r.status), MANDARIN_AD);
   await assert(wanted === 200, `the Mandarin job is the one being tailored (HTTP ${wanted})`);
 

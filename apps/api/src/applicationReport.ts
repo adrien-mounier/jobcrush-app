@@ -25,7 +25,7 @@ import type { BroughtJob } from "./broughtJobs.js";
 import type { ClaimRecord } from "./claims.js";
 import type { EligibilityFact } from "./eligibility.js";
 import { COVERAGE_THRESHOLD, type JudgeVerdict } from "./judge.js";
-import { levelOf } from "./languageLevel.js";
+import { unsettledLanguage } from "./languageLevel.js";
 import type { LlmClient } from "./llm.js";
 import { extractJson } from "./miner.js";
 import { marketForLocationText } from "./postingRetrieval.js";
@@ -132,8 +132,10 @@ export interface ReportContext {
  * and every language requirement whose level is still unknown — PER REQUIREMENT, not "the queue
  * still has a question": the queue asks one language per advert and asks nothing on a market it
  * cannot place, and a requirement nobody can answer is still unchecked (a "not sure yet" is not
- * a fact either). The lookups are the queue's own (findWorkRightsFact, levelOf), so "unchecked"
- * here and "still asked" there can never disagree on a fact. The market to check is #292 r9's
+ * a fact either). The lookups are the queue's own (findWorkRightsFact; #425: unsettledLanguage,
+ * which also counts a working level word on the CV and reads "Cantonese and English" or
+ * "Putonghua" by the language-name rules), so "unchecked" here and "still asked" there can never
+ * disagree on a fact. The market to check is #292 r9's
  * case exactly: the advert does not ask about work rights, the market is placeable, and he holds
  * no fact for it.
  */
@@ -145,15 +147,15 @@ export function reportContext(args: {
   confirmed: ClaimRecord[];
   negatives: ClaimRecord[];
   facts: EligibilityFact[];
+  /** #425: every claim — the CV's language lines, printed or not, as the Tailor queue reads them. */
+  claims: ClaimRecord[];
   broughtJob: BroughtJob | undefined;
   /** #418: the record beside this job's draft — its used suggestions feed `stretches`. */
   stretch?: StretchCheckpoint;
 }): ReportContext {
   const { posting, adReq, card, confirmed, negatives, facts } = args;
   const deniedIds = new Set(advertDeniedRows(adReq, confirmed, negatives).map((d) => d.requirement.id));
-  const norm = (text: string) => text.trim().toLowerCase();
-  const languageKnown = (subject: string) =>
-    levelOf(facts.find((f) => f.dimension === "language" && norm(f.familyId) === norm(subject))?.value) !== null;
+  const languageKnown = (subject: string) => unsettledLanguage(subject, facts, args.claims) === null;
   const workRightsKnown = findWorkRightsFact(facts, posting.location) !== null;
   const uncheckedIds = new Set([
     ...(card.notTested ?? []).map((r) => r.id),

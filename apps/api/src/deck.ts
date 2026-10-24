@@ -70,6 +70,7 @@ import { retrievalIsInProgress } from "./deckRetrieval.js";
 import { fallbackOffer } from "./deckFallback.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
+import type { LanguageClaim } from "./cvLanguages.js";
 import type { ProfileAsk } from "./tailorProfile.js";
 import { advertDeniedRows, negativeRequirementIds } from "./tailor.js";
 import { withStretchedVerdicts } from "./stretchSuggestions.js";
@@ -835,6 +836,9 @@ export async function buildDeckCards(
   input: {
     confirmed: ClaimRecord[];
     negatives: ClaimRecord[];
+    /** #425: every claim — the CV's language lines count as hers in the withdrawal filter, printed
+     *  or not (cvLanguages drops only the rejected). */
+    claims: readonly LanguageClaim[];
     facts: readonly EligibilityFact[];
     /** #309 AC5: the labeled job records, so a BROUGHT job's years can be re-read at its own
      *  advert family (advertYearsFamilyId) instead of inheriting the deck-wide `years`. */
@@ -904,6 +908,7 @@ export async function buildDeckCards(
   const { open: openCandidates, withdrawn } = partitionByWithdrawal(
     [...broughtCandidates, ...kept],
     input.facts,
+    input.claims, // #425: a language on her CV counts as hers
     brought,
   );
   // judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass — see its own doc
@@ -993,7 +998,9 @@ export interface DeckResponseDeps extends DeckJudgingDeps {
 export type DeckDiscoveryReads = readonly [
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
+  /** #425: every claim, unticked and rejected ones included — the CV's language lines are read from
+   *  it (cvLanguages drops the rejected). `confirmed` holds only what prints. */
+  claims: ClaimRecord[],
   facts: readonly EligibilityFact[],
   blocks: readonly JobBlockView[],
 ];
@@ -1015,7 +1022,7 @@ export type DeckDiscoveryReads = readonly [
  */
 export async function buildDeckResponse(
   session: SessionRecord,
-  [confirmed, negatives, , facts, blocks]: DeckDiscoveryReads,
+  [confirmed, negatives, claims, facts, blocks]: DeckDiscoveryReads,
   deps: DeckResponseDeps,
 ) {
   // #338 (ADR-0016 clause 6): a CV that has not been reviewed earns no deck — not even a retrieval.
@@ -1070,7 +1077,7 @@ export async function buildDeckResponse(
   // order + pin. See its own doc (and judgeDeck's) for the spend-bound properties.
   const { cards, pendingCount, withdrawn, unread } = await buildDeckCards(
     postings,
-    { confirmed, negatives, facts, blocks, years, deckFamilyId, langs, brought, sessionId: session.id },
+    { confirmed, negatives, claims, facts, blocks, years, deckFamilyId, langs, brought, sessionId: session.id },
     deps,
   );
   // #235: whether the empty deck may say "answer a few more questions" (hasOpenDiscoveryQuestions).

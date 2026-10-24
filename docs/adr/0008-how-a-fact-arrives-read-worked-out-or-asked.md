@@ -1,6 +1,6 @@
 # ADR-0008 — How a fact arrives: read, worked out, or asked
 
-- **Status:** Accepted
+- **Status:** Accepted · clause 6 amended 2026-10-24 ([#425](https://github.com/adrien-mounier/jobcrush-app/issues/425))
 - **Date:** 2026-08-06
 - **Decided in:** [#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) (owner grilling), under map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127)
 - **Depends on:** [ADR-0004](0004-each-elements-own-parts.md) clause 1a (every fact points at its origin), [#128](https://github.com/adrien-mounier/jobcrush-app/issues/128) §3 (a correction sticks), §4 (a derived value is never a second source of truth), §5 (*never ask for what you can compute*), [#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) (a job is its own dated record), [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125) (a language carries a level, and the machine never settles it alone)
@@ -102,6 +102,11 @@ still omits it.
 is not a "does not have it", and #86 decision 3 forbids an unknown from withdrawing a card. Clause 4
 makes the silence *askable*; it does not make it answerable by the machine.
 
+*One owner-decided exception since 2026-10-24 ([#425](https://github.com/adrien-mounier/jobcrush-app/issues/425)):
+a language a job states as required, found on neither the CV nor the profile, withdraws the job. It is
+never silent — the deck names the language with a one-tap "Yes, I speak it" — so the person answers
+the silence the moment it costs them. See clause 6.*
+
 ### 5. Where the five gated dimensions fall, today
 
 | Dimension | How it arrives | Note |
@@ -126,6 +131,20 @@ themselves at — the shape ADR-0004 clause 1a calls a defect.
 
 **This is the only one of the five where a single element splits across two arrival kinds**, and it
 splits cleanly because a language and a level are two facts (ADR-0003's level is a shared part).
+
+**Amended 2026-10-24 ([#425](https://github.com/adrien-mounier/jobcrush-app/issues/425), owner
+decisions 1 and 2), after the owner's staging re-proof.** Two changes:
+
+- **A working level word on the CV closes the question.** *"English (Fluent)"* — any of `native`,
+  `fluent`, `professional`, `bilingual` (`cvLanguages.ts`'s own list) — counts as meeting a job's
+  requirement for that language: the Tailor step does not ask it, and the job's card counts the
+  requirement met. A lesser word (*conversational*, *beginner*) or none still asks. The word never
+  becomes a rung: only the person places a level, and the word only spares them the question.
+- **The language itself gates.** A language a job states as required (blocking) must be the
+  person's — a CV language line not rejected, or a language declared on the profile, rungs included —
+  or the job leaves the deck, which names the language with a one-tap *"Yes, I speak it"*.
+  *"I don't speak this one"* still withdraws, even when the CV lists the language. A language named
+  only as a plus never removes a job, and a job the person brought is never withdrawn.
 
 ## What this rule does NOT change
 
@@ -180,8 +199,8 @@ like the cheap way to fill it.
 | **Two settings: computed or asked** (clause 1) | The ticket's own framing, and it reads naturally. | Forces a fallback when the calculation cannot run, and the fallback asks a question whose answer is deleted. The worked case is Mei, above. |
 | **A fresh test standing on its own, not leaning on ADR-0004** (clause 1) | A self-contained rule is easier to read in one place. | Two overlapping tests for one question, drifting apart on the first element that stresses either. The origin rule already answers the dangerous half. |
 | **Ask for the total when the dates are unreadable** (clause 3) | The person plainly knows their own career length, and it fills the gate immediately. | Creates the second source of truth #128 §4 exists to forbid, and silently destroys her answer at the next rebuild. |
-| **Treat a silent document as "does not have it"** (clause 4) | No question at all; the gate resolves immediately. | Converts our own parsing gaps into user harm, and breaks the unknown-is-not-absence doctrine `eligibility.ts`, `withdrawal.ts` and #86 decision 3 all rest on. |
-| **Read the CV's own level word as the level** (clause 6) | Free — the adjective is already on the page, and it costs no question. | Grades her at a level she never placed herself at, against a scale of concrete situations that *"fluent"* does not answer. Overturns #125's *the machine never settles her level alone*. |
+| **Treat a silent document as "does not have it"** (clause 4) | No question at all; the gate resolves immediately. | Converts our own parsing gaps into user harm, and breaks the unknown-is-not-absence doctrine `eligibility.ts`, `withdrawal.ts` and #86 decision 3 all rest on. *#425 adopts it for one case, by owner decision: a required language on neither the CV nor the profile withdraws the job — never silently: the deck names it with a one-tap way back.* |
+| **Read the CV's own level word as the level** (clause 6) | Free — the adjective is already on the page, and it costs no question. | Grades her at a level she never placed herself at, against a scale of concrete situations that *"fluent"* does not answer. Overturns #125's *the machine never settles her level alone*. *#425 adopts its cheap half only: a working word closes the question; it never places a rung.* |
 | **Decide the confirm screen's tiering here** (Consequences) | It is the first place the read/worked-out split becomes visible to a real person. | This map fixes promises, not interfaces — the limit the owner set twice already. Deciding it here designs a screen nobody has drawn. |
 
 ## Verification

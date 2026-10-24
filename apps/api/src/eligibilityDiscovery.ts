@@ -185,10 +185,14 @@ const WORK_RIGHTS_NEEDS_SPONSORSHIP_VALUE = "needs-sponsorship";
 // (languageLevel.ts / ADR-0011 clause 1), which is why this question can now be answered carelessly
 // with no cost. The consequence line says exactly that, because "nothing here can hurt you" is the
 // one thing a person needs to know to answer it honestly.
+//
+// #425 (owner decision 1, 2026-10-24): leaving a language out has a cost again — a job that requires
+// a language that is neither here nor on the CV leaves the deck, and the deck says so with a one-tap
+// "I speak it". The line now says that, and that the way back is one tap, not a re-answer.
 const LANGUAGES_QUESTION = "Which languages do you speak? Start typing — I'll suggest as you go.";
 const LANGUAGES_CONSEQUENCE =
-  "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
-  " When one of them matters for a real job, I'll ask how well you speak it, and say why.";
+  "A job that requires a language that isn't here or on your CV stays out of your deck. I'll tell you when that happens," +
+  " and one tap brings those jobs back. When a language matters for a job, I'll ask how well you speak it, and say why.";
 
 function itemId(dimension: EligibilityDimension, familyId: string): string {
   return FAMILY_SCOPED.has(dimension)

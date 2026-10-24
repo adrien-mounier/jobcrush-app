@@ -11,13 +11,20 @@
 // with level), so every CV already imported gets the structure too, with no claim-schema change.
 import type { ClaimRecord } from "./claims.js";
 
+/** The miner's id prefix for a language line — one claim per language (miner.ts). */
+export const LANGUAGE_CLAIM_PREFIX = "lang-";
+
 export interface CvLanguage {
   language: string;
   /** The CV's own level word ("Native", "B2", "conversational"), or null when the CV gives none. */
   level: string | null;
-  /** True only when `level` says the person works in the language — a proposal, never a stored fact. */
+  /** True only when `level` says the person works in the language — a proposal, never a stored fact.
+   *  #425: also what meets a job's language requirement with no question asked (owner decision 2). */
   preTicked: boolean;
 }
+
+/** What cvLanguages reads off a claim — a stored claim, or a judgement's own fact (id + text). */
+export type LanguageClaim = Pick<ClaimRecord, "id" | "text"> & { decision?: ClaimRecord["decision"] };
 
 /** Level words that mean "I can work in this language". A list that grows (golden rule) — add a
  *  word here, never a branch. Matched as a whole word anywhere in the CV's level text, so
@@ -61,13 +68,11 @@ export function parseCvLanguage(text: string): { language: string; level: string
 
 /** Every language the CV lists, in CV order, once each — a rejected claim is the person's own "not
  *  this", so it is left out; a language with no level word is kept, unticked, never dropped. */
-export function cvLanguages(
-  claims: readonly (Pick<ClaimRecord, "id" | "text"> & { decision?: ClaimRecord["decision"] })[],
-): CvLanguage[] {
+export function cvLanguages(claims: readonly LanguageClaim[]): CvLanguage[] {
   const seen = new Set<string>();
   const out: CvLanguage[] = [];
   for (const c of claims) {
-    if (!c.id.startsWith("lang-") || c.decision === "rejected") continue;
+    if (!c.id.startsWith(LANGUAGE_CLAIM_PREFIX) || c.decision === "rejected") continue;
     const { language, level } = parseCvLanguage(c.text);
     const key = language.toLowerCase();
     if (!language || seen.has(key)) continue;

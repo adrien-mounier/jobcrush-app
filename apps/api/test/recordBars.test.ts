@@ -14,6 +14,7 @@ import type { Posting } from "../src/preview.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore } from "../src/eligibility.js";
 import { refreshWorkedYears } from "../src/yearsWorked.js";
+import { LANGUAGE_CLAIM_PREFIX } from "../src/cvLanguages.js";
 
 const FAMILY = "it-project-delivery"; // the advert's own family, and the one published field the bar names
 const PRODUCT = "product-management";
@@ -312,5 +313,59 @@ describe("#416 applyRecordBars — a degree bar is decided by the degree held", 
     const high = cardWith(0.9);
     expect(low.matchPct).toBe(high.matchPct);
     expect(low.dontYet.map((r) => r.id)).not.toContain("degree-bar");
+  });
+});
+
+// #425 (owner decision 2, ADR-0008 clause 6 as amended) — a language the CV lists with a working
+// level word meets the job's language bar, whatever the scorer said; the card counts it met. A
+// lesser word, or none, leaves the scorer's reading. Read from the judgement's own fact set, as the
+// degree rule is, so the deck card and the Tailor screen agree.
+describe("#425 applyRecordBars — a working level word on the CV meets a language bar", () => {
+  const englishBar = (subject = "English"): AdRequirementV1 => ({
+    id: "english",
+    band: "essential",
+    kind: "blocking",
+    requirement: "Fluent written and spoken English",
+    eligibilityDimension: "language",
+    eligibilitySubject: subject,
+    sourceSpan: "Fluent written and spoken English",
+  });
+  const noYears: SessionYears = { family: null, total: null, familySource: "unscoped", familyConfidence: null };
+  const lang = (text: string) => [{ id: `${LANGUAGE_CLAIM_PREFIX}0`, text }];
+
+  it("'English (Fluent)' meets it with fit 1 whether the scorer said 0.2 or 0.9, and says why in the CV's words", () => {
+    for (const scorerFit of [0.2, 0.9]) {
+      const [v] = applyRecordBars([verdict("english", scorerFit)], ad(englishBar()), noYears, lang("English (Fluent)"));
+      expect(v).toMatchObject({ fit: 1, reason: "Your CV says: English (Fluent)" }); // never the scorer's note ("r")
+    }
+  });
+
+  it("'Conversational', 'Beginner' or no level word leaves the scorer's reading", () => {
+    for (const text of ["English (Conversational)", "English (Beginner)", "English"]) {
+      const verdicts = [verdict("english", 0.4)];
+      expect(applyRecordBars(verdicts, ad(englishBar()), noYears, lang(text))).toEqual(verdicts);
+    }
+  });
+
+  it("a bar naming two languages is met only when the CV works in both", () => {
+    const pair = ad(englishBar("Cantonese and English"));
+    expect(fitOf(applyRecordBars([verdict("english", 0.3)], pair, noYears, lang("English (Fluent)")), "english")).toBe(0.3);
+    const both = [...lang("English (Fluent)"), { id: `${LANGUAGE_CLAIM_PREFIX}1`, text: "Cantonese (Native)" }];
+    expect(fitOf(applyRecordBars([verdict("english", 0.3)], pair, noYears, both), "english")).toBe(1);
+  });
+
+  it("the card counts it met", () => {
+    const posting: Posting = { id: "ad-x", title: "PM", company: "Acme", location: "Hong Kong", keywords: [], excerpt: "x", language: "en" };
+    const adReq = ad(englishBar());
+    const judgement = (facts: { id: string; text: string }[]): JudgementRecord => ({
+      verdicts: [verdict("english", 0.3)],
+      version: "test",
+      cost: { model: "none", inputTokens: 0, outputTokens: 0, judgedAt: "2026-10-24T00:00:00.000Z" },
+      facts,
+    });
+    const cardWith = (text: string) =>
+      buildJobCard(posting, adReq, [], [], withYearsShortfall(judgement(lang(text)), adReq, noYears), "estimated", noYears);
+    expect(cardWith("English (Fluent)").dontYet.map((r) => r.id)).not.toContain("english");
+    expect(cardWith("English (Conversational)").dontYet.map((r) => r.id)).toContain("english");
   });
 });

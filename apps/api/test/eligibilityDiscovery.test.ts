@@ -111,12 +111,12 @@ describe("#106 eligibilityCandidates", () => {
     expect(language.multiSelect).toBe(true);
     expect(language.typeAhead).toBe(true);
     expect(language.question).toBe("Which languages do you speak? Start typing — I'll suggest as you go.");
-    // #165: the consequence line no longer warns about a removal, because listing languages no longer
-    // causes one. It states the two things that are true instead — leaving one out costs nothing, and
-    // the level gets asked later, by the advert that needs it.
+    // #425: the consequence line says what is true again — a job requiring a language that is neither
+    // here nor on the CV leaves the deck, the deck says so with a one-tap way back, and the level gets
+    // asked later, by the advert that needs it.
     expect(language.consequence).toBe(
-      "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
-        " When one of them matters for a real job, I'll ask how well you speak it, and say why.",
+      "A job that requires a language that isn't here or on your CV stays out of your deck. I'll tell you when that happens," +
+        " and one tap brings those jobs back. When a language matters for a job, I'll ask how well you speak it, and say why.",
     );
     expect(language.options).toEqual([...languagesUnion(), DECLINE_OPTION]);
   });

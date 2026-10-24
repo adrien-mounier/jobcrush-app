@@ -19,12 +19,14 @@
 // #416 — the degree rule sits beside it: a degree bar naming a level and no field of study is fit 1
 // when the highest degree held meets the bar (degreeLevel.ts), whatever the scorer said. The
 // record here is the fact set the judgement was made against (JudgementRecord.facts), so the deck
-// and the Tailor screen agree without a route carrying anything new.
+// and the Tailor screen agree without a route carrying anything new. #425 adds the language rule from
+// the same record: a language the CV lists with a working level word meets its bar (fit 1).
 import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
 import type { JudgeVerdict } from "./judge.js";
 import { answerIndustryBar, type YearsAtScopes } from "./judgedScore.js";
 import { highestDegree, meetsDegreeBar, type EducationFactLike } from "./degreeLevel.js";
 import { computeYearsInFamilies, hasUnplacedWork } from "./yearsWorked.js";
+import { cvLinesMeetingLanguages } from "./languageLevel.js";
 
 /** The worked-out years a years-experience requirement is tested against, or null when the record
  *  cannot answer it (untestable — never a penalty, #86 decision 3). */
@@ -64,6 +66,13 @@ export function applyRecordBars(
   return verdicts.map((v) => {
     const req = byId.get(v.requirementId);
     if (!req) return v;
+    // #425 (owner decision 2): a language the CV lists with a working level word ("English
+    // (Fluent)") meets the bar, whatever the scorer said — and the row says why in the CV's own words,
+    // never the scorer's note for the fit it overruled. A lesser word or none leaves the verdict.
+    if (req.eligibilityDimension === "language") {
+      const lines = req.eligibilitySubject ? cvLinesMeetingLanguages(req.eligibilitySubject, facts) : null;
+      return lines ? { ...v, fit: 1, reason: `Your CV says: ${lines.join("; ")}` } : v;
+    }
     if (req.eligibilityDimension === "degree") {
       if (req.degreeLevel && !req.degreeFieldNamed && held && meetsDegreeBar(held, req.degreeLevel)) return { ...v, fit: 1 };
       return v;

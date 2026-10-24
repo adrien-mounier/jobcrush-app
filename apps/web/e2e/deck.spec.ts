@@ -522,6 +522,41 @@ test("accepting replaces the deck with the jobs her CV proves", async ({ page })
   await expect(page.getByText(OFFER_QUESTION)).toHaveCount(0);
 });
 
+// #425: the widened deck opens on its cards — unless it left jobs out for a language. The line that
+// says so (with "Yes, I speak it") lives on the reveal, so that deck opens there: told, not skipped.
+test("#425 a widened deck that left jobs out for a language opens on the reveal and names them", async ({ page }) => {
+  await stubSession(page);
+  let accepted = false;
+  await page.route("**/api/onboarding/cards/fallback", async (route) => {
+    accepted = true;
+    await route.fulfill({
+      json: { fallback: { offered: false, declined: false, active: true, targetRole: "Product Analytics Manager" } },
+    });
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    const body: CardsResponse = {
+      stage: "deck",
+      cards: accepted ? [card("ad-widened", "Delivery Manager", 74)] : [],
+      authed: true,
+      pendingCount: 0,
+      moreQuestions: false,
+      withdrawn: accepted
+        ? { total: 3, byLanguage: [{ language: "Cantonese", count: 3, missing: true }] }
+        : { total: 0, byLanguage: [] },
+      fallback: { offered: !accepted, declined: false, active: accepted, targetRole: "Product Analytics Manager" },
+    };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/deck");
+  await page.getByRole("button", { name: "Yes, look" }).click();
+
+  await expect(page.getByRole("heading", { name: "1 job just matched you" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yes, I speak Cantonese" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Delivery Manager" })).toHaveCount(0); // not the cards yet
+  await page.getByRole("button", { name: "See them" }).click();
+  await expect(page.getByRole("heading", { name: "Delivery Manager" })).toBeVisible();
+});
+
 // The one decision this ticket puts on the CLIENT: the server says whether the offer CAN be
 // honoured, the screen says when the deck is finished. So a visitor who still has cards must never
 // see the offer, even though the payload says it is available.

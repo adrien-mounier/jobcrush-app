@@ -109,9 +109,9 @@ test("resume: a claimed return opens the highest-ranked job, never a second reve
   await expect(page.getByRole("heading", { name: "IT Project Manager" })).toBeFocused();
 });
 
-// #123's L7 outranks #64's shortcut. The withdrawal sentence ("2 more needed English — I left them
-// out.") lives on the reveal and nowhere else, so a resume that had one to say still shows the
-// curtain: being told a job was removed beats being spared one more tap.
+// #123's L7 outranks #64's shortcut. The withdrawal sentence lives on the reveal and nowhere else,
+// so a resume that had one to say still shows the curtain: being told a job was removed beats being
+// spared one more tap.
 test("resume: a withdrawal to report keeps the reveal, shortcut or not", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("jc_return", "/deck?claimed=1"));
   await page.route("**/api/onboarding/cards", async (route) => {
@@ -121,7 +121,7 @@ test("resume: a withdrawal to report keeps the reveal, shortcut or not", async (
         cards: [CARD],
         authed: true,
         pendingCount: 0,
-        withdrawn: { total: 2, byLanguage: [{ language: "English", count: 2 }] },
+        withdrawn: { total: 2, byLanguage: [{ language: "English", count: 2, missing: false }] },
       } as CardsResponse,
     });
   });
@@ -131,8 +131,106 @@ test("resume: a withdrawal to report keeps the reveal, shortcut or not", async (
 
   await expect(page.getByRole("heading", { name: /matched you/ })).toBeVisible();
   // Scoped to the aside: the live region carries the same sentence, so a bare text match is ambiguous.
-  await expect(page.locator(".jobdeck .aside")).toHaveText(/I left them out/);
+  await expect(page.locator(".jobdeck .aside")).toHaveText("I left out 2 jobs that need English, because you said you don't speak it.");
   await expect(page.getByRole("button", { name: "See them" })).toBeVisible();
+});
+
+// #425 AC5 — the reveal's line: one per language, with its count. A language not on her profile
+// asks, and its "Yes, I speak it" adds the language and reads the deck again; one she said she does
+// not speak only says so.
+test.describe("#425 the reveal names each language it left out", () => {
+  const withdrawnDeck = (cards = [CARD]): CardsResponse => ({
+    stage: "deck",
+    cards,
+    authed: true,
+    pendingCount: 0,
+    withdrawn: {
+      total: 13,
+      byLanguage: [
+        { language: "Cantonese", count: 12, missing: true },
+        { language: "Thai", count: 1, missing: false },
+      ],
+    },
+  });
+
+  test("a line per language, the missing one with its button; 'Yes, I speak Cantonese' brings the jobs back", async ({ page }) => {
+    const sent: unknown[] = [];
+    let saved = false;
+    const back = [CARD, ...Array.from({ length: 12 }, (_, n) => ({ ...CARD, adId: `hk-${n}` }))];
+    await page.route("**/api/onboarding/cards", (route) =>
+      route.fulfill({
+        json: saved
+          ? { ...withdrawnDeck(back), withdrawn: { total: 1, byLanguage: [{ language: "Thai", count: 1, missing: false }] } }
+          : withdrawnDeck(),
+      }),
+    );
+    await page.route("**/api/review/languages/spoken", async (route) => {
+      sent.push(route.request().postDataJSON());
+      saved = true;
+      await route.fulfill({ json: { ok: true } });
+    });
+    await page.goto("/deck");
+
+    const lines = page.locator(".jobdeck .curtain .aside");
+    await expect(lines).toHaveText([
+      "I left out 12 jobs that need Cantonese, which isn't on your profile. Do you speak it?Yes, I speak Cantonese",
+      "I left out 1 job that needs Thai, because you said you don't speak it.",
+    ]);
+    await expect(lines.nth(1).getByRole("button")).toHaveCount(0); // a no stands — no way back offered here
+    await expect(page.getByRole("heading", { name: "1 job just matched you" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Yes, I speak Cantonese" }).click();
+
+    await expect(page.getByRole("heading", { name: "13 jobs just matched you" })).toBeVisible();
+    await expect(lines).toHaveText(["I left out 1 job that needs Thai, because you said you don't speak it."]);
+    expect(sent).toEqual([{ language: "Cantonese" }]);
+    await expect(page.getByRole("heading", { name: /matched you/ })).toBeFocused();
+  });
+
+  test("a failed save says so, and the button is there to try again", async ({ page }) => {
+    await page.route("**/api/onboarding/cards", (route) => route.fulfill({ json: withdrawnDeck() }));
+    await page.route("**/api/review/languages/spoken", (route) =>
+      route.fulfill({ status: 500, json: { error: { code: "boom", message: "x" } } }),
+    );
+    await page.goto("/deck");
+
+    await page.getByRole("button", { name: "Yes, I speak Cantonese" }).click();
+
+    await expect(page.locator(".jobdeck .curtain").getByRole("alert")).toHaveText("Couldn't save that — try again.");
+    await expect(page.getByRole("button", { name: "Yes, I speak Cantonese" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Yes, I speak Cantonese" })).toBeFocused(); // she is still on it
+    await expect(page.getByRole("heading", { name: "1 job just matched you" })).toBeVisible();
+  });
+
+  // The worst case — the rule took every job — must not be the silent one.
+  test("an empty deck still names what it left out, and 'Yes, I speak it' brings the jobs back", async ({ page }) => {
+    let saved = false;
+    const emptied: CardsResponse = { ...withdrawnDeck([]), withdrawn: { total: 2, byLanguage: [{ language: "Cantonese", count: 2, missing: true }] } };
+    await page.route("**/api/onboarding/cards", (route) =>
+      route.fulfill({ json: saved ? { ...withdrawnDeck([CARD, { ...CARD, adId: "hk-1" }]), withdrawn: { total: 0, byLanguage: [] } } : emptied }),
+    );
+    await page.route("**/api/review/languages/spoken", async (route) => {
+      saved = true;
+      await route.fulfill({ json: { ok: true } });
+    });
+    await page.goto("/deck");
+
+    await expect(page.getByText("No matches yet.")).toBeVisible();
+    await expect(page.locator(".jobdeck .loadstate .aside")).toHaveText(
+      "I left out 2 jobs that need Cantonese, which isn't on your profile. Do you speak it?Yes, I speak Cantonese",
+    );
+    await page.getByRole("button", { name: "Yes, I speak Cantonese" }).click();
+
+    await expect(page.getByRole("heading", { name: "2 jobs just matched you" })).toBeVisible();
+    await expect(page.locator(".jobdeck .aside")).toHaveCount(0);
+  });
+
+  test("nothing withdrawn: no line, no reserved space", async ({ page }) => {
+    await stubCards(page, true);
+    await page.goto("/deck");
+    await expect(page.getByRole("heading", { name: /matched you/ })).toBeVisible();
+    await expect(page.locator(".jobdeck .curtain .aside")).toHaveCount(0);
+  });
 });
 
 // The flag is not a general "skip the reveal" switch: it only fires on a session the server says is

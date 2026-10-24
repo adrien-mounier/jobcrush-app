@@ -11,6 +11,7 @@ import {
   rungForSituation,
 } from "../src/languageLevel.js";
 import { InMemoryEligibilityStore } from "../src/eligibility.js";
+import { LANGUAGE_CLAIM_PREFIX } from "../src/cvLanguages.js";
 
 // #165 — the language ladder (ADR-0003 clause 8a / ADR-0008 clause 6). A language and its level are
 // two facts: the language is declared, the level is placed on a ladder of concrete situations, asked
@@ -114,7 +115,7 @@ describe("#165 the ladder itself", () => {
 
 describe("#165 AC3 — an advert triggers the level question at the moment it matters", () => {
   it("fires on a BLOCKING language requirement when the level is unknown, saying why this advert cares", () => {
-    const ask = languageLevelAsk(ad(), [])!;
+    const ask = languageLevelAsk(ad(), [], [])!;
     expect(ask).not.toBeNull();
     expect(ask.language).toBe("Mandarin");
     // #308: the ask names the advert requirement it answers for, so the tailor queue can round-trip
@@ -133,19 +134,19 @@ describe("#165 AC3 — an advert triggers the level question at the moment it ma
     const plus = ad({
       requirements: [requirement({ kind: "ordinary", requirement: "Mandarin an advantage" })],
     });
-    expect(languageLevelAsk(plus, [])?.language).toBe("Mandarin");
+    expect(languageLevelAsk(plus, [], [])?.language).toBe("Mandarin");
   });
 
   it("names the advert's own bar when it stated one, and stays silent about a bar when it did not", () => {
     const withBar = ad({ requirements: [requirement({ eligibilityLevel: "meetings" })] });
-    expect(languageLevelAsk(withBar, [])!.why).toContain("run a meeting in it");
-    expect(languageLevelAsk(ad(), [])!.why).not.toContain("run a meeting in it");
+    expect(languageLevelAsk(withBar, [], [])!.why).toContain("run a meeting in it");
+    expect(languageLevelAsk(ad(), [], [])!.why).not.toContain("run a meeting in it");
   });
 
   // #125 decision 4: "answering `none` can lose her jobs… the screen must say so BEFORE she answers,
   // not after." The ask carries that sentence itself, so no client can render the rungs without it.
   it("says what an answer costs, and says it as part of the ask rather than leaving it to a client", () => {
-    const ask = languageLevelAsk(ad(), [])!;
+    const ask = languageLevelAsk(ad(), [], [])!;
     expect(ask.consequence).toContain("takes jobs out of your deck");
     // …and says the others are free, so nobody answers defensively about their own ability.
     expect(ask.consequence).toContain("every other answer keeps them all");
@@ -155,25 +156,25 @@ describe("#165 AC3 — an advert triggers the level question at the moment it ma
   // advert and every other one.
   it("never fires again once the person has placed themselves on a rung", () => {
     for (const rung of LANGUAGE_LADDER.map((r) => r.value)) {
-      expect(languageLevelAsk(ad(), [fact({ value: rung })])).toBeNull();
+      expect(languageLevelAsk(ad(), [fact({ value: rung })], [])).toBeNull();
     }
   });
 
   it("still fires for a language merely DECLARED — declaring is not placing a level", () => {
-    expect(languageLevelAsk(ad(), [fact({ value: "declared" })])?.language).toBe("Mandarin");
+    expect(languageLevelAsk(ad(), [fact({ value: "declared" })], [])?.language).toBe("Mandarin");
   });
 
   // #165 point 6, through the ask: the four already-answered languages get re-asked, because their
   // old values are not levels.
   it("fires again for a language answered under the pre-#165 shape", () => {
-    expect(languageLevelAsk(ad(), [fact({ value: "professional" })])?.language).toBe("Mandarin");
-    expect(languageLevelAsk(ad(), [fact({ value: "none" })])?.language).toBe("Mandarin");
+    expect(languageLevelAsk(ad(), [fact({ value: "professional" })], [])?.language).toBe("Mandarin");
+    expect(languageLevelAsk(ad(), [fact({ value: "none" })], [])?.language).toBe("Mandarin");
   });
 
   it("uses the store's own casing for a language the person already declared, not the advert's", () => {
     const shouty = ad({ requirements: [requirement({ eligibilitySubject: "  mandarin " })] });
-    expect(languageLevelAsk(shouty, [fact({ familyId: "Mandarin" })])?.language).toBe("Mandarin");
-    expect(languageLevelAsk(shouty, [])?.language).toBe("mandarin"); // nothing stored — the advert's word
+    expect(languageLevelAsk(shouty, [fact({ familyId: "Mandarin" })], [])?.language).toBe("Mandarin");
+    expect(languageLevelAsk(shouty, [], [])?.language).toBe("mandarin"); // nothing stored — the advert's word
   });
 
   it("asks about at most one language per advert, in the advert's own rank order", () => {
@@ -183,23 +184,48 @@ describe("#165 AC3 — an advert triggers the level question at the moment it ma
         requirement({ id: "mandarin", eligibilitySubject: "Mandarin" }),
       ],
     });
-    expect(languageLevelAsk(two, [])?.language).toBe("Cantonese");
+    expect(languageLevelAsk(two, [], [])?.language).toBe("Cantonese");
   });
 
   it("never fires on a requirement that names no language, or on another dimension", () => {
-    expect(languageLevelAsk(ad({ requirements: [requirement({ eligibilitySubject: undefined })] }), [])).toBeNull();
+    expect(languageLevelAsk(ad({ requirements: [requirement({ eligibilitySubject: undefined })] }), [], [])).toBeNull();
     expect(
       languageLevelAsk(
         ad({ requirements: [requirement({ eligibilityDimension: "work-rights", eligibilitySubject: "x" })] }),
+        [],
         [],
       ),
     ).toBeNull();
   });
 
+  // #425 (owner decision 2) — ADR-0008 clause 6 as amended: a working level word on the CV settles
+  // the level; a lesser word, or none, still asks.
+  const cv = (...lines: string[]) => lines.map((text, i) => ({ id: `${LANGUAGE_CLAIM_PREFIX}${i}`, text }));
+  it("#425: never fires for a language the CV lists with a working level word", () => {
+    for (const line of ["Mandarin (Native)", "Mandarin - Fluent", "Mandarin: Professional working proficiency", "Mandarin (Bilingual)"]) {
+      expect(languageLevelAsk(ad(), [], cv(line))).toBeNull();
+    }
+  });
+
+  it("#425: still fires when the CV says less, or gives no level at all", () => {
+    for (const line of ["Mandarin (Conversational)", "Mandarin (Beginner)", "Mandarin (Limited professional)", "Mandarin"]) {
+      expect(languageLevelAsk(ad(), [], cv(line))?.language).toBe("Mandarin");
+    }
+  });
+
+  it("#425: asks about the one language of a pair the CV does not settle, by the language-name rules", () => {
+    const pair = ad({ requirements: [requirement({ eligibilitySubject: "Cantonese and English" })] });
+    expect(languageLevelAsk(pair, [], cv("English (Fluent)"))?.language).toBe("Cantonese");
+    expect(languageLevelAsk(pair, [], cv("English (Fluent)", "Cantonese (Native)"))).toBeNull();
+    const putonghua = ad({ requirements: [requirement({ eligibilitySubject: "Putonghua" })] });
+    expect(languageLevelAsk(putonghua, [], [])?.language).toBe("Mandarin");
+    expect(languageLevelAsk(putonghua, [fact({ value: "meetings" })], [])).toBeNull();
+  });
+
   // The offered ORDER matters as much as the rungs: #165 exists because the easiest tap used to be
   // the one that deleted jobs. It must never be the easiest tap again.
   it("offers the explicit 'I don't speak this one' LAST, never first", () => {
-    const ask = languageLevelAsk(ad(), [])!;
+    const ask = languageLevelAsk(ad(), [], [])!;
     expect(ask.options[0]!.value).toBe("native");
     expect(ask.options[ask.options.length - 1]!.value).toBe("not-at-all");
     expect(ask.options).toHaveLength(LANGUAGE_LADDER.length); // every rung offered, none hidden
@@ -223,7 +249,7 @@ describe("#165 answerLanguageLevel", () => {
     const store = new InMemoryEligibilityStore();
     expect(await answerLanguageLevel(store, "s1", "Mandarin", "meetings")).toEqual({ ok: true });
     expect(await store.get("s1", "language", "Mandarin")).toMatchObject({ value: "meetings" });
-    expect(languageLevelAsk(ad(), await store.list("s1"))).toBeNull();
+    expect(languageLevelAsk(ad(), await store.list("s1"), [])).toBeNull();
   });
 
   it("writes at the scope the person's own declaration used, never a second row for one language", async () => {

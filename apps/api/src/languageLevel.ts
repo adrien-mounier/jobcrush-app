@@ -13,10 +13,13 @@
 // silently removed every posting that required that language. The ladder dissolves that failure
 // STRUCTURALLY rather than by being more careful: nothing a person can leave alone writes a value at
 // all, the only value that withdraws is a rung they must deliberately tap ("not-at-all"), and every
-// legacy value from the old shape reads as UNKNOWN here (levelOf below) — which never withdraws,
-// and which is what makes the four already-answered languages get re-asked on the new ladder.
+// legacy value from the old shape reads as UNKNOWN here (levelOf below) — which as a level never
+// withdraws, and which is what makes the four already-answered languages get re-asked on the new
+// ladder. (#425: a language on neither the CV nor the profile does withdraw a job requiring it — as
+// "not on your profile", named on the reveal with a one-tap "I speak it", never as a silent no.)
 import type { AdRequirementV1, AdRequirementsV1, LanguageLevel } from "@jobcrush/contracts";
 import type { EligibilityFact, EligibilityStore } from "./eligibility.js";
+import { cvLanguages, isKnownLanguageName, type LanguageClaim } from "./cvLanguages.js";
 
 /** The rungs, lowest first. The wording is the contract with the person: every rung is a SITUATION
  *  they can picture themselves in, never a code ("B2"), never an adjective ("fluent") — ADR-0008
@@ -104,6 +107,143 @@ export function declaredLanguages(facts: readonly EligibilityFact[]): string[] {
   return facts.filter((f) => f.dimension === "language" && isDeclaredValue(f.value)).map((f) => f.familyId);
 }
 
+// #425 — the language-name rules every match between a JOB's language and the person's goes
+// through: the withdrawal predicate, the ladder's ask, and the card's language bar. (A person's word
+// against their own stored rows — answerLanguageLevel, languageDeclarationPlan — stays a plain
+// case-folded match: one spelling space.) Lists that grow (golden rule): add a name, never a branch.
+/** Two names for one language: the other name, and the one it is matched and shown as. */
+const SAME_LANGUAGE: Readonly<Record<string, string>> = { putonghua: "Mandarin", "mandarin chinese": "Mandarin" };
+/** A name that covers several languages: a job asking for it is met by any one of them. Never the
+ *  reverse — "Chinese" on a CV does not say which one the person speaks. */
+const COVERS: Readonly<Record<string, readonly string[]>> = { chinese: ["mandarin", "cantonese"] };
+
+const spelled = (name: string): string => {
+  const word = name.trim().replace(/\s+/g, " ");
+  return SAME_LANGUAGE[word.toLowerCase()] ?? word;
+};
+const languageKey = (name: string): string => spelled(name).toLowerCase();
+
+/** True when a language the person has (`have`) meets the language a job names (`need`). */
+export function meetsLanguage(have: string, need: string): boolean {
+  const h = languageKey(have);
+  const n = languageKey(need);
+  return h === n || (COVERS[n]?.includes(h) ?? false);
+}
+
+/** The languages one requirement subject names, in groups: every group must be met, and a group is
+ *  met by any one of its languages. "Cantonese and English" is [["Cantonese"], ["English"]],
+ *  "English or Mandarin" is [["English", "Mandarin"]], "Putonghua" is [["Mandarin"]]. A note in
+ *  brackets is not a language. The reader is asked for one concrete language (ad-reader.md); this
+ *  only has to survive what it writes anyway: joins, and a word around the language ("fluent
+ *  English", "written and spoken Chinese") — a name that is no language reads as the language names
+ *  inside it, and a part naming none is dropped while another part names one. A subject naming no
+ *  language a list knows ("Hokkien") is kept as written. Also splits a CV line naming two languages. */
+export function languagesNamed(subject: string): string[][] {
+  const groups = subject
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\band\s*\/\s*or\b/gi, " or ")
+    .split(/,|;|&|\+|\band\b|\bplus\b/i)
+    .map((group) =>
+      group
+        .split(/\/|\bor\b/i)
+        .map(spelled)
+        .filter(Boolean)
+        .flatMap((name) => (isLanguageName(name) ? [name] : languageWordsIn(name).length > 0 ? languageWordsIn(name) : [name])),
+    )
+    .filter((group) => group.length > 0);
+  const real = groups.filter((group) => group.some(isLanguageName));
+  return real.length > 0 ? real : groups;
+}
+
+/** True when one of `have` meets one language of `group` (a group from languagesNamed). */
+export const groupMet = (group: readonly string[], have: readonly string[]): boolean =>
+  group.some((need) => have.some((h) => meetsLanguage(h, need)));
+
+/** The stored language facts about any language of `group`. */
+export const languageFactsFor = (group: readonly string[], facts: readonly EligibilityFact[]): EligibilityFact[] =>
+  facts.filter((f) => f.dimension === "language" && group.some((need) => meetsLanguage(f.familyId, need)));
+
+/** A real language name: the runtime's own list (#337), or one of ours CLDR does not carry (Mandarin). */
+function isLanguageName(name: string): boolean {
+  return isKnownLanguageName(spelled(name)) || Object.values(SAME_LANGUAGE).some((v) => v.toLowerCase() === languageKey(name));
+}
+
+/** The real language names among the words of free text: "fluent English" → ["English"]. */
+function languageWordsIn(text: string): string[] {
+  return [...new Set(text.split(/[^\p{L}]+/u).filter(isLanguageName).map(spelled))];
+}
+
+/** Each CV language line (cvLanguages: any line not rejected) as the languages it names, and whether
+ *  its level word says the person works in them. Every real language name on the line counts, so a
+ *  line the parser cannot split ("Fluent in English, French and German" parses as the language
+ *  "Fluent in English") or one with a variety in brackets ("Chinese (Mandarin) – Native") names them
+ *  all; a word no list knows ("Hokkien (Native)") is kept as written. */
+function cvLines(claims: readonly LanguageClaim[]): Array<{ names: string[]; working: boolean; text: string }> {
+  return claims.flatMap((claim) => {
+    const [line] = cvLanguages([claim]);
+    if (!line) return [];
+    const parsed = languagesNamed(line.language).flat();
+    const named = [...new Set([...parsed.filter(isLanguageName), ...languageWordsIn(claim.text)])];
+    return [{ names: named.length > 0 ? named : parsed, working: line.preTicked, text: claim.text.trim() }];
+  });
+}
+
+/** #425 (owner decision 1) — the languages that count as the person's: every language declared or
+ *  placed on the ladder, and every language the CV lists (any line not rejected) unless they
+ *  answered "I don't speak this one" for it. An explicit answer beats the CV, both ways. */
+export function spokenLanguages(facts: readonly EligibilityFact[], claims: readonly LanguageClaim[]): string[] {
+  const saidNo = new Set(
+    facts.filter((f) => f.dimension === "language" && f.value === LANGUAGE_NOT_AT_ALL).map((f) => languageKey(f.familyId)),
+  );
+  const fromCv = cvLines(claims)
+    .flatMap((l) => l.names)
+    .filter((name) => !saidNo.has(languageKey(name)));
+  return [...declaredLanguages(facts), ...fromCv];
+}
+
+/** #425 (owner decision 2) — the CV's languages written with a working level word (cvLanguages.ts's
+ *  own list: native, fluent, professional, bilingual). Each one meets a job's language requirement:
+ *  the ladder does not ask it, and the card counts it met. A lesser word or none settles nothing. */
+function cvWorkingLanguages(claims: readonly LanguageClaim[]): string[] {
+  return cvLines(claims)
+    .filter((l) => l.working)
+    .flatMap((l) => l.names);
+}
+
+/** The first language group `subject` names whose level is still unknown — neither placed on the
+ *  ladder (a rung, "I don't speak this one" included) nor settled by a working level word on the CV —
+ *  or null when every one is settled. The ladder asks it (languageLevelAsk); the application report
+ *  lists the requirement as unchecked (applicationReport.ts). One rule, so the question and the
+ *  report can never disagree about a language. */
+export function unsettledLanguage(
+  subject: string,
+  facts: readonly EligibilityFact[],
+  claims: readonly LanguageClaim[],
+): string[] | null {
+  const working = cvWorkingLanguages(claims);
+  return (
+    languagesNamed(subject).find(
+      (group) => !languageFactsFor(group, facts).some((f) => levelOf(f.value) !== null) && !groupMet(group, working),
+    ) ?? null
+  );
+}
+
+/** The CV's own lines that meet every language `subject` names at a working level — the evidence the
+ *  card prints — or null when one is not met. Null for a subject naming none: a rule over every group
+ *  first checks there is one. */
+export function cvLinesMeetingLanguages(subject: string, claims: readonly LanguageClaim[]): string[] | null {
+  const groups = languagesNamed(subject);
+  if (groups.length === 0) return null;
+  const working = cvLines(claims).filter((l) => l.working);
+  const lines: string[] = [];
+  for (const group of groups) {
+    const line = working.find((l) => groupMet(group, l.names));
+    if (!line) return null;
+    if (!lines.includes(line.text)) lines.push(line.text);
+  }
+  return lines;
+}
+
 const norm = (s: string): string => s.trim().toLowerCase();
 
 // The ask is keyed by the advert requirement that raised it (#308: the tailor queue round-trips
@@ -148,21 +288,23 @@ function whyThisAdvertCares(req: AdRequirementV1, language: string): string {
  * blocking requirements would tie the question to the withdrawal machinery it is meant to replace.
  *
  * Fires only when the level is genuinely UNKNOWN (levelOf above). An answered language never asks
- * again, on this advert or any other — #125's "asked once per language ever", kept.
+ * again, on this advert or any other — #125's "asked once per language ever", kept. #425 (owner
+ * decision 2): neither does a language the CV lists with a working level word (`claims`, read by
+ * cvLanguages) — "English (Fluent)" settles it. "Conversational", "Beginner" or no word still asks.
  *
- * Pure: `facts` is whatever the caller already read. Returns the FIRST unknown language in the
- * advert's own rank order — one question per advert, never a stack of them.
+ * Pure: `facts` and `claims` are whatever the caller already read. Returns the FIRST unknown
+ * language in the advert's own rank order — one question per advert, never a stack of them.
  */
 export function languageLevelAsk(
   adReq: AdRequirementsV1,
   facts: readonly EligibilityFact[],
+  claims: readonly LanguageClaim[],
 ): LanguageLevelAsk | null {
   for (const req of adReq.requirements) {
     if (req.eligibilityDimension !== "language" || !req.eligibilitySubject) continue;
-    const subject = req.eligibilitySubject.trim();
-    const fact = facts.find((f) => f.dimension === "language" && norm(f.familyId) === norm(subject));
-    if (levelOf(fact?.value) !== null) continue; // answered — closed for good
-    const language = fact?.familyId ?? subject;
+    const unknown = unsettledLanguage(req.eligibilitySubject, facts, claims);
+    if (!unknown) continue;
+    const language = languageFactsFor(unknown, facts)[0]?.familyId ?? unknown[0]!;
     return {
       requirementId: req.id,
       language,

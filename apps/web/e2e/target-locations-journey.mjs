@@ -166,7 +166,7 @@ const PROFILE = {
   languagesQuestion: {
     questionId: 'eligibility-languages',
     question: "Which languages do you speak? Start typing — I'll suggest as you go.",
-    consequence: 'Nothing you leave out counts against you.',
+    consequence: 'A job that requires a language you don\'t list stays out of your deck.',
     options: ['English', 'Mandarin', 'Cantonese', 'Vietnamese', 'Ask me later'],
     answer: null,
   },

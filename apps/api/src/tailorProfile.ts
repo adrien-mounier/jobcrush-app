@@ -35,10 +35,11 @@
 import type { AdRequirementV1, AdRequirementsV1, LanguageLevel } from "@jobcrush/contracts";
 import type { EligibilityFact } from "./eligibility.js";
 import { DECLINE_OPTION, workRightsQuestionFor } from "./eligibilityDiscovery.js";
-import { findWithdrawingRequirement, findWorkRightsFact, isExplicitNo } from "./withdrawal.js";
+import { findWithdrawingRequirement, findWorkRightsFact, isExplicitNo, type LanguageGap } from "./withdrawal.js";
 import { marketForLocationText } from "./postingRetrieval.js";
 import { LANGUAGE_LADDER, LANGUAGE_NOT_AT_ALL, languageLevelAsk } from "./languageLevel.js";
 import type { BroughtJob } from "./broughtJobs.js";
+import type { LanguageClaim } from "./cvLanguages.js";
 import type { Posting } from "./preview.js";
 
 /** #308 AC1 — the third option on a permanent question. Not an answer: the route stores NOTHING
@@ -109,6 +110,8 @@ export function tailorProfileAsks(
   adReq: AdRequirementsV1,
   postingLocation: string | null | undefined,
   facts: readonly EligibilityFact[],
+  /** #425: every claim — a CV language line (printed or not) with a working level word is never asked. */
+  claims: readonly LanguageClaim[],
   skips: ReadonlySet<string> = new Set(),
 ): ProfileAsk[] {
   const asks: ProfileAsk[] = [];
@@ -130,7 +133,7 @@ export function tailorProfileAsks(
       market,
     });
   }
-  const lang = languageLevelAsk(adReq, facts); // null once answered — asked once per language ever
+  const lang = languageLevelAsk(adReq, facts, claims); // null once answered — asked once per language ever
   if (lang) {
     asks.push({
       requirementId: lang.requirementId,
@@ -156,12 +159,13 @@ export function newlyHiddenCount(
   candidates: ReadonlyArray<{ posting: Posting; adReq: AdRequirementsV1 }>,
   factsBefore: readonly EligibilityFact[],
   factsAfter: readonly EligibilityFact[],
+  claims: readonly LanguageClaim[],
   brought: readonly BroughtJob[],
 ): number {
   return candidates.filter(
     (entry) =>
-      findWithdrawingRequirement(entry.adReq, factsBefore, entry.posting.location ?? null, brought) === null &&
-      findWithdrawingRequirement(entry.adReq, factsAfter, entry.posting.location ?? null, brought) !== null,
+      findWithdrawingRequirement(entry.adReq, factsBefore, claims, entry.posting.location ?? null, brought) === null &&
+      findWithdrawingRequirement(entry.adReq, factsAfter, claims, entry.posting.location ?? null, brought) !== null,
   ).length;
 }
 
@@ -208,23 +212,26 @@ export function skippedLine(ask: ProfileAsk): string {
 /** #309 — the blocking gap, named in the person's own terms, for the two lines below. `market` is
  *  the posting's placed market display name (marketForLocationText), null when it cannot be placed
  *  — defensive only: a work-rights withdrawal needs a placed region to fire at all. */
-function gapNoun(req: AdRequirementV1, market: string | null): string {
+function gapNoun(req: AdRequirementV1, market: string | null, gap: LanguageGap | null): string {
   if (req.eligibilityDimension === "work-rights") {
     return market ? `the right to work in ${market}` : "the right to work where it is based";
   }
-  // language/certification carry the subject the withdrawal matched on (withdrawal.ts's scopeFor).
-  return req.eligibilitySubject?.trim() ?? req.requirement;
+  // #425: a requirement naming several languages ("Cantonese and English") is named by the one it
+  // withdraws over; otherwise the subject the withdrawal matched on.
+  return gap?.language ?? req.eligibilitySubject?.trim() ?? req.requirement;
 }
 
 /** #309 AC3 — a FOUND job withdrawn by the answer he just gave names its reason. The old deliberate
  *  silence (#107 M3) was designed for a job the app quietly noticed; a job that vanishes because he
  *  just answered says why, so the disappearance is a rule he learns rather than a bug he suspects. */
-export function withdrawalReasonLine(req: AdRequirementV1, market: string | null): string {
-  return `This job needs ${gapNoun(req, market)}, and your answer says you don't have it — so it has come off your deck.`;
+export function withdrawalReasonLine(req: AdRequirementV1, market: string | null, gap: LanguageGap | null = null): string {
+  return `This job needs ${gapNoun(req, market, gap)}, and your answer says you don't have it — so it has come off your deck.`;
 }
 
 /** #309 AC4 — a job HE BROUGHT stays despite the same answer, and says why in one line, so the
- *  asymmetry with a found job reads as a promise rather than an inconsistency (#294 c1). */
-export function broughtStaysLine(req: AdRequirementV1, market: string | null): string {
-  return `You brought this job, so it stays and I'll draft for it — but it needs ${gapNoun(req, market)}, and that gap is real.`;
+ *  asymmetry with a found job reads as a promise rather than an inconsistency (#294 c1). #425: a
+ *  language he simply has not listed is not a gap he confirmed, and the line says only what is true. */
+export function broughtStaysLine(req: AdRequirementV1, market: string | null, gap: LanguageGap | null = null): string {
+  const needs = `You brought this job, so it stays and I'll draft for it — but it needs ${gapNoun(req, market, gap)}`;
+  return gap?.missing ? `${needs}, which isn't on your profile.` : `${needs}, and that gap is real.`;
 }

@@ -3,21 +3,29 @@
 // renders an advert (routes/onboarding.ts: the deck, /want, and tailorTarget) so the same rule holds
 // wherever a posting could otherwise reach a visitor — never re-derived per call site.
 //
-// CONTEXT.md's own definition: a blocking requirement is established ONLY when the advert states it
-// as mandatory AND the user has explicitly said they do not meet it — a vague advert or an unasked
-// question never establishes one. This function is that definition made real. All three conditions
-// below must hold for one requirement, or nothing withdraws:
-//   1. kind === "blocking" — the advert was explicit (the reader's own clampBlocking, adReader.ts,
-//      already guarantees a blocking requirement carries a hard-gate eligibilityDimension, and — as
-//      of #107, D1 — a language/certification one also carries an eligibilitySubject).
-//   2. a STORED fact exists at this requirement's (dimension, scope). No fact at all — never asked,
-//      or asked at a DIFFERENT scope — reads as unknown, and an unknown never withdraws. Always.
-//   3. that fact's value is an EXPLICIT "no" (isExplicitNo below) for the dimension. "Some, but not
-//      for work" is not "I don't speak it" and must never withdraw (the spec's own regression case).
+// GLOSSARY.md's definition ("Blocking requirement"): the advert states it as mandatory, and the
+// person's own record says they do not meet it. This function is that definition made real. For one
+// requirement to withdraw, the advert must be explicit — kind === "blocking" (the reader's own
+// clampBlocking, adReader.ts, already guarantees a blocking requirement carries a hard-gate
+// eligibilityDimension, and — as of #107, D1 — a language/certification one an eligibilitySubject)
+// — and then, per dimension:
+//   - work-rights / certification: a STORED fact at this requirement's scope is an EXPLICIT "no"
+//     (isExplicitNo below). No fact — never asked, or asked for a DIFFERENT market — is unknown,
+//     and an unknown never withdraws.
+//   - language (#425, owner decision 1, 2026-10-24): every language the requirement names must be the
+//     person's — on the CV (any language line not rejected) or declared on the profile, the ladder's
+//     rungs included (languageLevel.ts spokenLanguages). A language that is neither withdraws, and
+//     the deck says so with a one-tap "I speak it" (partitionByWithdrawal's tally). An explicit "I
+//     don't speak this one" withdraws even when the CV lists it. This is #123's original rule come
+//     back: #165 had made an unknown language never withdraw (the tick-list's mistap was silently
+//     deleting jobs), and once #376 moved the languages question off the start, a job requiring
+//     Cantonese reached every new deck. The tally line is what keeps a removal from being silent.
+//     How well they speak it never withdraws — below the bar is not a no (ADR-0003 clause 8a).
 import type { AdRequirementV1, AdRequirementsV1, EligibilityDimension } from "@jobcrush/contracts";
 import { incrementCounter } from "./counters.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
-import { LANGUAGE_NOT_AT_ALL } from "./languageLevel.js";
+import { groupMet, LANGUAGE_NOT_AT_ALL, languageFactsFor, languagesNamed, spokenLanguages } from "./languageLevel.js";
+import type { LanguageClaim } from "./cvLanguages.js";
 import { regionsForLocationText } from "./postingRetrieval.js";
 import { isBrought, type BroughtJob } from "./broughtJobs.js";
 
@@ -70,13 +78,9 @@ export function findWorkRightsFact(
 /** Trimmed + case-folded — code-review M4: a reader-produced eligibilitySubject ("english", "
  *  Mandarin ") must still match the store's canonical scope ("English") or this whole rule silently
  *  never fires. A safe direction on its own (never-withdraws is always the fail-safe outcome), but a
- *  needless no-op worth the one-line fix.
- *
- *  Exported (2026-08-04, no behaviour change) so routes/onboarding.ts's withdrawal-reporting tally
- *  (the reveal's "N jobs needed Mandarin" line) can re-derive the SAME match this function's own
- *  caller (findWithdrawingRequirement) already made, to recover the fact's exact canonical casing —
- *  never a second predicate, never a re-decision of any posting's fate. */
-export function normalizeScope(s: string): string {
+ *  needless no-op worth the one-line fix. (#425: language matches through languageLevel.ts's
+ *  meetsLanguage now; this is the certification scope's.) */
+function normalizeScope(s: string): string {
   return s.trim().toLowerCase();
 }
 
@@ -97,32 +101,52 @@ export function isExplicitNo(dimension: EligibilityDimension, value: string): bo
   // it" and used to silently delete winnable jobs — a mistap cost real postings. Under the ladder no
   // silence writes anything, so the only way to reach a withdrawal is to tap "I don't speak this
   // one". Legacy "none" facts are read as unknown here AND everywhere else (levelOf), so the four
-  // languages answered under the old shape are re-asked on the ladder rather than migrated: unknown
-  // never withdraws, so the wrong-shape answers cannot hurt anyone while they are being re-asked.
+  // languages answered under the old shape are re-asked on the ladder rather than migrated. #425: an
+  // unknown language that is not on the CV now withdraws — but as "not on your profile", which the
+  // deck names with a one-tap "I speak it", never as a no the person cannot see.
   if (dimension === "language") return value === LANGUAGE_NOT_AT_ALL;
   // certification is wired through on purpose (D3: "don't special-case it away") even though no
   // product surface today ever WRITES a certification eligibility fact — see eligibilityDiscovery.ts's
   // ASK_DIMENSIONS. This branch is reachable the day that changes; until then a fact for this
-  // dimension is simply never found (condition 2 above already short-circuits), so this is dead in
+  // dimension is simply never found (no stored fact never withdraws, see the header), so this is dead in
   // practice, not silently absent from the switch.
   if (dimension === "certification") return false;
   return false; // years-experience/degree are never blocking
 }
 
-/** The first requirement (in the advert's own rank order) that genuinely withdraws THIS posting from
- *  this session's deck, or null when nothing does. `facts` is whatever the caller already read
- *  (EligibilityFact[]) — never fetched here. `postingLocation` (#182 QA round 3) is THIS posting's own
- *  `location` field — never the session's current city; work-rights is gated per-posting (findWork
- *  RightsFact above), because a session may hold answers for several markets and only the posting's
- *  OWN market's answer may ever apply to it. Optional and defaulting to null so a caller that cannot
- *  supply it (or predates this) safely never withdraws on work-rights, same as no fact at all. */
-/** The reveal's undo line ("2 more needed Mandarin — I left them out"). `byLanguage` names ONLY
- *  languages that actually caused a removal, sorted desc by count then name asc; empty (never
- *  omitted) when nothing was withdrawn, so a client can key "render no notice at all" off an
- *  unambiguous empty array rather than a missing field. */
+/** #425 — the one language a blocking requirement withdraws a job over. `missing`: simply not the
+ *  person's — the deck offers "I speak it". Not missing: they said "I don't speak this one", and
+ *  `language` is their own spelling. */
+export interface LanguageGap {
+  language: string;
+  missing: boolean;
+}
+
+/** The LanguageGap for one requirement subject, or null when every language it names is the
+ *  person's (spokenLanguages). */
+function languageGap(
+  subject: string,
+  facts: readonly EligibilityFact[],
+  claims: readonly LanguageClaim[],
+): LanguageGap | null {
+  const spoken = spokenLanguages(facts, claims);
+  for (const group of languagesNamed(subject)) {
+    if (groupMet(group, spoken)) continue;
+    const no = languageFactsFor(group, facts).find((f) => isExplicitNo("language", f.value));
+    return no ? { language: no.familyId.trim(), missing: false } : { language: group[0]!, missing: true };
+  }
+  return null;
+}
+
+/** The reveal's line per language ("I left out 12 jobs that need Cantonese, which isn't on your
+ *  profile"). `byLanguage` names ONLY languages that actually caused a removal, sorted desc by count
+ *  then name asc; empty (never omitted) when nothing was withdrawn, so a client can key "render no
+ *  notice at all" off an unambiguous empty array rather than a missing field. #425: `missing` is true
+ *  when the language is not the person's (the screen offers "I speak it"), false when they said
+ *  "I don't speak this one". */
 export interface WithdrawnSummary {
   total: number;
-  byLanguage: Array<{ language: string; count: number }>;
+  byLanguage: Array<{ language: string; count: number; missing: boolean }>;
 }
 
 /**
@@ -144,26 +168,25 @@ export interface WithdrawnSummary {
 export function partitionByWithdrawal<T extends { posting: { location?: string | null }; adReq: AdRequirementsV1 }>(
   candidates: readonly T[],
   facts: readonly EligibilityFact[],
+  /** #425: the CV's claims, read for their language lines — see findWithdrawingRequirement. */
+  claims: readonly LanguageClaim[],
   /** #305: forwarded to the predicate, so a brought job passes this filter and is never tallied. */
   brought: readonly BroughtJob[] = [],
 ): { open: T[]; withdrawn: WithdrawnSummary } {
   let total = 0;
-  const byLanguage = new Map<string, number>();
+  // Keyed case-folded, per reason: "Cantonese" from one reader read and "cantonese" from another
+  // are one line, shown in the first spelling seen.
+  const byLanguage = new Map<string, WithdrawnSummary["byLanguage"][number]>();
   const open = candidates.filter((entry) => {
-    const req = findWithdrawingRequirement(entry.adReq, facts, entry.posting.location ?? null, brought);
-    if (!req) return true;
+    const found = findWithdrawal(entry.adReq, facts, claims, entry.posting.location ?? null, brought);
+    if (!found) return true;
     incrementCounter("deck.cards_withdrawn");
     total++;
-    if (req.eligibilityDimension === "language" && req.eligibilitySubject) {
-      // Render-ready casing: the requirement's own eligibilitySubject is whatever the ad reader
-      // produced ("mandarin", " Mandarin "), not how the person wrote it. The matching fact's
-      // familyId is the STORE's own scope — their own spelling. This re-derives the SAME normalized
-      // match findWithdrawingRequirement already made internally, over the identical `facts` array,
-      // so it always succeeds; it never re-decides any posting's fate.
-      const subject = normalizeScope(req.eligibilitySubject);
-      const fact = facts.find((f) => f.dimension === "language" && normalizeScope(f.familyId) === subject);
-      const language = fact?.familyId ?? req.eligibilitySubject.trim();
-      byLanguage.set(language, (byLanguage.get(language) ?? 0) + 1);
+    if (found.gap) {
+      const key = `${found.gap.missing}:${found.gap.language.toLowerCase()}`;
+      const tally = byLanguage.get(key) ?? { ...found.gap, count: 0 };
+      tally.count++;
+      byLanguage.set(key, tally);
     }
     return false;
   });
@@ -171,16 +194,23 @@ export function partitionByWithdrawal<T extends { posting: { location?: string |
     open,
     withdrawn: {
       total,
-      byLanguage: [...byLanguage.entries()]
-        .map(([language, count]) => ({ language, count }))
-        .sort((a, b) => b.count - a.count || a.language.localeCompare(b.language)),
+      byLanguage: [...byLanguage.values()].sort((a, b) => b.count - a.count || a.language.localeCompare(b.language)),
     },
   };
 }
 
+/** The first requirement (in the advert's own rank order) that genuinely withdraws THIS posting from
+ *  this session's deck, or null when nothing does. `facts` is whatever the caller already read
+ *  (EligibilityFact[]) — never fetched here. #425: `claims` likewise — every claim (printed or not), whose
+ *  language lines (cvLanguages.ts) count as the person's languages. `postingLocation` (#182 QA round
+ *  3) is THIS posting's own `location` field — never the session's current city; work-rights is
+ *  gated per-posting (findWorkRightsFact above), because a session may hold answers for several
+ *  markets and only the posting's OWN market's answer may ever apply to it. Optional and defaulting
+ *  to null so a caller that cannot supply it safely never withdraws on work-rights. */
 export function findWithdrawingRequirement(
   adReq: AdRequirementsV1,
   facts: readonly EligibilityFact[],
+  claims: readonly LanguageClaim[],
   postingLocation: string | null = null,
   // #305 (#294 c1): the adverts HE BROUGHT. A job he brought is NEVER withdrawn, and the rule lives
   // here rather than at each door for this function's own stated reason — it is consumed by every
@@ -188,6 +218,19 @@ export function findWithdrawingRequirement(
   // Absent → nobody is exempt, which is every pre-#305 caller's behaviour unchanged.
   brought: readonly BroughtJob[] = [],
 ): AdRequirementV1 | null {
+  return findWithdrawal(adReq, facts, claims, postingLocation, brought)?.req ?? null;
+}
+
+/** findWithdrawingRequirement's body, plus the language the requirement is over — the deck's tally
+ *  and the Tailor step's two lines (tailorProfile.ts) name it, and re-deriving it would be a second
+ *  predicate. */
+export function findWithdrawal(
+  adReq: AdRequirementsV1,
+  facts: readonly EligibilityFact[],
+  claims: readonly LanguageClaim[],
+  postingLocation: string | null = null,
+  brought: readonly BroughtJob[] = [],
+): { req: AdRequirementV1; gap: LanguageGap | null } | null {
   // Keyed on the advert's own id, which for every caller here IS the posting's canonical id
   // (resolveAdRequirements stamps it). Checked FIRST: there is no state of his answers that can take a
   // job he chose off his own deck — it stays, and its card says what it can about its age instead.
@@ -198,7 +241,13 @@ export function findWithdrawingRequirement(
     if (!dimension) continue; // defensive — the reader's clamp already guarantees this is set
     if (dimension === "work-rights") {
       const fact = findWorkRightsFact(facts, postingLocation);
-      if (fact && isExplicitNo(dimension, fact.value)) return req;
+      if (fact && isExplicitNo(dimension, fact.value)) return { req, gap: null };
+      continue;
+    }
+    if (dimension === "language") {
+      // No subject (a fixture predating #107): no safe way to know WHICH language — never withdraws.
+      const gap = req.eligibilitySubject ? languageGap(req.eligibilitySubject, facts, claims) : null;
+      if (gap) return { req, gap };
       continue;
     }
     const scope = scopeFor(dimension, req.eligibilitySubject);
@@ -207,7 +256,7 @@ export function findWithdrawingRequirement(
       (f) => f.dimension === dimension && normalizeScope(f.familyId) === normalizeScope(scope),
     );
     if (!fact) continue; // never asked (or asked at a different scope) — unknown, never withdraws
-    if (isExplicitNo(dimension, fact.value)) return req;
+    if (isExplicitNo(dimension, fact.value)) return { req, gap: null };
   }
   return null;
 }
