@@ -645,65 +645,107 @@ test("#314 over two pages: the press narrates the shortening, then 'sent' says p
   await expect(page.getByText("Your languages could not be placed on this draft.", { exact: false })).toHaveCount(1);
 });
 
+
 // ---------------------------------------------------------------------------------------------
-// #411 — the Match breakdown is the first block under the Tailor screen's header, and it still
-// follows the live score. (The deck card and the job's own screen keep their order: deck.spec.ts.)
+// #423 — the #408 prototype's layout: the CV page right under the top bar, with only the
+// "Your CV | The job" tabs between. #411's breakdown and folded ad are off this screen (the deck
+// card and the job's own screen keep theirs: deck.spec.ts, job-screen-journey.mjs).
 // ---------------------------------------------------------------------------------------------
 
-/** DOM order, as a reader meets the blocks: true when `a` comes before `b` in the document. */
-function precedes(page: Page, a: string, b: string) {
-  return page.evaluate(
-    ([a, b]) => {
-      const x = document.querySelector(a);
-      const y = document.querySelector(b);
-      return !!x && !!y && Boolean(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);
-    },
-    [a, b] as const,
-  );
+const AGEING = "You pasted this 9 days ago. We cannot check whether it is still open.";
+const JOB_TEXT = [
+  "Senior IT Project Manager",
+  "",
+  "What you will do:",
+  "- Own a €2M budget across four European sites",
+  "- Move the finance platform onto their SAP version",
+].join("\n");
+
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 390, height: 844 },
+]) {
+  test(`#423 at ${viewport.width}px nothing sits between the top bar and the CV page but the tabs`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openTailor(page, { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, ageing: AGEING } });
+    const frame = page.locator(".draft-frame");
+    await expect(frame).toBeVisible();
+
+    // The order, in the document: the bar, then the tabs, then the CV panel opening on the page.
+    const tabs = page.getByRole("tablist", { name: "What to show" });
+    await expect(page.locator(".tailor .dbar + .dgrid > .paper-col > :first-child")).toHaveAttribute("role", "tablist");
+    await expect(page.locator(".tailor .paper-col > [role=tablist] + [role=tabpanel] > .draft > :first-child")).toHaveClass(/draft-frame/);
+    await expect(tabs.getByRole("tab")).toHaveText(["Your CV", "The job"]);
+    await expect(tabs.getByRole("tab", { name: "Your CV", selected: true })).toBeVisible();
+
+    // And on the screen: the tabs right under the bar, the page right under the tabs.
+    const bar = (await page.locator(".tailor .dbar").boundingBox())!;
+    const tabsBox = (await tabs.boundingBox())!;
+    const frameBox = (await frame.boundingBox())!;
+    expect(tabsBox.y - (bar.y + bar.height)).toBeGreaterThanOrEqual(0);
+    expect(tabsBox.y - (bar.y + bar.height)).toBeLessThanOrEqual(24); // the grid's own top padding
+    expect(frameBox.y - (tabsBox.y + tabsBox.height)).toBeGreaterThanOrEqual(0);
+    expect(frameBox.y - (tabsBox.y + tabsBox.height)).toBeLessThanOrEqual(12); // the tabs' own margin
+
+    // What #411 put there is gone from this screen; the ageing line moved beside the page.
+    await expect(page.getByRole("region", { name: "Match breakdown" })).toHaveCount(0);
+    await expect(page.locator(".tailor details.ad")).toHaveCount(0);
+    await expect(page.locator(".tailor")).not.toContainText("Read the ad in full");
+    await expect(page.locator(".tailor .rail .ageing")).toHaveText(AGEING);
+    await expect(page.locator(".tailor .paper-col .ageing")).toHaveCount(0);
+  });
 }
 
-test("#411 the Match breakdown sits under the header, above the draft, and moves with the live score", async ({
-  page,
-}) => {
-  await openTailor(page, { ...STATE_DRAFT, questions: [LANGUAGE_Q] });
-  await stubProfileAnswer(page, {
-    changed: LANGUAGE_KEPT_LOW,
-    state: { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, matchPct: 49 } },
-  });
-  await page.getByRole("button", { name: "I don't speak this one" }).click();
-  await expect(page.locator(".draft-frame")).toBeVisible();
+test("#423 The job shows the job's full text with its line breaks; Your CV brings the page back", async ({ page }) => {
+  await openTailor(page, { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, adExcerpt: JOB_TEXT } });
+  const frame = page.locator(".draft-frame");
+  await expect(frame).toBeVisible();
+  const job = page.getByRole("tabpanel", { name: "The job" });
+  await expect(job).toBeHidden();
 
-  const breakdown = page.getByRole("region", { name: "Match breakdown" });
-  await expect(breakdown).toBeVisible();
-  // The four facts, from the card — and the band word from the number the screen now shows (49).
-  await expect(breakdown.locator("dd")).toHaveText(["0/2", "0/1", "0/1", "Weak"]);
-  await expect(page.getByRole("img", { name: "49% match" })).toBeVisible();
+  await page.getByRole("tab", { name: "The job" }).click();
+  await expect(page.getByRole("tab", { name: "The job", selected: true })).toBeVisible();
+  await expect(job).toBeVisible();
+  await expect(frame).toBeHidden(); // in place of the CV, not beside it
+  // One line on the screen per line of the text, the blank one included, each its own row.
+  await expect(job.locator(".jl")).toHaveText(JOB_TEXT.split("\n"));
+  const tops = await job.locator(".jl").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+  for (let i = 1; i < tops.length; i++) expect(tops[i]!).toBeGreaterThan(tops[i - 1]!);
+  // The job's title and company head it, so a title cut short in the bar reads here in full.
+  await expect(job.locator(".jt-title")).toHaveText(CARD_FIRST.title);
+  await expect(job.locator(".jt-meta")).toHaveText("Atos · Paris 15e");
 
-  // Order: the header (title, company, score) first, the breakdown next, the draft after it.
-  expect(await precedes(page, ".tailor .dbar h1", ".tailor .breakdown")).toBe(true);
-  expect(await precedes(page, ".tailor .dbar .score", ".tailor .breakdown")).toBe(true);
-  expect(await precedes(page, ".tailor .breakdown", ".tailor .draft-frame")).toBe(true);
-  // Nothing else stands between the header and the breakdown.
-  await expect(page.locator(".tailor .dbar + .dgrid > :first-child > :first-child")).toHaveClass(/breakdown/);
+  await page.getByRole("tab", { name: "Your CV" }).click();
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute("srcdoc", /Maria Kowalski/);
+  await expect(job).toBeHidden();
 });
 
-// #411's AC: under the header, the ageing line when there is one, then the Match breakdown, then
-// "Read the ad in full" — the job card's own folded ad — and then the draft. The job card stays on
-// this screen (the build note), so the ad and the ageing line are not lost with the redesign.
-test("#411 under the header: the ageing line, the Match breakdown, then Read the ad in full, then the draft", async ({ page }) => {
-  const ageing = "You pasted this 9 days ago. We cannot check whether it is still open.";
-  await openTailor(page, { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, ageing } });
+test("#423 phone (390px): the top bar is one line — a long title cut short, no tagline; the computer keeps the tagline", async ({ page }) => {
+  const title = "Senior IT Project Manager, Digital Transformation and Core Banking Programmes, Asia-Pacific";
+  const state = { ...STATE_DRAFT, card: { ...STATE_DRAFT.card, title } };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTailor(page, state);
   await expect(page.locator(".draft-frame")).toBeVisible();
-  const col = page.locator(".tailor .paper-col");
-  await expect(col.locator(".ageing")).toHaveText(ageing);
-  await expect(col.locator("> :first-child")).toHaveClass(/ageing/);
-  expect(await precedes(page, ".tailor .paper-col .ageing", ".tailor .paper-col .breakdown")).toBe(true);
-  expect(await precedes(page, ".tailor .paper-col .breakdown", ".tailor .paper-col details.ad")).toBe(true);
-  expect(await precedes(page, ".tailor .paper-col details.ad", ".tailor .draft-frame")).toBe(true);
-  // The card's own control: folded shut, and it opens on the job's own text.
-  const ad = col.locator("details.ad");
-  await expect(ad.locator("summary")).toHaveText("Read the ad in full");
-  await expect(ad).not.toHaveAttribute("open", "");
-  await ad.locator("summary").click();
-  await expect(ad.locator("p")).toHaveText(STATE_DRAFT.card.adExcerpt);
+
+  const h1 = page.locator(".tailor .dbar h1");
+  await expect(h1).toHaveText(title);
+  const fit = await h1.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { height: el.getBoundingClientRect().height, lineHeight: parseFloat(style.lineHeight), cut: el.scrollWidth > el.clientWidth, overflow: style.textOverflow };
+  });
+  expect(fit.height).toBeLessThanOrEqual(fit.lineHeight + 1); // one line
+  expect(fit.cut).toBe(true); // …and the title really is longer than it
+  expect(fit.overflow).toBe("ellipsis");
+  await expect(page.locator(".tailor .dbar .tagline")).toBeHidden();
+  await expect(page.locator(".tailor .dbar .co")).toHaveText(/^Atos · Paris 15e/);
+  const bar = (await page.locator(".tailor .dbar").boundingBox())!;
+  expect(bar.height).toBeLessThanOrEqual(64); // was ~230px with a long title (#422)
+  // The full title reads on The job.
+  await page.getByRole("tab", { name: "The job" }).click();
+  await expect(page.locator(".jobtext .jt-title")).toHaveText(title);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.locator(".tailor .dbar .tagline")).toBeVisible();
+  await expect(page.locator(".tailor .dbar .co")).toHaveText("Atos · Paris 15e · your CV is written only from what is true about you");
 });

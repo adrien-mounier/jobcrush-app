@@ -16,9 +16,10 @@ import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../tailor.css";
 import { FactBadge } from "../factbadge";
-import { AdInFull, CardBody, MatchBreakdown, ScoreRing, useReducedMotion } from "../jobcard";
+import { CardBody, ScoreRing, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import { TailorDraft } from "./draft";
+import { TailorJob } from "./job";
 import { STRETCH_COPY, StretchCards, nextPending, pendingOf, type StretchEdit, type StretchEditNote, type StretchRailView } from "./stretch";
 import {
   answerStretch,
@@ -82,6 +83,11 @@ const GLOW_MS = 1100;
 const T31 = (under?: string) => (under ? `${STRETCH_COPY.K21}, under ${under}.` : `${STRETCH_COPY.K21}.`);
 const T32 = "Undo";
 const TOAST_MS = 5000;
+// #423: "Your CV | The job" — the job's full text in place of the CV, and the phone's way to it.
+const T33 = "What to show";
+const T34 = "Your CV";
+const T35 = "The job";
+const T36 = "Read the job";
 
 // #309: the score may fall, and the fall is shown with its cause. When the new server number sits
 // below the last server number, the answer's own server-composed line is prefixed with the size of
@@ -151,6 +157,13 @@ export default function TailorPage() {
   const editTextRef = useRef<string | null>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const focusEditRef = useRef(false);
+  // #423: which tab shows (the CV stays mounted under "The job", so its preview is still in place
+  // when it comes back), and where a jump to the job lands: the open suggestion's line, or the top.
+  const [showJob, setShowJob] = useState(false);
+  const [jump, setJump] = useState<{ to: "line" | "top" } | null>(null);
+  const cvTabRef = useRef<HTMLButtonElement>(null);
+  const jobTabRef = useRef<HTMLButtonElement>(null);
+  const litLineRef = useRef<HTMLParagraphElement>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
   // One heading per screen: the card's h2 on the question screen, the job's h1 beside the draft.
@@ -311,6 +324,7 @@ export default function TailorPage() {
     editTextRef.current = null;
     setEditNote(null);
     setStretchEdit({ id, saving: false });
+    setShowJob(false); // #423: the line is edited where it stands, on the CV
   }
   async function endStretchEdit() {
     const edit = stretchEdit;
@@ -348,6 +362,19 @@ export default function TailorPage() {
     focusEditRef.current = false;
     editButtonRef.current?.focus();
   }, [stretchEdit]);
+
+  // #423: "See where the job asks this" and the phone's "Read the job" show The job, then — once it
+  // is on the page — bring the open suggestion's line (or the tabs, for the top) into view, focused.
+  const openJob = (to: "line" | "top") => {
+    setShowJob(true);
+    setJump({ to });
+  };
+  useEffect(() => {
+    if (!jump) return;
+    const target = jump.to === "line" ? litLineRef.current : jobTabRef.current;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: jump.to === "line" ? "center" : "start" });
+  }, [jump]);
 
   async function oneAnswerAtATime(work: () => Promise<void>) {
     if (stretchAnsweringRef.current) return;
@@ -767,7 +794,11 @@ export default function TailorPage() {
             <h1 tabIndex={-1} ref={headingRef}>
               {state.card.title}
             </h1>
-            <p className="co">{[meta, T24].filter(Boolean).join(" · ")}</p>
+            {/* #423: on a phone the bar is one line — the title cut short, no tagline (tailor.css). */}
+            <p className="co">
+              {meta}
+              <span className="tagline">{meta ? ` · ${T24}` : T24}</span>
+            </p>
           </div>
           <div ref={scoreRef} className="scoreslot">
             <ScoreRing pct={displayPct} bumped={scoreBumped} lit={scoreLit} estimated={state.card.scored === "estimated"} />
@@ -778,24 +809,77 @@ export default function TailorPage() {
         </header>
         <div className="dgrid">
           <div className="paper-col">
-            {/* #411 (owner, 2026-10-23): under the header, the ageing line when there is one, then
-                the Match breakdown — following the live number like the ring above it — then the
-                card's own "Read the ad in full", then the draft. The deck card and the job's own
-                screen keep the breakdown at the card's foot (CardBody). */}
-            {state.card.ageing && <p className="ageing">{state.card.ageing}</p>}
-            <MatchBreakdown card={state.card} pct={displayPct} />
-            <AdInFull card={state.card} />
-            <TailorDraft
-              key={lookAgain}
-              open={openStretch}
-              onStretch={onStretch}
-              editing={stretchEdit !== null && !stretchEdit.saving && stretchEdit.id === openStretch}
-              onEditText={(text) => (editTextRef.current = text)}
-              onEditEnd={() => void endStretchEdit()}
-              rev={frameRev}
-            />
+            {/* #423 (owner, 2026-10-24, the #408 prototype's layout): the CV starts right under the
+                bar, with only the "Your CV | The job" tabs between — #411's breakdown and folded ad
+                are gone from this screen (the deck card and the job's own screen keep theirs). The
+                CV stays mounted under The job (hidden), so its preview is in place when it returns.
+                Tabs: arrow keys move between the two (the ARIA tabs pattern). */}
+            <div
+              className="tabs"
+              role="tablist"
+              aria-label={T33}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                e.preventDefault();
+                setShowJob(!showJob);
+                (showJob ? cvTabRef : jobTabRef).current?.focus();
+              }}
+            >
+              <button
+                type="button"
+                role="tab"
+                id="tailor-tab-cv"
+                aria-controls="tailor-panel-cv"
+                aria-selected={!showJob}
+                tabIndex={showJob ? -1 : 0}
+                ref={cvTabRef}
+                onClick={() => setShowJob(false)}
+              >
+                {T34}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="tailor-tab-job"
+                aria-controls="tailor-panel-job"
+                aria-selected={showJob}
+                tabIndex={showJob ? 0 : -1}
+                ref={jobTabRef}
+                onClick={() => setShowJob(true)}
+              >
+                {T35}
+              </button>
+            </div>
+            <div role="tabpanel" id="tailor-panel-cv" aria-labelledby="tailor-tab-cv" hidden={showJob}>
+              <TailorDraft
+                key={lookAgain}
+                open={openStretch}
+                onStretch={onStretch}
+                editing={stretchEdit !== null && !stretchEdit.saving && stretchEdit.id === openStretch}
+                onEditText={(text) => (editTextRef.current = text)}
+                onEditEnd={() => void endStretchEdit()}
+                rev={frameRev}
+              />
+            </div>
+            <div role="tabpanel" id="tailor-panel-job" aria-labelledby="tailor-tab-job" hidden={!showJob}>
+              <TailorJob
+                card={state.card}
+                requirements={state.requirements}
+                view={stretch}
+                openId={openStretch}
+                onOpen={openSuggestion}
+                litRef={litLineRef}
+              />
+            </div>
           </div>
           <aside className="rail">
+            {/* #305: the ageing line on a job he brought, from day seven. #423 moved it here from
+                above the CV: nothing may stand between the bar and the page but the tabs. */}
+            {state.card.ageing && <p className="ageing">{state.card.ageing}</p>}
+            {/* #423: on a phone the rail sits under the CV — this takes him back up to the job. */}
+            <button type="button" className="link readjob" onClick={() => openJob("top")}>
+              {T36}
+            </button>
             {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
                 found job) stays — and says why in one line. Server-composed, reload-stable. */}
             {state.stayed && <p className="notice stayed">{state.stayed}</p>}
@@ -820,6 +904,7 @@ export default function TailorPage() {
               onEdit={toggleStretchEdit}
               onEditText={(text) => (editTextRef.current = text)}
               editButtonRef={editButtonRef}
+              onSeeInJob={() => openJob("line")}
             />
             {askError && !state.questions.length && (
               <p className="err" role="alert">

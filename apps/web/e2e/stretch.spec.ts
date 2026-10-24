@@ -603,3 +603,164 @@ test("#420 an emptied edit keeps the suggestion's wording and says so", async ({
   await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
   await expect(page.getByText("kept the suggested wording")).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------------------------------------
+// #423 — "Your CV | The job": the job's full text in place of the CV, each pending suggestion's
+// numeral on the job line it answers, the open one's line lit. Which line is the server's
+// (TailorRequirement.line, found from the reader's source words — tailor.test.ts pins that); the
+// stub carries it here. The text is long so a jump to a line has somewhere to scroll.
+// ---------------------------------------------------------------------------------------------
+
+const JOB_LINES = [
+  "Senior IT Project Manager — Atos",
+  "",
+  ...Array.from({ length: 30 }, (_, i) => `About the programme, part ${i + 1}: four European sites, one finance platform.`),
+  "",
+  "What you will do:",
+  "- Own a €2M budget across four European sites",
+  "- Move the finance platform onto their SAP version",
+  "- Deliver for public-sector clients",
+];
+const lineWith = (words: string) => JOB_LINES.findIndex((l) => l.includes(words));
+const LINE_WORDS: Record<string, string> = { budget: "€2M", sap: "SAP", public: "public-sector" };
+const JOB_STATE: TailorState = {
+  ...STATE,
+  card: { ...CARD, adExcerpt: JOB_LINES.join("\n") },
+  requirements: STATE.requirements.map((r) => ({ ...r, line: lineWith(LINE_WORDS[r.id]!) })),
+};
+const SEE = "See where the job asks this";
+
+test("#423 computer: on The job each pending suggestion's numeral sits on its line, the open one lit; Your CV keeps the preview", async ({ page }) => {
+  await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
+  const frame = page.locator(".draft-frame");
+  await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<ins>${S1.claimText}</ins>`));
+
+  await page.getByRole("tab", { name: "The job" }).click();
+  const job = page.getByRole("tabpanel", { name: "The job" });
+  const lines = job.locator(".jl");
+  await expect(lines).toHaveCount(JOB_LINES.length);
+  await expect(lines.nth(lineWith("SAP")).getByRole("button", { name: "Suggestion 1" })).toBeVisible();
+  await expect(lines.nth(lineWith("public-sector")).getByRole("button", { name: "Suggestion 2" })).toBeVisible();
+  await expect(job.getByRole("button", { name: /^Suggestion \d$/ })).toHaveCount(2); // the met budget line carries none
+  await expect(job.locator(".jl.hl")).toHaveCount(1);
+  await expect(lines.nth(lineWith("SAP"))).toHaveClass(/\bhl\b/);
+  await expect(lines.nth(lineWith("SAP"))).toContainText("Suggestion 1 answers this:");
+  // The open one is told apart by more than its colour.
+  await expect(job.getByRole("button", { name: "Suggestion 1" })).toHaveAttribute("aria-current", "true");
+  await expect(job.getByRole("button", { name: "Suggestion 2" })).not.toHaveAttribute("aria-current", /.*/);
+
+  // A numeral opens its suggestion, and the light moves with it.
+  await lines.nth(lineWith("public-sector")).getByRole("button", { name: "Suggestion 2" }).click();
+  await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
+  await expect(job.locator(".jl.hl")).toHaveCount(1);
+  await expect(lines.nth(lineWith("public-sector"))).toHaveClass(/\bhl\b/);
+
+  // Your CV brings the page back, previewing the open suggestion in place.
+  await page.getByRole("tab", { name: "Your CV" }).click();
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<ins>${S2.claimText}</ins>`));
+  await expect(job).toBeHidden();
+});
+
+test("#423 a suggestion whose requirement matches no job line shows no numeral and breaks nothing", async ({ page }) => {
+  const unmatched: TailorState = {
+    ...JOB_STATE,
+    requirements: JOB_STATE.requirements.map(({ line, ...r }) => (r.id === "public" ? r : { ...r, line })),
+  };
+  const posts = await openTailor(page, { stretch: RAN, tailor: unmatched });
+  // The matched one offers its line; the unmatched one does not.
+  await expect(page.getByRole("region", { name: "Suggestion 1 of 2" }).getByRole("button", { name: SEE })).toBeVisible();
+  await page.keyboard.press("j");
+  const second = page.getByRole("region", { name: "Suggestion 2 of 2" });
+  await expect(second).toBeVisible();
+  await expect(second.getByRole("button", { name: SEE })).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "The job" }).click();
+  const job = page.getByRole("tabpanel", { name: "The job" });
+  await expect(job.getByRole("button", { name: "Suggestion 1" })).toBeVisible();
+  await expect(job.getByRole("button", { name: "Suggestion 2" })).toHaveCount(0);
+  await expect(job.locator(".jl.hl")).toHaveCount(0); // the open one has no line to light
+  await expect(job.locator(".jl").nth(lineWith("public-sector"))).toHaveText(JOB_LINES[lineWith("public-sector")]!);
+  // …and it still answers like any other.
+  await page.keyboard.press("n");
+  await expect.poll(() => posts.answers).toEqual([{ id: S2.id, answer: "no" }]);
+});
+
+test("#423 phone (390px): numerals on The job; 'See where the job asks this' opens it at the lit line, 'Read the job' at the top", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  await card.getByRole("button", { name: SEE }).click();
+
+  await expect(page.getByRole("tab", { name: "The job", selected: true })).toBeVisible();
+  const lit = page.locator(".jobtext .jl.hl");
+  await expect(lit).toContainText("SAP");
+  await expect(lit).toBeFocused();
+  await expect(lit).toBeInViewport();
+  await expect(page.getByRole("tablist", { name: "What to show" })).not.toBeInViewport(); // it really scrolled
+  await expect(lit.getByRole("button", { name: "Suggestion 1" })).toBeVisible();
+  const second = page.locator(".jobtext .jl").nth(lineWith("public-sector")).getByRole("button", { name: "Suggestion 2" });
+  await expect(second).toBeInViewport(); // on its own line, at this width too
+  await expect(page.locator(".jobtext .jl.hl")).toHaveCount(1);
+
+  await page.getByRole("tab", { name: "Your CV" }).click();
+  await page.getByRole("button", { name: "Read the job" }).click(); // in the rail, under the CV
+  const jobTab = page.getByRole("tab", { name: "The job", selected: true });
+  await expect(jobTab).toBeFocused();
+  await expect(jobTab).toBeInViewport();
+  await expect(page.locator(".jobtext .jt-title")).toBeInViewport();
+});
+
+test("#423 computer: no 'Read the job' beside the page — the tabs are the way to the job", async ({ page }) => {
+  await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
+  await expect(page.getByRole("tab", { name: "The job" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Read the job" })).toBeHidden();
+});
+
+test("#423 keyboard: the tabs are reached by Tab and announced, arrows switch them, and U/T/N/E/Esc still work on Your CV", async ({ page }) => {
+  const posts = await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
+  const cvTab = page.getByRole("tab", { name: "Your CV" });
+  const jobTab = page.getByRole("tab", { name: "The job" });
+  await expect(page.getByRole("heading", { name: CARD.title })).toBeFocused();
+  await page.keyboard.press("Tab"); // "Where you fit"
+  await page.keyboard.press("Tab");
+  await expect(cvTab).toBeFocused();
+  await expect(page.getByRole("tablist", { name: "What to show" }).getByRole("tab", { selected: true })).toHaveText("Your CV");
+
+  await page.keyboard.press("ArrowRight");
+  await expect(jobTab).toBeFocused();
+  await expect(jobTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel", { name: "The job" })).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  await expect(cvTab).toBeFocused();
+  await expect(page.locator(".draft-frame")).toBeVisible();
+
+  // E from The job brings the CV back: the line is edited where it stands. Esc ends it.
+  await jobTab.click();
+  await page.keyboard.press("e");
+  await expect(cvTab).toHaveAttribute("aria-selected", "true");
+  const line = page.frameLocator(".draft-frame").locator("ins");
+  await expect(line).toHaveAttribute("contenteditable", "true");
+  await line.press("Escape");
+  await expect(line).not.toHaveAttribute("contenteditable", "true");
+
+  // Esc closes the card; J opens the first again. N answers it, U the next, and after an Undo, T.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("region", { name: /Suggestion \d of 2/ })).toHaveCount(0);
+  await page.keyboard.press("j");
+  await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible();
+  await page.keyboard.press("n");
+  await expect.poll(() => posts.answers).toEqual([{ id: S1.id, answer: "no" }]);
+  await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
+  await page.keyboard.press("u");
+  await expect.poll(() => posts.answers).toHaveLength(2);
+  await page.getByRole("region", { name: "Ready to send" }).getByRole("button", { name: "Undo" }).last().click();
+  await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
+  await page.keyboard.press("t");
+  await expect.poll(() => posts.answers).toEqual([
+    { id: S1.id, answer: "no" },
+    { id: S2.id, answer: "use" },
+    { id: S2.id, answer: "undo" },
+    { id: S2.id, answer: "true" },
+  ]);
+});

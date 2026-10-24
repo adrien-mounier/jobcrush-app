@@ -632,21 +632,106 @@
 .tailor .paper-col {
   min-width: 0;
 }
-/* #411: under the header the breakdown opens the column, so the card-foot rule and gap it carries
-   on the deck (deck.css) come off; capped so four cells don't stretch across a 720px paper. */
-.tailor .paper-col .breakdown {
-  margin: 0 0 18px;
-  padding-top: 0;
-  border-top: 0;
-  max-width: 480px;
+/* #423: "Your CV | The job" over the page (the prototype's segmented control). */
+.tailor .tabs {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 3px;
+  border: 1px solid var(--hud-line);
+  border-radius: 10px;
+  background: var(--hud-1);
 }
-/* #411: the ageing line, when there is one, opens the column; the card's folded ad follows the
-   breakdown with its own hairline, and the draft follows the ad. */
-.tailor .paper-col .ageing {
-  margin: 0 0 14px;
+.tailor .tabs button {
+  appearance: none;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--hud-mute);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
-.tailor .paper-col details.ad {
-  margin: 0 0 18px;
+.tailor .tabs button[aria-selected="true"] {
+  background: var(--hud-2);
+  color: var(--hud-ink);
+}
+/* #423: the job in full — a dark panel (it is not the printed page), one block per line of its
+   text so the line breaks hold; the left gutter carries the suggestion numerals. */
+.tailor .jobtext {
+  padding: 28px 36px 32px 12px;
+  border: 1px solid var(--hud-line);
+  border-radius: 10px;
+  background: var(--hud-1);
+  color: #c9d1da;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.tailor .jobtext .jt-title,
+.tailor .jobtext .jt-meta,
+.tailor .jobtext .jl {
+  margin: 0;
+  padding-left: 30px;
+}
+.tailor .jobtext .jt-title {
+  color: var(--hud-ink);
+  font-size: 15px;
+  font-weight: 620;
+}
+.tailor .jobtext .jt-meta {
+  margin-bottom: 14px;
+  color: var(--hud-mute);
+  font-size: 12.5px;
+}
+.tailor .jobtext .jl {
+  position: relative;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tailor .jobtext .jl:empty {
+  min-height: 0.8em;
+}
+/* The open suggestion's line, lit; the highlight is the focus mark when a jump lands on it. */
+.tailor .jobtext .jl.hl {
+  color: var(--hud-ink);
+  background: rgba(232, 234, 237, 0.08);
+  box-shadow: 0 0 0 5px rgba(232, 234, 237, 0.08);
+  border-radius: 3px;
+  outline: none;
+}
+.tailor .jobtext .pins {
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tailor .jobtext .pins .num {
+  padding: 0;
+  background: none;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.tailor .num.idle {
+  border-color: #4d5865;
+  color: var(--hud-mute);
+}
+.tailor .stretch-card .jlink {
+  display: block;
+  margin: 2px 0 0 30px;
+  font-size: 12.5px;
+  white-space: normal;
+  text-align: left;
+}
+.tailor .rail .readjob {
+  align-self: flex-start;
+}
+.tailor .rail .ageing {
+  margin: 0;
 }
 .tailor .rail {
   display: flex;
@@ -1070,8 +1155,43 @@
     position: sticky;
     top: 0;
   }
+  /* #423: on a computer the tabs sit beside the rail; the phone's way back up is not needed. */
+  .tailor .rail .readjob {
+    display: none;
+  }
 }
 @media (max-width: 959px) {
+  /* #423 (supersedes #422): the phone bar is one line — the title cut short with an ellipsis (it
+     reads in full on The job), the company under it, no tagline, a smaller ring. */
+  .tailor .dbar {
+    gap: 12px;
+    padding: 8px 16px;
+  }
+  .tailor .dbar h1,
+  .tailor .dbar .co {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tailor .dbar h1 {
+    font-size: 14px;
+  }
+  .tailor .dbar .tagline {
+    display: none;
+  }
+  .tailor .dbar .score.lg {
+    width: 44px;
+    height: 44px;
+  }
+  .tailor .dbar .score .n {
+    font-size: 14px;
+  }
+  .tailor .dbar .link {
+    font-size: 12.5px;
+  }
+  .tailor .jobtext {
+    padding: 18px 16px 20px 6px;
+  }
   .tailor .sheet {
     top: auto;
     left: 0;

@@ -55,9 +55,9 @@ function matchQuality(pct: number): { label: string; grade: "strong" | "partial"
   return { label: "Weak", grade: "weak" };
 }
 
-// #411: exported for the Tailor screen's draft frame, which places it under the header rather than
-// at the card's foot. The deck card and the job's own screen keep it last (CardBody below).
-export function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
+// The card's foot on the deck and the job's own screen (CardBody below). #423 took it off the Tailor
+// draft screen, where #411 had placed it under the header.
+function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
   // #117: null on a pending card — nothing to render yet. This narrows `card` itself (breakdown is
   // `MatchBreakdown` on one union member, `null` on the other), so `card.matchPct` below is a plain
   // number, not `number | null` — no `!`/`as` needed.
@@ -226,9 +226,9 @@ function rowClass(kind: "fit" | "open" | "settled", id: string, landedId?: strin
   return id === landedId ? `row ${kind} landed` : `row ${kind}`;
 }
 
-// #411: "Read the ad in full" is its own component so the Tailor screen's draft frame shows the
-// card's own control, not a copy (CardBody below renders it in the card's place).
-export function AdInFull({ card }: { card: JobCard }) {
+// "Read the ad in full", in the card's place (CardBody below). #423: the Tailor draft screen shows
+// the job in full on its own "The job" tab instead (tailor/job.tsx).
+function AdInFull({ card }: { card: JobCard }) {
   // #117b (design §11.6): unscored starts unfolded — it's the only substantive content that card
   // will ever have — and then the visitor's own toggle sticks; nothing may force it shut again.
   // Initial-only by design: this must NOT depend on `card.scored` on every render, or a card that

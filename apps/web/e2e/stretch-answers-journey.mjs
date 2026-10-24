@@ -2,8 +2,9 @@
 // (qa-main's fake model; no ANTHROPIC_API_KEY). stretch-use-journey.mjs owns Use + Edit at a
 // computer; this one walks every OTHER answer, both widths, and the cross-screen numbers:
 //
-//   COMPUTER (1280px), job A: the draft first, no requirement question → the Match breakdown under
-//   the header, above "Read the ad in full" (#411) → "Also asked, not on your CV" (no button) →
+//   COMPUTER (1280px), job A: the draft first, no requirement question → only "Your CV | The job"
+//   between the header and the page (#423) → The job: the job's text line for line, each pending
+//   suggestion's numeral on its line, the open one lit → "Also asked, not on your CV" (no button) →
 //   "Where you fit" as a side sheet, in the job's order → suggestion 1 previewed in place, the other
 //   a margin numeral → Edit wording, emptied: the wording is kept and the card says so (#420) →
 //   "It's true" on its own row → a toast with Undo → Undo is quiet → It's true again (key T) →
@@ -13,8 +14,9 @@
 //   with the line it pushed out still there.
 //
 //   PHONE (390px), job B — a job he PASTES (a found job has no screen of its own): its screen →
-//   Write the tailored CV → the draft first, the breakdown heading the column → one suggestion at a
-//   time, answers stacked, "Skip the rest" → Edit wording on the card (E / Esc), what to say
+//   Write the tailored CV → the draft first, only the tabs above it, the top bar one line (#423) →
+//   one suggestion at a time, "See where the job asks this" opening The job at its lit line, answers
+//   stacked, "Skip the rest" → Edit wording on the card (E / Esc), what to say
 //   rewritten → No (key N) → job A's used-for-this-job skill is not on job B's CV → Use on the next
 //   → the job's own screen shows the Tailor screen's % and "met by a stretch" → "Ready to send" →
 //   "Where you fit" as a pull-up → Approve.
@@ -38,12 +40,11 @@ const pct = async () => Number((await page.locator('.dbar .score').getAttribute(
 const src = () => page.locator('.draft-frame').getAttribute('srcdoc');
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const rect = (l) => l.evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom, right: r.right }; });
-/** The paper column's blocks in page order (it scrolls under a sticky header, so order, not y). */
+/** The paper column's shown blocks in page order (it scrolls under a sticky header, so order, not y). */
 const paperOrder = () =>
   page.locator('.paper-col').evaluate((col) =>
-    [...col.querySelectorAll('.ageing, .breakdown, .draft-frame, details, summary, button')]
-      .map((el) => (el.matches('.ageing') ? 'ageing' : el.matches('.breakdown') ? 'breakdown' : el.matches('.draft-frame') ? 'draft' : /Read the ad in full/.test(el.textContent) ? 'ad-in-full' : null))
-      .filter((v, i, a) => v && a.indexOf(v) === i));
+    [...col.children].filter((el) => !el.hidden).map((el) =>
+      el.matches('[role=tablist]') ? 'tabs' : el.querySelector('.draft-frame') ? 'draft' : el.matches('.breakdown') ? 'breakdown' : el.matches('details') ? 'ad-in-full' : el.className || el.tagName));
 /** Watches for the toast for `ms`: when it first showed, its text, how long it stayed. */
 const watchToast = (ms) =>
   page.evaluate(async (ms) => {
@@ -129,16 +130,32 @@ await qa.note(`job A ${adA}: ${stA.card.matchPct}% · requirements ${JSON.string
 const oldAnswer = await page.evaluate(async (id) => (await fetch('/api/onboarding/tailor/answer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requirementId: id, answer: 'yes' }) })).status, stA.requirements[0]?.id);
 await assert(oldAnswer === 404, `#415: the requirement answer route is gone (HTTP ${oldAnswer})`);
 
-// #411: the Match breakdown under the header, above "Read the ad in full", above the draft.
-const adBtn = page.locator('.paper-col').getByText('Read the ad in full', { exact: true }).first();
-await qa.expectVisible(page.locator('.paper-col .breakdown'), '#411: the Match breakdown on the Tailor screen');
+// #423: only "Your CV | The job" between the header and the page — #411's breakdown and folded ad
+// are gone from this screen.
 const colOrder = await paperOrder();
 await qa.note(`the paper column under the header, top to bottom: ${colOrder.join(' → ')}`);
-await assert(colOrder[0] === 'breakdown' && colOrder[1] === 'ad-in-full' && colOrder[2] === 'draft',
-  '#411: under the header the Match breakdown, then Read the ad in full, then the draft');
-await qa.expectVisible(adBtn, '#411: "Read the ad in full" is kept on the Tailor screen, under the breakdown');
-await assert((await page.locator('.paper-col .ageing').count()) === 0, 'no ageing line on a job found today (it shows only for a pasted job from day seven)');
+await assert(colOrder.join(' → ') === 'tabs → draft', '#423: under the header only the tabs, then the CV page');
+await assert((await page.locator('.tailor .breakdown, .tailor details.ad').count()) === 0, '#423: no Match breakdown and no "Read the ad in full" on the Tailor screen');
+await assert((await page.locator('.tailor .ageing').count()) === 0, 'no ageing line on a job found today (it shows only for a pasted job from day seven)');
 await qa.scrollThrough('read the draft page top to bottom');
+
+// #423: The job — the job's text line for line; each pending suggestion with a job line carries its
+// numeral there, and the open one (the first pending) is lit.
+const viewA0 = await api('/api/onboarding/tailor/draft');
+const pendingA = (viewA0.stretch?.suggestions ?? []).filter((s) => s.state === 'pending');
+const lineOfA = (s) => stA.requirements.find((r) => r.id === s.requirementId)?.line;
+const markedA = pendingA.filter((s) => lineOfA(s) !== undefined);
+await qa.click(page.getByRole('tab', { name: 'The job' }), 'open "The job"');
+const linesA = await page.locator('.jobtext .jl').count();
+await assert(linesA === stA.card.adExcerpt.split('\n').length, `#423: The job shows the job's text line for line (${linesA} lines)`);
+const pinsA = await page.locator('.jobtext .pins .num').count();
+await qa.note(`#423 The job: ${pinsA} numerals for ${pendingA.length} pending suggestions, ${markedA.length} of them with a job line`);
+await assert(markedA.length > 0, `#423: at least one pending suggestion has a job line to mark (${markedA.length}) — else the checks below are vacuous`);
+await assert(pinsA === markedA.length, `#423: a numeral on the line of each pending suggestion that has one (${pinsA}/${markedA.length})`);
+await assert((await page.locator('.jobtext .jl.hl').count()) === (lineOfA(pendingA[0] ?? {}) !== undefined ? 1 : 0), "#423: the open suggestion's line is lit");
+await qa.scrollThrough('read the job in full');
+await qa.click(page.getByRole('tab', { name: 'Your CV' }), 'back to "Your CV"');
+await qa.expectVisible('.draft-frame', '#423: Your CV brings the page back');
 
 // "Also asked, not on your CV": the gap rows, in the job's order, with no button.
 const gapsA = stA.requirements.filter((r) => r.state === 'gap').map((r) => r.text);
@@ -365,10 +382,18 @@ await qa.expectVisible('.draft-frame', 'JOB B (phone): the draft first');
 const stB = await api('/api/onboarding/tailor');
 await qa.note(`job B ${stB.card.adId}: ${stB.card.matchPct}% · ${JSON.stringify(stB.requirements.map((r) => `${r.state}: ${r.text}`))}`);
 const colB = await paperOrder();
-await assert(colB[0] === 'breakdown' || (colB[0] === 'ageing' && colB[1] === 'breakdown'), `#411 on the phone: the breakdown heads the column (${colB.join(' → ')})`);
+await assert(colB.join(' → ') === 'tabs → draft', `#423 on the phone: only the tabs above the CV page (${colB.join(' → ')})`);
+const barB = await rect(page.locator('.tailor .dbar'));
+await assert(barB.h <= 64, `#423: the phone top bar is one line high (${Math.round(barB.h)}px)`);
 const cardB = page.locator('.stretch-card');
 await cardB.waitFor({ state: 'visible', timeout: 90_000 }).catch(() => {});
 await qa.expectVisible(cardB, 'a suggestion card under the draft');
+// #423: a pasted job's suggestion offers its job line (the canned reader quotes the advert's bullet).
+await qa.click(cardB.getByRole('button', { name: 'See where the job asks this' }), '#423: "See where the job asks this"');
+const litB = page.locator('.jobtext .jl.hl');
+await qa.expectVisible(litB, '#423: The job opens, the line this suggestion answers lit');
+await assert(await litB.evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), '#423: the lit line is on the screen');
+await qa.click(page.getByRole('tab', { name: 'Your CV' }), 'back to "Your CV"');
 await assert((await page.locator('.stretch-card').count()) === 1, 'one suggestion at a time');
 const buttons = cardB.locator('.acts button');
 const rs = [];

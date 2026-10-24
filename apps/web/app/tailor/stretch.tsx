@@ -58,6 +58,8 @@ const E2 = "Done editing";
 const E3 = "We will rewrite this to match your wording.";
 const E4 = "An empty line cannot go on your CV, so we kept the suggested wording.";
 const E5 = "We could not save your wording just now. Try again.";
+// #423: the open suggestion's line on "The job" tab — offered only when the server found that line.
+const J1 = "See where the job asks this";
 
 export const STRETCH_COPY = { K2, K3, F1, F2, K19, K21 };
 
@@ -104,6 +106,8 @@ export interface StretchCardsProps {
   onEdit: (id: string) => void;
   onEditText: (text: string) => void;
   editButtonRef: RefObject<HTMLButtonElement | null>;
+  /** #423: opens "The job", scrolled to the open suggestion's line. */
+  onSeeInJob: () => void;
 }
 
 /** The pending suggestions, in list order — the one open, and the way J/K/N move. */
@@ -136,6 +140,7 @@ export function StretchCards({
   onEdit,
   onEditText,
   editButtonRef,
+  onSeeInJob,
 }: StretchCardsProps) {
   // #420: on a phone the edit happens on the card's own line; on a computer, on the draft (draft.tsx).
   const lineRef = useRef<HTMLModElement>(null);
@@ -196,6 +201,11 @@ export function StretchCards({
           </span>
           {text(open)}
         </h2>
+        {requirements.find((r) => r.id === open.requirementId)?.line !== undefined && (
+          <button type="button" className="link jlink" onClick={onSeeInJob}>
+            {J1}
+          </button>
+        )}
         <p className="swhy">{open.why}</p>
         {/* The swap, in the card — a phone has no in-place preview (the frame is above the rail). */}
         <div className="clip">

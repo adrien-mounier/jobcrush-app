@@ -169,6 +169,45 @@ describe("#415 buildTailorState.requirements — every requirement of the job, i
   });
 });
 
+// --- #423: "The job" tab marks the line each suggestion answers ------------------------------------
+
+describe("#423 buildTailorState.requirements[].line — the job line a requirement was drawn from", () => {
+  const lineOfEach = (excerpt: string) =>
+    buildTailorState({ ...POSTING, excerpt }, AD, [], [], judgement({})).requirements.map((r) => r.line);
+
+  it("is found from the reader's stored source words, as an index into the card's text split on line breaks", () => {
+    const excerpt = [
+      "Senior Project Manager",
+      "",
+      "What you will do:",
+      "- OWN a project budget, with vendor oversight.", // case, punctuation and the bullet differ
+      "- Lead a cross-functional", // the source words run on to the next line
+      "  delivery team",
+      "Nice to have: a PM certificate.", // the certification's source words are on no line
+    ].join("\n");
+    expect(lineOfEach(excerpt)).toEqual([3, 4, undefined]);
+    const state = buildTailorState({ ...POSTING, excerpt }, AD, [], [], judgement({}));
+    expect(state.card.adExcerpt.split("\n")[3]).toBe("- OWN a project budget, with vendor oversight.");
+  });
+
+  it("a line holding all the source words wins over an earlier line they only start with", () => {
+    const excerpt = ["Own a project budget", "", "- Own a project budget with vendor oversight"].join("\n");
+    expect(lineOfEach(excerpt)[0]).toBe(2);
+    // …and with no such line, the line they start with is the one — the longest, never a short
+    // heading the quote happens to open with.
+    expect(lineOfEach("Own a project budget\nwith vendor oversight")[0]).toBe(0);
+    expect(lineOfEach("Own\n\n- Own a project budget with\n  vendor oversight")[0]).toBe(2);
+  });
+
+  it("an empty or punctuation-only line never matches, and neither does a part-word", () => {
+    expect(lineOfEach("•\n\n—\nOwn a project budge\nWe disown a project budget with vendor oversights")).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+});
+
 // --- routes ---
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -284,7 +323,11 @@ describe("#23 GET /onboarding/tailor", () => {
     });
 
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(state.requirements.find((r: { id: string }) => r.id === req.id)).toEqual({ id: req.id, text: req.requirement, state: "gap" });
+    // #423: over the wire too, the row names the line of the job's text its source words came from
+    // (this fixture quotes its line verbatim, so it is the first line holding the quote).
+    const line = (state.card.adExcerpt as string).split("\n").findIndex((l) => l.includes(req.sourceSpan));
+    expect(line).toBeGreaterThan(-1);
+    expect(state.requirements.find((r: { id: string }) => r.id === req.id)).toEqual({ id: req.id, text: req.requirement, state: "gap", line });
     expect(state.card.askedClosed.map((f: { id: string }) => f.id)).toContain(tailorClaimId(VALID_AD_ID, req.id));
     expect(state.card.dontYet.map((r: { id: string }) => r.id)).not.toContain(req.id);
     expect(JSON.stringify(state)).not.toContain("Changed? Add it");

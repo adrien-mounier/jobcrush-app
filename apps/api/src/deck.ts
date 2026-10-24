@@ -1218,6 +1218,30 @@ export interface TailorRequirement {
   /** #418: `stretched` is met by a stretch the person used for this job (ADR-0020 clause 4) — the
    *  card's fit row carries the same flag, so the sheet and the card cannot disagree. */
   state: "met" | "stretched" | "gap" | "untested";
+  /** #423: which line of the job's text (`card.adExcerpt` split on "\n") this requirement was drawn
+   *  from — the "The job" tab puts a suggestion's numeral there. Absent when no line holds it. */
+  line?: number;
+}
+
+const plainWords = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/** #423: the line the reader's stored source words (`sourceSpan`, quoted verbatim) came from —
+ *  compared word by word, so case, punctuation and a bullet mark don't matter. The line holding all
+ *  of them wins; failing that, the longest line they start with (a quote that runs on to the next
+ *  line — the longest, so a one-word heading the quote happens to open with never takes it).
+ *  ponytail: a quote the reader paraphrased finds no line and the requirement goes unmarked; match
+ *  on the requirement's own words too if that turns out common. */
+function jobLineOf(lines: string[], sourceSpan: string): number | undefined {
+  const span = plainWords(sourceSpan);
+  if (!span) return undefined;
+  const words = lines.map(plainWords);
+  const holds = words.findIndex((line) => ` ${line} `.includes(` ${span} `));
+  if (holds !== -1) return holds;
+  let starts: number | undefined;
+  words.forEach((line, i) => {
+    if (line !== "" && span.startsWith(`${line} `) && (starts === undefined || line.length > words[starts]!.length)) starts = i;
+  });
+  return starts;
 }
 
 /** This session's tailor target, resolved to its posting + requirements — or null if either is no
@@ -1302,6 +1326,7 @@ export function buildTailorState(
   const met = new Set(card.fit.map((f) => f.id));
   const stretched = new Set(card.fit.filter((f) => f.stretched).map((f) => f.id));
   const untested = new Set((card.notTested ?? []).map((r) => r.id));
+  const lines = card.adExcerpt.split("\n");
   const requirements = adReq.requirements.map((r) => ({
     id: r.id,
     text: r.requirement,
@@ -1312,6 +1337,7 @@ export function buildTailorState(
         : untested.has(r.id)
           ? ("untested" as const)
           : ("gap" as const),
+    line: jobLineOf(lines, r.sourceSpan),
   }));
 
   return {

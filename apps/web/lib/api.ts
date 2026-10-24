@@ -455,6 +455,9 @@ export interface TailorRequirement {
   text: string;
   /** #418: `stretched` is met by a stretch the person used for this job (ADR-0020 clause 4). */
   state: "met" | "stretched" | "gap" | "untested";
+  /** #423: the line of `card.adExcerpt` (split on "\n") this requirement was drawn from — where
+   *  "The job" tab puts a suggestion's numeral. Absent when no line holds it. Server-found. */
+  line?: number;
 }
 
 export interface TailorState {
