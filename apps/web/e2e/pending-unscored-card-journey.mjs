@@ -292,10 +292,12 @@ if (reachedUnscored) {
   const loading = await page.locator(".loadstate").first().textContent().catch(() => null);
   await qa.note(`tailor loading line while the cold judgement runs: "${(loading || "").trim()}"`);
   const tCard = Date.now();
-  await page.locator(".live-card, .jobcard").first().waitFor({ state: "visible", timeout: 180_000 }).catch(() => {});
-  await qa.note(`the tailored card appeared ${((Date.now() - tCard) / 1000).toFixed(1)}s after landing on /tailor · ` +
+  // Spec #412 (#415, #411): the Tailor screen no longer carries the job card; the draft is the page,
+  // under the job's score and its Match breakdown.
+  await page.locator(".draft-frame").first().waitFor({ state: "visible", timeout: 180_000 }).catch(() => {});
+  await qa.note(`the tailored draft appeared ${((Date.now() - tCard) / 1000).toFixed(1)}s after landing on /tailor · ` +
     `${((Date.now() - tWant) / 1000).toFixed(1)}s total from the swipe`);
-  await qa.expectVisible(".live-card, .jobcard", "the tailor screen renders a real card — the visitor never saw a blank screen");
+  await qa.expectVisible(".draft-frame", "the tailor screen renders the draft — the visitor never saw a blank screen");
   await qa.scrollThrough("read the tailored job the way the visitor would");
 }
 
