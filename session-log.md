@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-24 — #428 shipped: the Tailor step's CV and its suggestions arrive at once (e2920ec)
+
+Owner's re-proof (`+test6`): a deck job's Tailor step showed the CV, then ~40 s later a closed "Ready to send" panel, every suggestion "Not answered, left out"; he read it as no suggestions. The staging log showed the step had run. Cause: #418 showed the draft on "suggesting" and reported "running", which spent the page's once-only auto-open; a failed step spent it too, so "Look again" also landed closed.
+- Owner's call: the CV and its suggestions arrive at once. The wait screen holds until the job completes, the "running" rail state is gone, and only a view that ran spends the auto-open.
+- No test saw it: mocked specs answer at once, and qa-main's fake finishes before the stream connects (lesson added). Two specs red on the old code, green now; QA **GO** on tree fc86206 (live with the step held 15 s: 45/45).
+- Also on the run: the stretch call retried once (#427); ~1 min of Anthropic "credit balance too low" just before (recovered by itself; owner to check billing).
+- Filed #427, #429 (Look again keeps the old failure message beside the wait screen), #430 (a stretch delay in qa-main; #428's journey into tier 2).
+**Next:** CI → staging; the owner resumes the re-proof.
+
 ## 2026-10-24 — #425 shipped: a job that needs a language you don't have leaves the deck (c74cb64)
 
 `/implement 425` (Opus 5.5). A required language must be on the CV (any line not rejected, printed or not) or the profile, or the job leaves the deck. The reveal names each language with its count and "Yes, I speak <X>" (`POST /review/languages/spoken`), also on the empty and widened decks. "I don't speak this one" still wins over the CV; pasted jobs never leave.
@@ -81,15 +90,3 @@ CI green on c5c867e (run 39718932472): live on staging. Owner asked for the test
 `/implement-spec #301` (Fable 5.1, medium): four implementers in worktrees on `spec-301-finish`, no conflicts. **#400** the paste door no longer ships "Title not stated": the reader works the title out from the text (`titleSource`), the paste pauses at "We think this job is called … Is that right?" (prefilled) or "What is the job called?" (empty) and nothing is stored until he answers — the job id is built from the title, so asking after storing was impossible (`POST /onboarding/paste/:jobId/title`; in-memory park, 404 → the failed-read screen that keeps his text). **#397** one job, one number: the card prints the raw judged tick on every screen; the #222/#285 confidence × closeness weakening is now `rankAttenuation`, a deck-ordering weight only (ADR-0014 decision 5 annotated; the deck's visible numbers rise for uncertain jobs). **#401** a denied requirement is handed its nearby fact like an open one (the code path already did; the prompt and tests did not), an unplaceable job says "Job location unknown…", the notices sit under the attachment line before section 1. **#399** a language is prose in the summary, never "English (Fluent)" (non-fatal lint + rule 10); the summary never repeats a role bullet (prompt rule; brain updated). `/code-review`: two hard (route response schema, "read" as a noun on screen) and one real defect — the title question had the paste page's 3-minute watchdog on it; all fixed (3fb5389) plus the placeholder rejected mechanically and dead `attenuateForConfidence` deleted. QA **GO** on tree dda4129: api 2152, typecheck 7/7, mocked 267/267, `spec-301-finish-journey.mjs` 63/63 (QA-gate-born, committed, not in tier 2 — needs a mail recorder for its email checks), report journey 31/31 with the email bodies, paste door 34/34.
 **Known:** `industry-years-bar-journey.mjs` fails 11 checks on this Windows machine at the check-mode market screen on `main` too (A/B 2026-10-21); it is green in CI, which gives its rewritten #397 steps their first run. One old staging record (the GRADION paste) still carries "Title not stated"; pasting the same text reuses it — delete or retitle it on staging before the re-proof.
 **Next:** CI → staging; `/implement #398` (Opus 5.5, medium); one real report on staging → `/qa-gate` GO on the whole journey; then Chat with JobCrush (#350).
-
-## 2026-10-21 — Owner: finish v1 before the chat; #400 and #401 decided
-
-No code. The owner moves Chat with JobCrush (#350) after v1. Decisions:
-- #400: the advert reader works the title out and the person confirms it or types their own (comment on #400).
-- #401 is filed under #301 and carries #315's three open calls:
-  - a denied requirement gets a nearest-true sentence;
-  - a market the lookup can't place gets "Job location unknown";
-  - the "Check before you send the CV:" notices move to the top of the email.
-
-#398 is not under #301, so it runs on its own.
-**Next:** `/implement-spec #301` (Fable 5.1, medium), then `/implement #398` (Opus 5.5, medium), then one real staging report → `/qa-gate` GO.

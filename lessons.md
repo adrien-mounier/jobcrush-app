@@ -134,6 +134,13 @@ never exercises the fake model either — CI now asserts `/qa/llm-calls` stays z
 journeys (`*-journey.mjs`) and a browser witness the wire: `useParams` double-encoding killed every
 paste behind 1,721 green tests; a v2 contract 400'd on Save while `pnpm test` was green.
 
+### A fast fake never shows the screen's in-between states
+#428 lived between a job stream's "suggesting" and "completed" messages. Every mocked spec answered the
+draft at once, and qa-main's fake stretch step finishes before the browser's stream connects, so 24
+specs and 19 journeys passed while the owner's real run, about 40 s per step, broke. A screen that
+acts on more than one stream message needs a test that holds the stream between them: a held route
+in a spec (`stretch.spec.ts`, "arrive at once"), or a delay setting on the fake (#430).
+
 ### A journey in no tier rots silently — four occurrences
 The eligibility journey (#205), master-cv (#209), the S2 loop spec (#271) and the industry journeys
 (#282) each looked healthy because nothing ran them; an asset in no tier fails at exactly the rate

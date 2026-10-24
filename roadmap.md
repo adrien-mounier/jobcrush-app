@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-24 (#425, the language rule, shipped; the owner's re-proof is next)_
+_Last updated: 2026-10-24 (#428, found on the owner's re-proof, shipped; the re-proof resumes)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -30,14 +30,17 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
    confirm one call it made: a job asking for "Chinese" counts as met by Mandarin or Cantonese.
 3. **Owner:** one more real report on staging, on a fresh account. Sign in as
    `adrien.mounier91+test1@gmail.com` in a private window; any new address is a new, empty account,
-   so #345 is not needed for this.
+   so #345 is not needed for this. In progress on `+test6`: it found ~~#428~~ (e2920ec; the CV and
+   its suggestions now arrive at once), so the run resumes once that is live.
 4. **Agent:** `/qa-gate` GO on the whole journey (Opus 5.5).
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
   Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
   Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low) · #426 a CV
-  line naming two languages at two levels (Opus 5.5, low).
+  line naming two languages at two levels (Opus 5.5, low) · #427 log why the stretch step's first
+  answer is refused · #429 "Look again" keeps the old failure message beside the wait screen (both
+  Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
@@ -74,6 +77,7 @@ first candidates #171, #168, #203) or when real visitors return, and then #288 g
 ## Live risks / ops notes
 
 - **Techmap quota:** 100 calls/month, not 1000 (81 left on 2026-10-10) → #366.
+- **Anthropic credit:** on 2026-10-24 (21:15–21:16 UTC) staging's calls were refused for "credit balance too low" for about a minute, then recovered. The owner is to check billing and auto-reload; at zero, every AI step fails.
 - **CI minutes:** solved 2026-10-08, repo made public (free Actions minutes). Nothing secret goes in a tracked file.
 - **Real visitors gate:** #288 (sign-in refusal reads as a crash) and #298 (warm machine, $7.23/month) un-park before anyone but the owner is let in.
 - **Stretch rewrites are capped at 200 per session** (failed calls count too; raised from 20 on the owner's call, 2026-10-24, since a session lasts for the life of the account): at most ~$1.60, or ~$3.20 if every call fails and retries. The FactBadge chip has no live surface since #415 removed the yes/no queue.
