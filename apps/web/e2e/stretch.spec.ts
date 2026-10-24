@@ -407,24 +407,53 @@ test("#418 the job's own screen labels a requirement met by a stretch", async ({
   await expect(page.locator('.row.fit[data-req="budget"]')).not.toContainText("Met by a stretch");
 });
 
-test("#418 (ADR-0020): while the stretch step runs the finished draft is already the page; the rail says it is looking", async ({ page }) => {
+test("the CV and its suggestions arrive at once: the wait screen stays while the stretch step runs, then the first suggestion is open", async ({ page }) => {
+  // The owner's staging run (2026-10-24): the draft showed while the step ran, then the suggestions
+  // landed already closed — "Ready to send", every one "Not answered, left out".
+  const state: { stretch: StretchView } = { stretch: null };
+  let reads = 0;
+  let streams = 0;
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/sessions/me", (route) => route.fulfill({ json: { ok: true } }));
   await page.route("**/api/onboarding/tailor", (route) => route.fulfill({ json: STATE }));
   await page.route("**/api/onboarding/tailor/draft**", async (route) => {
     if (route.request().method() === "POST") return route.fulfill({ status: 202, json: { jobId: "draft-job-418" } });
-    // The draft is checkpointed before the step runs: the read returns it, with no suggestions yet.
-    await route.fulfill({ json: view(null, null) });
+    reads += 1;
+    const open = new URL(route.request().url()).searchParams.get("open");
+    await route.fulfill({ json: view(state.stretch, open) });
   });
+  // The first stream says the step is running and ends (the browser reconnects after `retry`); the
+  // second is held until the test lets the step finish.
   await page.route("**/api/jobs/draft-job-418/events", async (route) => {
-    const snapshot = { id: "draft-job-418", status: "running", error: null, progress: { tailorDraft: { step: "suggesting" } } };
-    await route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify(snapshot)}\n\n` });
+    streams += 1;
+    const snapshot = (status: string, progress: object) => JSON.stringify({ id: "draft-job-418", status, error: null, progress });
+    if (streams === 1)
+      return route.fulfill({ contentType: "text/event-stream", body: `retry: 100\ndata: ${snapshot("running", { tailorDraft: { step: "suggesting" } })}\n\n` });
+    await released;
+    state.stretch = RAN;
+    await route.fulfill({ contentType: "text/event-stream", body: `data: ${snapshot("completed", { tailorDraft: { ready: true } })}\n\n` });
   });
   await page.goto("/tailor");
+  await expect.poll(() => streams).toBe(2); // "suggesting" was seen
+  await expect(page.locator(".draft-wait-line")).toBeVisible();
+  await expect(page.locator(".draft-frame")).toHaveCount(0);
+  expect(reads).toBe(0); // nothing of the draft was read before the step finished
+
+  release();
+  await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible();
   await expect(page.locator(".draft-frame")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Approve and email me this CV" })).toBeVisible();
-  const rail = page.locator(".tailor .rail");
-  await expect(rail.getByRole("status")).toContainText("Looking for ways to stretch it for this job");
-  await expect(page.locator(".draft-wait-line")).toHaveCount(0); // the wait screen is gone
+  await expect(page.getByRole("region", { name: "Ready to send" })).toHaveCount(0);
+});
+
+test("Look again after a failed step opens the first suggestion it finds", async ({ page }) => {
+  const state: { stretch: StretchView } = { stretch: { status: "failed" } };
+  await openTailor(page, state);
+  await expect(page.getByRole("status").filter({ hasText: "could not look for" })).toBeVisible();
+  state.stretch = RAN;
+  await page.getByRole("button", { name: "Look again" }).click();
+  await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Ready to send" })).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------------------------------------

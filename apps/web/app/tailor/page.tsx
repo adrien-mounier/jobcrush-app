@@ -288,11 +288,12 @@ export default function TailorPage() {
     setLiveMessage(goneReason ? `${goneReason} ${goneNote}` : goneNote);
   }, [screen, goneNote, goneReason]);
 
-  // #417: the first pending suggestion opens by itself when the draft (and its suggestions) land —
-  // once; after that the person decides what is open. Focus stays on the page heading then.
+  // #417: the first pending suggestion opens by itself when the suggestions land — once; after that
+  // the person decides what is open. Focus stays on the page heading then. Only a view that ran
+  // spends the once: a failed one would leave "Look again"'s suggestions all closed, unanswered.
   const onStretch = useCallback((next: StretchRailView) => {
     setStretch(next);
-    if (autoOpenedRef.current) return;
+    if (autoOpenedRef.current || next?.status !== "ran") return;
     autoOpenedRef.current = true;
     setOpenStretch(nextPending(next, null));
   }, []);

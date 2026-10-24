@@ -17,9 +17,9 @@
 import { useEffect, useRef, type RefObject } from "react";
 import type { StretchSuggestion, StretchView, TailorRequirement } from "../../lib/api";
 
-/** #418: what the rail shows about the step — the server's view, or "running" while the draft is
- *  already on the page and the step is still looking (draft.tsx reports it off the job stream). */
-export type StretchRailView = StretchView | { status: "running" } | undefined;
+/** What the rail shows about the step: the server's view, read with the draft once the step is done
+ *  (the owner's call, 2026-10-24: the CV and its suggestions arrive at once). */
+export type StretchRailView = StretchView | undefined;
 
 const K1 = "optional";
 const K2 = "On your CV it replaces the line struck out on the page.";
@@ -40,9 +40,6 @@ const K15 = "Undo";
 const K16 = "Answer";
 const K17 = "Be ready to explain";
 const K18 = "No suggestions used.";
-// The draft is written; one more step looks for stretches beside it (shown in the rail, the draft
-// already on the page — ADR-0020: the draft is the first thing the person sees).
-const K19 = "Your CV is written. Looking for ways to stretch it for this job…";
 // #419: the person states it as their fact — the master CV, for every job.
 const K20 = "It's true: keep it on my CV for every job";
 const K21 = "Kept on your CV for every job";
@@ -61,7 +58,7 @@ const E5 = "We could not save your wording just now. Try again.";
 // #423: the open suggestion's line on "The job" tab — offered only when the server found that line.
 const J1 = "See where the job asks this";
 
-export const STRETCH_COPY = { K2, K3, F1, F2, K19, K21 };
+export const STRETCH_COPY = { K2, K3, F1, F2, K21 };
 
 /** #420: computer width — the edit happens on the draft; under it, on the card (the grid's 960px). */
 export const DESK_QUERY = "(min-width: 960px)";
@@ -150,13 +147,6 @@ export function StretchCards({
   }, [editingOpen]);
 
   if (!view) return null; // the step did not run: an honest absence, nothing said
-  if (view.status === "running") {
-    return (
-      <section className="stretch" role="status">
-        <p className="notice">{K19}</p>
-      </section>
-    );
-  }
   if (view.status === "failed") {
     return (
       <section className="stretch" role="status">

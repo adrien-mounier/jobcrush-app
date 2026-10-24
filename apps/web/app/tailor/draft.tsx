@@ -215,8 +215,7 @@ function DisclosureBlock({ d }: { d: JobDisclosure }) {
 export interface TailorDraftProps {
   /** #417: the open stretch suggestion — the frame is read with it so the swap previews in place. */
   open?: string | null;
-  /** #417: the view as read, so the page can put the suggestions beside the draft. #418: "running"
-   *  while the draft is already on the page and the step is still looking. */
+  /** #417: the view as read, so the page can put the suggestions beside the draft. */
   onStretch?: (stretch: StretchRailView) => void;
   /** #420: the open suggestion's line is being edited — in place on this frame on a computer. */
   editing?: boolean;
@@ -242,10 +241,6 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
   // Counts the frame's loads: a srcDoc swap is a new document, which the edit must be armed in.
   const [frameLoads, setFrameLoads] = useState(0);
 
-  // The current phase's kind, readable from the stream handler without re-subscribing.
-  const phaseRef = useRef<Phase["kind"]>("writing");
-  phaseRef.current = phase.kind;
-
   const settle = useCallback((next: Phase) => {
     streamRef.current?.close();
     clearTimeout(watchdogRef.current);
@@ -261,20 +256,6 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
       settle({ kind: "failed" });
     }
   }, [settle]);
-
-  // #418 (ADR-0020: the draft is the first thing the person sees): the draft is checkpointed before
-  // the stretch step runs, so the moment the server says "suggesting" the finished draft is read and
-  // shown, and the rail says the step is still looking. The stream stays open for "completed".
-  const showDraftWhileSuggesting = useCallback(async () => {
-    try {
-      const view = await getTailorDraft(openRef.current);
-      if (cancelledRef.current) return;
-      setPhase({ kind: "ready", view });
-      onStretchRef.current?.({ status: "running" });
-    } catch {
-      /* the completed event reads it again */
-    }
-  }, []);
 
   // #417: a different open suggestion re-reads the frame (free: a checkpoint read) so the preview
   // moves with the card. Only once the draft is on screen; a stale answer never overwrites a newer.
@@ -337,10 +318,10 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
         } catch {
           return settle({ kind: "failed" });
         }
+        // The owner's call (2026-10-24): the CV and its suggestions arrive at once, so the wait
+        // screen stays through the stretch step ("suggesting") until the job completes.
         if (snapshot.status === "completed") void readDraft();
-        else if (snapshot.status === "failed")
-          settle({ kind: "failed", ...snapshot.progress.tailorDraft?.failure });
-        else if (snapshot.progress.tailorDraft?.step === "suggesting" && phaseRef.current !== "ready") void showDraftWhileSuggesting();
+        else if (snapshot.status === "failed") settle({ kind: "failed", ...snapshot.progress.tailorDraft?.failure });
       };
       source.onerror = () => {
         // EventSource reconnects on a blip; CLOSED means the browser gave up (paste's rule).
@@ -349,7 +330,7 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
     } catch {
       settle({ kind: "failed" });
     }
-  }, [readDraft, settle, showDraftWhileSuggesting]);
+  }, [readDraft, settle]);
 
   useEffect(() => {
     cancelledRef.current = false;
