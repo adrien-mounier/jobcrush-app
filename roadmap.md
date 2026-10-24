@@ -69,7 +69,7 @@ first candidates #171, #168, #203) or when real visitors return, and then #288 g
 - **Techmap quota:** 100 calls/month, not 1000 (81 left on 2026-10-10) → #366.
 - **CI minutes:** solved 2026-10-08, repo made public (free Actions minutes). Nothing secret goes in a tracked file.
 - **Real visitors gate:** #288 (sign-in refusal reads as a crash) and #298 (warm machine, $7.23/month) un-park before anyone but the owner is let in.
-- **Stretch rewrites are capped at 20 per session** (failed calls count too); a heavy editor hits it. The FactBadge chip has no live surface since #415 removed the yes/no queue.
+- **Stretch rewrites are capped at 200 per session** (failed calls count too; raised from 20 on the owner's call, 2026-10-24, since a session lasts for the life of the account): at most ~$1.60, or ~$3.20 if every call fails and retries. The FactBadge chip has no live surface since #415 removed the yes/no queue.
 - **Tablet widths are untested:** no browser check drives 641–899px (#318). Un-park it on the first slice that restyles a top bar.
 
 Full pre-2026-10-06 roadmap (phase tables, ordering constraints, design history): [`docs/archive/roadmap-2026-10-06.md`](docs/archive/roadmap-2026-10-06.md).

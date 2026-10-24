@@ -174,7 +174,7 @@ export const RESAY_LINE = /^===LINE===\n(.+)$/gm;
 /** Paid rewrites one session may take, across every job and draft (CODING_STANDARDS: spend is
  *  bounded per session, not per request). Every edit that reaches the model counts once, a failed one
  *  too, so at most 2 × RESAY_LIMIT calls with the one retry each (sessions.ts countStretchRewrite). */
-export const RESAY_LIMIT = 20;
+export const RESAY_LIMIT = 200;
 
 export function buildResayInput(line: string, claims: CandidateClaims): string {
   return `${resayPrompt()}===LINE===\n${oneLine(line)}\n\n===FACTS===\n${factLinesOf(claims) || "(none)"}\n`;
