@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-24 — #425 shipped: a job that needs a language you don't have leaves the deck (c74cb64)
+
+`/implement 425` (Opus 5.5). A required language must be on the CV (any line not rejected, printed or not) or the profile, or the job leaves the deck. The reveal names each language with its count and "Yes, I speak <X>" (`POST /review/languages/spoken`), also on the empty and widened decks. "I don't speak this one" still wins over the CV; pasted jobs never leave.
+- A working word on the CV (native, fluent, professional, bilingual) settles the language: no Tailor question, the card shows it met ("Your CV says: …"), the report never says "Not checked". One rule, `unsettledLanguage`.
+- The "existing language-name rules" the ticket cited did not exist. New, in `languageLevel.ts`: Putonghua = Mandarin; "Chinese" is met by Mandarin or Cantonese (owner to confirm); "X and Y" / "X or Y"; words around a name ("fluent English").
+- `/code-review`: an unguarded save door, the brought-job line naming a gap he never confirmed, sentence-style CV lines. All fixed. QA **NO-GO** once: the report still matched by whole phrase. Fixed, then **GO** on tree e06a338: api 2252, owner journey 22/22, ladder 56/56, report 31/31.
+- New tier-2 `cv-language-level-journey.mjs`; the gate's `owner-language-filter-journey.mjs` kept on demand (its email check needs `MAIL_LOG`). Filed #426 (two languages at two levels on one CV line).
+**Next:** CI → staging; then the owner's re-proof on a fresh staging account (roadmap finish line, step 3).
+
 ## 2026-10-24 — Owner's re-proof on staging stops at languages: #425 filed and decided
 
 No code. On a fresh staging account (Hong Kong), the first card needed Cantonese, which isn't on the CV, and Tailor asked about English though the CV says "English (Fluent)". Diagnosed from staging rows and the request log: the code follows the rules as written.
@@ -84,9 +93,3 @@ No code. The owner moves Chat with JobCrush (#350) after v1. Decisions:
 
 #398 is not under #301, so it runs on its own.
 **Next:** `/implement-spec #301` (Fable 5.1, medium), then `/implement #398` (Opus 5.5, medium), then one real staging report → `/qa-gate` GO.
-
-## 2026-10-19 — The v1 finish line run on staging: NO-GO, two fixes shipped (6c7991c, d7af930), four tickets
-
-CI green on 1f72b12 (run 39130226914), staging at 2e56452. Then the finish line itself: the qa-tester drove live staging with the real key — the owner's real CV (`root_cv/… CV 2026.pdf`), one real posting (GRADION, IT Project Manager, Ho Chi Minh City, from cv-factory), magic-link sign-in to his Gmail, approve, the report email read from the inbox. The journey worked end to end: 67 facts, a judged card (9 of 10 met), a two-page CV the tester would send with nothing invented, the five-section email in ~19 s, the re-press re-used the report (no second call). **Verdict NO-GO** on two defects: (D) section 4 said "since these were not printed but are available to you" and "the printed line covers … but does not state an outcome" — the app's kitchen in his email, cut by #315's own AC; (A) five skill lines minted ids over 100 chars, so edit/remove died with 414 for ever. Both fixed, reviewed and gated the same day: `KITCHEN_WORDS` tripwire + rewritten `explain` guidance (6c7991c; a table of real lines proves "the app you shipped" still passes), `maxParamLength: 512` (d7af930). Follow-ups filed as sub-issues: #400 "Title not stated" names the file and subject when the paste has no title line (owner's call: ask, or read it), #397 one job scored 59% PARTIAL and 79% STRONG on two screens, #398 check-mode reads on his real CV (Title = "- Mobile:", a bullet under Personal projects with no Move, an id in a Why, a silent English answer), #399 draft nits ("and is English (Fluent)", one fact printed twice). Evidence: `qa-results/finish-line-20261019-132601/` (email verbatim in `report-email-1.txt`), `qa-results/finish-line-fix-20261019-205548/`.
-**Cost, measured (the #315 release gate):** $0.46 per application over 8 Sonnet calls (report call $0.038); $0.56 one-time profile build; the CV review's 3 Fable calls (30.7k in / 38.6k out) are unpriced — `llmPricing.ts` has no Fable rate. ~$1.02 priced for the whole run; under the $10 float.
-**Next:** CI on 6c7991c → staging; then one more real paste + approve on staging (~$0.50) to read a report written under the new rule — the honest check that the model does not reword around the tripwire. Then Chat with JobCrush (#350).

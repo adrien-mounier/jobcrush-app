@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-24 (spec #412 and #423 shipped; the owner's re-proof found #425, the language rule, which comes first)_
+_Last updated: 2026-10-24 (#425, the language rule, shipped; the owner's re-proof is next)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -15,7 +15,7 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: the v1 finish line. One build is left, #425 (the language rule); after it, the owner's re-proof.** The owner's staging run (2026-10-22) found six
+**Now: the v1 finish line. The last build, ~~#425~~ (the language rule, c74cb64), shipped; the owner's re-proof is next.** The owner's staging run (2026-10-22) found six
 defects. Five shipped and were owner-checked the same day (~~#403~~). The sixth became a decision:
 ~~#408~~, decided 2026-10-23 in [ADR-0020](docs/adr/0020-the-cv-is-written-first-only-stretches-are-suggested.md).
 The CV is written first, and only stretches are suggested beside it. Its build, spec
@@ -25,9 +25,9 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
 
 **Finish line, what remains (v1 before the chat):**
 1. ~~**Owner:** type `/implement-spec #412` (Fable 5.1, high).~~ Shipped 2026-10-24 on a `/qa-gate` GO.
-2. **Agent:** #425. A job that requires a language not on your profile leaves the deck, and a working
-   language on the CV is not asked again. Found by the owner's re-proof (2026-10-24), and decided the same day.
-   Owner types `/implement 425` (Fable 5.1, high).
+2. ~~**Agent:** #425. A job that requires a language not on your profile leaves the deck, and a working
+   language on the CV is not asked again.~~ Shipped 2026-10-24 (c74cb64) on a `/qa-gate` GO. Owner to
+   confirm one call it made: a job asking for "Chinese" counts as met by Mandarin or Cantonese.
 3. **Owner:** one more real report on staging, on a fresh account. Sign in as
    `adrien.mounier91+test1@gmail.com` in a private window; any new address is a new, empty account,
    so #345 is not needed for this.
@@ -36,7 +36,8 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
   Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
-  Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low).
+  Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low) · #426 a CV
+  line naming two languages at two levels (Opus 5.5, low).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
