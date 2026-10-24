@@ -1,0 +1,763 @@
+<!doctype html>
+<!-- PROTOTYPE — throwaway. Question: after #412, where does the person read the job in full on the Tailor screen? Plan: the approved #408 layout with the real white CV, and four placements of the job (?variant=A tab, B side sheet, C rail fold, D side by side with the requirement marked). -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Tailor: the job in full — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --floor: #101419; --surface: #171c23; --raised: #1f262f; --line: #2b333d;
+    --ink: #e8eaed; --muted: #7f8b98; --muted-r: #8a95a2; --weak: #6f7d8c; --settled: #4d5865;
+    --gold: #e8a33d; --gold-deep: #a8762b; --gold-light: #ffd9a0; --gold-ink: #1a1206;
+    --wash: rgba(232, 163, 61, .22);
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    /* the real CV document (apps/api/src/preview.ts renderPreviewHtml) */
+    --cv-font: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+    --cv-ink: #1d2126; --cv-blue: #1F4E79; --cv-grey: #5A6675;
+    --out: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--floor); color: var(--ink); font: 14px/1.5 var(--sans); }
+  ::selection { background: rgba(232, 163, 61, .35); color: var(--ink); }
+  .paper ::selection { background: rgba(232, 163, 61, .4); color: var(--cv-ink); }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  [tabindex="-1"]:focus { outline: none; }
+
+  /* ---------- prototype chrome (not the design) ---------- */
+  .banner { flex: none; background: #241d13; color: #e9cf9f; padding: 7px 16px; font-size: 12.5px; border-bottom: 1px solid #3d3020; padding-right: 260px; }
+  .chrome { position: fixed; top: 6px; right: 10px; z-index: 200; display: flex; gap: 2px; background: #fff; color: #111; border-radius: 999px; padding: 3px; box-shadow: 0 6px 20px rgba(0,0,0,.5); font-size: 12.5px; }
+  .chrome button { border: 0; background: none; border-radius: 999px; padding: 5px 12px; font-weight: 650; color: #111; }
+  .chrome button[aria-pressed="true"] { background: #111; color: #fff; }
+  @media (max-width: 600px) { .banner, .chrome { display: none; } }
+  .pillbar { flex: none; height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-top: 1px dashed #ff4fd8; background: repeating-linear-gradient(45deg, #0a0c10 0 10px, #121520 10px 20px); }
+  .pill { display: flex; align-items: center; gap: 4px; background: #fff; color: #111; border-radius: 999px; padding: 3px; font: 650 12.5px var(--sans); box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+  .pill button { border: 0; background: #111; color: #fff; border-radius: 999px; width: 28px; height: 26px; }
+  .pill span { padding: 0 8px; white-space: nowrap; }
+  .pstate { font: 11px var(--mono); color: #ff9be9; }
+
+  /* ---------- the app frame ---------- */
+  #app { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+  .scroll { height: 100%; overflow: auto; scrollbar-color: var(--line) transparent; }
+  body.framed { background: #0b0e12; align-items: center; }
+  body.framed #app { flex: none; width: 390px; height: min(844px, calc(100dvh - 120px)); margin: 14px 0; border: 1px solid var(--line); border-radius: 30px; background: var(--floor); box-shadow: 0 30px 80px -20px rgba(0,0,0,.8); }
+
+  /* ---------- shared: the score ---------- */
+  .score { display: inline-flex; align-items: baseline; white-space: nowrap; }
+  .score .n { font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); display: inline-block; transition: color 340ms ease, text-shadow 340ms ease; }
+  .score .pc { color: var(--muted); font-weight: 600; }
+  .score .lb { margin-left: 7px; color: var(--muted); font-size: 12.5px; }
+  .score.lit .n { color: var(--gold); text-shadow: 0 0 26px rgba(232, 163, 61, .35); }
+  .mote { position: fixed; z-index: 150; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 14px rgba(232, 163, 61, .7); pointer-events: none; }
+
+  /* ---------- shared: buttons ---------- */
+  .b { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 10px; padding: 11px 14px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font-size: 14px; font-weight: 600; min-height: 44px; text-align: center; }
+  .b:hover { border-color: var(--muted); }
+  .b.gold { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+  .b.gold:hover { background: var(--gold-light); border-color: var(--gold-light); }
+  .b.gold.glow { box-shadow: 0 0 26px rgba(232, 163, 61, .35); }
+  .b.quiet { background: none; border-color: transparent; color: var(--muted-r); font-weight: 500; }
+  .b.quiet:hover { color: var(--ink); border-color: transparent; }
+  .b kbd { font: 10.5px var(--mono); padding: 1px 5px; border-radius: 4px; border: 1px solid currentColor; opacity: .55; }
+  .link { background: none; border: 0; padding: 4px 2px; color: var(--muted-r); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+  .link:hover { color: var(--ink); }
+  .seg { display: inline-flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin: 0 0 12px; }
+  .seg button { border: 0; background: none; color: var(--muted-r); padding: 6px 14px; border-radius: 7px; font-weight: 600; font-size: 13px; }
+  .seg button[aria-selected="true"] { background: var(--raised); color: var(--ink); }
+  .sheet header .seg { margin: 0; }
+
+  /* ---------- shared: suggestion pieces ---------- */
+  .why { color: var(--muted-r); font-size: 13px; margin: 6px 0 0; }
+  .swap { color: var(--muted-r); font-size: 12.5px; margin: 8px 0 0; }
+  .ask { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: #c9d1da; }
+  .ask b { display: block; font-size: 12px; font-weight: 600; color: var(--muted-r); margin-bottom: 2px; }
+  .ask .re { display: block; color: var(--muted-r); font-size: 12px; margin-top: 4px; }
+  .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font: 600 11px var(--sans); border: 1px solid var(--gold-deep); color: var(--gold); flex: none; }
+  .num.idle { border-color: var(--settled); color: var(--muted); }
+  .result { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+  .result .r-use { color: var(--gold); } .result .r-true { color: var(--ink); } .result .r-no { color: var(--muted-r); }
+  .marks { list-style: none; margin: 0; padding: 0; }
+  .marks li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .marks li:last-child { border-bottom: 0; }
+  .marks .m { width: 16px; flex: none; text-align: center; color: var(--muted); }
+  .marks .m.stretch { color: var(--gold-deep); } .marks .m.met { color: var(--ink); } .marks .m.gap { color: var(--weak); }
+  .marks .t { flex: 1; } .marks .s { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .marks .note { display: block; font-size: 12px; color: var(--muted); }
+  .gaplist { margin: 6px 0 0; padding-left: 18px; color: var(--ink); font-size: 13px; }
+  .h { font-size: 15px; font-weight: 620; margin: 22px 0 6px; letter-spacing: -0.005em; }
+  .h:first-child { margin-top: 0; }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .explain { margin: 6px 0 0; padding: 0; list-style: none; }
+  .explain li { margin: 0 0 10px; font-size: 13px; color: #c9d1da; }
+  .explain q { display: block; color: var(--ink); quotes: "“" "”"; }
+
+  /* ---------- the paper: the real CV document, white, as the API renders it ---------- */
+  .fit { container-type: inline-size; }
+  .paper { max-width: 720px; background: #fff var(--wm); color: var(--cv-ink); font: 14px/1.4 var(--cv-font); border-radius: 10px; padding: 34px 44px 36px; box-shadow: 0 18px 40px -16px rgba(0,0,0,.55); }
+  @container (max-width: 480px) { .paper { padding: 20px 16px; } }
+  .paper .banner-d { background: #fbeaea; border: 1px solid #d99; color: #8a1f1f; font-size: 12px; padding: 8px 14px; border-radius: 6px; margin-bottom: 24px; }
+  .paper h1 { font-size: 23px; margin: 0; color: var(--cv-blue); letter-spacing: .01em; }
+  .paper .headline { margin: 5px 0 0; font-size: 12.5px; color: #444; }
+  .paper .role-word { font-weight: bold; text-transform: uppercase; letter-spacing: .06em; color: var(--cv-ink); }
+  .paper h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--cv-blue); border-bottom: 1.5px solid var(--cv-blue); padding-bottom: 3px; margin: 18px 0 7px; }
+  .paper .role { margin-bottom: 12px; }
+  .paper .role-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .paper .dates { color: var(--cv-grey); font-size: 12px; white-space: nowrap; }
+  .paper .role-title { font-style: italic; margin: 1px 0 2px; }
+  .paper ul { margin: 4px 0 0; padding-left: 18px; }
+  .paper li { margin-bottom: 2px; }
+  .paper .summary { margin: 0 0 4px; }
+  .paper .skill-group { margin: 0 0 8px; }
+  .paper .edu, .paper .addl { margin: 0 0 6px; }
+  .paper li, .paper .skill-group, .paper .summary { position: relative; }
+  .paper del { color: var(--cv-grey); text-decoration-color: rgba(90,102,117,.7); }
+  .paper ins, .clip ins { text-decoration: none; background: var(--wash); border-radius: 3px; box-shadow: 0 0 0 3px var(--wash); }
+  .paper ins[contenteditable="true"], .clip ins[contenteditable="true"] { outline: 2px dashed var(--gold-deep); outline-offset: 3px; }
+  .paper .landed { animation: land 1100ms var(--out); border-radius: 3px; }
+  @keyframes land { from { background: var(--wash); box-shadow: 0 0 0 3px var(--wash); } to { background: transparent; box-shadow: 0 0 0 3px transparent; } }
+  .paper .pin { position: absolute; left: -30px; top: 1px; display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--cv-grey); background: #fff; color: var(--cv-grey); font: 600 11px/1 var(--cv-font); }
+  .paper .pin.open { border-color: #a8762b; background: #e8a33d; color: #1a1206; }
+  .paper .pin.used { border: 0; background: none; color: #a8762b; font-size: 13px; }
+
+  /* ---------- the job ad (dark room: it is not the printed page) ---------- */
+  .ad { color: #c9d1da; font-size: 14px; line-height: 1.55; }
+  .ad .adhead b { display: block; color: var(--ink); font-size: 15px; font-weight: 620; }
+  .ad .adhead span { color: var(--muted); font-size: 12.5px; }
+  .ad h4 { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-r); font-weight: 650; margin: 18px 0 6px; }
+  .ad p { margin: 0 0 8px; }
+  .ad ul { list-style: none; margin: 0; padding-left: 26px; }
+  .ad li { position: relative; margin: 0 0 6px; }
+  .ad li::before { content: "•"; position: absolute; left: -14px; color: var(--muted); }
+  .ad li.has-pin::before { content: none; }
+  .ad li.hl { color: var(--ink); background: rgba(232, 234, 237, .08); box-shadow: 0 0 0 5px rgba(232, 234, 237, .08); border-radius: 3px; }
+  .apin { position: absolute; left: -27px; top: 1px; border: 0; padding: 0; background: none; }
+  .apin.used { color: var(--gold-deep); font-size: 13px; left: -24px; top: 0; }
+  .adpanel { max-width: 720px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 28px 36px 32px; }
+
+  /* ---------- computer ---------- */
+  .dbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 20px; padding: 12px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .dbar .title { flex: 1; min-width: 0; }
+  .dbar .title b { display: block; font-size: 15px; font-weight: 620; }
+  .dbar .title span { color: var(--muted); font-size: 12.5px; }
+  .dbar .score .n { font-size: 27px; }
+  .prog { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+  .dots { display: flex; gap: 5px; }
+  .dots button, .dots i { width: 18px; height: 4px; border-radius: 2px; border: 0; padding: 0; background: var(--line); }
+  .dots .on { background: var(--gold); } .dots .did { background: var(--muted); }
+  .dgrid { display: grid; grid-template-columns: minmax(0, 720px) 380px; gap: 32px; justify-content: center; padding: 24px 28px 60px; }
+  .dgrid.d-closed { grid-template-columns: 40px minmax(0, 720px) 360px; gap: 24px; }
+  .dgrid.d-open { grid-template-columns: 290px minmax(0, 720px) 340px; gap: 24px; }
+  .rail { position: relative; }
+  .dnote { position: absolute; left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; transition: top 340ms var(--out); }
+  .dnote h3 { display: flex; gap: 10px; align-items: flex-start; margin: 0; font-size: 15px; font-weight: 620; line-height: 1.35; outline: none; }
+  .dnote .acts { display: grid; gap: 8px; margin-top: 14px; }
+  .dnote .acts .row { display: flex; gap: 6px; }
+  .dnote .acts .b { justify-content: space-between; text-align: left; }
+  .dnote .nav { display: flex; justify-content: space-between; margin-top: 10px; }
+  .dsum { position: sticky; top: 86px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+  .dsum .b.gold { width: 100%; margin-top: 18px; }
+  /* C: the quiet fold under the suggestion */
+  .rfold { margin: 14px -18px -18px; border-top: 1px solid var(--line); }
+  .dsum .rfold { margin: 18px -20px -20px; }
+  .rfold summary, .pfold summary { padding: 12px 18px; color: var(--muted-r); font-size: 13px; cursor: pointer; }
+  .rfold summary:hover, .pfold summary:hover { color: var(--ink); }
+  .rfold .ad { max-height: 340px; overflow: auto; padding: 0 18px 18px; font-size: 13px; }
+  /* D: the job as its own column, left of the CV */
+  .adcol { position: sticky; top: 88px; align-self: start; max-height: calc(100dvh - 215px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 18px; scrollbar-color: var(--line) transparent; }
+  .adcol .ad { font-size: 13px; }
+  .colhead { display: flex; justify-content: space-between; align-items: center; margin: -2px 0 10px; font-size: 12px; color: var(--muted); }
+  .colhead b { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-r); }
+  .spine { position: sticky; top: 88px; align-self: start; writing-mode: vertical-rl; padding: 16px 0; width: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--muted-r); font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+  .spine:hover { color: var(--ink); border-color: var(--muted); }
+
+  /* ---------- phone ---------- */
+  .pbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--line); }
+  .pbar .title { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); }
+  .pbar .title b { display: block; color: var(--ink); font-size: 14px; font-weight: 620; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pbar .title span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pbar .score .n { font-size: 19px; }
+  .pbar .score .lb { display: none; }
+  .pbar .link { font-size: 12.5px; white-space: nowrap; }
+  .pmain { padding: 16px 16px 24px; }
+  .lede { margin: 0 0 14px; color: var(--muted-r); font-size: 13px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .pcard.deal { animation: deal 340ms var(--out); }
+  @keyframes deal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .pcard h3 { margin: 10px 0 0; font-size: 17px; font-weight: 620; line-height: 1.3; outline: none; }
+  .pcard .jlink { font-size: 12.5px; padding: 2px 0 0; }
+  .ptop { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12.5px; }
+  .ptop .dots button { height: 6px; width: 26px; }
+  .clip { margin: 12px -4px 0; background: #fff; color: var(--cv-ink); font: 14px/1.4 var(--cv-font); border-radius: 6px; padding: 10px 14px; box-shadow: 0 10px 24px -14px rgba(0,0,0,.6); }
+  .clip .ctx { color: var(--cv-grey); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .clip del { display: block; color: var(--cv-grey); text-decoration-color: rgba(90,102,117,.7); margin: 6px 0 4px; }
+  .clip .where { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--cv-blue); font-weight: 700; margin-bottom: 4px; }
+  .pfold { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .pfold .ad { padding: 0 16px 16px; }
+  .dock { position: sticky; bottom: 0; z-index: 20; display: grid; gap: 8px; padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: var(--floor); border-top: 1px solid var(--line); }
+  .dock .b { width: 100%; min-height: 48px; }
+  .dock .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dock .row .b { min-height: 44px; }
+  .dock .skip { justify-self: center; }
+
+  /* ---------- sheets ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 60; background: rgba(5, 7, 10, .55); }
+  .sheet { position: absolute; z-index: 61; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; animation: rise 340ms var(--out); }
+  .sheet.side { top: 0; right: 0; bottom: 0; width: min(440px, 100%); border-radius: 16px 0 0 16px; }
+  .sheet.up { left: 0; right: 0; bottom: 0; max-height: 92%; border-radius: 18px 18px 0 0; }
+  @keyframes rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .sheet header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .sheet header b { font-size: 15px; font-weight: 620; }
+  .sheet .body { overflow: auto; padding: 14px 18px 24px; }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 8px auto 0; }
+
+  .toast { position: absolute; z-index: 120; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; max-width: min(460px, calc(100% - 32px)); background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13px; box-shadow: 0 16px 34px -12px rgba(0,0,0,.55); animation: rise 340ms var(--out); }
+  .toast.phone { bottom: 200px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="banner"><b style="color:var(--gold)">PROTOTYPE · after #412</b> — where to read the job in full. Your Hong Kong digital transformation PM job and your CV, on the real white CV page. Nothing is saved.</div>
+<div class="chrome" role="group" aria-label="Prototype view">
+  <button id="v-auto">Computer</button><button id="v-phone">Phone</button><button id="v-reset">Reset</button>
+</div>
+<div id="app"></div>
+<div class="pillbar" aria-label="Prototype variant switch, not part of the design">
+  <div class="pill"><button id="pv-prev" aria-label="Previous variant">←</button><span id="pv-label"></span><button id="pv-next" aria-label="Next variant">→</button></div>
+  <div class="pstate" id="pstate"></div>
+</div>
+<div id="live" class="sr" aria-live="polite"></div>
+
+<script>
+// ================= data =================
+const JOB = { title: "Digital Transformation Project Manager", company: "a Hong Kong bank" };
+const W = { essential: 3, standard: 2, nice: 1 };
+const REQS = [
+  { id: "years", band: "essential", text: "8+ years' experience in project management, consulting, or business transformation", fit: 1, note: "9.8 years: your Okoone job counts too, its lines show you ran delivery" },
+  { id: "degree", band: "essential", text: "Bachelor's degree", fit: 1, note: "your Master's covers it" },
+  { id: "lead-dt", band: "essential", text: "Lead the delivery of digital transformation projects", fit: 0.9 },
+  { id: "large", band: "essential", text: "Experience with large-scale transformation", fit: 0.9 },
+  { id: "xfunc", band: "essential", text: "Coordinate business, IT, operations, risk, compliance and finance", fit: 0.75 },
+  { id: "bcase", band: "standard", text: "Business cases and project governance", fit: 0.75 },
+  { id: "vendor", band: "standard", text: "Vendor management, including tenders and statements of work", fit: 0.6 },
+  { id: "risk", band: "standard", text: "Manage risks and dependencies", fit: 0.9 },
+  { id: "pmo", band: "standard", text: "PMO reporting to senior management", fit: 0.85 },
+  { id: "stake", band: "standard", text: "Engage stakeholders at every level", fit: 0.9 },
+  { id: "multi", band: "standard", text: "Run several workstreams at once", fit: 0.95 },
+  { id: "comm", band: "standard", text: "Strong communication skills", fit: 0.9 },
+  { id: "self", band: "standard", text: "Self-motivated, works independently", fit: 0.6, note: "covered in part, nothing to suggest" },
+  { id: "bank", band: "nice", text: "Banking or financial services background", fit: 1 },
+  { id: "agile", band: "nice", text: "Familiar with Agile", fit: 1, note: "your skills say Agile / Scrum" },
+  { id: "cert", band: "nice", text: "PMP or PRINCE2 certification", fit: 0, gap: true },
+];
+const SUGG = [
+  { id: "s1", req: "vendor", where: "BRED", out: "b5",
+    in: "Ran vendor selection and contract follow-up for core banking and card-service integrations, from tender to statement of work.",
+    why: "The job asks for tenders and statements of work. Your CV says you coordinate vendors.",
+    say: "At BRED I worked with our integration vendors every day. I took part in choosing them and checked their work against the contract." },
+  { id: "s2", req: "xfunc", where: "BRED", out: "b6",
+    in: "Coordinated business, IT, operations, risk, compliance and finance teams on cross-border banking change.",
+    why: "The job names six teams. Your CV names business and IT teams.",
+    say: "Every change at BRED went through compliance and risk. Finance signed off the budget, and operations ran the rollout in each country." },
+  { id: "s3", req: "bcase", where: "Skills", out: null,
+    in: "Business cases & steering-committee governance",
+    why: "The job asks for business cases. Your CV shows reporting to leadership, but no business case.",
+    say: "I wrote the cost and benefit part of the case for my projects and presented it to the department heads." },
+];
+const CV = {
+  name: "Adrien Mounier", role: "Senior Project Manager", contact: "Bangkok, Thailand · adrien.mounier@example.com",
+  summary: "Senior Project Manager with 9+ years delivering banking, fintech and SaaS technology in regulated environments. Leads digital transformation end to end across Europe, Asia-Pacific and Africa, and brings applied AI into everyday delivery.",
+  jobs: [
+    { emp: "BRED Banque Populaire, International Banking Branch, Bangkok", dates: "2023 - Present", title: "Senior Project Manager", bullets: [
+      ["b1", "Lead the delivery of digital banking transformation projects for the international branch, from scope to go-live."],
+      ["b2", "Delivered an AI-assisted KYC workflow end to end and rolled it out across seven countries."],
+      ["b3", "Run about four projects at once, managing risks and dependencies across business and IT teams."],
+      ["b4", "Report progress and escalate decisions to department heads and general management."],
+      ["b5", "Coordinate third-party vendors on core banking and card-service integrations."],
+      ["b6", "Organise internal AI workshops and training for project teams."],
+    ]},
+    { emp: "Okoone, Phnom Penh", dates: "2020 - 2023", title: "Product Owner", bullets: [
+      ["o1", "Led a cross-functional product team, managing scope, priorities, budget and delivery timelines."],
+      ["o2", "Built Ship24.com from scratch into a cross-border logistics platform: 16M visitors and 3,000+ API subscriptions in 2023."],
+      ["o3", "Owned the product vision, roadmap and JIRA backlog for a logistics SaaS platform."],
+    ]},
+    { emp: "Société Générale, Paris", dates: "2017 - 2020", title: "IT Junior Project Manager", bullets: [
+      ["g1", "Delivered IT projects with Agile / Scrum and escalated risks early to prevent delays."],
+      ["g2", "Structured project reporting for management and executives."],
+      ["g3", "Coordinated a risk-data chatbot with the data science team for the Risk department."],
+    ]},
+  ],
+  skills: [
+    ["Project management", ["Agile / Scrum", "IT governance & delivery", "Stakeholder management", "Risk & dependency management"]],
+    ["AI & automation", ["Applied AI for delivery", "Multi-LLM workflows", "n8n"]],
+    ["Tools", ["JIRA", "Confluence", "SQL", "Python"]],
+  ],
+  langs: "French (native) · English (fluent) · Spanish (conversational) · Thai (beginner)",
+};
+// The job ad as posted. ["li", text, requirement id] links a line to the requirement it states.
+const AD = {
+  meta: "Hong Kong · Full time · Posted 3 days ago",
+  blocks: [
+    ["h", "About the bank"],
+    ["p", "Our client is a leading international bank in Hong Kong, with more than 4,000 staff across retail, corporate and private banking."],
+    ["p", "Its five-year digital programme is moving core processes, from account opening to trade finance, onto modern platforms."],
+    ["h", "The role"],
+    ["p", "You will report to the Head of Transformation and own the delivery of two to three workstreams in the programme."],
+    ["h", "What you will do"],
+    ["li", "Lead the delivery of digital transformation projects, from business case to go-live and benefits tracking.", "lead-dt"],
+    ["li", "Prepare business cases and run project governance, including steering committees and stage gates.", "bcase"],
+    ["li", "Coordinate business, IT, operations, risk, compliance and finance teams so that each change lands safely.", "xfunc"],
+    ["li", "Manage vendors through the full cycle: tenders, selection, statements of work and delivery follow-up.", "vendor"],
+    ["li", "Identify and manage risks, issues and dependencies across workstreams.", "risk"],
+    ["li", "Produce PMO reporting for senior management and the transformation committee.", "pmo"],
+    ["li", "Engage stakeholders at every level, from front-line teams to the executive committee.", "stake"],
+    ["li", "Run several workstreams at once and keep them aligned with the programme roadmap.", "multi"],
+    ["h", "What we are looking for"],
+    ["li", "8+ years' experience in project management, consulting or business transformation.", "years"],
+    ["li", "Bachelor's degree in business, computer science, engineering or a related field.", "degree"],
+    ["li", "Proven experience with large-scale transformation, ideally across several countries.", "large"],
+    ["li", "Strong written and spoken English; Cantonese or Mandarin is a plus.", "comm"],
+    ["li", "Self-motivated, able to work independently and take ownership.", "self"],
+    ["h", "Nice to have"],
+    ["li", "Background in banking or financial services.", "bank"],
+    ["li", "Familiar with Agile ways of working.", "agile"],
+    ["li", "PMP or PRINCE2 certification.", "cert"],
+    ["h", "What we offer"],
+    ["p", "Competitive salary and annual bonus, medical cover, and hybrid working (three days in the office)."],
+    ["p", "To apply, send your CV in English. We will contact shortlisted candidates only."],
+  ],
+};
+const VARIANTS = { A: "A · Tab: Your CV | The job", B: "B · Side sheet from the top bar", C: "C · Fold under the suggestion", D: "D · Side by side, requirement marked" };
+const ALL_BULLETS = CV.jobs.flatMap((j) => j.bullets);
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const WM = `<svg xmlns='http://www.w3.org/2000/svg' width='420' height='280'><text x='50%' y='50%' font-family='Helvetica' font-size='26' fill='rgba(160,20,20,0.10)' text-anchor='middle' transform='rotate(-28 210 140)'>DRAFT — NOT VERIFIED</text></svg>`;
+document.documentElement.style.setProperty("--wm", `url("data:image/svg+xml,${encodeURIComponent(WM)}")`);
+
+// ================= state =================
+const fresh = () => ({ ans: {}, edits: {}, editing: null, open: SUGG[0].id, sheet: null, landed: null, deal: false, job: false });
+let S = fresh();
+const params = new URLSearchParams(location.search);
+let view = params.get("view") === "phone" ? "phone" : "auto";
+let variant = VARIANTS[(params.get("variant") || "").toUpperCase()] ? params.get("variant").toUpperCase() : "A";
+const app = document.getElementById("app");
+
+const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const sug = (id) => SUGG.find((s) => s.id === id);
+const reqOf = (s) => REQS.find((r) => r.id === s.req);
+const inText = (s) => S.edits[s.id] ?? s.in;
+const pending = () => SUGG.filter((s) => !S.ans[s.id]);
+const idx = (id) => SUGG.findIndex((s) => s.id === id);
+const mode = () => (view === "phone" || app.clientWidth < 960 ? "phone" : "desk");
+function fitNow(r) { const s = SUGG.find((x) => x.req === r.id); const a = s && S.ans[s.id]; return a === "use" || a === "true" ? 1 : r.fit; }
+function pct() { let n = 0, d = 0; for (const r of REQS) { n += W[r.band] * fitNow(r); d += W[r.band]; } return Math.round((n / d) * 100); }
+let shown = pct();
+
+function state(r) {
+  const s = SUGG.find((x) => x.req === r.id), a = s && S.ans[s.id];
+  if (a === "use") return ["stretch", "◆", "met by a stretch"];
+  if (a === "true") return ["met", "✓", "met"];
+  if (r.gap) return ["gap", "–", "not on your CV"];
+  if (r.fit >= 0.8) return ["met", "✓", "met"];
+  if (s && !a) return ["", "?", `suggestion ${idx(s.id) + 1}`];
+  return ["", "·", "in part"];
+}
+const metCount = () => REQS.filter((r) => state(r)[0] === "met" || state(r)[0] === "stretch").length;
+function lineNow(id) {
+  const s = SUGG.find((x) => x.out === id), a = s && S.ans[s.id];
+  return a === "use" || a === "true" ? inText(s) : ALL_BULLETS.find(([b]) => b === id)[1];
+}
+
+// ================= shared pieces =================
+const scoreHtml = (label = true) => `<span class="score" id="score"><span class="n" id="scoreN">${shown}</span><span class="pc">%</span>${label ? `<span class="lb">match</span>` : ""}</span>`;
+const dotsHtml = (tappable) => `<span class="dots">${SUGG.map((s) => {
+  const cls = s.id === S.open ? "on" : S.ans[s.id] ? "did" : "";
+  return tappable ? `<button class="${cls}" aria-label="Suggestion ${idx(s.id) + 1}" onclick="go('${s.id}')"></button>` : `<i class="${cls}"></i>`;
+}).join("")}</span>`;
+const askHtml = (s) => `<div class="ask"><b>If they ask</b>${esc(s.say)}${S.edits[s.id] ? `<span class="re">We will rewrite this to match your wording.</span>` : ""}</div>`;
+function swapHtml(s) {
+  if (variant === "A" && S.job && mode() === "desk") return "Switch to Your CV to see the line it changes.";
+  return s.out ? `On your CV it replaces the line struck out ${mode() === "desk" ? "beside this note" : "above"}.` : "It joins your skills line. Nothing leaves your CV.";
+}
+function resultHtml(s) {
+  const a = S.ans[s.id];
+  const lab = a === "use" ? `<span class="r-use">◆ Used for this job</span>` : a === "true" ? `<span class="r-true">✓ Kept on your CV for every job</span>` : `<span class="r-no">Not for this job</span>`;
+  return `<div class="result">${lab}<button class="link" onclick="undo('${s.id}')">Undo</button></div>`;
+}
+const fitList = () => `<ul class="marks">${REQS.map((r) => { const [c, m, l] = state(r); return `<li><span class="m ${c}" aria-hidden="true">${m}</span><span class="t">${esc(r.text)}${r.note ? `<span class="note">${esc(r.note)}</span>` : ""}</span><span class="s">${l}</span></li>`; }).join("")}</ul>`;
+const gapsHtml = () => `<ul class="gaplist">${REQS.filter((r) => r.gap).map((r) => `<li>${esc(r.text)}</li>`).join("")}</ul><p class="small" style="margin:6px 0 0">Your report gives you a sentence to say about this.</p>`;
+function explainHtml() {
+  const used = SUGG.filter((s) => S.ans[s.id] === "use");
+  return used.length ? `<ul class="explain">${used.map((s) => `<li><q>${esc(inText(s))}</q>${esc(s.say)}</li>`).join("")}</ul>` : `<p class="small" style="margin:4px 0 0">Nothing to prepare: you used no stretch.</p>`;
+}
+function summaryHtml() {
+  const use = SUGG.filter((s) => S.ans[s.id] === "use").length, tru = SUGG.filter((s) => S.ans[s.id] === "true").length, left = pending().length;
+  const parts = [use && `${use} used for this job`, tru && `${tru} kept on your CV for every job`, left && `${left} left out`].filter(Boolean);
+  return `<h3 class="h" tabindex="-1" id="focusme">Ready to send</h3>
+    <p class="small" style="margin:0">${parts.length ? parts.join(" · ") : "No suggestions used."}</p>
+    <div style="margin-top:12px;display:grid;gap:8px">${SUGG.map((s) => `<div><div style="font-size:13px">${esc(reqOf(s).text)}</div>${S.ans[s.id] ? resultHtml(s) : `<div class="result"><span class="r-no">Not answered, left out</span><button class="link" onclick="go('${s.id}')">Answer</button></div>`}</div>`).join("")}</div>
+    <h4 class="h">Be ready to explain</h4>${explainHtml()}
+    <h4 class="h">Also asked, not on your CV</h4>${gapsHtml()}`;
+}
+const tab = (v, label) => `<button role="tab" aria-selected="${S.job === v}" onclick="setTab(${v})">${label}</button>`;
+const tabsHtml = () => `<div class="seg" role="tablist" aria-label="What to show">${tab(false, "Your CV")}${tab(true, "The job")}</div>`;
+// C: the job folded away, quiet, under the suggestion.
+const foldHtml = (cls) => `<details class="${cls}" ${S.job ? "open" : ""} ontoggle="foldToggled(this)"><summary>Read the job in full</summary>${adHtml()}</details>`;
+
+// The job ad. With marks (D), each line a suggestion answers carries that suggestion's numeral,
+// and the open suggestion's line is lit, so the ad explains why the suggestion exists.
+function adHtml({ marks = false } = {}) {
+  let html = "", inList = false;
+  for (const [k, t, req] of AD.blocks) {
+    if (k === "li" && !inList) { html += "<ul>"; inList = true; }
+    if (k !== "li" && inList) { html += "</ul>"; inList = false; }
+    if (k === "h") html += `<h4>${esc(t)}</h4>`;
+    else if (k === "p") html += `<p>${esc(t)}</p>`;
+    else {
+      const s = marks && SUGG.find((x) => x.req === req), a = s && S.ans[s.id], n = s && idx(s.id) + 1;
+      const hl = s && s.id === S.open;
+      let pin = "";
+      if (s && a === "use") pin = `<button class="apin used" onclick="go('${s.id}')" aria-label="Stretch used: suggestion ${n}">◆</button>`;
+      else if (s && !a) pin = `<button class="apin" onclick="go('${s.id}')" aria-label="Suggestion ${n}"><span class="num ${hl ? "" : "idle"}">${n}</span></button>`;
+      html += `<li class="${pin ? "has-pin" : ""} ${hl ? "hl" : ""}">${pin}${hl ? `<span class="sr">Suggestion ${n} answers this: </span>` : ""}${esc(t)}</li>`;
+    }
+  }
+  if (inList) html += "</ul>";
+  return `<div class="ad"><div class="adhead"><b>${JOB.title}</b><span>${AD.meta}</span></div>${html}</div>`;
+}
+
+// The CV page — the API's real document (preview.ts), white, with the in-place preview and margin numerals.
+function paperHtml({ preview }) {
+  const pinFor = (s) => {
+    const a = S.ans[s.id], n = idx(s.id) + 1;
+    if (a === "use") return `<button class="pin used" onclick="go('${s.id}')" aria-label="Stretch used for this job: suggestion ${n}" title="Stretch, this job only">◆</button>`;
+    if (a || !preview) return "";
+    return `<button class="pin ${s.id === S.open ? "open" : ""}" onclick="go('${s.id}')" aria-label="Suggestion ${n}: ${esc(reqOf(s).text)}">${n}</button>`;
+  };
+  const edit = (s) => (S.editing === s.id ? 'contenteditable="true"' : "");
+  const bullet = ([id, text]) => {
+    const s = SUGG.find((x) => x.out === id);
+    if (!s) return `<li>${esc(text)}</li>`;
+    const a = S.ans[s.id], landed = S.landed === s.id ? "landed" : "";
+    if (a === "use" || a === "true") return `<li data-line="${s.id}">${pinFor(s)}<span class="${landed}" data-in="${s.id}">${esc(inText(s))}</span></li>`;
+    if (preview && s.id === S.open) return `<li data-line="${s.id}">${pinFor(s)}<span class="sr">Line removed: </span><del>${esc(text)}</del> <span class="sr">Line added: </span><ins data-in="${s.id}" ${edit(s)}>${esc(inText(s))}</ins></li>`;
+    return `<li data-line="${s.id}">${pinFor(s)}${esc(text)}</li>`;
+  };
+  const s3 = SUGG.find((s) => !s.out), a3 = S.ans[s3.id];
+  const skills = CV.skills.map(([g, items], i) => {
+    let extra = "";
+    if (i === 0 && (a3 === "use" || a3 === "true")) extra = `, <span class="${S.landed === s3.id ? "landed" : ""}" data-in="${s3.id}">${esc(inText(s3))}</span>`;
+    else if (i === 0 && preview && S.open === s3.id && !a3) extra = `, <span class="sr">Added: </span><ins data-in="${s3.id}" ${edit(s3)}>${esc(inText(s3))}</ins>`;
+    return `<p class="skill-group" ${i === 0 ? `data-line="${s3.id}"` : ""}>${i === 0 ? pinFor(s3) : ""}<strong>${esc(g)}</strong><br>${items.map(esc).join(", ")}${extra}</p>`;
+  }).join("");
+  return `<div class="fit"><article class="paper" aria-label="Your CV for this job">
+    <div class="banner-d">DRAFT — tailored for “${JOB.title}” at ${JOB.company}. Facts not yet verified by the candidate; not for submission.</div>
+    <h1>${CV.name}</h1>
+    <p class="headline"><span class="role-word">${CV.role}</span> - ${esc(CV.contact)}</p>
+    <h2>Professional Summary</h2><p class="summary">${esc(CV.summary)}</p>
+    <h2>Professional Experience</h2>
+    ${CV.jobs.map((j) => `<div class="role"><div class="role-head"><strong>${esc(j.emp)}</strong><span class="dates">${esc(j.dates)}</span></div><div class="role-title">${esc(j.title)}</div><ul>${j.bullets.map(bullet).join("")}</ul></div>`).join("")}
+    <h2>Skills</h2>${skills}
+    <h2>Education</h2><p class="edu"><strong>ESIEA, Paris</strong>, 2017<br>Master's Degree in Computer Science (Machine Learning)</p>
+    <h2>Additional Information</h2><p class="addl"><strong>Languages:</strong> ${esc(CV.langs)}</p>
+  </article></div>`;
+}
+
+// ================= computer =================
+function renderDesk() {
+  const left = pending().length, s = S.open && sug(S.open), C = variant === "C";
+  let rail;
+  if (s) {
+    const a = S.ans[s.id], n = idx(s.id) + 1;
+    rail = `<section class="dnote" id="dnote" aria-label="Suggestion ${n} of ${SUGG.length}">
+      <h3 tabindex="-1" id="focusme"><span class="num">${n}</span><span>${esc(reqOf(s).text)}</span></h3>
+      <p class="why">${esc(s.why)}</p>
+      ${a ? `<div style="margin-top:12px">${resultHtml(s)}</div>` : `<p class="swap">${swapHtml(s)}</p>${askHtml(s)}
+      <div class="acts">
+        <button class="b gold" onclick="answer('${s.id}','use')">Use for this job <kbd>U</kbd></button>
+        <button class="b" onclick="answer('${s.id}','true')">It's true: keep it on my CV for every job <kbd>T</kbd></button>
+        <div class="row"><button class="b quiet" onclick="answer('${s.id}','no')">No <kbd>N</kbd></button><button class="b quiet" onclick="edit('${s.id}')">${S.editing === s.id ? "Done editing" : "Edit wording"} <kbd>E</kbd></button></div>
+      </div>`}
+      <div class="nav"><button class="link" onclick="step(-1)">Previous</button><button class="link" onclick="step(1)">${a ? "Next" : "Later"}</button></div>
+      ${C ? foldHtml("rfold") : ""}
+    </section>`;
+  } else rail = `<section class="dsum">${summaryHtml()}<button class="b gold glow" onclick="approve()">Approve this CV</button>${C ? foldHtml("rfold") : ""}</section>`;
+
+  let side = "", grid = "";
+  if (variant === "D") {
+    grid = S.job ? "d-open" : "d-closed";
+    side = S.job
+      ? `<aside class="adcol" id="adcol" aria-label="The job"><div class="colhead"><b>The job</b><button class="link" onclick="closeJob()">Hide</button></div>${adHtml({ marks: true })}</aside>`
+      : `<button class="spine" onclick="openJob()" aria-label="Show the job beside your CV">Read the job</button>`;
+  }
+  const col = variant === "A" ? `${tabsHtml()}${S.job ? `<div class="adpanel">${adHtml()}</div>` : paperHtml({ preview: true })}` : paperHtml({ preview: true });
+  return `<header class="dbar">
+      <div class="title"><b>${JOB.title}</b><span>${JOB.company} · your CV is written only from what is true about you</span></div>
+      <div class="prog">${dotsHtml(true)}<span>${left ? `${left} suggestion${left > 1 ? "s" : ""} · optional` : "suggestions done"}</span></div>
+      ${scoreHtml()}
+      ${variant === "B" ? `<button class="link" onclick="openJob()">The job</button>` : ""}
+      <button class="link" onclick="openSheet('fit')">Where you fit · ${metCount()} of ${REQS.length}</button>
+      <button class="b ${left ? "" : "gold"}" onclick="approve()">Approve this CV</button>
+    </header>
+    <div class="dgrid ${grid}">${side}<div id="paperCol">${col}</div><aside class="rail" id="rail">${rail}</aside></div>`;
+}
+
+// ================= phone =================
+function clipHtml(s) {
+  const edit = S.editing === s.id ? 'contenteditable="true"' : "";
+  if (!s.out) return `<div class="clip"><div class="where">Skills</div><strong>Project management</strong><br>Agile / Scrum, IT governance &amp; delivery, … , <span class="sr">Added: </span><ins data-in="${s.id}" ${edit}>${esc(inText(s))}</ins></div>`;
+  const job = CV.jobs.find((j) => j.bullets.some(([b]) => b === s.out)), i = job.bullets.findIndex(([b]) => b === s.out);
+  const above = job.bullets[i - 1], below = job.bullets[i + 1];
+  return `<div class="clip"><div class="where">${esc(s.where)}</div>
+    ${above ? `<div class="ctx">${esc(lineNow(above[0]))}</div>` : ""}
+    <span class="sr">Line removed: </span><del>${esc(ALL_BULLETS.find(([b]) => b === s.out)[1])}</del>
+    <span class="sr">Line added: </span><ins data-in="${s.id}" ${edit}>${esc(inText(s))}</ins>
+    ${below ? `<div class="ctx" style="margin-top:6px">${esc(lineNow(below[0]))}</div>` : ""}</div>`;
+}
+function renderPhone() {
+  const s = S.open && sug(S.open), left = pending().length, D = variant === "D";
+  const jlink = D ? `<button class="link jlink" onclick="openJob()">See where the job asks this</button>` : "";
+  let card, dock;
+  if (s && !S.ans[s.id]) {
+    card = `<article class="pcard ${S.deal ? "deal" : ""}" aria-label="Suggestion ${idx(s.id) + 1} of ${SUGG.length}">
+      <div class="ptop">${dotsHtml(true)}<span>${idx(s.id) + 1} of ${SUGG.length} · optional</span></div>
+      <h3 tabindex="-1" id="focusme">${esc(reqOf(s).text)}</h3>${jlink}
+      <p class="why">${esc(s.why)}</p>
+      ${clipHtml(s)}
+      <p class="swap">${swapHtml(s)}</p>
+      ${askHtml(s)}</article>`;
+    dock = `<button class="b gold" onclick="answer('${s.id}','use')">Use for this job</button>
+      <button class="b" onclick="answer('${s.id}','true')">It's true: keep it on my CV for every job</button>
+      <div class="row"><button class="b quiet" onclick="answer('${s.id}','no')">No</button><button class="b quiet" onclick="edit('${s.id}')">${S.editing === s.id ? "Done editing" : "Edit wording"}</button></div>
+      <button class="link skip" onclick="skipRest()">Skip the rest</button>`;
+  } else if (s) {
+    card = `<article class="pcard ${S.deal ? "deal" : ""}"><div class="ptop">${dotsHtml(true)}<span>${idx(s.id) + 1} of ${SUGG.length}</span></div>
+      <h3 tabindex="-1" id="focusme">${esc(reqOf(s).text)}</h3>${jlink}<div style="margin-top:10px">${resultHtml(s)}</div></article>`;
+    dock = `<button class="b" onclick="step(1)">Continue</button>`;
+  } else {
+    card = `<article class="pcard ${S.deal ? "deal" : ""}">${summaryHtml()}</article>`;
+    dock = `<button class="b gold glow" onclick="approve()">Approve this CV</button><button class="link skip" onclick="openSheet('cv')">See your CV first</button>`;
+  }
+  const jobLede = variant === "A" || D ? ` · <button class="link" onclick="openJob()">Read the job</button>` : "";
+  return `<header class="pbar"><div class="title"><b>${JOB.title}</b><span>${JOB.company}</span></div>${scoreHtml(false)}${variant === "B" ? `<button class="link" onclick="openJob()">The job</button>` : ""}<button class="link" onclick="openSheet('fit')">Where you fit</button></header>
+    <main class="pmain">
+      <p class="lede"><b>Your CV is ready.</b> It says only what is true about you. ${left ? `${left} suggestion${left > 1 ? "s" : ""} to stretch it for this job, all optional.` : ""} <button class="link" onclick="openSheet('cv')">See your CV</button>${jobLede}</p>
+      ${card}
+      ${variant === "C" ? foldHtml("pfold") : ""}
+    </main>
+    <footer class="dock">${dock}</footer>`;
+}
+
+function sheetHtml() {
+  if (!S.sheet) return "";
+  const phone = mode() === "phone";
+  let label, head, body;
+  if (S.sheet === "cv") {
+    label = S.job ? "The job" : "Your CV for this job";
+    head = variant === "A" ? tabsHtml() : `<b>${label}</b>`;
+    body = S.job ? adHtml() : paperHtml({ preview: false });
+  } else if (S.sheet === "job") {
+    label = "The job"; head = `<b>The job</b>`; body = adHtml({ marks: variant === "D" });
+  } else {
+    label = `Where you fit · ${metCount()} of ${REQS.length} met`; head = `<b>${label}</b>`;
+    body = `${fitList()}<h4 class="h">Be ready to explain</h4>${explainHtml()}`;
+  }
+  return `<div class="scrim" onclick="closeSheet()"></div>
+    <section class="sheet ${phone ? "up" : "side"}" role="dialog" aria-modal="true" aria-label="${esc(label)}">
+      ${phone ? `<div class="grab"></div>` : ""}
+      <header>${head}<button class="link" onclick="closeSheet()">Close</button></header>
+      <div class="body" id="sheetBody">${body}</div></section>`;
+}
+
+// ================= render + post-render =================
+function render({ focus = false, top = false } = {}) {
+  const m = mode(), keep = top ? 0 : document.getElementById("scroll")?.scrollTop ?? 0;
+  document.body.classList.toggle("framed", view === "phone");
+  app.innerHTML = `<div class="scroll" id="scroll">${m === "desk" ? renderDesk() : renderPhone()}</div>` + sheetHtml();
+  document.getElementById("scroll").scrollTop = keep;
+  if (m === "desk") pinNote();
+  markScroll();
+  if (focus) { const f = document.getElementById("focusme"); if (f) f.focus({ preventScroll: true }); }
+  S.landed = null; S.deal = false;
+  document.getElementById("v-auto").setAttribute("aria-pressed", view === "auto");
+  document.getElementById("v-phone").setAttribute("aria-pressed", view === "phone");
+  readout();
+}
+function pinNote() {
+  const note = document.getElementById("dnote"), rail = document.getElementById("rail");
+  if (!note) return;
+  const line = app.querySelector(`[data-line="${S.open}"]`);
+  const top = line ? Math.max(0, line.getBoundingClientRect().top - rail.getBoundingClientRect().top - 18) : 0;
+  note.style.top = top + "px";
+  rail.style.minHeight = top + note.offsetHeight + "px";
+}
+function reveal() {
+  const line = app.querySelector(`[data-line="${S.open}"]`);
+  if (!line) return;
+  const sc = document.getElementById("scroll"), r = line.getBoundingClientRect(), a = sc.getBoundingClientRect();
+  if (r.top < a.top + 90 || r.bottom > a.bottom - 40) sc.scrollBy({ top: r.top - a.top - a.height / 3, behavior: REDUCED ? "auto" : "smooth" });
+}
+// D: bring the lit requirement into view inside its own column or sheet.
+function markScroll() {
+  const li = app.querySelector(".ad li.hl"), box = li?.closest(".adcol, .body");
+  if (!box) return;
+  box.scrollTop += li.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 3;
+}
+function readout() {
+  const n = S.open ? idx(S.open) + 1 : 0;
+  const mark = variant === "D" && S.job && S.open ? `marked: ${reqOf(sug(S.open)).id} (#${n})` : "nothing marked";
+  document.getElementById("pv-label").textContent = VARIANTS[variant];
+  document.getElementById("pstate").textContent = `${mode() === "desk" ? "computer" : "phone"} · job ${S.job ? "open" : "closed"} · ${mark}`;
+}
+
+// ================= the score =================
+let scoreToken = 0;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+function paintScore(roll) {
+  const n = document.getElementById("scoreN");
+  if (!n) return;
+  n.textContent = shown;
+  if (roll && !REDUCED) n.animate([{ transform: "translateY(38%)", opacity: 0.25 }, { transform: "none", opacity: 1 }], { duration: 110, easing: "cubic-bezier(.16,1,.3,1)" });
+}
+function flyMote(from) {
+  const to = document.getElementById("scoreN")?.getBoundingClientRect();
+  if (!from || !to) return Promise.resolve();
+  const m = document.createElement("div");
+  m.className = "mote"; document.body.appendChild(m);
+  const x0 = from.left + Math.min(from.width, 40), y0 = from.top + from.height / 2, x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+  const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 80;
+  const anim = m.animate([
+    { transform: `translate(${x0}px, ${y0}px) scale(1)`, opacity: 0.2 },
+    { transform: `translate(${mx}px, ${my}px) scale(1.3)`, opacity: 1, offset: 0.45 },
+    { transform: `translate(${x1}px, ${y1}px) scale(.6)`, opacity: 1 },
+  ], { duration: 720, easing: "cubic-bezier(.45,0,.2,1)" });
+  return anim.finished.then(() => m.remove(), () => m.remove());
+}
+async function moveScore(beat, fromRect) {
+  const token = ++scoreToken, target = pct();
+  document.getElementById("live").textContent = `Match now ${target}%`;
+  if (REDUCED) { shown = target; paintScore(false); return; }
+  if (beat) {
+    await flyMote(fromRect);
+    if (token !== scoreToken) return;
+    const sc = document.getElementById("score");
+    sc?.classList.add("lit");
+    sc?.querySelector(".n").animate([{ transform: "scale(1)" }, { transform: "scale(1.06)" }, { transform: "scale(1)" }], { duration: 460, easing: "cubic-bezier(.2,1.5,.4,1)" });
+  }
+  while (shown !== target) {
+    if (token !== scoreToken) return;
+    shown += Math.sign(target - shown);
+    paintScore(beat);
+    await wait(beat ? 75 : 45);
+  }
+  await wait(220);
+  if (token === scoreToken) document.getElementById("score")?.classList.remove("lit");
+}
+
+// ================= actions =================
+function saveEdit(id) {
+  const el = app.querySelector(`[data-in="${id}"]`);
+  if (!el) return;
+  const t = el.textContent.trim();
+  if (t && t !== sug(id).in) S.edits[id] = t;
+}
+function nextOpen(fromId) {
+  const i = idx(fromId);
+  return [...SUGG.slice(i + 1), ...SUGG.slice(0, i)].find((s) => !S.ans[s.id])?.id ?? null;
+}
+function answer(id, a) {
+  if (S.editing === id) { saveEdit(id); S.editing = null; }
+  const fromRect = app.querySelector(`[data-in="${id}"]`)?.getBoundingClientRect();
+  S.ans[id] = a;
+  if (a !== "no") S.landed = id;
+  S.open = nextOpen(id); S.deal = true;
+  render({ focus: true, top: mode() === "phone" });
+  if (mode() === "desk") reveal();
+  if (a !== "no") moveScore(true, fromRect);
+  if (a === "true") toast(`Kept on your CV for every job, under ${sug(id).where}.`, id);
+}
+function undo(id) { delete S.ans[id]; S.open = id; S.deal = true; render({ focus: true }); moveScore(false); }
+function edit(id) {
+  if (S.editing === id) { saveEdit(id); S.editing = null; } else S.editing = id;
+  render();
+  if (S.editing) app.querySelector(`[data-in="${id}"]`)?.focus();
+}
+function go(id) { S.open = id; S.editing = null; S.deal = true; closeSheet(false); render({ focus: true }); if (mode() === "desk") reveal(); }
+function step(d) {
+  const i = S.open ? idx(S.open) : -1;
+  if (d > 0 && S.open && S.ans[S.open]) { S.open = nextOpen(S.open); S.deal = true; render({ focus: true }); if (mode() === "desk") reveal(); return; }
+  go(SUGG[(i + d + SUGG.length) % SUGG.length].id);
+}
+function skipRest() { S.open = null; S.deal = true; render({ focus: true }); }
+function approve() { toast(pending().length ? "Approved. The suggestions you did not answer are left out." : "Approved. (Prototype: nothing is sent.)"); }
+function openSheet(k) { S.sheet = k; if (k === "cv") S.job = false; render(); document.querySelector(".sheet .link")?.focus(); }
+function closeSheet(rerender = true) { if (!S.sheet) return; if (S.sheet !== "fit") S.job = false; S.sheet = null; if (rerender) render(); }
+function setTab(v) { S.job = v; render(); }
+// Where "open the job" goes depends on the variant and the screen.
+function openJob() {
+  const phone = mode() === "phone";
+  S.job = true;
+  if (variant === "B" || (variant === "D" && phone)) S.sheet = "job";
+  if (variant === "A" && phone) S.sheet = "cv";
+  render();
+  if (variant === "C") {
+    const f = app.querySelector(".rfold, .pfold"), sc = document.getElementById("scroll");
+    if (f) sc.scrollTop += f.getBoundingClientRect().top - sc.getBoundingClientRect().top - (phone ? 70 : 120);
+    if (!phone) pinNote();
+  }
+}
+function closeJob() { if (S.sheet && S.sheet !== "fit") return closeSheet(); S.job = false; render(); }
+function foldToggled(el) { S.job = el.open; if (mode() === "desk") pinNote(); readout(); }
+function toast(msg, undoId) {
+  document.querySelector(".toast")?.remove();
+  const t = document.createElement("div");
+  t.className = "toast" + (mode() === "phone" ? " phone" : "");
+  t.setAttribute("role", "status");
+  t.innerHTML = `<span>${esc(msg)}</span>${undoId ? `<button class="link">Undo</button>` : ""}`;
+  if (undoId) t.querySelector("button").onclick = () => { t.remove(); undo(undoId); };
+  app.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+function setVariant(d) {
+  const keys = Object.keys(VARIANTS);
+  variant = keys[(keys.indexOf(variant) + d + keys.length) % keys.length];
+  const u = new URL(location.href); u.searchParams.set("variant", variant); history.replaceState(null, "", u);
+  S.job = false; S.sheet = null; S.editing = null;
+  render();
+}
+
+// ================= wiring =================
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if (S.editing) { edit(S.editing); return; } closeSheet(); return; }
+  if (e.target.closest("[contenteditable='true'], input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setVariant(e.key === "ArrowLeft" ? -1 : 1); return; }
+  if (S.sheet) return;
+  const k = e.key.toLowerCase(), open = S.open && !S.ans[S.open] ? S.open : null;
+  if (k === "j") step(1); else if (k === "k") step(-1);
+  else if (open && k === "u") answer(open, "use");
+  else if (open && k === "t") answer(open, "true");
+  else if (open && k === "n") answer(open, "no");
+  else if (open && k === "e") { e.preventDefault(); edit(open); }
+});
+document.getElementById("pv-prev").onclick = () => setVariant(-1);
+document.getElementById("pv-next").onclick = () => setVariant(1);
+let lastMode = null;
+new ResizeObserver(() => { const m = mode(); if (m !== lastMode) { lastMode = m; render(); } else if (m === "desk") pinNote(); }).observe(app);
+const setView = (v) => { view = v; const u = new URL(location.href); v === "phone" ? u.searchParams.set("view", "phone") : u.searchParams.delete("view"); history.replaceState(null, "", u); lastMode = null; render(); };
+document.getElementById("v-auto").onclick = () => setView("auto");
+document.getElementById("v-phone").onclick = () => setView("phone");
+document.getElementById("v-reset").onclick = () => { S = fresh(); shown = pct(); scoreToken++; render(); };
+render();
+lastMode = mode();
+</script>
+</body>
+</html>
