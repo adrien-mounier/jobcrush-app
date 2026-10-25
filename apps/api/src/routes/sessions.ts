@@ -149,7 +149,8 @@ export function sessionRoutes(
       // before coverage; #246 fetches at question 1 on purpose, and would put every uncovered
       // visitor's whole job list in her browser. Withholding it closes the door for good rather
       // than adding a fourth guard for someone to forget.
-      const { token: _token, retrieval: _retrieval, ...safe } = req.session;
+      // #434: tailorRetrieval is a cut of the same search, withheld for the same reason.
+      const { token: _token, retrieval: _retrieval, tailorRetrieval: _tailorRetrieval, ...safe } = req.session;
     return safe;
   });
 

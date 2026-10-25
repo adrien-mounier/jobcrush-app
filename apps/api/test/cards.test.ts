@@ -1803,7 +1803,7 @@ describe("#107 D4 — withdrawal on every surface that renders an advert", () =>
     // Mandarin answer landed later) — set directly, exercising this gate on its own terms rather than
     // relying on /want's earlier (still-404) check to have kept this state from ever existing.
     await warmRetrieval(app, cookie); // #63: the target advert arrives through retrieval
-    await sessions.setTailorTarget(sid, target.id);
+    await sessions.setTailorTarget(sid, target.id, null);
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",

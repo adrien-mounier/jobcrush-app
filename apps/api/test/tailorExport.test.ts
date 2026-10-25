@@ -4,7 +4,8 @@
 // a draft that fails the lint or does not carry this person's approval cannot be emailed.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
-import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
+import { fixtureRetriever, liveIdFor, warmRetrieval } from "./fixtureDeck.js";
+import { loadPostings, type Draft } from "../src/preview.js";
 import { loadAdRequirements } from "../src/e5stub.js";
 import { deniedClaim } from "./denial.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
@@ -15,8 +16,7 @@ import { exportGate, PAGE_NOTICES, tightenedBulletBudget } from "../src/tailorEx
 import { REPORT_LINES } from "../src/applicationReport.js";
 import { fakeJudge, reportingLlm } from "./reportFakes.js";
 import type { DraftInputs } from "../src/tailorDraft.js";
-import type { Draft } from "../src/preview.js";
-import type { CandidateClaim } from "@jobcrush/contracts";
+import { PostingRetrievalResultV1, type CandidateClaim } from "@jobcrush/contracts";
 
 const ROLE = "IT project manager in Paris";
 const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
@@ -832,5 +832,72 @@ describe("#431 the job being tailored outlives the deck's 5-minute search window
     expect(res.statusCode).toBe(202);
     expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
     expect(sent).toHaveLength(1);
+  });
+});
+
+describe("#434 the job being tailored outlives a later deck search that fails or leaves it out", () => {
+  afterEach(() => vi.useRealTimers());
+
+  const withoutTarget = loadPostings().filter((p) => p.id !== FIXTURE_AD_ID);
+  const providerDown = async () =>
+    PostingRetrievalResultV1.parse({
+      schemaVersion: "5",
+      outcome: "provider_unavailable",
+      coverage: { providersQueried: ["techmap"], providersUnavailable: ["techmap"], complete: false },
+      reason: "provider down",
+      retryable: true,
+    });
+
+  /** Reach the Tailor step and draft, then let the deck search again 6 minutes later (past its
+   *  search-again window) with `later` answering — the stored search is replaced by that answer. */
+  async function tailorThenSearchAgain(later: () => Promise<PostingRetrievalResultV1>) {
+    let retrieve = fixtureRetriever();
+    const { sent, mailer } = recordingMailer();
+    const built = exportServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      retrievePostings: () => retrieve(),
+    });
+    const { app } = built;
+    const cookie = await anonSession(app);
+    await reachTailor(built, cookie, "export-research@example.com");
+    const view = await draftAndRead(app, cookie);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 6 * 60 * 1000);
+    retrieve = later;
+    await warmRetrieval(app, cookie);
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+    const after = (await built.sessions.getById(sid))!.retrieval!;
+    // The premise: the deck's later search really did replace the one the job was found in.
+    const found = after.result.outcome === "relevant_postings" ? after.result.postings.map((p) => p.id) : [];
+    expect(found).not.toContain(VALID_AD_ID);
+    return { app, cookie, view, sent };
+  }
+
+  async function expectEveryDoorOpen(app: App, cookie: string, view: { draftedAt: string }, sent: unknown[]) {
+    expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(200);
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(200);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(202);
+    expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    expect(sent).toHaveLength(1);
+  }
+
+  it("the deck's next search fails (provider down): the Tailor screen, its draft and Approve still answer", async () => {
+    const { app, cookie, view, sent } = await tailorThenSearchAgain(providerDown);
+    await expectEveryDoorOpen(app, cookie, view, sent);
+  });
+
+  it("the deck's next search leaves the job out: the Tailor screen, its draft and Approve still answer", async () => {
+    const { app, cookie, view, sent } = await tailorThenSearchAgain(fixtureRetriever(withoutTarget));
+    await expectEveryDoorOpen(app, cookie, view, sent);
+  });
+
+  it("a job that is really gone (past its source's 24-hour freshness window) still refuses", async () => {
+    const { app, cookie } = await tailorThenSearchAgain(fixtureRetriever(withoutTarget));
+    vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000);
+    expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(404);
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(404);
   });
 });

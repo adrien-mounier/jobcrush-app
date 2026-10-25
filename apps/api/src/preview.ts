@@ -150,16 +150,23 @@ export function sessionPostings(
 }
 
 /** #431: the pool the Tailor step reads — `sessionPostings` with the session's last search kept past
- *  the deck's search-again window (postingRetrieval.ts's liveSearchResult). Every other rule is the
+ *  the deck's search-again window (postingRetrieval.ts's liveSearchResult), plus (#434) the job being
+ *  tailored, kept from the search it was picked from. Every other rule is the
  *  same function's: the review and work-rights gates, and his own jobs stitched in. Inside the
  *  window the two pools are the same; after it, the deck searches again and this one does not. */
 export function lastSearchPostings(
-  session: Pick<SessionRecord, "retrieval" | "importProof" | "reviewCompletedAt" | "intent">,
+  session: Pick<SessionRecord, "retrieval" | "tailorRetrieval" | "importProof" | "reviewCompletedAt" | "intent">,
   requestFingerprint: string,
   facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
   brought: readonly BroughtJob[] = [],
 ): Posting[] {
-  return gatedPool(session, facts, retrievedPostings(liveSearchResult(session.retrieval, requestFingerprint)), brought);
+  const retrieved = retrievedPostings(liveSearchResult(session.retrieval, requestFingerprint));
+  // #434: the job being tailored, kept from the search it was picked from — a later deck search that
+  // failed or left it out replaced `retrieval`, but the job's own record still decides.
+  const kept = retrievedPostings(liveSearchResult(session.tailorRetrieval, requestFingerprint)).filter(
+    (k) => !retrieved.some((p) => p.id === k.id),
+  );
+  return gatedPool(session, facts, [...retrieved, ...kept], brought);
 }
 
 function gatedPool(

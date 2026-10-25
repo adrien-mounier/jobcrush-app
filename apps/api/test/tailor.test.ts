@@ -446,7 +446,7 @@ describe("#23 B3 — a stale/invalid tailor target fails closed with a 404, not 
     await signIn(app, cookie, "b3-stale-target@example.com");
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    await sessions.setTailorTarget(sid, "not-a-real-ad-id"); // the fixture pair has since drifted
+    await sessions.setTailorTarget(sid, "not-a-real-ad-id", null); // the fixture pair has since drifted
 
     const getRes = await get(app, cookie, "/onboarding/tailor");
     expect(getRes.statusCode).toBe(404);

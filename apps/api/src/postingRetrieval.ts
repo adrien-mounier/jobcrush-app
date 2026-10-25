@@ -542,7 +542,8 @@ export function isReusableRetrievalSnapshot(
  *  search. What still refuses a job here is the job itself (expired, or past its source's liveness
  *  window), a search made for a different request (#101: held out until the deck's refresh lands —
  *  nothing the Tailor step writes changes the request), or the job being gone from the session's
- *  latest search, which a later deck search replaces. Null when the search delivered no adverts or
+ *  latest search, which a later deck search replaces (#434: the target itself is kept beside it —
+ *  keptTailorSearch). Null when the search delivered no adverts or
  *  was made for a different request — `retrievedPostings` reads both as an empty pool. */
 export function liveSearchResult(
   snapshot: RetrievalSnapshot | null,
@@ -555,6 +556,27 @@ export function liveSearchResult(
     ...snapshot.result,
     postings: snapshot.result.postings.filter((posting) => postingIsLive(posting, registry, nowMs)),
   };
+}
+
+/** #434: the search a want picks its job from, cut down to that one advert — what the session keeps
+ *  beside the target (SessionRecord.tailorRetrieval) so a later deck search that fails or leaves the
+ *  job out cannot take it away. Read through liveSearchResult like the last search, so the job's own
+ *  liveness and the request fingerprint still decide. Looks in the last search first, then in what is
+ *  already kept (a want on the same job again), each only if made for this request. Null for a job
+ *  in neither (one he brought).
+ *  ponytail: the copy is frozen at the want, so a job a later search re-confirms and a third one
+ *  drops expires on its FIRST confirmation; refresh it from the posting store if that bites. */
+export function keptTailorSearch(
+  session: Pick<SessionRecord, "retrieval" | "tailorRetrieval">,
+  adId: string,
+  requestFingerprint: string,
+): RetrievalSnapshot | null {
+  for (const snapshot of [session.retrieval, session.tailorRetrieval]) {
+    if (snapshot?.requestFingerprint !== requestFingerprint || snapshot.result.outcome !== "relevant_postings") continue;
+    const posting = snapshot.result.postings.find((p) => p.id === adId);
+    if (posting) return { ...snapshot, result: { ...snapshot.result, postings: [posting] } };
+  }
+  return null;
 }
 
 function postingIsLive(

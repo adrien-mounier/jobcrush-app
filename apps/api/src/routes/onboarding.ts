@@ -504,7 +504,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (findWithdrawingRequirement(adReq, facts, claims, posting.location, brought))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
-        await deps.sessions.setTailorTarget(session.id, req.params.adId);
+        await deps.sessions.setTailorTarget(session.id, req.params.adId, target.tailorRetrieval); // #434
         return { stage: "tailor", adId: req.params.adId };
       },
     );

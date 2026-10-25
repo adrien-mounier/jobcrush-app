@@ -374,6 +374,11 @@ export interface SessionRecord {
   intent: SearchIntent;
   discovery: ProductionDiscoveryState;
   retrieval: RetrievalSnapshot | null;
+  /** #434: the job being tailored, kept from the search it was picked from — that search cut down
+   *  to the one advert (or null for a job he brought, which is never in a search). A later deck
+   *  search replaces `retrieval`; this keeps the target tailorable while its own record is live.
+   *  Set and cleared with `tailorAdId`. */
+  tailorRetrieval: RetrievalSnapshot | null;
   /** Raw CAS coordinate stored separately from the parsed snapshot. An old snapshot may no longer
    * validate, but its durable coordinate must still be replaceable rather than wedging retrieval. */
   retrievalCoordinationFingerprint: string | null;
@@ -429,7 +434,7 @@ export interface SessionStore {
    *  (the completion clears, so the jobs gate holds) for the items past `since`. The one door that
    *  clears the completion. */
   reopenReview(id: string, since: number): Promise<void>;
-  setTailorTarget(id: string, adId: string): Promise<void>;
+  setTailorTarget(id: string, adId: string, tailorRetrieval: RetrievalSnapshot | null): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
   clearTailorTarget(id: string): Promise<void>;
   /** #308: records one skipped profile question, keyed "<adId>::<requirementId>" (idempotent). */
@@ -489,6 +494,7 @@ function newSession(): SessionRecord {
     intent: { targetRole: null, searchAreas: [] },
     discovery: emptyDiscovery(),
     retrieval: null,
+    tailorRetrieval: null,
     retrievalCoordinationFingerprint: null,
     retrievalGeneration: 0,
   };
@@ -684,11 +690,12 @@ export class InMemorySessionStore implements SessionStore {
     if (s) Object.assign(s, { reviewCompletedAt: null, reviewSince: since });
   }
 
-  async setTailorTarget(id: string, adId: string): Promise<void> {
+  async setTailorTarget(id: string, adId: string, tailorRetrieval: RetrievalSnapshot | null): Promise<void> {
     const s = this.byId.get(id);
     if (s) {
       s.stage = "tailor";
       s.tailorAdId = adId;
+      s.tailorRetrieval = structuredClone(tailorRetrieval);
     }
   }
 
@@ -697,6 +704,7 @@ export class InMemorySessionStore implements SessionStore {
     if (s) {
       s.stage = "deck";
       s.tailorAdId = null;
+      s.tailorRetrieval = null;
     }
   }
 
@@ -750,7 +758,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   retrieval_generation            integer NOT NULL DEFAULT 0,
   retrieval_in_flight_fingerprint text,
   retrieval_in_flight_owner       text,
-  retrieval_in_flight_claimed_at  timestamptz
+  retrieval_in_flight_claimed_at  timestamptz,
+  tailor_retrieval                jsonb
 )`;
 
 const SESSIONS_ALTERS = [
@@ -795,6 +804,9 @@ const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS review_since bigint",
   // #420 (review): the paid wording rewrites this session has made — the per-session bound's count.
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS stretch_rewrites integer NOT NULL DEFAULT 0",
+  // #434: null for a session tailoring nothing, or one whose target predates the column — that
+  // target reads the last search alone, as before. No backfill.
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_retrieval jsonb",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -826,6 +838,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     },
     discovery: discoveryState(r.production_discovery),
     retrieval: retrievalSnapshot(r.retrieval),
+    tailorRetrieval: retrievalSnapshot(r.tailor_retrieval),
     retrievalCoordinationFingerprint: (r.retrieval_fingerprint as string) ?? null,
     retrievalGeneration: (r.retrieval_generation as number) ?? 0,
   };
@@ -1123,15 +1136,18 @@ export class PgSessionStore implements SessionStore {
     await this.pool.query(`UPDATE sessions SET review_completed_at = NULL, review_since = $2 WHERE id = $1`, [id, since]);
   }
 
-  async setTailorTarget(id: string, adId: string): Promise<void> {
+  async setTailorTarget(id: string, adId: string, tailorRetrieval: RetrievalSnapshot | null): Promise<void> {
     await this.pool.query(
-      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2 WHERE id = $1`,
-      [id, adId],
+      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2, tailor_retrieval = $3 WHERE id = $1`,
+      [id, adId, tailorRetrieval ? JSON.stringify(tailorRetrieval) : null],
     );
   }
 
   async clearTailorTarget(id: string): Promise<void> {
-    await this.pool.query(`UPDATE sessions SET stage = 'deck', tailor_ad_id = NULL WHERE id = $1`, [id]);
+    await this.pool.query(
+      `UPDATE sessions SET stage = 'deck', tailor_ad_id = NULL, tailor_retrieval = NULL WHERE id = $1`,
+      [id],
+    );
   }
 
   async addTailorSkip(id: string, skipKey: string): Promise<void> {

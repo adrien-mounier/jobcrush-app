@@ -18,7 +18,7 @@ import { soleConfirmedFamily } from "./adaptiveDiscovery.js";
 import type { ClaimRecord } from "./claims.js";
 import type { JobBlockView } from "./jobBlockStore.js";
 import type { BroughtJobsFn } from "./broughtJobs.js";
-import type { SessionRecord } from "./sessions.js";
+import type { RetrievalSnapshot, SessionRecord } from "./sessions.js";
 import {
   familyPlacementConfidence,
   hasIndustryUnplacedWork,
@@ -61,6 +61,7 @@ import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
 import { factCount } from "./discovery.js";
 import {
+  keptTailorSearch,
   retrievalFingerprint,
   retrievalRequestForSession,
   type RetrievalRequest,
@@ -1262,7 +1263,7 @@ export async function tailorTarget(
   // widening the type is what makes it impossible for this one to skip the check.
   // ADR-0018 clause 7: `intent` + `facts` because that pool is held while a target
   // market has no work-rights answer — the want door, this target and the draft refuse together.
-  session: Pick<SessionRecord, "id" | "retrieval" | "discovery" | "importProof" | "reviewCompletedAt" | "intent">,
+  session: Pick<SessionRecord, "id" | "retrieval" | "tailorRetrieval" | "discovery" | "importProof" | "reviewCompletedAt" | "intent">,
   adId: string,
   readAd: ReadAdFn | undefined,
   requestFingerprint: string,
@@ -1270,7 +1271,8 @@ export async function tailorTarget(
   // #305: a job HE BROUGHT is never in the snapshot — it is stitched in from storage — so without this
   // the tailor target for the one kind of job that cannot drop out would be the one that 404s.
   brought: readonly BroughtJob[] = [],
-): Promise<{ posting: Posting; adReq: AdRequirementsV1 } | null> {
+  // #434: `tailorRetrieval` is the search cut down to this job, for the want door to keep beside it.
+): Promise<{ posting: Posting; adReq: AdRequirementsV1; tailorRetrieval: RetrievalSnapshot | null } | null> {
   // #103: same dual gate as the deck and /want — a persisted tailorAdId for a posting (or a
   // requirement set) this session's languages can no longer read (or never could) fails closed with
   // the existing "unknown card" 404.
@@ -1285,7 +1287,7 @@ export async function tailorTarget(
   // because it never had a fixture.
   const adReq = await resolveAdRequirements(adId, readAd, posting);
   if (!adReq || !languageEligible(adReq.language, langs)) return null;
-  return { posting, adReq };
+  return { posting, adReq, tailorRetrieval: keptTailorSearch(session, adId, requestFingerprint) };
 }
 // #107 (D4/M3, code review): withdrawal is checked by the two callers (GET /onboarding/tailor,
 // POST /onboarding/tailor/answer) instead of here — a target that was resolvable but has since

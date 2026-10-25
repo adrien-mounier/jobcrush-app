@@ -3,7 +3,7 @@
 // in CI without a live DB). If the SQL is wrong, these fail here — before it reaches staging.
 import { beforeEach, describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
-import { canonicalKeyOf, type CandidateClaim, type ProviderPostingRecordV1 } from "@jobcrush/contracts";
+import { canonicalKeyOf, PostingRetrievalResultV1, type CandidateClaim, type ProviderPostingRecordV1 } from "@jobcrush/contracts";
 import {
   InMemorySessionStore,
   PgSessionStore,
@@ -38,6 +38,7 @@ import {
 import type { Draft } from "../src/preview.js";
 import { CV_REVIEW_UNITS_MIGRATION, InMemoryCvReviewStore, PgCvReviewStore, type CvReviewStore } from "../src/cvReviewStore.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
+import { fixturePostingsV1 } from "./fixtureDeck.js";
 
 function pgPool() {
   const { Pool } = newDb().adapters.createPg();
@@ -711,10 +712,31 @@ for (const [name, make] of sessionDrivers) {
 
     it("setTailorTarget persists the tailor stage and selected ad id together", async () => {
       const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
+      await store.setTailorTarget(s.id, "ad-1", null);
       const got = await store.getById(s.id);
       expect(got?.stage).toBe("tailor");
       expect(got?.tailorAdId).toBe("ad-1");
+      expect(got?.tailorRetrieval).toBeNull();
+    });
+
+    it("#434: setTailorTarget keeps the job's own search beside the target; clearTailorTarget drops it", async () => {
+      const s = await store.create();
+      const posting = fixturePostingsV1().slice(0, 1);
+      const kept = {
+        requestFingerprint: "fp-434",
+        recordedAt: "2026-10-25T00:00:00.000Z",
+        result: PostingRetrievalResultV1.parse({
+          schemaVersion: "5",
+          outcome: "relevant_postings",
+          postings: posting,
+          coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+          retrievedAt: "2026-10-25T00:00:00.000Z",
+        }),
+      };
+      await store.setTailorTarget(s.id, posting[0]!.id, kept);
+      expect((await store.getById(s.id))?.tailorRetrieval).toEqual(kept);
+      await store.clearTailorTarget(s.id);
+      expect((await store.getById(s.id))?.tailorRetrieval).toBeNull();
     });
 
     // #309: the #23/#31 tailor score floor (raiseTailorFloor, tailor_floor_pct/tailor_floor_ad_id)
@@ -723,7 +745,7 @@ for (const [name, make] of sessionDrivers) {
 
     it("clearTailorTarget drops back to deck with no ad targeted", async () => {
       const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
+      await store.setTailorTarget(s.id, "ad-1", null);
       await store.clearTailorTarget(s.id);
       const got = await store.getById(s.id);
       expect(got?.stage).toBe("deck");
