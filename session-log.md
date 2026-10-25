@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-25 — #435 built on a local branch: #431's journey joins tier 2, ~2 min instead of ~9 (1af8304)
+
+`/implement 435` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint, on `fix/435-journey-tier` cut from `fix/434-tailor-target-kept`'s tip.
+- Option 1 chosen over deleting the journey: only it presses every Tailor door past the deck's search window in a browser. The QA stack's `POST /qa/stack` takes `deckSearchWindowMs` (test-only; qa-main is not shipped, the production window stays 5 minutes, proven by a unit test). The journey arms 20 s and puts it back on finish, crash or kill.
+- Selector before: the journey in no run, picked by no change. After: in the list (44), picked by changes to search, deck, Tailor, draft, export and report code.
+- `/code-review`: the stack now echoes the window the code reads, report files mapped, `ForTest` naming. The builder's own mutation run found the window left armed after a crash; fixed (reset from Node, not the page).
+- QA **GO** on tree c9aed23: api 2271, typecheck 7/7, selection 15/15; live 20/20 in 2 min 19 s on the fake model. Red only when both #431's and #434's protections are undone (either alone still keeps the job).
+**Next:** the owner ships the branch (#427, #432, #433, #434, #435) → CI → staging; the re-proof resumes.
+
 ## 2026-10-25 — #434 built on a local branch: the job being tailored survives a later deck search (9ac32a8)
 
 `/implement 434` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint, on `fix/434-tailor-target-kept` cut from `fix/433-tailor-polish`'s tip.
@@ -90,11 +99,3 @@ Staging evidence: 7 questions, 0 real gaps. The scorer cannot see dates (years 0
 Docs cbb922a: ADR-0020 and its amendment notes (ADR-0011 cl. 1–2, ADR-0005 cl. 3/5/9, tailoring-reasoning §5/§8), GLOSSARY *Stretch*. Prototype: branch `prototype/stretch-suggestions-408`. #350 gains the gap-list door.
 **Spec #412:** waves #413 #414 #415 → #416 #417 #411 → #418 → #419 #420. Suggestion step ≈$0.05 per CV (estimate).
 **Next:** owner types `/implement-spec #412` (Fable 5.1, high); then his re-proof on a fresh staging account.
-
-## 2026-10-22 — Spec #403 shipped: five screen fixes from the owner's staging run (#404 #402 #405 #406 #407)
-
-`/implement-spec #403` (Fable 5.1, medium): three implementers in worktrees on `spec/403-staging-fixes`, no merge conflicts. **#404/#402** `splitLetterhead` splits on a spaced dash too, but only on a line that carries an email or phone (a title like "Purchasing Manager - Ingredients & Packaging" stays whole); the English label list is gone — any run of `word:` labels left after the contact is taken out is dropped, so "Natel:", "Portable :" never reach the title. **#405** `cv-review.md` v3: About you is a third-person pitch (identity opener, two or three results, no closing list); the printed summary keeps its strict rules; brain doc updated. **#406** the stored advert already had its line breaks; one `white-space: pre-line` on the shared card shows them on the deck, the job screen and the tailor. **#407** Where you fit = the requirements the scorer counts as met, each with the verdict's `reason`; the bubble's first half is that reason or nothing; `CardFact` gains an optional `reason` in zod + oracle + golden (additive, no version bump — owner to confirm that reading of "change contracts only by versioning"); `card-judge.md` now writes reasons to the person as "you".
-`/code-review`: golden mutation missing, a label-in-the-middle regression, two nits — fixed. QA gate 1 **NO-GO**: the reason's class `why` collided with the tailor screen's eyebrow label (uppercase) and broke `tailor-journey`; plus a trailing " -" on the phone, the title cut at a spaced dash, "E-mail:" behind a comma. All fixed; QA gate 2 **GO** on tree 3b5eb66: api 2161, typecheck 7/7, mocked card specs 75/75, `spec-403-staging-fixes-journey.mjs` 33/33 (committed, not in tier 2), tailor 53/53, grow-door 23/23.
-**Filed:** #409 two-column letterhead reads the address as the title, #410 two phones on one contact line. **Cost note:** the judge prompt changed, so every judged card is re-judged once on staging.
-CI green on efa4696 (run 39753904814, all 42 tier-2 journeys, ~85 min), staging serves that sha. **Owner re-proofed on staging the same day: "the defects I raised look ok"** — the three staging-only ACs (#405 About you on his real CV, #407 his real judged card, #404 fresh account) are covered by that check.
-**Next:** grill #408 (Opus 5.5) in its own session — the Tailor step's question queue; then its spec and build.
