@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-25 — #434 built on a local branch: the job being tailored survives a later deck search (9ac32a8)
+
+`/implement 434` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint, on `fix/434-tailor-target-kept` cut from `fix/433-tailor-polish`'s tip.
+- A deck search that failed, or no longer returned the job, replaced the search the Tailor step read its job from: every Tailor door answered "unknown card". The want door now keeps that job's own copy beside the target (new nullable session column, no backfill); its liveness and the request still decide.
+- `routes/onboarding.ts` sat at its 515-line limit: the kept copy rides back on the existing lookup's answer instead of a new import there.
+- `/code-review` caught a re-pick of the same job overwriting a good kept copy with one from an older search: fixed. The copy is frozen at the pick (ceiling marked in code).
+- QA **GO** on tree e74fef0: api 2270, typecheck 7/7, new tests red on the old code; live drive 14/14 (deck down, then a search without the job, then Approve sent); 5 Tailor journeys + 65 browser specs green; migration checked on a throwaway Postgres 16. Filed #436 (no test proves /sessions/me withholds the kept copy).
+**Next:** the owner ships the branch (#427, #432, #433, #434) → CI → staging; the re-proof resumes.
+
 ## 2026-10-25 — #432 built on a local branch: a stray newline or tab in a model answer is repaired, not retried (8e7e1fa)
 
 `/implement 432` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint. The named base `fix/431-tailor-target` did not exist; owner chose `fix/432-report-json` = `fix/431-unknown-card` + #427's 972e97f copied (faacbff; docs conflicts kept #431's side).
@@ -89,9 +98,3 @@ Docs cbb922a: ADR-0020 and its amendment notes (ADR-0011 cl. 1–2, ADR-0005 cl.
 **Filed:** #409 two-column letterhead reads the address as the title, #410 two phones on one contact line. **Cost note:** the judge prompt changed, so every judged card is re-judged once on staging.
 CI green on efa4696 (run 39753904814, all 42 tier-2 journeys, ~85 min), staging serves that sha. **Owner re-proofed on staging the same day: "the defects I raised look ok"** — the three staging-only ACs (#405 About you on his real CV, #407 his real judged card, #404 fresh account) are covered by that check.
 **Next:** grill #408 (Opus 5.5) in its own session — the Tailor step's question queue; then its spec and build.
-
-## 2026-10-22 — Owner's staging run: six defects, #403 (five fixes) and #408 (decision) filed
-
-No code. Root causes traced in code before filing. **#403** parent, one `/implement-spec` run: #404 location keeps the letterhead's " - " separators (`splitLetterhead` splits on `|·•` only); #402 moved in (same function); #405 About you becomes a third-person pitch (owner's call; rule F of `cv-review.md` had applied the strict summary rules on purpose); #406 the advert in full loses its line breaks (plain `<p>`); #407 "Where you fit" was every confirmed fact unfiltered (`buildJobCard`'s `fit`) and the bubble quoted the fact the scorer cited, often About you; the verdicts' `reason` already holds what both need.
-**#408 (grilling):** the Tailor step asks every requirement under fit 0.8 with the #13-era "Does that describe you?" template; partial matches and possibly a low years figure land as questions. The agreed rule (#301/#292, ADR-0011) was "ask only what the CV does not answer"; the owner now wants the CV written and only stretches proposed.
-**Next:** `/implement-spec #403`; grill #408.
