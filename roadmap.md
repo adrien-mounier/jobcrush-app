@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-24 (#428, found on the owner's re-proof, shipped; the re-proof resumes)_
+_Last updated: 2026-10-25 (#427 built on a branch, QA GO; waiting for the owner to ship it)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -33,6 +33,11 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
    so #345 is not needed for this. In progress on `+test6`: it found ~~#428~~ (e2920ec; the CV and
    its suggestions now arrive at once), so the run resumes once that is live.
 4. **Agent:** `/qa-gate` GO on the whole journey (Opus 5.5).
+
+**Owner, waiting on you:** #427 (the stretch step's first answer no longer retried, ~20 s and ~$0.05 saved per
+job) sits on branch `fix/427-stretch-retry` (972e97f), QA GO, not on main. Say when main gets it. Decide too:
+a CV now keeps fewer stretches, because the old retry used to turn "not better" verdicts into kept ones
+(numbers on the ticket). Keep that, or ask for a prompt change.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
