@@ -217,6 +217,9 @@ Playwright, don't curl.
 
 ## CI, deploy and ops
 
+### A read-only probe on staging (#427)
+- `fly ssh console -C` does not count as traffic: Fly auto-stops the machine mid-script (~6 min) and wipes any file you put there. Ping `/healthz` every 20 s while it runs. Force the DB read-only with `PGOPTIONS="-c default_transaction_read_only=on"` and check `SHOW default_transaction_read_only` first; rebuild a step's input through the real route with model calls stubbed, and compare its sha256 to the stored fingerprint. A job's search result ages out, so pin `Date.now` to the record's time inside the probe.
+
 ### CI: what's filtered, what blocks it, and how to deploy without it
 - `paths-ignore` is an explicit allowlist of inert paths, never an extension pattern — `apps/api/prompts/*.md` and `research-data/**` are product. Check with `git ls-files` against the filter.
 - 0-second jobs with no logs = an account block (a $0 spending limit reads as "payments failed"), never a code fault. Read the run's annotation; the billable-minutes API reads 0 on free tier.

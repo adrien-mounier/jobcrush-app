@@ -47,6 +47,7 @@ export const stretchPrompt = promptFile("stretch-suggestions.md");
  *  driver's own usage. Throws after a second bad answer — the caller stores nothing. */
 async function completeChecked<T>(llm: LlmClient, input: string, mode: string, read: (doc: unknown) => T): Promise<T> {
   let lastError = "";
+  let firstReason = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     const prompt =
       attempt === 0
@@ -58,12 +59,54 @@ async function completeChecked<T>(llm: LlmClient, input: string, mode: string, r
         (cost.inputTokens === null ? "usage unmeasured" : `${cost.inputTokens} in / ${cost.outputTokens} out tokens`),
     );
     try {
-      return read(extractJson(text));
+      const result = read(extractJson(text));
+      // #427: a retry that succeeds says why the first answer was refused (no CV text: failureReason).
+      if (attempt > 0) console.log(`[ops] stretch ${mode} retried; first answer refused: ${firstReason}`);
+      return result;
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
+      if (attempt === 0) firstReason = failureReason(err);
     }
   }
   throw new Error(`stretch ${mode} failed validation twice: ${lastError.slice(0, 500)}`);
+}
+
+/** Why an answer was refused, for the ops log: the zod issue paths and codes (and an extra key's
+ *  name), never a value — JSON.parse's own message quotes the answer's text, so it is named only.
+ *  Any other error is extractJson's own fixed sentence. */
+export function failureReason(err: unknown): string {
+  const reason =
+    err instanceof z.ZodError
+      ? err.issues
+          .map((i) => `${i.path.join(".")} ${i.code}${i.code === "unrecognized_keys" ? ` (${i.keys.join(", ")})` : ""}`)
+          .join("; ")
+      : err instanceof SyntaxError
+        ? "not valid JSON"
+        : err instanceof Error
+          ? err.message
+          : "unknown";
+  return reason.slice(0, 300);
+}
+
+/** #427 (the probe: 10 runs on the owner's staging draft): deterministic repairs of the model's
+ *  harmless slips — fixed here instead of burning a retry (miner.ts repairClaims's pattern):
+ *  - a suggestion the model itself marks `better: false` is never made (gateSuggestions drops it),
+ *    so it is dropped before validation — it was written with a null slot and line in;
+ *  - an extra key holding nothing (`"why_note": ""`) is dropped. An extra key that holds text still
+ *    fails, as does every missing or malformed field on a suggestion that could be made. */
+export function repairSuggestions(doc: unknown): unknown {
+  const list = (doc as { suggestions?: unknown } | null)?.suggestions;
+  if (!Array.isArray(list)) return doc;
+  return {
+    ...(doc as object),
+    suggestions: list
+      .filter((s) => (s as { better?: unknown } | null)?.better !== false)
+      .map((s) =>
+        typeof s === "object" && s !== null
+          ? Object.fromEntries(Object.entries(s).filter(([k, v]) => SUGGESTION_KEYS.has(k) || !(v === null || (typeof v === "string" && !v.trim()))))
+          : s,
+      ),
+  };
 }
 
 /** The prompt's own section heading — qa-main routes on this (a structural line, never the opening
@@ -135,24 +178,20 @@ export function stretchIsCurrent(
 }
 
 const Sentence = z.string().trim().min(1);
-const SuggestionAnswer = z
+const Suggestion = z
   .object({
-    suggestions: z.array(
-      z
-        .object({
-          requirementId: z.string().min(1),
-          slot: StretchSlot,
-          lineIn: Sentence,
-          why: Sentence,
-          say: Sentence,
-          intendedClass: z.enum(STRETCH_CLASSES),
-          comparison: Sentence,
-          better: z.boolean(),
-        })
-        .strict(),
-    ),
+    requirementId: z.string().min(1),
+    slot: StretchSlot,
+    lineIn: Sentence,
+    why: Sentence,
+    say: Sentence,
+    intendedClass: z.enum(STRETCH_CLASSES),
+    comparison: Sentence,
+    better: z.boolean(),
   })
   .strict();
+const SUGGESTION_KEYS = new Set(Object.keys(Suggestion.shape));
+const SuggestionAnswer = z.object({ suggestions: z.array(Suggestion) }).strict();
 type SuggestionAnswer = z.infer<typeof SuggestionAnswer>["suggestions"][number];
 
 // ---------------------------------------------------------------------------------------------
@@ -283,7 +322,7 @@ export const suggestStretches = (
   adId: string,
 ): Promise<StretchProposalV2[]> =>
   completeChecked(llm, input, "suggestions", (doc) =>
-    gateSuggestions(SuggestionAnswer.parse(doc).suggestions, draft, requirements, denied, adId, new Date().toISOString()),
+    gateSuggestions(SuggestionAnswer.parse(repairSuggestions(doc)).suggestions, draft, requirements, denied, adId, new Date().toISOString()),
   );
 
 /**
