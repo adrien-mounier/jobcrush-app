@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-25 — #432 built on a local branch: a stray newline or tab in a model answer is repaired, not retried (8e7e1fa)
+
+`/implement 432` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint. The named base `fix/431-tailor-target` did not exist; owner chose `fix/432-report-json` = `fix/431-unknown-card` + #427's 972e97f copied (faacbff; docs conflicts kept #431's side).
+- `extractJson` (every step reads answers through it) escapes raw control characters inside JSON strings before parsing. Test red on the old code with staging's exact error, green now.
+- The report's and stretch step's final failure lines go through `failureReason`: cause only, never the answer. `/code-review` caught the report's "talks about the document" refusal quoting the model's line into the log; now names only the matched phrase.
+- QA **GO** on tree 0fe4dcb: api 2265, contracts 60, typecheck 7/7; no browser pass (no screen, a live run needs a paid call).
+- Not pushed. #427's commit carries `Closes #427`, so both close when main gets the branch.
+**Next:** the owner ships the branch → CI → staging; the re-proof resumes (first Approve press is the live check).
+
 ## 2026-10-25 — #431 shipped: a deck job stays tailorable past the deck's 5-minute search window (a415f26)
 
 `/implement 431` (Opus 5.5), on its own branch off main so #427 (still waiting on the owner) does not ride along. The Tailor step read its job through the deck's "search again?" rule, so five minutes after the deck's search every Tailor door answered "unknown card".
