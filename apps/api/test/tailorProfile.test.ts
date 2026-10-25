@@ -8,7 +8,7 @@
 // (no entry in sample-ad-requirements.json) served through the injected reader seam — the same
 // move cards.test.ts and qa-main.ts's #209 language adverts make, for the same reason: writing a
 // work-rights requirement into the shipped fixture would put words into a real employer's advert.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1, FamilyPlacement, MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { discoveryFact, liveIdFor, warmRetrieval, getCardsWhenRetrieved } from "./fixtureDeck.js";
@@ -455,6 +455,8 @@ describe("#307 GET /onboarding/tailor — the queue leads with the profile quest
 });
 
 describe("#307 POST /onboarding/tailor/profile-answer", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("AC4/AC5/AC6: a yes writes a profile-scoped fact, never a claim, answers with the after-line, and is never asked again — on this job or the next", async () => {
     const built = workRightsServer();
     const { app, eligibility, claims } = built;
@@ -526,6 +528,22 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
     const ids = deck.cards.map((c: { adId: string }) => c.adId);
     expect(ids).not.toContain(AD_A);
     expect(ids).not.toContain(AD_B);
+  });
+
+  it("#431: answered six minutes after the deck's search, the no still counts the jobs it hides", async () => {
+    const { app } = workRightsServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "late-no@example.com");
+    // Past the deck's 5-minute search-again window: the Tailor step never searches again, so the
+    // count reads the session's last search rather than an empty deck pool ("Hidden 0 jobs").
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 6 * 60 * 1000);
+    const res = await post(app, cookie, "/onboarding/tailor/profile-answer", {
+      requirementId: PROFILE_Q_ID,
+      answer: NOT_YET,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().changed).toBe("Hidden 2 Hong Kong jobs from your deck — change this any time in your profile.");
   });
 
   it("AC2: a job he BROUGHT asks in the same queue, a no never takes it away (#294 c1), and (#309 AC4) it says in one line why it stays", async () => {

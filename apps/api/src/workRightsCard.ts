@@ -105,8 +105,8 @@ export async function unansweredMarkets(
  *  market has a work-rights answer, read every time, not only at Finish: a market added afterwards
  *  (the profile's location door) or an answer taken back (its work-rights door) holds them again.
  *  The doors that open jobs ask this — the deck, discovery's hand-off, the paste door and the job's
- *  own screen — and so does preview.ts's sessionPostings, the pool every posting reader goes
- *  through: the deck's cards, the want door, the tailor screen (its answers too) and the tailored
+ *  own screen — and so does preview.ts's sessionPostings (and lastSearchPostings, its #431 twin),
+ *  the pool every posting reader goes through: the deck's cards, the want door, the tailor screen (its answers too) and the tailored
  *  draft. A session that brought no CV is never held. */
 export function jobsOpen(
   session: Pick<SessionRecord, "importProof" | "reviewCompletedAt" | "intent">,

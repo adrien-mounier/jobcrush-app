@@ -24,7 +24,7 @@ import type { ProductionFamilyFloorStore } from "../familyFloors.js";
 import type { JudgeFn } from "../judge.js";
 import { isBrought, type BroughtJob, type BroughtJobsFn } from "../broughtJobs.js";
 import { readingLanguages, languageEligible } from "../language.js";
-import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
+import { eligiblePostings, lastSearchPostings, type Posting } from "../preview.js";
 import { marketForLocationText, retrievalRequestForSession, retrievalFingerprint } from "../postingRetrieval.js";
 import {
   advertFamilyIdFor,
@@ -340,10 +340,12 @@ export function tailorRoutes(deps: TailorRouteDeps) {
 
         const factsAfter = await deps.eligibility.list(session.id);
         // What this answer changed, counted over the SAME pool the deck renders: candidates that
-        // withdraw under the new facts but not the old. Resolution is fixture-first and cached
+        // withdraw under the new facts but not the old. #431: the session's last search, as the
+        // target itself is read — inside the deck's 5-minute window it is the deck's pool, and past
+        // it the deck's own pool is empty until the deck searches again, which would count 0. Resolution is fixture-first and cached
         // (resolveAdRequirements), the same per-posting read the deck already performs.
         const langs = readingLanguages(session);
-        const pool = eligiblePostings(langs, sessionPostings(session, fingerprint, factsAfter, brought));
+        const pool = eligiblePostings(langs, lastSearchPostings(session, fingerprint, factsAfter, brought));
         const candidates = (
           await Promise.all(
             pool.map(async (p: Posting) => {

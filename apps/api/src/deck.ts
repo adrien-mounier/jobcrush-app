@@ -29,7 +29,7 @@ import {
 import { lookupAdRequirements } from "./e5stub.js";
 import { NO_KNOWN_FAMILY } from "./adReader.js";
 import { pinBrought, withBroughtFacts, type BroughtJob } from "./broughtJobs.js";
-import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
+import { eligiblePostings, lastSearchPostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
 import { excludingEligibility } from "./eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "./language.js";
@@ -1257,10 +1257,10 @@ function jobLineOf(lines: string[], sourceSpan: string): number | undefined {
  *  reachable, not impossible, and must fail
  *  closed with the same 404 that route already uses for an unknown card id. */
 export async function tailorTarget(
-  // #248: `discovery` is here because sessionPostings now reads it to answer "may she be shown
+  // #248: `discovery` is here because the posting pool (lastSearchPostings since #431) reads it to answer "may she be shown
   // retrieved postings at all?" — the tailor target is one of the three doors onto that pool, and
   // widening the type is what makes it impossible for this one to skip the check.
-  // ADR-0018 clause 7: `intent` + `facts` because sessionPostings holds the pool while a target
+  // ADR-0018 clause 7: `intent` + `facts` because that pool is held while a target
   // market has no work-rights answer — the want door, this target and the draft refuse together.
   session: Pick<SessionRecord, "id" | "retrieval" | "discovery" | "importProof" | "reviewCompletedAt" | "intent">,
   adId: string,
@@ -1275,7 +1275,9 @@ export async function tailorTarget(
   // requirement set) this session's languages can no longer read (or never could) fails closed with
   // the existing "unknown card" 404.
   const langs = readingLanguages(session);
-  const pool = sessionPostings(session, requestFingerprint, facts, brought);
+  // #431: the session's last search, kept past the deck's 5-minute search-again window — nothing on
+  // the Tailor step searches again, so that window would refuse every found job five minutes in.
+  const pool = lastSearchPostings(session, requestFingerprint, facts, brought);
   const posting = eligiblePostings(langs, pool).find((p) => p.id === adId);
   if (!posting) return null;
   // #104: a card the user can already see must be tailorable — fixture-or-reader via the same

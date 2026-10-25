@@ -2,7 +2,7 @@
 // document maker (#312's stand-in), so the whole chain — approve → lint → document → email —
 // runs on every push with no browser and no provider. The gates are server-side (repo rule):
 // a draft that fails the lint or does not carry this person's approval cannot be emailed.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import { loadAdRequirements } from "../src/e5stub.js";
@@ -806,5 +806,31 @@ describe("#315 the application report", () => {
       expect(text).not.toContain(`${bar.requirement} — say:`);
     }
   });
+});
 
+describe("#431 the job being tailored outlives the deck's 5-minute search window", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("the Tailor screen, its draft and Approve all still answer 6 minutes after the deck's search", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { app, claims } = exportServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "export-late@example.com");
+    const view = await draftAndRead(app, cookie);
+    // The owner's run: Approve pressed 5 min 23 s after the search answered "unknown card". Only the
+    // clock moves; the stored search result stays exactly as the deck left it.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 6 * 60 * 1000);
+
+    expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(200);
+    expect((await get(app, cookie, "/onboarding/tailor/draft")).statusCode).toBe(200);
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(res.statusCode).toBe(202);
+    expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    expect(sent).toHaveLength(1);
+  });
 });

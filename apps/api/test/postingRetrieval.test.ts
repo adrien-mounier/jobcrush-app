@@ -14,6 +14,7 @@ import {
   makePostingRetriever,
   providersFor,
   retrievalFingerprint,
+  liveSearchResult,
   isReusableRetrievalSnapshot,
   resolveSearchArea,
   resolveSearchAreaToRegions,
@@ -1066,6 +1067,54 @@ describe("#101 posting retrieval service", () => {
       const registry = [policy("techmap", ["HK"], 1), pastedPolicy];
       expect(providersFor(["HK"], registry).map((p) => p.providerId)).toEqual(["techmap"]);
       expect(() => assertEveryActiveProviderIsImplemented(registry)).not.toThrow();
+    });
+  });
+
+  // #431 — the Tailor step's read of the stored search. The deck's 5-minute window says when the DECK
+  // searches again; it must not decide whether the job being tailored still exists. What does is the
+  // job's own liveness, held to the same per-advert rule the deck's gate applies.
+  describe("#431 the last search outlives the deck's window, never a dead job", () => {
+    const retrievedAt = "2026-08-15T12:00:00.000Z";
+    const sixMinutesLater = Date.parse(retrievedAt) + 6 * 60 * 1000;
+    const registry = [policy("techmap", ["HK"], 1)];
+    const snapshotOf = (postings: ReturnType<typeof dedupePostings>) => ({
+      requestFingerprint: "fingerprint",
+      recordedAt: retrievedAt,
+      result: {
+        schemaVersion: "5" as const,
+        outcome: "relevant_postings" as const,
+        postings,
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+        retrievedAt,
+      },
+    });
+
+    it("keeps a live job six minutes on, while the deck's own rule already says search again", () => {
+      const snapshot = snapshotOf(dedupePostings([record("techmap", "live", { verifiedLiveAt: retrievedAt })], registry));
+      expect(isReusableRetrievalSnapshot(snapshot, "fingerprint", registry, sixMinutesLater)).toBe(false);
+      expect(liveSearchResult(snapshot, "fingerprint", registry, sixMinutesLater)?.postings).toHaveLength(1);
+    });
+
+    it("drops a job that closed since the search, and one past its source's liveness window", () => {
+      const snapshot = snapshotOf(
+        dedupePostings(
+          [
+            record("techmap", "live", { verifiedLiveAt: retrievedAt, company: "Northwind" }),
+            record("techmap", "closed", { verifiedLiveAt: retrievedAt, company: "Contoso", expiresAt: "2026-08-15T12:03:00.000Z" }),
+          ],
+          registry,
+        ),
+      );
+      const kept = liveSearchResult(snapshot, "fingerprint", registry, sixMinutesLater)!.postings.map((p) => p.company);
+      expect(kept).toEqual(["Northwind"]);
+      // A day and a bit on, the live job's own liveness confirmation has lapsed too.
+      expect(liveSearchResult(snapshot, "fingerprint", registry, Date.parse(retrievedAt) + 25 * 60 * 60 * 1000)!.postings).toEqual([]);
+    });
+
+    it("holds nothing when the search found nothing, or was made for a different request (#101)", () => {
+      const snapshot = snapshotOf(dedupePostings([record("techmap", "live", { verifiedLiveAt: retrievedAt })], registry));
+      expect(liveSearchResult(null, "fingerprint", registry, sixMinutesLater)).toBeNull();
+      expect(liveSearchResult(snapshot, "another-request", registry, sixMinutesLater)).toBeNull();
     });
   });
 

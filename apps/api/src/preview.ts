@@ -32,7 +32,7 @@ import { cvLanguages, isKnownLanguageName } from "./cvLanguages.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
-import { isReusableRetrievalSnapshot } from "./postingRetrieval.js";
+import { liveSearchResult, isReusableRetrievalSnapshot } from "./postingRetrieval.js";
 import { jobsOpen } from "./workRightsCard.js";
 import type { EligibilityFact } from "./eligibility.js";
 // #305: type-only, and it has to stay that way — broughtJobs.ts reads `Posting` from here, so a value
@@ -118,7 +118,8 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
  *
  * #248: the reveal check belongs HERE, not only on the retrieval status the deck route reads. This
  * is the one door all three posting readers pass through — the deck, the want route and the tailor
- * target — so a guard here cannot be forgotten by a caller, and it is what keeps #246 honest: once
+ * target (the last two through lastSearchPostings, #431, which shares this one's gatedPool) — so a
+ * guard here cannot be forgotten by a caller, and it is what keeps #246 honest: once
  * the promise fetches at question 1, a real relevant-postings snapshot exists BEFORE she has earned
  * anything, and only this stops it becoming her deck. #339: what she earns it with is a completed
  * review (reviewOpensJobs); the floor coverage this also asked for is no longer asked of anyone.
@@ -142,15 +143,37 @@ export function sessionPostings(
   // own screen the paste door sends her to. Flagged for the owner as a rule read narrowly, not widened.
   brought: readonly BroughtJob[] = [],
 ): Posting[] {
-  // #338 (ADR-0016 clause 6): the review gate is NOT the #248 gate the paragraph above bypasses. It
+  const retrieved = isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)
+    ? retrievedPostings(session.retrieval?.result ?? null)
+    : [];
+  return gatedPool(session, facts, retrieved, brought);
+}
+
+/** #431: the pool the Tailor step reads — `sessionPostings` with the session's last search kept past
+ *  the deck's search-again window (postingRetrieval.ts's liveSearchResult). Every other rule is the
+ *  same function's: the review and work-rights gates, and his own jobs stitched in. Inside the
+ *  window the two pools are the same; after it, the deck searches again and this one does not. */
+export function lastSearchPostings(
+  session: Pick<SessionRecord, "retrieval" | "importProof" | "reviewCompletedAt" | "intent">,
+  requestFingerprint: string,
+  facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
+  brought: readonly BroughtJob[] = [],
+): Posting[] {
+  return gatedPool(session, facts, retrievedPostings(liveSearchResult(session.retrieval, requestFingerprint)), brought);
+}
+
+function gatedPool(
+  session: Pick<SessionRecord, "importProof" | "reviewCompletedAt" | "intent">,
+  facts: readonly Pick<EligibilityFact, "dimension" | "familyId" | "value">[],
+  retrieved: Posting[],
+  brought: readonly BroughtJob[],
+): Posting[] {
+  // #338 (ADR-0016 clause 6): the review gate is NOT the #248 gate sessionPostings' `brought` comment bypasses. It
   // asks whether the CV the jobs are matched against has been checked, and a job he brought is
   // matched against it exactly as a fetched one is — so an unreviewed CV holds every row, his own
   // included. The job's own screen (routes/paste.ts) refuses on the same predicate. ADR-0018 clause
   // 7 holds them the same way while a target market has no work-rights answer.
   if (!jobsOpen(session, facts)) return [];
-  const retrieved = isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)
-    ? retrievedPostings(session.retrieval?.result ?? null)
-    : [];
   if (brought.length === 0) return retrieved;
   // His own first, and a fetched record for the same job dropped rather than shown twice: the ids are
   // canonical, so one advert we ALSO found is the same card, and it is his copy that carries the

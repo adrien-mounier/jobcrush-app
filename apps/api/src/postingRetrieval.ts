@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   PostingProviderPolicyV1,
   PostingRetrievalResultV1,
+  PostingV1,
   ProviderPostingRecordV1,
 } from "@jobcrush/contracts";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
@@ -63,7 +64,7 @@ export function searchFamilyOf(
 /** #338 (ADR-0016 clause 6) — the jobs wait for a completed review. A session that brought a CV
  *  (it holds an import proof, whatever the read's outcome) sees no posting until the person reached
  *  the end of "Your CV, reviewed" and confirmed it. A session with no CV has nothing to review and
- *  is not held. preview.ts's sessionPostings asks it (via jobsOpen), so every posting reader — the deck, the want
+ *  is not held. preview.ts's sessionPostings (and lastSearchPostings, #431) ask it (via jobsOpen), so every posting reader — the deck, the want
  *  door, the tailor target — gets it without being able to forget it. #339 removed the floor gate
  *  that sat beside it: discovery no longer asks the floor, so nothing could cover it. ADR-0018
  *  clause 7 adds work rights per target market: workRightsCard.ts's jobsOpen is this AND every
@@ -531,26 +532,54 @@ export function isReusableRetrievalSnapshot(
     );
     return nowMs - retrievedMs <= ttlMs;
   }
-  return snapshot.result.postings.every((posting) => {
-    const sourcePolicies = posting.sources.map((source) =>
-      registry.find((policy) => policy.providerId === source.providerId),
-    );
-    if (sourcePolicies.some((policy) => !policy)) return false;
-    // #305 (#294 c2), the second exemption, the same rule as isFresh's, keyed the same way, and with the
-    // same stated reach (see isFresh above — unreachable today, kept for the day it is not): a posting
-    // no source can ever re-check cannot make a snapshot unusable, and — checked BEFORE the stated
-    // expiry below — its employer-stated closing date does not feed this gate either (#294 c4).
-    if (sourcePolicies.every((policy) => !policy!.livenessCheckable)) return true;
-    if (posting.expiresAt !== null) {
-      const expiresMs = Date.parse(posting.expiresAt);
-      if (!Number.isFinite(expiresMs) || expiresMs <= nowMs) return false;
-    }
-    // #302: a liveness-checkable source with no confirmation on this posting has not been confirmed.
-    if (posting.verifiedLiveAt === null) return false;
-    const verifiedMs = Date.parse(posting.verifiedLiveAt);
-    const ttlHours = Math.min(24, ...sourcePolicies.map((policy) => policy!.freshnessTtlHours));
-    return Number.isFinite(verifiedMs) && verifiedMs <= nowMs && nowMs - verifiedMs <= ttlHours * 60 * 60 * 1000;
-  });
+  return snapshot.result.postings.every((posting) => postingIsLive(posting, registry, nowMs));
+}
+
+/** #431: the stored search result as the Tailor step reads it — every advert in it that is itself
+ *  still live, however old the search is. The 5-minute window above answers "may the DECK reuse
+ *  this search, or must it search again?"; the Tailor step never searches, so reusing that answer
+ *  as "may this job still be tailored?" killed every job the deck found five minutes after the
+ *  search. What still refuses a job here is the job itself (expired, or past its source's liveness
+ *  window), a search made for a different request (#101: held out until the deck's refresh lands —
+ *  nothing the Tailor step writes changes the request), or the job being gone from the session's
+ *  latest search, which a later deck search replaces. Null when the search delivered no adverts or
+ *  was made for a different request — `retrievedPostings` reads both as an empty pool. */
+export function liveSearchResult(
+  snapshot: RetrievalSnapshot | null,
+  requestFingerprint: string,
+  registry: PostingProviderPolicyV1[] = loadActivePostingProviders(),
+  nowMs = Date.now(),
+): PostingRetrievalResultV1 | null {
+  if (snapshot?.requestFingerprint !== requestFingerprint || snapshot.result.outcome !== "relevant_postings") return null;
+  return {
+    ...snapshot.result,
+    postings: snapshot.result.postings.filter((posting) => postingIsLive(posting, registry, nowMs)),
+  };
+}
+
+function postingIsLive(
+  posting: PostingV1,
+  registry: PostingProviderPolicyV1[],
+  nowMs: number,
+): boolean {
+  const sourcePolicies = posting.sources.map((source) =>
+    registry.find((policy) => policy.providerId === source.providerId),
+  );
+  if (sourcePolicies.some((policy) => !policy)) return false;
+  // #305 (#294 c2), the second exemption, the same rule as isFresh's, keyed the same way, and with the
+  // same stated reach (see isFresh above — unreachable today, kept for the day it is not): a posting
+  // no source can ever re-check cannot make a snapshot unusable, and — checked BEFORE the stated
+  // expiry below — its employer-stated closing date does not feed this gate either (#294 c4).
+  if (sourcePolicies.every((policy) => !policy!.livenessCheckable)) return true;
+  if (posting.expiresAt !== null) {
+    const expiresMs = Date.parse(posting.expiresAt);
+    if (!Number.isFinite(expiresMs) || expiresMs <= nowMs) return false;
+  }
+  // #302: a liveness-checkable source with no confirmation on this posting has not been confirmed.
+  if (posting.verifiedLiveAt === null) return false;
+  const verifiedMs = Date.parse(posting.verifiedLiveAt);
+  const ttlHours = Math.min(24, ...sourcePolicies.map((policy) => policy!.freshnessTtlHours));
+  return Number.isFinite(verifiedMs) && verifiedMs <= nowMs && nowMs - verifiedMs <= ttlHours * 60 * 60 * 1000;
 }
 
 /** A curated regional slice is authoritative only after an operator has durably marked that region
