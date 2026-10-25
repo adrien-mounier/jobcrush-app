@@ -30,7 +30,7 @@ import type { LlmClient } from "./llm.js";
 import { extractJson } from "./miner.js";
 import { marketForLocationText } from "./postingRetrieval.js";
 import { conservationIssues, draftDisclosure, type Draft, type Posting, type TailorInputOpts } from "./preview.js";
-import { usedStretches, type StretchCheckpoint } from "./stretchSuggestions.js";
+import { failureReason, usedStretches, type StretchCheckpoint } from "./stretchSuggestions.js";
 import { advertDeniedRows } from "./tailor.js";
 import type { ExportRefusal } from "./tailorExport.js";
 import { findWorkRightsFact } from "./withdrawal.js";
@@ -318,7 +318,7 @@ export const KITCHEN_WORDS =
 function verifyNoKitchen(explain: string[]): void {
   for (const line of explain) {
     const hit = KITCHEN_WORDS.exec(line);
-    if (hit) throw new Error(`explain talks about the document, not the person's work ("${hit[0]}"): "${line}"`);
+    if (hit) throw new Error(`explain talks about the document, not the person's work ("${hit[0]}")`);
   }
 }
 
@@ -350,6 +350,7 @@ export async function writeApplicationReport(
 ): Promise<ApplicationReport> {
   const base = buildReportInput(ctx, posting, draft, claims, opts);
   let lastError = "";
+  let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     const input =
       attempt === 0
@@ -379,9 +380,11 @@ export async function writeApplicationReport(
       };
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
+      lastErr = err;
     }
   }
-  throw new ReportValidationError(`application report failed validation twice: ${lastError.slice(0, 500)}`);
+  // #432: the ops line names the cause (failureReason), never the answer's text.
+  throw new ReportValidationError(`application report failed validation twice: ${failureReason(lastErr)}`);
 }
 
 /** The exact input the report was written from, hashed — so a re-press on an unchanged document

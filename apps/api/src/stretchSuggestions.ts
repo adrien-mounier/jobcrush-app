@@ -48,6 +48,7 @@ export const stretchPrompt = promptFile("stretch-suggestions.md");
 async function completeChecked<T>(llm: LlmClient, input: string, mode: string, read: (doc: unknown) => T): Promise<T> {
   let lastError = "";
   let firstReason = "";
+  let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     const prompt =
       attempt === 0
@@ -66,9 +67,10 @@ async function completeChecked<T>(llm: LlmClient, input: string, mode: string, r
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
       if (attempt === 0) firstReason = failureReason(err);
+      lastErr = err;
     }
   }
-  throw new Error(`stretch ${mode} failed validation twice: ${lastError.slice(0, 500)}`);
+  throw new Error(`stretch ${mode} failed validation twice: ${failureReason(lastErr)}`);
 }
 
 /** Why an answer was refused, for the ops log: the zod issue paths and codes (and an extra key's

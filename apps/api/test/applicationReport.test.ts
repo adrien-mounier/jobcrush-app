@@ -393,6 +393,13 @@ describe("#315 the one call — input, validation, retry", () => {
     expect(calls).toBe(2);
     expect(report.strong).toHaveLength(1);
   });
+
+  it("#432: two unreadable answers fail naming the cause, never quoting the answer", async () => {
+    const leaky: LlmClient = { model: "report-fake", complete: async () => '{"jobInShort": "SECRET-CV-TEXT" oops}' };
+    const err = await writeApplicationReport(leaky, context(), posting, draft, claimsDoc, opts).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ReportValidationError);
+    expect((err as Error).message).toBe("application report failed validation twice: not valid JSON");
+  });
 });
 
 describe("#315 reportEmailText — five sections, in order, and nothing else", () => {

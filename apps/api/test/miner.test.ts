@@ -53,6 +53,11 @@ describe("JC-13 miner plumbing", () => {
     expect(CandidateClaims.parse(extractJson(wrapped))).toBeTruthy();
   });
 
+  it("#432: extractJson escapes a raw newline and tab inside a string, and leaves text outside strings alone", () => {
+    const raw = '{\n\t"say": "line one\nline\ttwo \\"quoted\\" \\\\",\n\t"n": 1\n}';
+    expect(extractJson(raw)).toEqual({ say: 'line one\nline\ttwo "quoted" \\', n: 1 });
+  });
+
   it("schema invariant: inferred claims must set needs_grill", () => {
     const bad = structuredClone(validDoc);
     bad.claims[0].machine_touch = "inferred";

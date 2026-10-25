@@ -24,12 +24,30 @@ export function buildMinerInput(cvText: string): string {
   return `${minerPrompt()}\n${cvText}\n`;
 }
 
-/** Tolerates prose/code fences around the JSON: takes the first { … last }. */
+/** Tolerates prose/code fences around the JSON: takes the first { … last }. #432: a raw control
+ *  character (newline, tab…) inside a string is escaped instead of burning a retry; text outside
+ *  strings is untouched. */
 export function extractJson(raw: string): unknown {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start === -1 || end <= start) throw new Error("no JSON object in miner output");
-  return JSON.parse(raw.slice(start, end + 1));
+  return JSON.parse(escapeControlCharsInStrings(raw.slice(start, end + 1)));
+}
+
+function escapeControlCharsInStrings(json: string): string {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i]!;
+    if (inString && ch === "\\") {
+      out += ch + (json[++i] ?? "");
+      continue;
+    }
+    if (ch === '"') inString = !inString;
+    const code = ch.charCodeAt(0);
+    out += inString && code < 0x20 ? `\\u${code.toString(16).padStart(4, "0")}` : ch;
+  }
+  return out;
 }
 
 /**
