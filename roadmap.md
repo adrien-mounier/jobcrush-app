@@ -38,9 +38,9 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
   Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
   Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low) · #426 a CV
-  line naming two languages at two levels (Opus 5.5, low) · #427 log why the stretch step's first
-  answer is refused · #429 "Look again" keeps the old failure message beside the wait screen (both
-  Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium).
+  line naming two languages at two levels (Opus 5.5, low) · #427 the stretch step's first answer is
+  refused and retried: find why and stop it (Opus 5.5, medium; ~$1 paid probe) · #429 "Look again"
+  keeps the old failure message beside the wait screen (Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
