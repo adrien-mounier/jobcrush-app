@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-25 (#427 on a branch awaiting the owner; the re-proof found #431 #432 #433)_
+_Last updated: 2026-10-25 (#431 shipped; #427 on a branch awaiting the owner; #432 next)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -38,19 +38,21 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
 job) sits on branch `fix/427-stretch-retry` (972e97f), QA GO, not on main. Say when main gets it. A CV now keeps
 fewer stretches (the old retry turned "not better" verdicts into kept ones): accepted by the owner, 2026-10-25.
 
-**The re-proof (2026-10-25) found three, filed:** #431 the Tailor step answers "unknown card" five minutes
-after the deck's search, so a deck job cannot be sent (Fable 5.1, medium) · #432 Approve sends nothing when
+**The re-proof (2026-10-25) found three, filed:** ~~#431 the Tailor step answers "unknown card" five minutes
+after the deck's search~~ (shipped a415f26) · #432 Approve sends nothing when
 the report's answer holds a raw control character (Opus 5.5, low) · #433 Tailor screen polish from the
 `/impeccable` review: the suggestion numbers, the approve moment, Ready to send (Opus 5.5, medium; blocked by
-#431 and #432). The re-proof resumes once #431 and #432 are live.
+#432). The re-proof resumes once #432 is live.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
   Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
   Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low) · #426 a CV
   line naming two languages at two levels (Opus 5.5, low) · #427 the stretch step's first answer is
-  refused and retried: find why and stop it (Opus 5.5, medium; ~$1 paid probe) · #429 "Look again"
-  keeps the old failure message beside the wait screen (Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium).
+  refused and retried: built on branch `fix/427-stretch-retry`, QA GO, waiting for the owner to ship it · #429 "Look again"
+  keeps the old failure message beside the wait screen (Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium) ·
+  #434 a later deck search that fails or drops the job being tailored still turns it into "unknown card" (Fable 5.1, medium) ·
+  #435 #431's 9-minute live journey is in no tier (Opus 5.5, low).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
 
