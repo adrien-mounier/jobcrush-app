@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-25 (#427 built on a branch, QA GO; waiting for the owner to ship it)_
+_Last updated: 2026-10-25 (#427 on a branch awaiting the owner; the re-proof found #431 #432 #433)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -37,6 +37,12 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
 **Owner, waiting on you:** #427 (the stretch step's first answer no longer retried, ~20 s and ~$0.05 saved per
 job) sits on branch `fix/427-stretch-retry` (972e97f), QA GO, not on main. Say when main gets it. A CV now keeps
 fewer stretches (the old retry turned "not better" verdicts into kept ones): accepted by the owner, 2026-10-25.
+
+**The re-proof (2026-10-25) found three, filed:** #431 the Tailor step answers "unknown card" five minutes
+after the deck's search, so a deck job cannot be sent (Fable 5.1, medium) · #432 Approve sends nothing when
+the report's answer holds a raw control character (Opus 5.5, low) · #433 Tailor screen polish from the
+`/impeccable` review: the suggestion numbers, the approve moment, Ready to send (Opus 5.5, medium; blocked by
+#431 and #432). The re-proof resumes once #431 and #432 are live.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
