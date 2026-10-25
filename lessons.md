@@ -90,6 +90,13 @@ ANY word (438 vs 22), quoted phrases OR together, word order is irrelevant, `siz
 wrapper's output (`DEBUG=pw:browser`), not your input. **Apply:** buy the measurement early, read
 values not field names, enumerate nested objects, and record the exact endpoint/headers + script.
 
+### A workaround in a probe is a finding: file it before routing around it
+The #427 probe on staging got "unknown card" from the real route, traced it to the deck's 5-minute
+search window, pinned the clock and moved on: "the owner would see the same on reload" was the
+reasoning. That same afternoon it was the owner's blocker on Approve (#431). When a probe needs a
+workaround to reach the product's normal state (a pinned clock, a skipped check, a forced record),
+ask whether a real person hits the same wall, and file it first; the probe's job is to find these.
+
 ### Heuristics and normalisers need adversarial, real inputs
 Fixtures written beside an algorithm encode its assumptions: `matchtick` looked sound on
 candidate-worded requirements; the English detector scored ATS bullet lists 0.03; a borrowed

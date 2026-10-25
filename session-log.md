@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-25 — Shipped #427 #432 #433 #434 #435 in one CI run (8466cdb, live); #427's probe, the re-proof's triage, lessons 48 → 39
+
+One long session (Opus 5.5), the owner's rule throughout: build on branches, one CI run when he says ship.
+- #427 (972e97f, re-applied as faacbff): a read-only probe on staging (exact production input, fingerprint-matched; 17 calls ≈ $0.92) found 6/10 first answers refused for two harmless slips; repaired, not retried. Owner accepted fewer stretches per CV. This entry was lost when #432's branch kept #431's side of a docs conflict; rewritten here.
+- Owner's re-proof: Approve said "unknown card". Staging logs + a read-only DB read showed the deck's 5-min search window (#431) and a report answer with a raw control character (#432). The probe had hit the same "unknown card" that morning and worked around it unfiled (lesson added).
+- `/impeccable critique` of the Tailor screen (27/40) on the owner's real draft: suggestion numbers collide with bullet dots, cut off on a phone, stack in the job tab. Owner's calls (one polish ticket, banner hidden, unanswered suggestions said plainly) filed as #433.
+- Lessons trimmed 48 → 39, eight rules promoted to CLAUDE.md / CODING_STANDARDS.md; a cherry-pick later resurrected a superseded lesson, removed (34e6e11).
+- Shipped: main fast-forwarded to 8466cdb (the code #435's QA GO covered; tests 2271), CI green in 83 min, staging serves 8466cdb; #427 #432–#435 closed; all `fix/*` branches deleted.
+**Next:** the owner's re-proof on staging from a fresh account, through to the email arriving.
+
 ## 2026-10-25 — #435 built on a local branch: #431's journey joins tier 2, ~2 min instead of ~9 (1af8304)
 
 `/implement 435` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint, on `fix/435-journey-tier` cut from `fix/434-tailor-target-kept`'s tip.
@@ -86,16 +96,3 @@ Pushed `afff42d..9f85927`, which also carried another session's unpushed 1b4f466
 QA **GO** on tree 911c990: api 2218, mocked 292, 25 journeys, live drive 84/0 at both widths, migration checked on real Postgres. Filed #421 (withdrawal journey rotted in no tier) and #422 (phone top bar too tall).
 Staging-only, still open: the owner's real CV and Hong Kong job, the stretch step's measured cost, the report email body. Screen order follows #411 (the ageing line and "Read the ad in full" stay), not the prototype.
 **Next:** owner re-proof on a fresh staging account; then Chat with JobCrush (#350).
-
-## 2026-10-23 — #408 grilled and decided: ADR-0020, the CV is written first; spec #412 filed (#413–#420, #411)
-
-No code. `/grill-with-docs 408` (Opus 5.5): nine owner calls, plus a two-round prototype (`/impeccable` critique 24/40 → round 2 approved). The decision is on #408, which was closed by hand:
-- The Tailor step asks only work rights and a required language, then writes the CV from true facts.
-- One more AI step suggests stretches beside the draft (line in / line out / what to say). The answers are Use for this job (raises this job's % only; *met by a stretch*; owner's call against the agent's recommendation), It's true (master CV), or No (this job only).
-- Years bars count every named field, each job once, decided by the number alone; a job can be both kinds of work.
-- "Also asked, not on your CV" has no button until #350.
-
-Staging evidence: 7 questions, 0 real gaps. The scorer cannot see dates (years 0.475 for 9.8 years held); the degree scored 0.3–0.9 across runs.
-Docs cbb922a: ADR-0020 and its amendment notes (ADR-0011 cl. 1–2, ADR-0005 cl. 3/5/9, tailoring-reasoning §5/§8), GLOSSARY *Stretch*. Prototype: branch `prototype/stretch-suggestions-408`. #350 gains the gap-list door.
-**Spec #412:** waves #413 #414 #415 → #416 #417 #411 → #418 → #419 #420. Suggestion step ≈$0.05 per CV (estimate).
-**Next:** owner types `/implement-spec #412` (Fable 5.1, high); then his re-proof on a fresh staging account.

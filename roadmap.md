@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-25 (#431 shipped; #427, #432, #433, #434, #435 stacked on branch `fix/435-journey-tier`, each QA GO, awaiting the owner)_
+_Last updated: 2026-10-25 (#427 #431–#435 live on staging, 8466cdb; the owner's re-proof resumes)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -30,31 +30,22 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
    confirm one call it made: a job asking for "Chinese" counts as met by Mandarin or Cantonese.
 3. **Owner:** one more real report on staging, on a fresh account. Sign in as
    `adrien.mounier91+test1@gmail.com` in a private window; any new address is a new, empty account,
-   so #345 is not needed for this. In progress on `+test6`: it found ~~#428~~ (e2920ec; the CV and
-   its suggestions now arrive at once), so the run resumes once that is live.
+   so #345 is not needed for this. Runs so far found ~~#428~~ and, on 2026-10-25, ~~#431~~–~~#434~~,
+   all live now: resume from a fresh account, through to the email arriving.
 4. **Agent:** `/qa-gate` GO on the whole journey (Opus 5.5).
 
-**Owner, waiting on you:** branch `fix/435-journey-tier` (1af8304, not on main) carries, each on its own
-QA GO: #427 (the stretch step's first answer no longer retried, ~20 s and ~$0.05 saved per job), #432 (Approve no
-longer fails on a stray newline or tab in the report's answer), #433 (Tailor screen polish, de61525) and #434 (the
-job being tailored survives a later deck search that fails or leaves it out) and #435 (#431's live journey joins tier 2, ~2 min). Say when main gets it. A CV now keeps
-fewer stretches (the old retry turned "not better" verdicts into kept ones): accepted by the owner, 2026-10-25.
-
-**The re-proof (2026-10-25) found three, filed:** ~~#431 the Tailor step answers "unknown card" five minutes
-after the deck's search~~ (shipped a415f26) · #432 Approve sends nothing when
-the report's answer holds a raw control character (built 8e7e1fa, QA GO, not on main) · #433 Tailor screen polish from the
-`/impeccable` review: the suggestion numbers, the approve moment, Ready to send (built de61525, QA GO, not on
-main). The re-proof resumes once the branch is live.
+**Live 2026-10-25 (8466cdb, CI green):** the re-proof's finds are fixed: ~~#431~~ ~~#434~~ the job being
+tailored no longer turns into "unknown card" · ~~#432~~ Approve survives a malformed report answer · ~~#433~~
+the suggestion numbers, the approve moment, Ready to send · ~~#427~~ the stretch step no longer retries (a CV
+keeps fewer stretches: owner accepted) · ~~#435~~ #431's journey runs in tier 2. **Step 3 above is next.**
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
   Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
   Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low) · #426 a CV
-  line naming two languages at two levels (Opus 5.5, low) · #427 the stretch step's first answer is
-  refused and retried: QA GO, rides `fix/435-journey-tier`, waiting for the owner to ship it · #429 "Look again"
+  line naming two languages at two levels (Opus 5.5, low) · #429 "Look again"
   keeps the old failure message beside the wait screen (Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium) ·
-  #434 a later deck search that fails or drops the job being tailored: built 9ac32a8, QA GO, rides the same branch ·
-  #435 #431's live journey joins tier 2: built 1af8304, QA GO, rides the same branch · #436 no test proves /sessions/me withholds the
+  #436 no test proves /sessions/me withholds the
   kept Tailor job (Opus 5.5, low).
 - Still open from spec #332 (V6): #359 scan message (Opus, medium) · #345 two test accounts (Opus,
   medium; needs the owner mid-ticket) · #369 · #367 · #374 extras cap (check it still applies after #378).
