@@ -708,7 +708,8 @@ test("#423 The job shows the job's full text with its line breaks; Your CV bring
   await expect(job).toBeVisible();
   await expect(frame).toBeHidden(); // in place of the CV, not beside it
   // One line on the screen per line of the text, the blank one included, each its own row.
-  await expect(job.locator(".jl")).toHaveText(JOB_TEXT.split("\n"));
+  // #433: the job's "- " bullets print as dots, not raw characters.
+  await expect(job.locator(".jl")).toHaveText(JOB_TEXT.split("\n").map((l) => l.replace(/^- /, "• ")));
   const tops = await job.locator(".jl").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
   for (let i = 1; i < tops.length; i++) expect(tops[i]!).toBeGreaterThan(tops[i - 1]!);
   // The job's title and company head it, so a title cut short in the bar reads here in full.

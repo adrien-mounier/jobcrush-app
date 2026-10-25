@@ -270,7 +270,7 @@ await page.keyboard.press('u');
 await page.waitForTimeout(3000);
 stretchA = await stretchOf();
 await check(stretchA.suggestions[1].state === 'approved' && stretchA.suggestions[1].scope === 'this-job', `JOB A AC6: U answered suggestion 2 Use (server: ${stretchA.suggestions[1].state}, ${stretchA.suggestions[1].scope})`, '.tailor .dbar .score');
-const summary = page.getByRole('region', { name: 'Ready to send' });
+const summary = page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ });
 await qa.click(summary.getByRole('button', { name: 'Undo' }).last(), 'JOB A: Undo suggestion 2 from "Ready to send"');
 await page.waitForTimeout(2000);
 await qa.expectVisible(regionN(2), 'JOB A: suggestion 2 is pending again');

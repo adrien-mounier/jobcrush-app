@@ -186,7 +186,7 @@ const [s1, s2] = view.stretch.suggestions;
 await qa.note(`suggestions: ${view.stretch.suggestions.map((s) => `${s.id} [${s.slot.kind}] "${s.claimText}" ← "${s.lineOut ?? '—'}"`).join(' | ')}`);
 let html = await src();
 await assert(html.includes(`<del>${esc(s1.lineOut)}</del>`) && html.includes(`<ins>${esc(s1.claimText)}</ins>`), 'in place on the draft: the line out struck, the line in marked');
-await assert(s2 ? /class="pin" aria-hidden="true">2</.test(html) : true, 'the other suggestion shows as a margin numeral');
+await assert(s2 ? /class="pin"><span class="sr">Suggestion <\/span><span class="n">2</.test(html) : true, 'the other suggestion shows as a margin numeral');
 await assert(!/\+\d+%/.test(await tailorText()), 'no "+N%" anywhere');
 
 // #420: Edit wording, emptied → the suggestion's wording is kept, and the card says so.
@@ -227,7 +227,7 @@ await qa.note(`the toast has gone (it lasts 5s): It's true's Undo from "Ready to
 const beat = watchBeat(1800);
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.keyboard.press('Escape');
-await page.getByRole('region', { name: 'Ready to send' }).getByRole('listitem').filter({ hasText: st.requirements.find((r) => r.id === s1.requirementId).text }).getByRole('button', { name: 'Undo' }).click();
+await page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ }).getByRole('listitem').filter({ hasText: st.requirements.find((r) => r.id === s1.requirementId).text }).getByRole('button', { name: 'Undo' }).click();
 const undone = await beat;
 await qa.note(`toast Undo: numbers ${JSON.stringify(undone.numbers)}, mote ${undone.mote}, bump ${undone.bumped}, glow ${undone.lit}`);
 await assert(!undone.mote && !undone.bumped && !undone.lit, 'Undo is quiet: no mote, no bump, no glow');
@@ -300,7 +300,7 @@ if (s2) {
   await assert((await pct()) === st.card.matchPct, 'the number survived the round trip');
 
   // Undo the Use from "Ready to send": quiet, the line comes off.
-  const summary = page.getByRole('region', { name: 'Ready to send' });
+  const summary = page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ });
   await qa.expectVisible(summary, '"Ready to send" lists the answers');
   await qa.expectText(summary, '1 used for this job', 'one used for this job');
   await qa.expectText(summary, '1 kept on your CV for every job', 'one kept on the CV for every job');
@@ -449,11 +449,11 @@ if (b2 && (await page.locator('.stretch-card').count())) {
 }
 vB2 = await api('/api/onboarding/tailor/draft');
 if (await page.locator('.stretch-card').count()) await qa.click(page.locator('.stretch-card').getByRole('button', { name: 'Skip the rest' }), 'Skip the rest');
-const sumB = page.getByRole('region', { name: 'Ready to send' });
+const sumB = page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ });
 await qa.expectVisible(sumB, '"Ready to send"');
 await qa.expectText(sumB, 'Not for this job', 'the No reads "Not for this job"');
 const leftOut = vB2.stretch.suggestions.filter((s) => s.state === 'pending').length;
-if (leftOut) await qa.expectText(sumB, 'Not answered, left out', 'the unanswered one reads "left out"');
+if (leftOut) await qa.expectText(sumB, 'Not used', 'the unanswered one reads "Not used"');
 
 // "Where you fit" as a pull-up.
 await qa.click(page.getByRole('button', { name: /^Where you fit · / }), 'open "Where you fit"');

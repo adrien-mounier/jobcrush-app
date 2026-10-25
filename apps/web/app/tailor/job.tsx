@@ -5,7 +5,7 @@
 // Each line a pending suggestion answers carries that suggestion's numeral (the number its card
 // shows), and the open suggestion's line is lit. Which line a requirement answers is the server's
 // (TailorRequirement.line); one with no line carries no numeral. Nothing here re-derives it.
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { ScoredJobCard, TailorRequirement } from "../../lib/api";
 import type { StretchRailView } from "./stretch";
 
@@ -17,6 +17,14 @@ export interface TailorJobProps {
   onOpen: (id: string) => void;
   /** The lit line, so "See where the job asks this" can bring it into view. */
   litRef: RefObject<HTMLParagraphElement | null>;
+}
+
+/** #433: the job's own light formatting — a "* " or "- " bullet prints as a dot, **bold** as bold —
+ *  never as raw characters. The line itself (and so its index) is untouched. */
+function jobLine(text: string): ReactNode[] {
+  const bullet = /^(\s*)[*-]\s+/.exec(text);
+  const body = bullet ? `${bullet[1]}• ${text.slice(bullet[0].length)}` : text;
+  return body.split(/\*\*(.+?)\*\*/).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part));
 }
 
 export function TailorJob({ card, requirements, view, openId, onOpen, litRef }: TailorJobProps) {
@@ -52,7 +60,7 @@ export function TailorJob({ card, requirements, view, openId, onOpen, litRef }: 
               </span>
             )}
             {lit && <span className="sr-only">Suggestion {lit.n} answers this: </span>}
-            {text}
+            <span className="jt">{jobLine(text)}</span>
           </p>
         );
       })}

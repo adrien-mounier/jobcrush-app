@@ -84,7 +84,7 @@ await context.addInitScript(() => {
       w().cardAt = now;
       w().cardLabel = card.getAttribute('aria-label');
     }
-    if (document.querySelector('section.stretch[aria-label="Ready to send"]')) w().readySeen = true;
+    if (document.querySelector('section.stretch[aria-labelledby]')) w().readySeen = true;
     if (document.body?.textContent?.includes('Looking for ways to stretch')) w().lookingSeen = true;
   };
   new MutationObserver(check).observe(document, { childList: true, subtree: true, characterData: true });
@@ -174,7 +174,7 @@ async function waitThenAtOnce(label) {
   await card.waitFor({ state: 'visible', timeout: 90_000 }).catch(() => {});
   await qa.expectVisible(card, `${label}: AC2 — the first suggestion's card is open`);
   await qa.expectVisible('.draft-frame', `${label}: AC2 — and the CV is on the page`);
-  await assert((await page.getByRole('region', { name: 'Ready to send' }).count()) === 0, `${label}: AC2 — "Ready to send" is not shown`);
+  await assert((await page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ }).count()) === 0, `${label}: AC2 — "Ready to send" is not shown`);
   const t = await tap();
   const delta = t.cardAt !== null && t.frameAt !== null ? Math.abs(t.cardAt - t.frameAt) : null;
   await assert(delta !== null && delta < 50, `${label}: AC2 — the CV and "${t.cardLabel}" entered the page in the same update (${delta === null ? 'one never appeared' : `${delta.toFixed(1)}ms apart`})`);
@@ -234,7 +234,7 @@ await qa.click(page.getByRole('button', { name: 'Look again' }), 'AC3: she press
 const againCard = page.getByRole('region', { name: /^Suggestion 1 of \d+$/ });
 await againCard.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await qa.expectVisible(againCard, 'AC3: Look again opens the first suggestion it finds');
-await assert((await page.getByRole('region', { name: 'Ready to send' }).count()) === 0, 'AC3: "Ready to send" is not shown');
+await assert((await page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ }).count()) === 0, 'AC3: "Ready to send" is not shown');
 await assert(rewrites === 1, `AC3: exactly one read was rewritten to a failure (${rewrites}); Look again read the real server`);
 await page.unroute('**/api/onboarding/tailor/draft**');
 

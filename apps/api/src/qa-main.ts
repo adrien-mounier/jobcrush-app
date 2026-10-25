@@ -343,11 +343,24 @@ const fakeLlm: LlmClient = {
     // sentence), the requirement states read back off the product-owned line shape. One bullet
     // swap for the first unmet requirement (the first bullet of the first role, so the journey's
     // struck-out line is a line the canned draft really prints) and one skill for the second.
+    // #433: and a third on another bullet, so a journey has a PENDING number on a bullet line (the
+    // first opens by itself, so before this every pending number sat on the skills line).
     if (prompt.includes(STRETCH_PROMPT_HEADING)) {
       seen.stretch += 1;
       const unmet = [...prompt.matchAll(STRETCH_REQUIREMENT_LINE)].filter((m) => m[2] !== "met").map((m) => m[1]!.trim());
-      const suggestions = unmet.slice(0, 2).map((id, i) =>
-        i === 0
+      const suggestions = unmet.slice(0, 3).map((id, i) =>
+        i === 2
+          ? {
+              requirementId: id,
+              slot: { kind: "bullet", role: 0, bullet: 2 },
+              lineIn: "Ran steering committee reporting for the CIO, with the vendor risks on one page",
+              why: "The job asks for this. Your steering reporting shows it, without saying so.",
+              say: "Each steering pack I wrote for the CIO opened with the vendor risks.",
+              intendedClass: "Partially-Supported",
+              comparison: "The line out states the reporting; the line in says what this job tests about it.",
+              better: true,
+            }
+          : i === 0
           ? {
               requirementId: id,
               slot: { kind: "bullet", role: 0, bullet: 0 },

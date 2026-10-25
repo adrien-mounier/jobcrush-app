@@ -180,7 +180,7 @@ await page.keyboard.press('Escape');
 // 5. "Ready to send": the answer listed with its own Undo; what to be ready to explain.
 // ---------------------------------------------------------------------------------------------
 await page.keyboard.press('Escape'); // close the open card (the next suggestion opened by itself)
-const summary = page.getByRole('region', { name: 'Ready to send' });
+const summary = page.getByRole('region', { name: /Ready to send|not used — your CV keeps its own lines/ });
 await qa.expectVisible(summary, '"Ready to send" is the rail once no card is open');
 await qa.expectText(summary, '1 used for this job', 'it counts the answer');
 const usedRow = summary.getByRole('listitem').filter({ hasText: requirement.text });

@@ -553,7 +553,9 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         inputs.claimsDoc,
         posting,
         { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
-        { marks: stretchMarks(stored.stretch, req.query.open) },
+        // #433 (owner, 2026-10-25): no DRAFT banner on the Tailor screen — the person is reviewing
+        // the CV there, and the emailed CV carries none either.
+        { banner: false, marks: stretchMarks(stored.stretch, req.query.open) },
       );
       },
     );

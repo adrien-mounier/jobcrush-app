@@ -62,7 +62,7 @@ const SEND_LINE = { printing: S3, tightening: S9, reporting: S10, sending: S5 } 
 /** The one press: approve this exact draft (named by its draftedAt), then watch the narrated
  *  print-and-mail over the same SSE stream the draft build used. `known` are the draft's own
  *  notices already on the screen below — at "sent" only what is new is said here. */
-function SendBlock({ draftedAt, known }: { draftedAt: string; known: string[] }) {
+function SendBlock({ draftedAt, known, primary }: { draftedAt: string; known: string[]; primary: boolean }) {
   const [phase, setPhase] = useState<SendPhase>({ kind: "idle" });
   const streamRef = useRef<EventSource | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -145,7 +145,8 @@ function SendBlock({ draftedAt, known }: { draftedAt: string; known: string[] })
           <p className="draft-wait-sub">{phase.fix ?? S8}</p>
         </>
       )}
-      <button type="button" onClick={() => void press()}>
+      {/* #433: the screen's gold primary once no suggestion card is open (the card's Use is, while one is). */}
+      <button type="button" className={primary ? "gold" : undefined} onClick={() => void press()}>
         {S1}
       </button>
       <p className="draft-wait-sub">{S2}</p>
@@ -377,9 +378,10 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
         title="Your tailored CV"
         onLoad={() => setFrameLoads((n) => n + 1)}
       />
+      {/* keyed by draftedAt: a redraft is a new document, so the press state starts over. #433: right
+          under the frame, so the press is on screen with the CV. */}
+      <SendBlock key={view.draftedAt} draftedAt={view.draftedAt} known={view.conservationNotices} primary={open === null} />
       <p className="draft-hint">{D6}</p>
-      {/* keyed by draftedAt: a redraft is a new document, so the press state starts over */}
-      <SendBlock key={view.draftedAt} draftedAt={view.draftedAt} known={view.conservationNotices} />
       {view.disclosure.map((d) => (
         <DisclosureBlock key={`${d.employer}-${d.role}`} d={d} />
       ))}

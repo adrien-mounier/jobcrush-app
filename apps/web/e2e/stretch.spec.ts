@@ -101,13 +101,13 @@ function html(stretch: StretchView, open: string | null): string {
   const bulletText = used ? used.claimText : LINE_OUT;
   const pending = stretch?.status === "ran" ? stretch.suggestions.map((s, i) => ({ s, n: i + 1 })).filter(({ s }) => s.state === "pending") : [];
   const o = pending.find(({ s }) => s.id === open);
-  const pin = (n: number, isOpen = false) => `<span class="pin${isOpen ? " open" : ""}" aria-hidden="true">${n}</span>`;
+  const pin = (n: number, isOpen = false) => `<span class="pin${isOpen ? " open" : ""}"><span class="sr">Suggestion </span><span class="n">${n}</span></span>`;
   const mark = (slotKind: "bullet" | "skill", text: string) => {
     const here = pending.find(({ s }) => s.slot.kind === slotKind);
     if (!open || !here) return text;
     if (o && o.s.slot.kind === slotKind)
-      return slotKind === "bullet" ? `${pin(o.n, true)}<del>${text}</del><ins>${o.s.claimText}</ins>` : `${pin(o.n, true)}${text}, <ins>${o.s.claimText}</ins>`;
-    return `${text}${pin(here.n)}`;
+      return slotKind === "bullet" ? `${pin(o.n, true)}<del>${text}</del> <ins>${o.s.claimText}</ins>` : `${pin(o.n, true)}${text}, <ins>${o.s.claimText}</ins>`;
+    return `${pin(here.n)}${text}`;
   };
   return (
     `<!doctype html><html><body><h1>Maria Kowalski</h1><ul><li>${mark("bullet", bulletText)}</li>` +
@@ -193,7 +193,7 @@ test("#417 computer: the first suggestion is open in the rail and previews in pl
   const frame = page.locator(".draft-frame");
   await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<del>${LINE_OUT}</del>`));
   await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<ins>${S1.claimText}</ins>`));
-  await expect(frame).toHaveAttribute("srcdoc", /<span class="pin" aria-hidden="true">2<\/span>/);
+  await expect(frame).toHaveAttribute("srcdoc", /<span class="pin"><span class="sr">Suggestion <\/span><span class="n">2<\/span>/);
   await expect(card.locator(".clip")).toBeHidden();
   // The unanswered line never reaches the rail's plain copy either — the draft stays the page.
   await expect(page.locator(".tailor .gaps")).toContainText("Their SAP version");
@@ -209,7 +209,7 @@ test("#417 computer: J and K move between suggestions, N answers No for this job
   await expect(second.getByRole("heading")).toContainText("Public-sector delivery");
   await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<ins>${S2.claimText}</ins>`));
   await expect(frame).not.toHaveAttribute("srcdoc", /<del>/); // a skill pushes nothing out
-  await expect(frame).toHaveAttribute("srcdoc", /<span class="pin" aria-hidden="true">1<\/span>/);
+  await expect(frame).toHaveAttribute("srcdoc", /<span class="pin"><span class="sr">Suggestion <\/span><span class="n">1<\/span>/);
   await expect(page.locator('.tailor [aria-live="polite"]')).toContainText("Suggestion 2 of 2: Public-sector delivery");
 
   await page.keyboard.press("k");
@@ -219,14 +219,14 @@ test("#417 computer: J and K move between suggestions, N answers No for this job
   expect(posts.answers).toEqual([{ id: S1.id, answer: "no" }]);
   // No closes it for this job: the next pending one opens, the declined one leaves the margin.
   await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
-  await expect(frame).not.toHaveAttribute("srcdoc", /<span class="pin" aria-hidden="true">1<\/span>/);
+  await expect(frame).not.toHaveAttribute("srcdoc", /<span class="pin"><span class="sr">Suggestion <\/span><span class="n">1<\/span>/);
   await expect(frame).toHaveAttribute("srcdoc", new RegExp(`<ins>${S2.claimText}</ins>`));
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("region", { name: /Suggestion \d of 2/ })).toHaveCount(0);
   await expect(frame).not.toHaveAttribute("srcdoc", /<ins>/); // the page is plain again
   // The closed list still names what is left, with the way back in.
-  const list = page.getByRole("region", { name: "Ready to send" });
+  const list = page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ });
   await expect(list).toContainText("Public-sector delivery");
   await expect(list).toContainText("Their SAP version");
   // #418: the row carries its result and the way back in ("Answer") — the text is no longer the button.
@@ -253,7 +253,7 @@ test("#417 phone (390px): one suggestion at a time with the swap in the card, th
 
   await skip.click();
   await expect(cards).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Ready to send" })).toContainText("2 left out");
+  await expect(page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ })).toContainText("2 suggestions not used — your CV keeps its own lines");
 });
 
 test("#417 a step that failed is told plainly, never as nothing to suggest, with a quiet way to look again", async ({ page }) => {
@@ -315,8 +315,9 @@ test("#418 Use for this job is the gold primary (key U): the line lands on the p
 
   // Esc closes the open card: the "Ready to send" summary lists each answer with its own Undo.
   await page.keyboard.press("Escape");
-  const summary = page.getByRole("region", { name: "Ready to send" });
-  await expect(summary).toContainText("1 used for this job · 1 left out");
+  const summary = page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ });
+  await expect(summary).toContainText("1 suggestion not used — your CV keeps its own lines");
+  await expect(summary).toContainText("1 used for this job");
   const usedRow = summary.getByRole("listitem").filter({ hasText: "Their SAP version" });
   await expect(usedRow).toContainText("Used for this job");
   await expect(summary).toContainText("Be ready to explain");
@@ -368,7 +369,7 @@ test("#418 Undo counts the number down quietly: no mote, no bump and no glow", a
     }).observe(document.body, { childList: true });
   });
   await page.keyboard.press("Escape");
-  const summary = page.getByRole("region", { name: "Ready to send" });
+  const summary = page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ });
   await summary.getByRole("listitem").filter({ hasText: "Their SAP version" }).getByRole("button", { name: "Undo" }).click();
   await expect(ring).toHaveAttribute("aria-label", "61% match", { timeout: 10_000 });
   await expect(page.locator('.tailor [aria-live="polite"]')).toContainText("Match now 61%");
@@ -443,7 +444,7 @@ test("the CV and its suggestions arrive at once: the wait screen stays while the
   release();
   await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible();
   await expect(page.locator(".draft-frame")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Ready to send" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ })).toHaveCount(0);
 });
 
 test("Look again after a failed step opens the first suggestion it finds", async ({ page }) => {
@@ -453,7 +454,7 @@ test("Look again after a failed step opens the first suggestion it finds", async
   state.stretch = RAN;
   await page.getByRole("button", { name: "Look again" }).click();
   await expect(page.getByRole("region", { name: "Suggestion 1 of 2" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Ready to send" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ })).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -511,8 +512,9 @@ test("#419 the requirement reads met, not met by a stretch; the summary says it 
   await page.keyboard.press("Escape");
 
   await page.keyboard.press("Escape");
-  const summary = page.getByRole("region", { name: "Ready to send" });
-  await expect(summary).toContainText("1 kept on your CV for every job · 1 left out");
+  const summary = page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ });
+  await expect(summary).toContainText("1 suggestion not used — your CV keeps its own lines");
+  await expect(summary).toContainText("1 kept on your CV for every job");
   const kept = summary.getByRole("listitem").filter({ hasText: "Their SAP version" });
   await expect(kept).toContainText("Kept on your CV for every job");
   await expect(kept.getByRole("button", { name: "Undo" })).toBeVisible();
@@ -709,7 +711,7 @@ test("#423 a suggestion whose requirement matches no job line shows no numeral a
   await expect(job.getByRole("button", { name: "Suggestion 1" })).toBeVisible();
   await expect(job.getByRole("button", { name: "Suggestion 2" })).toHaveCount(0);
   await expect(job.locator(".jl.hl")).toHaveCount(0); // the open one has no line to light
-  await expect(job.locator(".jl").nth(lineWith("public-sector"))).toHaveText(JOB_LINES[lineWith("public-sector")]!);
+  await expect(job.locator(".jl").nth(lineWith("public-sector"))).toHaveText(JOB_LINES[lineWith("public-sector")]!.replace(/^- /, "• "));
   // …and it still answers like any other.
   await page.keyboard.press("n");
   await expect.poll(() => posts.answers).toEqual([{ id: S2.id, answer: "no" }]);
@@ -783,7 +785,7 @@ test("#423 keyboard: the tabs are reached by Tab and announced, arrows switch th
   await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
   await page.keyboard.press("u");
   await expect.poll(() => posts.answers).toHaveLength(2);
-  await page.getByRole("region", { name: "Ready to send" }).getByRole("button", { name: "Undo" }).last().click();
+  await page.getByRole("region", { name: /Ready to send|not used — your CV keeps its own lines/ }).getByRole("button", { name: "Undo" }).last().click();
   await expect(page.getByRole("region", { name: "Suggestion 2 of 2" })).toBeVisible();
   await page.keyboard.press("t");
   await expect.poll(() => posts.answers).toEqual([

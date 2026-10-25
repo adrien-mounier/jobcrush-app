@@ -1016,15 +1016,18 @@ export function renderPreviewHtml(
 
   // #417: the mark on one slot — the open preview (struck line out + marked line in), or a numeral.
   const marks = opts.marks;
-  const pin = (n: number, open = false) => `<span class="pin${open ? " open" : ""}" aria-hidden="true">${n}</span>`;
+  // #433: the number sits first on its line, so a screen reader names the line by it ("Suggestion
+  // 2, …"); only the digits show, in the margin column.
+  const pin = (n: number, open = false) =>
+    `<span class="pin${open ? " open" : ""}"><span class="sr">Suggestion </span><span class="n">${n}</span></span>`;
   const openAt = (slot: StretchSlot) => (marks?.open && sameSlot(marks.open.slot, slot) ? marks.open : undefined);
   const numeralAt = (slot: StretchSlot) => marks?.numerals.find((m) => sameSlot(m.slot, slot));
   /** A whole line (a bullet, the summary): struck and replaced when open, numbered when pending. */
   const markedLine = (slot: StretchSlot, text: string) => {
     const open = openAt(slot);
-    if (open) return `${pin(open.n, true)}<del>${esc(text)}</del><ins>${esc(open.lineIn)}</ins>`;
+    if (open) return `${pin(open.n, true)}<del>${esc(text)}</del> <ins>${esc(open.lineIn)}</ins>`;
     const numeral = numeralAt(slot);
-    return `${esc(text)}${numeral ? pin(numeral.n) : ""}`;
+    return `${numeral ? pin(numeral.n) : ""}${esc(text)}`;
   };
 
   const experience = draft.experience
@@ -1096,19 +1099,25 @@ export function renderPreviewHtml(
   ul{margin:4px 0 0;padding-left:18px;}
   li{margin-bottom:2px;}
   .skill-group{margin:0 0 8px;}
-  /* #417: the open stretch suggestion previews in place; the others are numerals in the margin. */
+  /* #417: the open stretch suggestion previews in place; the others are numerals in the margin.
+     #433: one margin column for every number, left of the text AND of a bullet's dot (a bullet's
+     line starts 18px further in, so its number reaches 18px further out); the circle grows with
+     its digits towards the margin, never into the line. */
   li,.skill-group,.summary{position:relative;}
   del{color:#5A6675;text-decoration-color:rgba(90,102,117,.7);}
   ins{text-decoration:none;background:rgba(232,163,61,.22);border-radius:3px;box-shadow:0 0 0 3px rgba(232,163,61,.22);}
   ins[contenteditable="true"]{outline:2px dashed #a8762b;outline-offset:3px;}
-  .pin{position:absolute;left:-30px;top:1px;display:inline-grid;place-items:center;width:20px;height:20px;
-    border-radius:50%;border:1px solid #5A6675;color:#5A6675;font-size:11px;font-weight:600;line-height:1;}
-  .pin.open{border-color:#a8762b;background:#e8a33d;color:#1a1206;}
+  .pin{position:absolute;right:calc(100% + 10px);top:0;box-sizing:border-box;display:inline-grid;place-items:center;
+    min-width:20px;height:20px;padding:0 5px;border-radius:10px;border:1px solid #5A6675;color:#5A6675;
+    font-size:11px;font-weight:600;line-height:1;}
+  li>.pin{right:calc(100% + 28px);}
+  .pin.open{border-color:#1d2126;background:#1d2126;color:#fff;}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
   .cert{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;}
   .edu,.addl{margin:0 0 6px;}
   /* Fit-to-width on phones: viewport meta reflows to the iframe width; trim the page
      margins so the content isn't cramped by the desktop padding. */
-  @media (max-width:600px){body{padding:20px 16px;}}
+  @media (max-width:600px){body{padding:20px 16px;}/* #433: room for the number column inside the page */body.marked{padding-left:48px;}}
   /* Print (#312): page.pdf() paginates with print media on A4. Keep a role / cert row whole
      across a page boundary, never strand a section head at a page bottom, and keep the #1F4E79
      accents exact instead of print-dimmed. Screen rendering is untouched — these rules only
@@ -1118,7 +1127,7 @@ export function renderPreviewHtml(
     .role,.cert{break-inside:avoid;}
     h2{break-after:avoid;}
   }
-</style></head><body>
+</style></head><body${marks ? ' class="marked"' : ""}>
 ${
   banner
     ? `<div class="banner">DRAFT — tailored for “${esc(posting.title)}” at ${esc(

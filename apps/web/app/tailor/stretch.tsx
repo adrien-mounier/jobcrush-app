@@ -30,7 +30,7 @@ const K6 = "Previous";
 const K7 = "Later";
 const K8 = "Skip the rest";
 const K9 = "Ready to send";
-const K10 = "Not answered, left out";
+const K10 = "Not used";
 const K11 = "Not for this job";
 const K12 = "Skills";
 // #418: the gold primary and the summary's words (the approved prototype).
@@ -39,13 +39,15 @@ const K14 = "Used for this job";
 const K15 = "Undo";
 const K16 = "Answer";
 const K17 = "Be ready to explain";
-const K18 = "No suggestions used.";
 // #419: the person states it as their fact — the master CV, for every job.
 const K20 = "It's true: keep it on my CV for every job";
 const K21 = "Kept on your CV for every job";
 // A failed step is told as what it is — never as "nothing to suggest", and naming nothing of ours.
 const F1 = "We could not look for ways to stretch this CV just now. Your CV is complete without them.";
 const F2 = "Look again";
+
+// #433: closed with unanswered suggestions, the summary says plainly what approving does with them.
+const notUsed = (n: number) => `${n} ${n === 1 ? "suggestion" : "suggestions"} not used — your CV keeps its own lines`;
 
 // #420: "Edit wording" — the edit happens in place (the draft on a computer, the card on a phone).
 // While the line is edited, and while what to say is rewritten for it, the old interview line is
@@ -276,16 +278,23 @@ export function StretchCards({
     used.length > 0 && `${used.length} used for this job`,
     keptCount > 0 && `${keptCount} kept on your CV for every job`,
     declined > 0 && `${declined} not for this job`,
-    pending > 0 && `${pending} left out`,
   ].filter(Boolean);
   return (
-    <section className="stretch" aria-label={K9}>
-      <h2 className="h">{K9}</h2>
-      <p className="small">{parts.length > 0 ? parts.join(" · ") : K18}</p>
+    <section className="stretch" aria-labelledby="stretch-summary-h">
+      {/* #433: "Ready to send" only when nothing is left unanswered; otherwise the one honest line —
+          and the region is named by it, so a screen reader hears the same. */}
+      <h2 className="h" id="stretch-summary-h">{pending > 0 ? notUsed(pending) : K9}</h2>
+      {parts.length > 0 && <p className="small">{parts.join(" · ")}</p>}
       <ul className="slist">
-        {all.map((s) => (
+        {all.map((s, i) => (
           <li key={s.id}>
-            <span className="t">{text(s)}</span>
+            {/* #433: each row keeps its suggestion's number, so it maps to its CV line. */}
+            <span className="t">
+              <span className={s.state === "pending" ? "num idle" : "num settled"} aria-hidden="true">
+                {i + 1}
+              </span>
+              {text(s)}
+            </span>
             <span className={`result${kept(s) ? " r-true" : s.state === "approved" ? " r-use" : ""}`}>
               <span className="s">{resultOf(s)}</span>
               {s.state === "pending" ? (

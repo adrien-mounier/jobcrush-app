@@ -529,9 +529,9 @@ describe("#417 the draft previews the open suggestion in place", () => {
     // The open one, in place: the line out struck, the line in marked, numbered 1.
     expect(open.html).toContain(`<del>${BULLET_TEXT}</del>`);
     expect(open.html).toContain(`<ins>${swap.claimText}</ins>`);
-    expect(open.html).toMatch(/<span class="pin open"[^>]*>1<\/span>/);
+    expect(open.html).toMatch(/<span class="pin open"><span class="sr">Suggestion <\/span><span class="n">1<\/span>/);
     // The other shows as a margin numeral on its slot (the skills group), not as text.
-    expect(open.html).toMatch(/<span class="pin"[^>]*>2<\/span>/);
+    expect(open.html).toMatch(/<span class="pin"><span class="sr">Suggestion <\/span><span class="n">2<\/span>/);
     expect(open.html).not.toContain(skill.claimText);
     expect(open.html).toContain(SECOND_BULLET); // every other line prints as it is
 
@@ -556,8 +556,8 @@ describe("#417 the draft previews the open suggestion in place", () => {
     const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${skill.id}`)).json();
     expect(open.html).toContain(`<ins>${skill.claimText}</ins>`);
     expect(open.html).not.toContain("<del");
-    expect(open.html).not.toMatch(/<span class="pin"[^>]*>1<\/span>/); // the declined one is gone from the margin
-    expect(open.html).toMatch(/<span class="pin open"[^>]*>2<\/span>/); // numbering stays stable
+    expect(open.html).not.toMatch(/<span class="pin"><span class="sr">Suggestion <\/span><span class="n">1<\/span>/); // the declined one is gone from the margin
+    expect(open.html).toMatch(/<span class="pin open"><span class="sr">Suggestion <\/span><span class="n">2<\/span>/); // numbering stays stable
   });
 });
 
@@ -1201,7 +1201,7 @@ describe("#420 the rewrite is checkpointed, and an edit outlives an Undo", () =>
 
     // The open preview strikes the line out and marks the EDITED line in.
     const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${swap.id}`)).json();
-    expect(open.html).toContain(`<del>${BULLET_TEXT}</del><ins>${EDITED}</ins>`);
+    expect(open.html).toContain(`<del>${BULLET_TEXT}</del> <ins>${EDITED}</ins>`);
 
     await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
     const undone = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" });

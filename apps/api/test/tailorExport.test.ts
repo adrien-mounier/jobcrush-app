@@ -236,9 +236,9 @@ describe("#313 one press: approve → lint → document → email, through the s
     expect(sent[0]!.filename).toMatch(/^CV - .+\.pdf$/);
     expect(sent[0]!.text).toContain("2 pages");
 
-    // The approved document is not a draft: the screen's render carries the DRAFT banner, the
-    // printed one must not.
-    expect(view.html).toContain("DRAFT");
+    // The approved document is not a draft: no DRAFT banner — and since #433 the screen's render
+    // carries none either (the person is reviewing the CV there).
+    expect(view.html).not.toContain("DRAFT");
     expect(printedHtml[0]).not.toContain("DRAFT");
 
     // The approval record is durable, on the draft row itself.

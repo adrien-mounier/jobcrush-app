@@ -11,6 +11,8 @@
   --ink-mute: #6b6455;
   --rule: #d9d0bd;
   --gold-glow: rgba(232, 163, 61, 0.22);
+  /* #433: muted text reads at 4.5:1 on the raised surface too (DESIGN.md's night-muted-readable). */
+  --hud-mute: #8a95a2;
 }
 
 /* The card head is shared by the deck card and the live card — scoping it to .jcbody alone (as
@@ -320,9 +322,11 @@
   flex-direction: column;
   gap: 10px;
 }
+/* #433: the CV frame leaves room under it for Approve, so the press is on screen without scrolling
+   the page or the CV (the site header, the bar, the tabs and the press take about 290px). */
 .tailor .draft-frame {
   width: 100%;
-  height: 72vh;
+  height: max(360px, calc(100dvh - 300px));
   border: 1px solid var(--hud-line);
   border-radius: 12px;
   background: #fff;
@@ -361,6 +365,18 @@
   padding: 10px 16px;
   cursor: pointer;
   margin: 0 0 6px;
+}
+/* #433: the screen's gold primary once no suggestion card is open. */
+.tailor .draft-send button.gold {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1a1206;
+  font-size: 14px;
+  padding: 12px 18px;
+}
+.tailor .draft-send button.gold:hover {
+  border-color: #f0b85a;
+  background: #f0b85a;
 }
 .tailor .draft-send p[role="alert"] {
   font-size: 14px;
@@ -589,6 +605,10 @@
   flex: 1;
   min-width: 0;
 }
+/* #433: focused on arrival for screen readers only — a heading is not a control, so no ring. */
+.tailor .dbar h1:focus {
+  outline: none;
+}
 .tailor .dbar h1 {
   margin: 0;
   font-size: 15px;
@@ -685,12 +705,22 @@
   color: var(--hud-mute);
   font-size: 12.5px;
 }
+/* #433: a readable measure; the numbers are a flex item in the gutter — several on one line sit
+   side by side and push the text over rather than spilling onto the next line. */
 .tailor .jobtext .jl {
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  max-width: 76ch;
+  padding-block: 2px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.tailor .jobtext .jl:empty {
+.tailor .jobtext .jt {
+  flex: 1;
+  min-width: 0;
+}
+.tailor .jobtext .jl:has(> .jt:empty) {
   min-height: 0.8em;
 }
 /* The open suggestion's line, lit; the highlight is the focus mark when a jump lands on it. */
@@ -702,23 +732,25 @@
   outline: none;
 }
 .tailor .jobtext .pins {
-  position: absolute;
-  left: 2px;
-  top: 1px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex: none;
+  gap: 4px;
+  min-width: 22px;
+  margin: 1px 6px 0 -28px;
 }
 .tailor .jobtext .pins .num {
-  padding: 0;
-  background: none;
   font-family: inherit;
   line-height: 1;
   cursor: pointer;
 }
-.tailor .num.idle {
-  border-color: #4d5865;
+.tailor .num.idle,
+.tailor .num.settled {
+  border-color: var(--hud-mute);
+  background: none;
   color: var(--hud-mute);
+}
+.tailor .num.settled {
+  opacity: 0.6;
 }
 .tailor .stretch-card .jlink {
   display: block;
@@ -795,24 +827,36 @@
   font-size: 12.5px;
   color: var(--hud-mute);
 }
+/* #433: the requirement is a title (DESIGN.md: 15px), so the answers stay above the fold. */
 .tailor .stretch-card .h {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  line-height: 1.35;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  line-height: 20px;
   outline: none;
 }
+/* #433: one look for a suggestion's number everywhere (the CV, the card, The job, the summary):
+   solid when open, an outline when waiting; the circle grows with its digits. Not gold — the
+   screen's gold is the one primary action. */
 .tailor .num {
+  box-sizing: border-box;
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 20px;
+  min-width: 20px;
   height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--gold-dim, #a8762b);
-  color: var(--gold);
+  padding: 0 5px;
+  border-radius: 10px;
+  border: 1px solid var(--hud-ink);
+  background: var(--hud-ink);
+  color: var(--hud-0);
   font-size: 11px;
   font-weight: 600;
+  line-height: 1;
 }
 .tailor .swhy,
 .tailor .swap {
@@ -830,7 +874,8 @@
   border-radius: 6px;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--serif);
+  /* #433: the CV prints in a sans face, so its clip quotes it in the same one. */
+  font-family: Calibri, "Segoe UI", Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -971,6 +1016,23 @@
   font-size: 12px;
   color: var(--hud-mute);
 }
+/* #433: the closed summary's headings are titles too (the browser default is a 21px headline). */
+.tailor .stretch .h {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.tailor .stretch h3.h {
+  margin-top: 14px;
+  font-size: 13.5px;
+}
+.tailor .slist .t {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
 .tailor .slist .link {
   text-align: left;
   white-space: normal;
@@ -1021,8 +1083,10 @@
   padding: 14px 18px;
   border-bottom: 1px solid var(--hud-line);
 }
+/* #433: a real step between the sheet's title and its rows. */
 .tailor .sheet > header h2 {
   margin: 0;
+  font-size: 17px;
 }
 .tailor .marks {
   flex: 1 1 0;
