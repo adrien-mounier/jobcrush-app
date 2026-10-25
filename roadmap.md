@@ -35,9 +35,8 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
 4. **Agent:** `/qa-gate` GO on the whole journey (Opus 5.5).
 
 **Owner, waiting on you:** #427 (the stretch step's first answer no longer retried, ~20 s and ~$0.05 saved per
-job) sits on branch `fix/427-stretch-retry` (972e97f), QA GO, not on main. Say when main gets it. Decide too:
-a CV now keeps fewer stretches, because the old retry used to turn "not better" verdicts into kept ones
-(numbers on the ticket). Keep that, or ask for a prompt change.
+job) sits on branch `fix/427-stretch-retry` (972e97f), QA GO, not on main. Say when main gets it. A CV now keeps
+fewer stretches (the old retry turned "not better" verdicts into kept ones): accepted by the owner, 2026-10-25.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
   #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
