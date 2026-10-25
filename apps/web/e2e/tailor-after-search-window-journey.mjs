@@ -7,14 +7,17 @@
 // staging run, 2026-10-25: the draft written, then five Approve presses all refused.
 //
 // This journey does what he did, with the clock running for real: pick a job from the deck, let the
-// draft and its suggestions arrive, then sit reading the CV until well past six minutes after the
+// draft and its suggestions arrive, then sit reading the CV until well past the window after the
 // deck's search. Only then does he act — reload the screen, Edit wording, It's true and its Undo, Use,
 // No, Approve — and every Tailor call from that point must answer, none with 404. Last, the deck
 // itself is opened: past its window it searches again (AC2 — the deck's freshness is unchanged),
 // and the job he is tailoring is still his afterwards.
 //
-// Takes about 9 minutes, most of it the wait. QA_WAIT_MS overrides the wait (default: until
-// 6 min 20 s after the deck's search) — shortening it below 5 min makes the run prove nothing.
+// #435: the server's clock cannot be moved, so the window is shortened instead — POST /qa/stack's
+// deckSearchWindowMs (qa-main only; the shipped window stays 5 minutes) arms 20 s for this run and
+// puts it back at the end. The wait is then until 50 s after the deck's search. The shipped 5 minutes
+// itself is postingRetrieval.test.ts's to prove; this run proves the rule against whatever window is set.
+// QA_WAIT_MS overrides the wait — shortening it below the window makes the run prove nothing.
 //
 //   PORT=34431 OPS_KEY=qa-ops-key node apps/api/dist/qa-main.js
 //   cd apps/web && API_URL=http://127.0.0.1:34431 npx next build && npx next start -p 34430
@@ -25,8 +28,8 @@ import { createSession } from './qa-driver.mjs';
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
 const ROLE = 'IT project manager in Paris';
 const EMAIL = `late-tailor-${Date.now()}@example.com`;
-const PAST_WINDOW_MS = 6 * 60 * 1000 + 20 * 1000;
-const DECK_WINDOW_MS = 5 * 60 * 1000;
+const DECK_WINDOW_MS = 20 * 1000;
+const PAST_WINDOW_MS = DECK_WINDOW_MS + 30 * 1000;
 
 const USE = 'Use for this job';
 const TRUE = "It's true: keep it on my CV for every job";
@@ -37,13 +40,29 @@ const qa = await createSession('tailor-after-search-window-journey', { baseURL: 
 const { page } = qa;
 page.setDefaultTimeout(20_000);
 
+// The knob is process-wide on the shared QA API, so every exit puts the shipped window back — from
+// Node, not the page, so a crashed page cannot leave it armed for the next journey.
+const setWindow = async (ms) => {
+  const res = await fetch(`${BASE}/api/qa/stack`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ deckSearchWindowMs: ms }),
+  });
+  return { status: res.status, json: await res.json().catch(() => null) };
+};
+const finish = async () => {
+  await setWindow(null).catch((e) => console.error(`could not put the deck's window back: ${e?.message ?? e}`));
+  return qa.finish();
+};
+
 let aborted = false;
-for (const ev of ['uncaughtException', 'unhandledRejection']) {
+for (const ev of ['uncaughtException', 'unhandledRejection', 'SIGINT', 'SIGTERM']) {
   process.on(ev, async (e) => {
     console.error(`\n[${ev}]`, e?.stack ?? e);
     if (aborted) return;
     aborted = true;
-    try { await qa.note(`RUN ABORTED (${ev}): ${e?.message ?? e}`); await qa.finish(); } catch {}
+    try { await qa.note(`RUN ABORTED (${ev}): ${e?.message ?? e}`); } catch {}
+    try { await finish(); } catch {}
     process.exit(1);
   });
 }
@@ -72,6 +91,9 @@ const mins = (ms) => `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/discovery', 'land on discovery — the anonymous session');
 await page.waitForTimeout(700);
+const armed = await setWindow(DECK_WINDOW_MS);
+if (armed.json?.deckSearchWindowMs !== DECK_WINDOW_MS) throw new Error(`the QA stack refused the window (${armed.status}): ${JSON.stringify(armed.json)}`);
+await qa.note(`the deck's search window, for this run only: ${mins(DECK_WINDOW_MS)}`);
 await call('POST', '/api/onboarding/discovery/start', { role: ROLE });
 const facts = await qa.factsFromCv();
 if (!(facts > 0)) throw new Error(`the CV gave the session no facts (${facts})`);
@@ -125,7 +147,7 @@ while (Date.now() < readUntil) {
   await page.waitForTimeout(Math.min(30_000, Math.max(0, readUntil - Date.now())));
 }
 const lateBy = Date.now() - searchedAt;
-await assert(lateBy > DECK_WINDOW_MS + 60_000, `now ${mins(lateBy)} after the deck's search — past its 5-minute window`);
+await assert(lateBy > DECK_WINDOW_MS + 20_000, `now ${mins(lateBy)} after the deck's search — past its ${mins(DECK_WINDOW_MS)} window`);
 
 // Every Tailor call from here on is recorded; none may answer "unknown card".
 const tailorCalls = [];
@@ -220,10 +242,10 @@ for (let i = 0; i < 60 && again?.searching === true; i += 1) {
 }
 const researchedAt = Date.parse(again?.retrieval?.retrievedAt ?? '');
 await qa.note(`the deck's search now: ${again?.retrieval?.retrievedAt} (${again?.retrieval?.outcome}, ${again?.cards?.length} cards)`);
-await assert(Number.isFinite(researchedAt) && researchedAt > searchedAt + DECK_WINDOW_MS, 'the deck searched again — its 5-minute rule still governs it');
+await assert(Number.isFinite(researchedAt) && researchedAt > searchedAt + DECK_WINDOW_MS, 'the deck searched again — its window still governs it');
 await qa.scrollThrough('the deck after its new search');
 const still = await call('GET', '/api/onboarding/tailor');
 await assert(still.status === 200 && still.json?.card?.adId === tailorAdId, `the job he is tailoring is still his (${still.status})`);
 
-const ok = await qa.finish();
+const ok = await finish();
 process.exit(ok ? 0 : 1);

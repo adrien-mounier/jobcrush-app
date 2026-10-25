@@ -161,6 +161,15 @@ const MAX_QUERY_TITLE_LENGTH = 40;
 // far shorter than every active policy's TTL; a newly activated shorter-TTL policy must lower it.
 const SNAPSHOT_REUSE_MS = 5 * 60 * 1000;
 const RETRY_SNAPSHOT_REUSE_MS = 30 * 1000;
+let snapshotReuseMs = SNAPSHOT_REUSE_MS;
+
+/** #435 test-only hatch: qa-main.ts's POST /qa/stack shortens the deck's search window so the #431
+ *  journey waits seconds, not minutes. Only that QA entry calls it, and it is pruned from the Docker
+ *  image, so the shipped window is always SNAPSHOT_REUSE_MS. `null` puts it back; returns the window now read. */
+export function setDeckSearchWindowMsForTest(ms: number | null): number {
+  snapshotReuseMs = ms ?? SNAPSHOT_REUSE_MS;
+  return snapshotReuseMs;
+}
 
 export function resolveSearchAreaToRegions(searchArea: string): string[] {
   return [...(AREA_REGIONS[searchArea.trim().toLocaleLowerCase("en-US")] ?? [])];
@@ -518,7 +527,7 @@ export function isReusableRetrievalSnapshot(
     return nowMs - recordedMs <= RETRY_SNAPSHOT_REUSE_MS;
   }
   const retrievedMs = Date.parse(snapshot.result.retrievedAt);
-  if (!Number.isFinite(retrievedMs) || retrievedMs > nowMs || nowMs - retrievedMs > SNAPSHOT_REUSE_MS) {
+  if (!Number.isFinite(retrievedMs) || retrievedMs > nowMs || nowMs - retrievedMs > snapshotReuseMs) {
     return false;
   }
   if (snapshot.result.outcome === "empty_pool") {
@@ -527,7 +536,7 @@ export function isReusableRetrievalSnapshot(
     );
     if (queriedPolicies.length === 0 || queriedPolicies.some((policy) => !policy)) return false;
     const ttlMs = Math.min(
-      SNAPSHOT_REUSE_MS,
+      snapshotReuseMs,
       ...queriedPolicies.map((policy) => policy!.freshnessTtlHours * 60 * 60 * 1000),
     );
     return nowMs - retrievedMs <= ttlMs;

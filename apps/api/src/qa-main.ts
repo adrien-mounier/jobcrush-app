@@ -93,6 +93,7 @@ import { DevMailer } from "./mailer.js";
 import { StandInDocumentMaker } from "./documentMaker.js";
 import { createGuestbook } from "./guestbook.js";
 import { IpRateLimiter } from "./sessions.js";
+import { setDeckSearchWindowMsForTest } from "./postingRetrieval.js";
 import type { LlmClient } from "./llm.js";
 import { isFamilyLabelerPrompt, qaFamilyAnswer, roleFromLabelerPrompt } from "./qaFamilyAnswer.js";
 import { qaReviewAnswer, REVIEW_PROMPT_OPENING } from "./qaReviewAnswer.js";
@@ -933,6 +934,11 @@ const qaPostingStore = new InMemoryPostingStore();
 // takes, so the journey drives the real screen with the real rule and nothing about the rule is faked.
 // Off by default (0 days), armed per-run through POST /qa/stack's `pasteDaysAgo`, like every other knob.
 let qaPasteDaysAgo = 0;
+
+// #435 — the deck's 5-minute search window, shortened for the one journey (#431's) that must outlive
+// it. Armed per-run through POST /qa/stack's `deckSearchWindowMs`; `null` restores the shipped window.
+// Echoed as the window postingRetrieval.ts actually reads, not a copy kept here.
+let qaDeckSearchWindowMs = setDeckSearchWindowMsForTest(null);
 const qaPasteRecordsInner = new InMemoryPasteRecordStore();
 const qaPasteRecords: PasteRecordStore = {
   durable: qaPasteRecordsInner.durable,
@@ -1119,6 +1125,7 @@ app.post<{
     workRightsAdverts?: boolean;
     retrievalOutcome?: string;
     pasteDaysAgo?: number;
+    deckSearchWindowMs?: number | null;
   };
 }>("/qa/stack", async (req, reply) => {
   if (req.body?.judgeDelayMs !== undefined) {
@@ -1194,6 +1201,17 @@ app.post<{
     }
     qaPasteDaysAgo = days;
   }
+  // #435: same refusal discipline as pasteDaysAgo — a run that asked for a window and silently got
+  // the shipped 5 minutes would wait for a window nobody applied, or prove nothing at all.
+  if (req.body?.deckSearchWindowMs !== undefined) {
+    const ms = req.body.deckSearchWindowMs;
+    if (ms !== null && (!Number.isInteger(ms) || ms < 10_000 || ms > 5 * 60_000)) {
+      return reply.status(400).send({
+        error: { code: "bad_request", message: "deckSearchWindowMs must be null or a whole number of ms, 10000-300000" },
+      });
+    }
+    qaDeckSearchWindowMs = setDeckSearchWindowMsForTest(ms);
+  }
   return {
     ok: true,
     judgeDelayMs,
@@ -1203,6 +1221,7 @@ app.post<{
     workRightsAdverts: workRightsAdvertsOn,
     retrievalOutcome: qaRetrievalOutcome,
     pasteDaysAgo: qaPasteDaysAgo,
+    deckSearchWindowMs: qaDeckSearchWindowMs,
   };
 });
 

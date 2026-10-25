@@ -287,6 +287,16 @@ export const COVERAGE = {
   "check-mode-work-rights-journey.mjs": union(CV_INTAKE, DISCOVERY, ELIGIBILITY, REVIEW, PROFILE, DECK),
   // #23: discovery -> reveal -> sign-in -> deck -> swipe -> tailor -> the ending and the exits.
   "tailor-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS),
+  // #431/#435: a deck job stays tailorable past the deck's search window (shortened by qa-main's
+  // knob), every Tailor door from Edit to Approve answering, then the deck searching again.
+  "tailor-after-search-window-journey.mjs": union(DISCOVERY, REVEAL_GATE, AUTH, DECK, TAILOR, POSTINGS, [
+    "apps/api/src/stretchSuggestions.ts",
+    "apps/api/src/tailorDraft.ts",
+    "apps/api/src/tailorDraftStore.ts",
+    "apps/api/src/tailorExport.ts",
+    "apps/api/src/applicationReport.ts",
+    "apps/api/prompts/application-report.md",
+  ]),
   // #418: the stretch flow end to end — the step, its prompts (#420: the re-say mode of an edited
   // wording), the read-time swap and score, the approve press with the report. The qa-main fake it
   // reads its suggestion from is in SHARED.

@@ -67,6 +67,11 @@ export const JOURNEYS = [
   // moving with the requirement read as met by a stretch, "Ready to send", approve. tailor-journey
   // keeps the phone layout and the exits; this one owns the flow ADR-0020 clause 4 decides. ~2 min.
   "stretch-use-journey.mjs",
+  // #431/#435: the ONLY journey that waits out the deck's search window and then presses every
+  // Tailor door (reload, Edit, It's true and Undo, Use, No, Approve) — the window the owner's
+  // staging run 404'd behind. qa-main's deckSearchWindowMs shortens it to 20 s for this run (the
+  // shipped 5 minutes is postingRetrieval.test.ts's to prove), so it runs in ~2 min, not ~9. One sign-in.
+  "tailor-after-search-window-journey.mjs",
   "search-area-coverage-journey.mjs",
   // #214: the only end-to-end proof that a typed city stays a city-level target (chips, cap,
   // refusal, per-market work-rights). ~2 min against the fake-model API.

@@ -16,6 +16,7 @@ import {
   retrievalFingerprint,
   liveSearchResult,
   isReusableRetrievalSnapshot,
+  setDeckSearchWindowMsForTest,
   resolveSearchArea,
   resolveSearchAreaToRegions,
   storeBackedPostingProvidersFor,
@@ -1115,6 +1116,21 @@ describe("#101 posting retrieval service", () => {
       const snapshot = snapshotOf(dedupePostings([record("techmap", "live", { verifiedLiveAt: retrievedAt })], registry));
       expect(liveSearchResult(null, "fingerprint", registry, sixMinutesLater)).toBeNull();
       expect(liveSearchResult(snapshot, "another-request", registry, sixMinutesLater)).toBeNull();
+    });
+
+    // #435: qa-main's knob, so the #431 journey waits seconds instead of minutes. Nothing else sets it.
+    it("the deck's window is 5 minutes unless the QA stack shortens it", () => {
+      const snapshot = snapshotOf(dedupePostings([record("techmap", "live", { verifiedLiveAt: retrievedAt })], registry));
+      const twoMinutesLater = Date.parse(retrievedAt) + 2 * 60 * 1000;
+      expect(isReusableRetrievalSnapshot(snapshot, "fingerprint", registry, twoMinutesLater)).toBe(true);
+      setDeckSearchWindowMsForTest(60_000);
+      try {
+        expect(isReusableRetrievalSnapshot(snapshot, "fingerprint", registry, twoMinutesLater)).toBe(false);
+        expect(liveSearchResult(snapshot, "fingerprint", registry, twoMinutesLater)?.postings).toHaveLength(1);
+      } finally {
+        setDeckSearchWindowMsForTest(null);
+      }
+      expect(isReusableRetrievalSnapshot(snapshot, "fingerprint", registry, twoMinutesLater)).toBe(true);
     });
   });
 
