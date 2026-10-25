@@ -89,7 +89,9 @@ and cited alongside these.
 - **Change a CV rule → update `docs/cv-brain/` too.** It's the reference, not a copy to let rot.
 - **Errors that can lose data or corrupt state are handled**, not swallowed. Pipeline stages
   checkpoint LLM outputs so retries never re-spend — so never persist a fallback or degraded value
-  into a field that marks a step done; leave it absent so the retry runs.
+  into a field that marks a step done; leave it absent so the retry runs. A checkpoint stores the
+  words that go with the output (#314 stored a shortened draft without its "we shortened it"
+  sentence; the re-press would have sent a silently shortened CV).
 - **Found nothing, did not run, and refused are different states** (ADR-0010) with different
   representations — a failure, skip or degraded answer must never look like an empty result, and
   "still working" is a server-owned state, not an empty list. On an LLM boundary, never `.default()`
@@ -108,6 +110,12 @@ and cited alongside these.
   something is excluded, show it would otherwise have been included. A new blocking check ships
   with a table of real-world inputs it must let through, over fixtures that carry the shape it keys
   on; a reviewer's false-block finding is fixed in the same slice (#337 cost three QA rounds).
+- **Expect what the person should see, never a placeholder.** A fallback literal as the expected
+  value (#383 asserted the group named "Skills", the owner's #393 defect verbatim) cements the gap:
+  every later fix goes red for the wrong reason. A placeholder in an expectation is a ticket.
+- **A new wire field needs its line in the route's zod response schema and an assertion on the raw
+  response** — the serializer drops a field the schema does not name, and a helper that maps the
+  body hides it (#394's `unnamed` flag passed its unit test and vanished on the wire).
 - **Pair every negative assertion with a positive one** — renaming the hunted string makes "X never
   appears" pass silently.
 - **Pin exact values and deltas.** `expect.any(Number)` and `toBeGreaterThanOrEqual` pass for the

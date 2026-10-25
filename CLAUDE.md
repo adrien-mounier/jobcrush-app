@@ -98,7 +98,9 @@ When a meaningful unit of work lands (see session hygiene):
    (`playwright.config.ts`); journeys run against the one `ci.yml` starts.
 
 **Stage files by name — never `git add -A`.** Scratch scripts, screenshots and workspace copies live
-in the session scratch dir, never under the repo (a copied `apps/web` once broke every gate).
+in the session scratch dir, never under the repo (a copied `apps/web` once broke every gate). The
+`/playwright` drivers (`apps/web/e2e/*.mjs`) are the exception: they land untracked and ship with
+the slice, so run `git status --untracked-files=all` before removing a worktree.
 
 **`Closes #123` on its own line ends a finishing commit — written only after `/qa-gate` returns
 GO.** The keyword acts on push, the same moment the deploy does, so a `Closes` written earlier
@@ -144,7 +146,9 @@ between those.
 Standard pnpm monorepo (`apps/{api,web,mobile}`, `packages/`, `docs/`). The non-obvious parts:
 `packages/contracts` holds the zod ports, golden-tested against the `.mjs` oracle validators in
 `oracle/`; `packages/ui` is design tokens only; deploy lives at the root (`docs/deploy.md`,
-`Dockerfile*`, `fly.*.toml`).
+`Dockerfile*`, `fly.*.toml`). `apps/api/data/` ships only `*.json` and `*.mjs` (the root
+`.gitignore` whitelist); a new extension there is silently untracked and 500s on a fresh checkout —
+whitelist it, and check with `git add --dry-run`.
 
 ## Develop
 
@@ -157,7 +161,10 @@ free high ports, prove *which* server answered, and kill only what you started.
 
 Edit files with Edit/Write. Text holding quotes or backslashes (a script, a regex, a commit or
 ticket body) travels as a file in the scratch dir — `git commit -F`, `gh … --body-file` — since
-heredocs, here-strings and inline Python each rewrite it.
+heredocs, here-strings and inline Python each rewrite it. Name the scratch dir by its full absolute
+path in every command (the Bash tool's `$TMPDIR` is a different folder). A Python edit script opens
+files with `newline=''` both ways (text mode writes CRLF here). Through Node's `execSync` (cmd.exe),
+write `X~1` and `rev-list A --not B`: cmd.exe silently eats `^`.
 
 The LLM seam (`apps/api/src/llm.ts`): a real `ANTHROPIC_API_KEY` uses the Anthropic API; local dev
 falls back to the Claude Code CLI; tests inject a fake. Model: `claude-sonnet-5`, thinking disabled.

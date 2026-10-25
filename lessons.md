@@ -120,26 +120,9 @@ included — the gate ran a hand-picked 23 instead. Run what the selector names,
 memory; and after a `[skip ci]` code push the next push inherits its red CI — run the full tier 2
 against the fake stack first.
 
-### A route's response schema drops a wire field nothing names
-`GET /review` serialises through the zod response schema in `routes/review.ts`: the `unnamed` flag
-added to the groups builder (#394) passed its unit test and vanished on the wire, because the schema
-did not name it — and the HTTP test stayed green because its helper mapped groups to `{name, items}`.
-A new wire field needs the schema line *and* a wire-level assertion on the raw response; the mocked
-specs then pass for the fixture's reason, never the server's. The real-stack journey caught it.
-
-### Route-mocked tiers cannot see a fixture/server divergence
-Every `apps/web/e2e/*.spec.ts` mocks at the route layer, so a mock encoding the *intended*
-behaviour stays green while the server does otherwise (#23's bubble). A gate that mocks the network
-never exercises the fake model either — CI now asserts `/qa/llm-calls` stays zero. Only real-stack
-journeys (`*-journey.mjs`) and a browser witness the wire: `useParams` double-encoding killed every
-paste behind 1,721 green tests; a v2 contract 400'd on Save while `pnpm test` was green.
-
-### A fast fake never shows the screen's in-between states
-#428 lived between a job stream's "suggesting" and "completed" messages. Every mocked spec answered the
-draft at once, and qa-main's fake stretch step finishes before the browser's stream connects, so 24
-specs and 19 journeys passed while the owner's real run, about 40 s per step, broke. A screen that
-acts on more than one stream message needs a test that holds the stream between them: a held route
-in a spec (`stretch.spec.ts`, "arrive at once"), or a delay setting on the fake (#430).
+### Fakes hide what the wire and the clock do
+- Every `apps/web/e2e/*.spec.ts` mocks at the route layer, so a mock encoding the *intended* behaviour stays green while the server does otherwise (#23's bubble). A gate that mocks the network never exercises the fake model either — CI asserts `/qa/llm-calls` stays zero. Only real-stack journeys (`*-journey.mjs`) and a browser witness the wire: `useParams` double-encoding killed every paste behind 1,721 green tests; a v2 contract 400'd on Save while `pnpm test` was green.
+- A fast fake never shows the in-between states. #428 lived between a job stream's "suggesting" and "completed" messages: every mocked spec answered at once and qa-main's fake finishes before the stream connects, so 24 specs and 19 journeys passed while the owner's real run (~40 s per step) broke. A screen that acts on more than one stream message needs a test that holds the stream between them: a held route (`stretch.spec.ts`, "arrive at once"), or a delay on the fake (#430).
 
 ### A journey in no tier rots silently — four occurrences
 The eligibility journey (#205), master-cv (#209), the S2 loop spec (#271) and the industry journeys
@@ -197,9 +180,6 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
   explanations (labelers landing late; years facts landing after placements) were wrong — the diagnostics in
   the report, not reasoning, found the cause.
 
-### A green test can be the bug
-- When a test's expected value is a fallback or placeholder literal (#383's test asserted a moved tool lands in the group named "Skills" — the owner's #393 defect, verbatim), the test documents a gap and cements it: every later fix goes red for the wrong reason. Before asserting a literal, ask what the person would see; a placeholder in an expectation is a ticket, not a spec.
-
 ### Read the gate's verdict, not its summary line
 - A journey that self-skips with a `qa.note` still prints "35 passed, 0 failed" — grep the report for skip notes.
 - Reports land relative to the CWD: today's are in `apps/web/qa-results/`; `apps/web/e2e/qa-results/` holds June's. Read the path the journey prints on its last line, never a glob.
@@ -235,36 +215,6 @@ Playwright, don't curl.
 - `API_URL` is baked at build time (`SHARED_INFRA.md`), and turbo neither hashes it (cache restores the wrong port) nor passes undeclared env: for a custom API port, `rm -rf .next && API_URL=… npx next build` in `apps/web`, not through turbo.
 - Mirroring CI by hand in one checkout: run the turbo `pnpm build` *before* the e2e web build — it bakes the dead `:3001` fallback.
 
-### Commit the `/playwright` drivers with the slice
-QA drivers land in `apps/web/e2e/*.mjs` untracked (only `qa-results/` is ignored), so "everything is
-pushed" stays true while they live only in a worktree that `git worktree remove` deletes. Run
-`git status --untracked-files=all` before removing a worktree; they ride the live backend and are
-not duplicate coverage of the mocked specs.
-
-### `apps/api/data/` ships only `*.json` and `*.mjs`
-The root `.gitignore` excludes `data/` and whitelists `apps/api/data/*.json` / `*.mjs`; any other
-extension there is silently untracked, works locally, and 500s on a fresh checkout. A negation can't
-reach inside an excluded directory (un-exclude the dir, re-exclude contents, whitelist), and
-`git check-ignore -v` exits 0 on a negation match — verify with `git add --dry-run`, probing both a
-file that must ship and one that must not.
-
-### Node's `execSync` runs cmd.exe here, which eats `^`
-`git rev-parse X^` / `rev-list A ^B` through `execSync` silently become `X` / `A B` — no error, wrong
-answer (bit the QA gate twice, 2026-10-06). Write `X~1` and `rev-list A --not B`.
-
-### Python text mode writes CRLF here, and Git Bash's `grep $'\r'` can miss it
-A Python edit script using `open(p, 'w')` rewrites every LF file as CRLF on this machine; git only
-warns ("CRLF will be replaced by LF"). `grep -c $'\r'` in Git Bash once reported 0 on such files, so a
-"normalise" loop built on it fixed nothing (#339). Edit with `newline=''` both ways, and check bytes:
-`python -c "print(open(p,'rb').read().count(b'\r'))"`.
-
-### The session scratchpad is not `$TMPDIR`
-The Write tool's scratchpad directory and the Bash tool's `$TMPDIR` are different folders. A commit
-message written to the scratchpad and then appended to via `$TMPDIR/...` produced a second file holding
-only the appended line, and `git commit -F` took that one: the commit landed as "Closes #387" with no
-subject (#387 close; fixed with a message-only amend before the push). Name the scratchpad by its full
-absolute path in every shell command; never shorten it to a variable.
-
 ## CI, deploy and ops
 
 ### CI: what's filtered, what blocks it, and how to deploy without it
@@ -290,7 +240,14 @@ absolute path in every shell command; never shorten it to a variable.
   Launch with `nohup … &`, and first `fly machine update <id> --autostop=off -y`: a `/healthz` ping
   every minute did NOT hold the machine (the proxy stopped it 7 min into a run, and a restart boots a
   fresh rootfs — uploads and `/tmp` gone, the paid call lost). Restore with `--autostop=stop` after;
-  the next deploy restores it from `fly.api.toml` regardless.
+  the next deploy restores it from `fly.api.toml` regardless. #427 skipped this lesson and lost a
+  run to the auto-stop at minute 6; its 20-second pings then held a second run, which is luck, not
+  a method.
+  **Read-only probe recipe (#427):** `PGOPTIONS="-c default_transaction_read_only=on"` on the
+  `node` command, checked with `SHOW default_transaction_read_only` before anything runs (every
+  write is then refused); rebuild a step's input through the real route via `buildServer` +
+  `app.inject` with every model call stubbed, and compare its sha256 to the stored fingerprint. A
+  deck job's search result ages out, so pin `Date.now` to the record's time while rebuilding.
 - **Fly's auto-stop reads load, not traffic** (#363): its stop loop samples each machine's in-flight
   requests every few minutes and stops one at zero. A short request every few seconds (the review
   page polls at 3 s; the ping above at 60 s) is zero at sampling time and holds nothing. The one thing
@@ -362,8 +319,6 @@ it that shouldn't and what should that can't reach it.
 - Two CSS rules at equal specificity: load order wins (`profile.css` after `deck.css` collapsed a screen to 0px).
 - A renderer mounted in two containers is styled off a class it emits itself, and rows are targeted by a `data-` attribute it writes, never by position.
 - A new class on the shared card is grepped across every stylesheet and e2e file before it is named: `.why` was already the tailor screen's eyebrow idiom, so #407's reason rendered as an uppercase label there and broke `tailor-journey`. Diff review passed it; only the live tailor drive caught it (deck.css's §12 note names the trap). Give the newcomer the new name.
-
-- **A checkpoint of a model output carries the words that go with it** (#314): the shortened draft was stored before the second print (so a crash would not re-spend the call) but without its "we shortened it" sentence — the re-press then measured two pages, skipped the rule and would have sent a silently shortened CV. A code review asked for the early checkpoint; only the QA gate's crash-then-press probe saw what it dropped. Store the notice with the thing it describes, and dedupe on the way out.
 
 ## UI and product
 
