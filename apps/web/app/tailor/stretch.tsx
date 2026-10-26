@@ -59,6 +59,9 @@ const E4 = "An empty line cannot go on your CV, so we kept the suggested wording
 const E5 = "We could not save your wording just now. Try again.";
 // #423: the open suggestion's line on "The job" tab — offered only when the server found that line.
 const J1 = "See where the job asks this";
+// #424 (the #412 prototype, variant E): on a computer with The job showing, the struck-out line is
+// not on screen, so the card says where to see it instead (tailor.css swaps the two lines by width).
+const J2 = "Switch to Your CV to see the line it changes.";
 // #438: an answered suggestion reopened from its ◆ on the page.
 const C1 = "Close";
 
@@ -109,6 +112,8 @@ export interface StretchCardsProps {
   editButtonRef: RefObject<HTMLButtonElement | null>;
   /** #423: opens "The job", scrolled to the open suggestion's line. */
   onSeeInJob: () => void;
+  /** #424: "The job" is the tab showing. */
+  onJob: boolean;
 }
 
 /** The pending suggestions, in list order — the one open, and the way J/K/N move. */
@@ -142,6 +147,7 @@ export function StretchCards({
   onEditText,
   editButtonRef,
   onSeeInJob,
+  onJob,
 }: StretchCardsProps) {
   // #420: on a phone the edit happens on the card's own line; on a computer, on the draft (draft.tsx).
   const lineRef = useRef<HTMLModElement>(null);
@@ -247,6 +253,7 @@ export function StretchCards({
           )}
         </div>
         <p className="swap">{open.lineOut ? K2 : K3}</p>
+        {onJob && <p className="swap tocv">{J2}</p>}
         <div className="ifasked">
           <b>{K4}</b>
           {editThis ? <span className="re">{E3}</span> : open.interviewNarrative}

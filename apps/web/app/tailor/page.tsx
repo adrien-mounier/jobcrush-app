@@ -366,6 +366,7 @@ export default function TailorPage() {
 
   // #423: "See where the job asks this" and the phone's "Read the job" show The job, then — once it
   // is on the page — bring the open suggestion's line (or the tabs, for the top) into view, focused.
+  // #424: for the top, the whole strip is lined up, not the tab inside it (its edge hid under the bar).
   const openJob = (to: "line" | "top") => {
     setShowJob(true);
     setJump({ to });
@@ -374,7 +375,8 @@ export default function TailorPage() {
     if (!jump) return;
     const target = jump.to === "line" ? litLineRef.current : jobTabRef.current;
     target?.focus({ preventScroll: true });
-    target?.scrollIntoView({ block: jump.to === "line" ? "center" : "start" });
+    if (jump.to === "line") target?.scrollIntoView({ block: "center" });
+    else target?.closest('[role="tablist"]')?.scrollIntoView({ block: "start" });
   }, [jump]);
 
   async function oneAnswerAtATime(work: () => Promise<void>) {
@@ -910,6 +912,7 @@ export default function TailorPage() {
               onEditText={(text) => (editTextRef.current = text)}
               editButtonRef={editButtonRef}
               onSeeInJob={() => openJob("line")}
+              onJob={showJob}
             />
             {askError && !state.questions.length && (
               <p className="err" role="alert">
