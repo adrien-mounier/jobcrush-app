@@ -155,11 +155,6 @@ for (const [label, width, height] of [
       else expect(p.right, `number ${p.n} clear of its line`).toBeLessThanOrEqual(p.lineLeft);
       expect(p.width - p.digits, `number ${p.n} has room round its digits`).toBeGreaterThanOrEqual(8);
     }
-    // One look for "open" (solid) and "waiting" (an outline), never gold — the card's number too.
-    const fill = (sel: string) => frame.locator(sel).first().evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await fill(".pin.open")).toBe("rgb(29, 33, 38)");
-    expect(await fill(".pin:not(.open)")).toBe("rgba(0, 0, 0, 0)");
-    expect(await page.locator(".stretch-card .h .num").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(232, 234, 237)");
     // One column: every number's right edge lines up.
     const rights = new Set(pins.map((p) => Math.round(p.right)));
     expect(rights.size, "the numbers share one margin column").toBe(1);
@@ -242,4 +237,82 @@ for (const [label, width, height] of [
     await expect(rows).toHaveCount(12);
     await expect(rows.nth(11).locator(".num")).toHaveText("12");
   });
+
+  test(`#437 ${label}: the open suggestion's number is gold, waiting ones an outline, digits readable, and nothing else is gold-filled`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await openTailor(page);
+    const frame = page.frameLocator(".draft-frame");
+    await expect(frame.locator(".pin")).toHaveCount(4);
+
+    // The CV page: suggestion 1 is open, 2, 3 and 12 wait.
+    expect(await look(frame.locator(".pin.open"))).toEqual({ ...OPEN, ratio: expect.any(Number) });
+    expect(await look(frame.locator(".pin:not(.open)").first())).toEqual({ ...PAGE_WAITING, ratio: expect.any(Number) });
+    // The rail: the card's own number.
+    expect(await look(page.locator(".stretch-card .h .num"))).toEqual({ ...OPEN, ratio: expect.any(Number) });
+    for (const l of [frame.locator(".pin.open"), frame.locator(".pin:not(.open)").first(), page.locator(".stretch-card .h .num")])
+      expect((await look(l)).ratio, "digits pass AA").toBeGreaterThanOrEqual(4.5);
+
+    // While a card is open, its number (and the card's own Use) are the screen's only gold fills.
+    expect(await goldFills(page)).toEqual(expect.arrayContaining(["num open", "Use for this job"]));
+    for (const g of await goldFills(page)) expect(["num open", "Use for this job"], `gold fill on ${g}`).toContain(g);
+    const cvGold = await frame.locator("body").evaluate((b) =>
+      [...b.querySelectorAll("*")].filter((el) => getComputedStyle(el).backgroundColor === "rgb(232, 163, 61)").map((el) => el.className),
+    );
+    expect(cvGold).toEqual(["pin open"]);
+
+    // The job: open suggestion 2 from its number; 12 waits beside it on the same line.
+    await page.getByRole("tab", { name: "The job" }).click();
+    await page.getByRole("button", { name: "Suggestion 2", exact: true }).click();
+    const jobOpen = page.locator(".jobtext .num:not(.idle)");
+    await expect(jobOpen).toHaveText("2");
+    expect(await look(jobOpen)).toEqual({ ...OPEN, ratio: expect.any(Number) });
+    const jobWaiting = page.getByRole("button", { name: "Suggestion 12", exact: true });
+    expect(await look(jobWaiting)).toEqual({ ...DARK_WAITING, ratio: expect.any(Number) });
+    for (const l of [jobOpen, jobWaiting]) expect((await look(l)).ratio, "digits pass AA").toBeGreaterThanOrEqual(4.5);
+    for (const g of await goldFills(page)) expect(["num open", "Use for this job"], `gold fill on ${g}`).toContain(g);
+
+    // Closed: the summary's waiting rows are Reserve Grey outlines, and Approve takes the gold.
+    await page.keyboard.press("Escape");
+    const row = page.locator(".stretch .slist li .num").first();
+    expect(await look(row)).toEqual({ ...DARK_WAITING, ratio: expect.any(Number) });
+    expect((await look(row)).ratio, "digits pass AA").toBeGreaterThanOrEqual(4.5);
+  });
+}
+
+// #437: gold means "on your CV right now" (DESIGN.md) — the open suggestion is the line being placed.
+const OPEN = { fill: "rgb(232, 163, 61)", digits: "rgb(26, 18, 6)", border: "rgb(168, 118, 43)" };
+// Waiting: an outline, no fill — Reserve Grey on the dark ground, the page's muted grey on the CV.
+const DARK_WAITING = { fill: "rgba(0, 0, 0, 0)", digits: "rgb(151, 170, 188)", border: "rgb(151, 170, 188)" };
+const PAGE_WAITING = { fill: "rgba(0, 0, 0, 0)", digits: "rgb(90, 102, 117)", border: "rgb(90, 102, 117)" };
+
+/** A number's computed colours, and its digits' contrast against what is actually behind them
+ *  (its own fill, else the first ground up the tree, translucent layers blended; the canvas is white). */
+function look(l: import("@playwright/test").Locator) {
+  return l.evaluate((el) => {
+    const rgba = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number).concat([1]).slice(0, 4) as [number, number, number, number];
+    const layers: [number, number, number, number][] = [];
+    for (let n: Element | null = el; n; n = n.parentElement) {
+      const c = rgba(getComputedStyle(n).backgroundColor);
+      if (c[3] > 0) layers.push(c);
+      if (c[3] >= 1) break;
+    }
+    const ground = layers.reverse().reduce<[number, number, number]>(
+      (acc, [r, g, b, a]) => [r * a + acc[0] * (1 - a), g * a + acc[1] * (1 - a), b * a + acc[2] * (1 - a)],
+      [255, 255, 255],
+    );
+    const lum = ([r, g, b]: number[]) =>
+      [r!, g!, b!].map((v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i]!, 0);
+    const s = getComputedStyle(el);
+    const [L1, L2] = [lum(rgba(s.color)), lum(ground)].sort((a, b) => b - a);
+    return { fill: s.backgroundColor, digits: s.color, border: s.borderTopColor, ratio: (L1! + 0.05) / (L2! + 0.05) };
+  });
+}
+
+/** Every visible gold-filled thing on the screen (outside the CV frame), named. */
+function goldFills(page: Page) {
+  return page.locator("body").evaluate((b) =>
+    [...b.querySelectorAll<HTMLElement>("*")]
+      .filter((el) => el.getClientRects().length > 0 && getComputedStyle(el).backgroundColor === "rgb(232, 163, 61)")
+      .map((el) => (el.classList.contains("num") ? "num open" : (el.textContent ?? "").replace(/\s+/g, " ").trim().replace(/ U$/, ""))),
+  );
 }
