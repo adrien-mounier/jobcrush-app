@@ -211,8 +211,10 @@ function cleanPart(part: string): string {
 }
 
 /** #409: a street line ("35 rue Nationale", "1000 Lausanne", "Lausanne 1000") — a number then a
- *  word, or a postal code at the end. "3D Artist" is not one. */
-const isAddress = (part: string) => /^\d+,?\s|\s\d{4,5}$/.test(part);
+ *  word, or a town of one or two words then its postal code. "3D Artist" is not one, nor is a title
+ *  ending in a standard's number ("Lead Auditor ISO 27001", QA #443 run 3). ponytail: a town of
+ *  three words or more before its postal code reads as a title — widen if a real CV shows one. */
+const isAddress = (part: string) => /^\d+,?\s|^\S+(?:\s\S+)?\s\d{4,5}$/.test(part);
 /** #409: real contact data on a line — an email, a phone, a street line, or a bare label
  *  ("Natel:", nothing left once cleaned). */
 const isContactData = (line: string) => {
@@ -242,23 +244,39 @@ const isContactHeading = (line: string) => CONTACT_HEADINGS.has(fold(line).repla
  *  link or a place. */
 const isNameLike = (part: string) => /\p{L}/u.test(part) && !isAddress(part) && !isLink(part) && !isLocation(part);
 const cleanPartsOf = (line: string) => line.split(partSep(line)).map(cleanPart);
+const hasContact = (line: string) => EMAIL_RE.test(line) || PHONE_RE.test(line);
+/** QA #443 run 3: a line that is only a place — "City, Country" or a whole known market
+ *  ("Singapore"). A market word inside a longer line ("Sydney Smith") is a name, not a place. */
+const isPlaceLine = (line: string) => {
+  const p = cleanPart(line);
+  return CITY_COUNTRY_RE.test(p) || marketForLocationText(p)?.toLowerCase() === p.toLowerCase();
+};
 
 /** #409, QA #443: where the name sits — its line (`at`, -1 when none), its value, and the parts
  *  left beside it on its own line. Below a known contact heading the contact column is skipped; on
- *  a contact line the name is the first part ("Jane Doe | jane@…"); leading lines of pure contact
- *  data are skipped; otherwise the name is the first line. No line is read as contact by its shape
- *  alone, so "MADONNA" or "Smith, John" above anything stays the name. */
+ *  a contact line the name is the first part ("Jane Doe | jane@…"); after a first line of contact
+ *  data, lines of contact data or a lone place are skipped (the place stays the location) and the
+ *  line reached is read the same way; otherwise the name is the first line. No first line is read
+ *  as contact by its shape alone, so "MADONNA" or "Smith, John" heading a CV stays the name.
+ *  ponytail: below contact data "Smith, John" or "Jane Doe, PhD" reads as a place — no vocabulary
+ *  tells them from "London, UK"; a country list would. */
 function findName(lines: string[]): { at: number; name: string | null; beside: string[] } {
   const first = lines[0];
   const below = (at: number) => ({ at, name: lines[at] ?? null, beside: [] });
+  const leadName = (at: number) => {
+    const [lead = "", ...beside] = cleanPartsOf(lines[at] ?? "");
+    return isNameLike(lead) ? { at, name: lead, beside } : null;
+  };
   if (first === undefined) return below(-1);
   if (isContactHeading(first)) return below(lines.findIndex((l, i) => i > 0 && !isContactData(l) && !isContactShape(l)));
-  if (!EMAIL_RE.test(first) && !PHONE_RE.test(first)) return below(0);
-  const [lead = "", ...beside] = cleanPartsOf(first);
-  if (isNameLike(lead)) return { at: 0, name: lead, beside };
+  if (!hasContact(first)) return below(0);
+  const onFirst = leadName(0);
+  if (onFirst) return onFirst;
   // A place or another word beside the contact details, and no name first: no name, as before.
-  if (beside.some(isNameLike)) return below(-1);
-  return below(lines.findIndex((l) => !isContactData(l) || cleanPartsOf(l).some(isNameLike)));
+  if (cleanPartsOf(first).slice(1).some(isNameLike)) return below(-1);
+  const at = lines.findIndex((l) => !(isContactData(l) || isPlaceLine(l)) || cleanPartsOf(l).some(isNameLike));
+  if (at < 0 || !hasContact(lines[at] ?? "")) return below(at);
+  return leadName(at) ?? below(-1);
 }
 
 /** #381: name = see findName; location = the first part that reads as a place ("City, Country" or
