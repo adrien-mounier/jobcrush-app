@@ -1046,10 +1046,15 @@
     min-height: 48px;
     justify-content: center;
   }
+  /* #424: a phone shows the struck-out line on the card itself, so the card's own words hold. */
+  .tailor .stretch-card .swap.tocv {
+    display: none;
+  }
 }
 @media (min-width: 960px) {
   .tailor .stretch-card .clip,
-  .tailor .stretch-card .skip {
+  .tailor .stretch-card .skip,
+  .tailor .stretch-card .swap:has(+ .tocv) {
     display: none;
   }
 }
