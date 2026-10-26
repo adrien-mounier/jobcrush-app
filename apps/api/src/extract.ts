@@ -213,15 +213,35 @@ function cleanPart(part: string): string {
 /** #409: a street line ("35 rue Nationale", "1000 Lausanne", "Lausanne 1000") — a number then a
  *  word, or a postal code at the end. "3D Artist" is not one. */
 const isAddress = (part: string) => /^\d+,?\s|\s\d{4,5}$/.test(part);
-/** #409: a line of a contact column — a lone word (a heading such as "Coordonnées", a bare label, a
- *  country), contact details, a street line, or a "City, Country". A two-column CV can put a whole
- *  column of these above the name. ponytail: a name split one word per line ("PRIYA" / "RAMAN") is
- *  skipped too; join short leading lines if that shows up. Only the comma shape counts as a place
- *  here — the market vocabulary matches substrings, so it would skip a name like "Paris Hilton". */
-const isContactLine = (line: string) => {
+/** #409: real contact data on a line — an email, a phone, a street line, or a bare label
+ *  ("Natel:", nothing left once cleaned). */
+const isContactData = (line: string | undefined) => {
+  if (line === undefined) return false;
   const p = cleanPart(line);
-  return EMAIL_RE.test(line) || PHONE_RE.test(line) || !/\s/.test(p) || isAddress(p) || CITY_COUNTRY_RE.test(p);
+  return EMAIL_RE.test(line) || PHONE_RE.test(line) || isAddress(p) || !/\p{L}/u.test(p);
 };
+/** A line that looks like contact only by its shape: a lone word (a heading such as "Coordonnées", a
+ *  country) or a "City, Country". Only the comma shape counts as a place here — the market
+ *  vocabulary matches substrings, so it would skip a name like "Paris Hilton". */
+const isContactShape = (line: string) => {
+  const p = cleanPart(line);
+  return !/\s/.test(p) || CITY_COUNTRY_RE.test(p);
+};
+/** #409, QA #443: the index of the first line below a contact column (the name), -1 if every line
+ *  is contact. Contact data always counts; a line that is contact only by shape counts after a
+ *  contact line, or as a heading word followed (past any "City, Country") by contact data. So
+ *  "John Smith, PMP", "Smith, John", "MADONNA" above a title stay the name. ponytail: a one-word
+ *  name directly above its email ("Jean-Pierre" / "jp@x.com") reads as a heading — no word list
+ *  tells them apart. */
+const firstAfterContactColumn = (lines: string[]) =>
+  lines.findIndex(
+    (l, i) =>
+      !(
+        isContactData(l) ||
+        (i > 0 && isContactShape(l)) ||
+        (!/\s/.test(cleanPart(l)) && isContactData(lines.slice(i + 1).find((x) => !CITY_COUNTRY_RE.test(cleanPart(x)))))
+      ),
+  );
 
 /** #381: name = the first line that is not part of a contact column (#409); location = the first
  *  part that reads as a place ("City, Country" or a known market); title = the first other part
@@ -233,7 +253,7 @@ const isContactLine = (line: string) => {
 export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
   const read = (value: string): ContactFieldRead => ({ value, sourceText: value });
   const lines = header.split("\n").map((l) => l.trim()).filter(Boolean);
-  const at = lines.findIndex((l) => !isContactLine(l));
+  const at = firstAfterContactColumn(lines);
   const first = lines[at];
   const name = first ? read(first) : null;
   const partsOf = (ls: string[]) =>

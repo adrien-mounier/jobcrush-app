@@ -432,6 +432,21 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect([c.name?.value, c.title?.value, c.location?.value]).toEqual(["Jane Doe", "Product Manager", "Paris, France"]);
     });
 
+    // QA #443: the contact-column skip read a name line on its own shape — "X, Y" as a place, one
+    // word as a heading — so the name became the title line. A line is skipped only inside a run
+    // anchored by real contact data; a name line stays the name, as it was before #409.
+    it.each([
+      ["John Smith, PMP\nSenior IT Project Manager\njohn@example.com | +1 555 000 0000", "John Smith, PMP", "Senior IT Project Manager"],
+      ["Jane Doe, PhD\nProduct Owner\njane@example.com", "Jane Doe, PhD", "Product Owner"],
+      ["Smith, John\nIT Project Manager\njohn@example.com", "Smith, John", "IT Project Manager"],
+      ["Jean-Pierre\nChef de projet\njp@example.com", "Jean-Pierre", "Chef de projet"],
+      ["MADONNA\nSinger\nm@example.com", "MADONNA", "Singer"],
+      ["John Smith, PMP\njohn@example.com\nSenior IT Project Manager", "John Smith, PMP", "Senior IT Project Manager"],
+    ])("a name line shaped like a contact line is still the name: %j", (head, name, title) => {
+      const c = extractContact(segment(`${head}\n\nExperience\nPM at X`));
+      expect([c.name?.value, c.title?.value, c.location?.value ?? null]).toEqual([name, title, null]);
+    });
+
     it("a street address is never the title", () => {
       expect(extractContact(segment("Jane Doe\n35 rue Nationale\nChef de projet\njane@example.com\n\nExperience\nPM at X")).title?.value).toBe("Chef de projet");
       expect(extractContact(segment("Jane Doe\nLausanne 1000 | jane@example.com\n\nExperience\nPM at X")).title).toBeNull();
