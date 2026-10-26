@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-25 (#427 #431–#435 live on staging, 8466cdb; the owner's re-proof resumes)_
+_Last updated: 2026-10-26 (owner's defect list filed: spec #443, #440–#442; the re-proof resumes)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -39,10 +39,13 @@ tailored no longer turns into "unknown card" · ~~#432~~ Approve survives a malf
 the suggestion numbers, the approve moment, Ready to send · ~~#427~~ the stretch step no longer retries (a CV
 keeps fewer stretches: owner accepted) · ~~#435~~ #431's journey runs in tier 2. **Step 3 above is next.**
 
-- **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) ·
-  #409 two-column letterhead reads the address as the title · #410 two phones on one contact line (both
-  Fable 5.1, low) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
-  Opus 5.5, medium) · #424 two small Tailor-tab fixes left by #423's gate (Opus 5.5, low) · #426 a CV
+**Owner's defect list (2026-10-26), after the re-proof:** spec #443, one `/implement-spec #443`
+(Fable 5.1, medium): the open suggestion number gold again (#437), a mark on lines a suggestion changed
+(#438), the centred letterhead (#439), plus #424 #409 #410. The CV email's design: owner-led prototype
+#441, then build #442. A CV with a photo: parked, #440.
+
+- **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
+  Opus 5.5, medium) · #426 a CV
   line naming two languages at two levels (Opus 5.5, low) · #429 "Look again"
   keeps the old failure message beside the wait screen (Opus 5.5, low) · #430 a stretch delay in qa-main, so tier 2 sees the "suggesting" phase (Opus 5.5, medium) ·
   #436 no test proves /sessions/me withholds the

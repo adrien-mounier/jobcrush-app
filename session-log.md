@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-26 — The owner's defect list filed as tickets: spec #443 (#437–#439 + #424 #409 #410), email #441 → #442, photo parked #440
+
+No code. The owner's four defects, checked against HEAD and the prototype branches first.
+- Numbers: #433 took gold off the suggestion numbers (black/white discs); the #408/#412 prototypes had the open one gold. #437 brings it back (designer call: open = gold, waiting = outline; the gold ceiling holds because Approve is gold only with no card open).
+- Used-line mark: the #408 prototype's `.pin.used` ◆ was never built → #438 (screen only, never the PDF).
+- Letterhead: every produced CV already has one shape (one template) and a photo is already dropped (text layer only); #439 is the centred name / contact / job title. Photo → #440, parked.
+- Email: sent as plain text only; #293's designed HTML template sits unshipped on its prototype branch. #441 is an owner-led prototype session (ready-for-human), #442 the build, blocked by it.
+- Batched under spec #443 with #424, #409, #410 (same surfaces); #438 blocked by #437.
+**Next:** the owner's re-proof; then `/implement-spec #443`.
+
 ## 2026-10-25 — Shipped #427 #432 #433 #434 #435 in one CI run (8466cdb, live); #427's probe, the re-proof's triage, lessons 48 → 39
 
 One long session (Opus 5.5), the owner's rule throughout: build on branches, one CI run when he says ship.
@@ -84,15 +94,3 @@ No code. On a fresh staging account (Hong Kong), the first card needed Cantonese
 QA **GO** on tree 3d37dc5: api 2221, mocked 299/299, six Tailor journeys plus the new `tailor-the-job-tab-journey.mjs` 78/0. Filed #424 (4px tab clip on a phone; the swap line while The job shows). `spec-301-finish` was rewritten but not run (needs `QA_PDF_PAGES=3`).
 Pushed `afff42d..9f85927`, which also carried another session's unpushed 1b4f466 (the watermark removal). CI run 40076699572 was green and deployed it to staging. The leftovers from other sessions were killed on the owner's word: the #411 worktree's `next start` on 34110 and a stuck `stretch-use` journey on 34220.
 **Next:** the owner's re-proof on a fresh staging account (roadmap finish line, step 2).
-
-## 2026-10-24 — Spec #412 shipped: the CV is written first, only stretches are suggested (#413–#420, #411; d411ecc)
-
-`/implement-spec 412` (Fable 5.1, then Opus 5.5 xhigh after the Fable quota ran out). Nine tickets in worktrees on `spec-412`.
-- **#413/#416:** years bars by family (each job counted once) and degree levels decided by rule in `recordBars.ts`. Reader `adreq/5`, judge `judge/2`, so each stored card is re-judged once (~$0.02).
-- **#414:** a job can be both kinds of work, with a *Kind of work* row on the job page. Labeler eval: bars hold, but confidence fell (comment on #414).
-- **#415:** yes/no queue gone; the draft starts by itself; "Also asked" list and "Where you fit" sheet.
-- **#417–#420:** stretch step (`stretch-suggestions.md`, `StretchProposalV2`) with Use, It's true and Edit wording. **#411:** breakdown on the Tailor screen.
-- `/code-review`: 13 fixes, including the deck list reading stretches (onboarding.ts ratchet 523 → 515), carried answers on a redone step, refusing answers after approval (409), and a 20-per-session cap on paid rewrites.
-QA **GO** on tree 911c990: api 2218, mocked 292, 25 journeys, live drive 84/0 at both widths, migration checked on real Postgres. Filed #421 (withdrawal journey rotted in no tier) and #422 (phone top bar too tall).
-Staging-only, still open: the owner's real CV and Hong Kong job, the stretch step's measured cost, the report email body. Screen order follows #411 (the ageing line and "Read the ad in full" stay), not the prototype.
-**Next:** owner re-proof on a fresh staging account; then Chat with JobCrush (#350).
