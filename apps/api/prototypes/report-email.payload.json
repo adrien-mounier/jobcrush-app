@@ -59,5 +59,37 @@
     "marketToCheck": null,
     "applicationUrl": null,
     "locationUnplaced": false
+  },
+  "card": {
+    "source": "computed on staging 2026-10-26 with the app's own judgedScore over the stored verdicts, the used stretches (#418) and the record rules — the number the job screen shows",
+    "matchPct": 93,
+    "essential": {
+      "met": 5,
+      "total": 5
+    },
+    "desirable": {
+      "met": 7,
+      "total": 9
+    },
+    "rows": {
+      "essential": [
+        "facts",
+        "facts",
+        "facts",
+        "added",
+        "added"
+      ],
+      "desirable": [
+        "facts",
+        "added",
+        "added",
+        "added",
+        "added",
+        "added",
+        "added",
+        "open",
+        "open"
+      ]
+    }
   }
 }

@@ -59,7 +59,7 @@ function model(p, { sampleChecks = false } = {}) {
       "SAMPLE — Fluent Cantonese — Not checked: you have not told us either way. Check it before you apply.",
     );
   const total = r.strong.length + r.gaps.length + r.unchecked.length;
-  return { ...p.posting, pages: p.pages, r, stretches, prepare, checks, total, covered: r.strong.length };
+  return { ...p.posting, pages: p.pages, card: p.card, r, stretches, prepare, checks, total, covered: r.strong.length };
 }
 
 const esc = (s) =>
@@ -125,6 +125,53 @@ function paper(m) {
 // ─── B · NIGHT MASTHEAD ─────────────────────────────────────────────────────────────────────────
 // The app's dark room as a masthead band: job title in white, the tally lit in gold. Below it,
 // white cards, one per section, each with a gold edge. The most "this is the product" of the three.
+// B2's score panel (owner, 2026-10-26: "add the score % with a mention like strong, partial").
+// The job card's own number and words (jobcard.tsx matchQuality: ≥70 Strong, ≥50 Partial, else
+// Weak), drawn three ways that each answer one question: the number (how good?), a gauge cut at
+// the card's own thresholds (why that word?), and a map of every requirement grouped Essential /
+// Desirable (made of what?) — solid gold = your facts, gold outline = a line you added (#418:
+// met by a stretch, still on the CV, so still gold), grey = not covered.
+const NIGHT_GOLD_TINT = "#33291b"; // gold at .12 over night-surface: the card's .bd-pill.strong fill
+function scorePanel(card) {
+  const pct = card.matchPct;
+  const band = pct >= 70 ? "Strong" : pct >= 50 ? "Partial" : "Weak";
+  const t = (px, w, color, extra = "") => `font:${w} ${px}px/1.4 ${SANS};color:${color};${extra}`;
+  const fill = { facts: C.gold, added: NIGHT_GOLD_TINT, open: "#6f7d8c" };
+  const block = (s, size = 20) =>
+    `<td style="padding:0 4px 4px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${fill[s]}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;line-height:${size}px;font-size:0;background:${fill[s]};border-radius:3px;${s === "added" ? `border:1px solid ${C.gold};width:${size - 2}px;height:${size - 2}px;line-height:${size - 2}px;` : ""}">&nbsp;</td></tr></table></td>`;
+  const group = (label, b, states) =>
+    `<p style="margin:0 0 7px;${t(12.5, 400, C.nightMuted)}">${label} <span style="color:${C.nightInk};font-weight:600;">${b.met} of ${b.total}</span></p>` +
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>${states.map((s) => block(s)).join("")}</tr></table>`;
+  // The gauge: three zones at the card's thresholds, each filled gold up to the score.
+  const zones = [[0, 50, "Weak"], [50, 70, "Partial"], [70, 100, "Strong"]];
+  const zone = ([from, to], i) => {
+    const filled = Math.max(0, Math.min(pct, to) - from) / (to - from);
+    const cell = (w, color) => (w > 0 ? `<td width="${(w * 100).toFixed(1)}%" bgcolor="${color}" height="8" style="height:8px;line-height:8px;font-size:0;background:${color};">&nbsp;</td>` : "");
+    return `<td width="${to - from}%" style="padding:0 ${i < 2 ? 3 : 0}px 0 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius:4px;overflow:hidden;"><tr>${cell(filled, C.gold)}${cell(1 - filled, C.nightRaised)}</tr></table></td>`;
+  };
+  const counts = { facts: 0, added: 0, open: 0 };
+  for (const s of [...card.rows.essential, ...card.rows.desirable]) counts[s]++;
+  const met = card.essential.met + card.desirable.met;
+  const total = card.essential.total + card.desirable.total;
+  const key = (s, n, label) =>
+    `<td style="padding:0 16px 6px 0;white-space:nowrap;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>${block(s, 10)}<td style="padding:0 0 4px 3px;${t(12.5, 400, C.nightInk)}">${n} ${label}</td></tr></table></td>`;
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td valign="middle" style="white-space:nowrap;padding:0 16px 0 0;width:1%;${t(42, 660, C.nightInk, "line-height:1;letter-spacing:-.02em;")}">${pct}<span style="font-size:22px;color:${C.nightMuted};font-weight:600;">%</span></td>
+      <td valign="middle">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${NIGHT_GOLD_TINT}" style="background:${NIGHT_GOLD_TINT};border:1px solid #8a6532;border-radius:999px;padding:5px 12px;${t(13, 700, C.gold, "line-height:1;white-space:nowrap;")}">${band} match</td></tr></table>
+        <p style="margin:7px 0 0;${t(13, 400, C.nightMuted)}">${met} of ${total} requirements covered</p>
+      </td></tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0 0;"><tr>${zones.map(zone).join("")}</tr>
+      <tr>${zones.map(([from, to, label]) => `<td width="${to - from}%" style="padding:6px 0 0;${label === band ? t(12, 700, C.gold) : t(12, 400, C.nightMuted)}">${label}</td>`).join("")}</tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border-top:1px solid ${C.nightRaised};"><tr><td style="padding:18px 0 0;">
+      ${group("Essential", card.essential, card.rows.essential)}
+      <div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>
+      ${group("Desirable", card.desirable, card.rows.desirable)}
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 0;"><tr>${key("facts", counts.facts, "from your facts")}${key("added", counts.added, "lines you added")}</tr><tr>${key("open", counts.open, "not covered")}</tr></table>
+    </td></tr></table>`;
+}
+
 // B2 (owner's pick, 2026-10-26): B plus Phosphor filled icons — strong, weak, and every point under
 // "Be ready to explain". Icons are 2x PNGs (report-email-icons/, rendered from @phosphor-icons/core
 // 2.1.1, MIT): Gmail strips SVG, so the send attaches them inline (cid:) and the preview inlines them.
@@ -152,11 +199,11 @@ function night(m, icons = false) {
        <p style="margin:0 0 6px;font:13px/1.4 ${SANS};color:${C.nightMuted};">Your CV is ready for</p>
        <h1 style="margin:0 0 4px;font:660 25px/1.25 ${SANS};color:${C.nightInk};">${esc(m.title)}</h1>
        <p style="margin:0 0 22px;font:15px/1.5 ${SANS};color:${C.nightMuted};">${esc(m.company)} · ${esc(m.location)}</p>
-       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+       ${icons ? scorePanel(m.card) : `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
          ${pill(`${m.covered} of ${m.total}`, "covered", C.gold, C.goldInk)}
          ${pill(m.r.gaps.length, "to prepare", C.nightRaised, C.nightInk)}
          ${m.r.unchecked.length ? pill(m.r.unchecked.length, "not checked", C.nightRaised, C.nightInk) : ""}
-       </tr></table>
+       </tr></table>`}
        ${r.applicationUrl ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;"><tr><td style="background:${C.gold};border-radius:6px;"><a href="${esc(r.applicationUrl)}" style="display:inline-block;padding:12px 22px;font:700 15px/1 ${SANS};color:${C.goldInk};text-decoration:none;">Apply for this job</a></td></tr></table>` : `<p style="margin:20px 0 0;font:13px/1.5 ${SANS};color:${C.nightMuted};">${L.noLink}</p>`}`,
       `background:${C.night};border-radius:8px;padding:28px 28px 26px;`,
     ),
@@ -327,7 +374,7 @@ function dashboard(m) {
 const DIRECTIONS = {
   A: { name: "Paper", render: paper },
   B: { name: "Night masthead", render: (m) => night(m) },
-  B2: { name: "B with icons", render: (m) => night(m, true) },
+  B2: { name: "B with icons + score", render: (m) => night(m, true) },
   C: { name: "Scorecard", render: scorecard },
   D: { name: "Dashboard", render: dashboard },
 };
