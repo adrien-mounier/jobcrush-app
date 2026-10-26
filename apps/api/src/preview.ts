@@ -1110,9 +1110,11 @@ export function renderPreviewHtml(
   .banner{background:#fbeaea;border:1px solid #d99;color:#8a1f1f;
     font-size:12px;padding:8px 14px;border-radius:6px;margin-bottom:24px;}
   /* #439 the letterhead: name, contact, headline, each centred on its own line. A long contact
-     line wraps (a link breaks anywhere) rather than running off the page. */
+     line wraps only between its items (QA #443: never inside a link that fits — an ATS would read
+     it in two pieces); an item wider than the line breaks inside its box rather than run off. */
   h1{font-size:23px;margin:0;color:#1F4E79;text-align:center;letter-spacing:.01em;}
   .contact{text-align:center;margin:5px 0 0;font-size:12.5px;color:#444;overflow-wrap:anywhere;}
+  .ci{display:inline-block;max-width:100%;}
   .headline{text-align:center;margin:4px 0 0;font-size:12.5px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#1d2126;}
   h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:#1F4E79;
     border-bottom:1.5px solid #1F4E79;padding-bottom:3px;margin:18px 0 7px;}
@@ -1162,7 +1164,7 @@ ${
       )}. Facts not yet verified by the candidate; not for submission.</div>\n`
     : ""
 }<h1>${esc(draft.name)}</h1>
-${draft.contact ? `<p class="contact">${esc(draft.contact)}</p>
+${draft.contact ? `<p class="contact">${esc(draft.contact).split(" · ").map((item, i, all) => `<span class="ci">${item}${i < all.length - 1 ? " ·" : ""}</span>`).join(" ")}</p>
 ` : ""}<p class="headline">${esc(draft.headline)}</p>
 ${draft.summary.trim() ? section("Professional Summary", `<p class="summary">${markedLine({ kind: "summary" }, draft.summary)}</p>`) : ""}
 ${section("Professional Experience", experience)}

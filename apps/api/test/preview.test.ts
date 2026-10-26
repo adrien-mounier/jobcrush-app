@@ -194,7 +194,7 @@ describe("JC-16 posting match + render", () => {
     };
     const html = renderPreviewHtml(glyphy, matchPosting([]), { banner: false });
     expect(html).toContain("Mar 2021 - Present");
-    expect(html).toContain("Warsaw · maria@example.com");
+    expect(html.replace(/<\/?span[^>]*>/g, "")).toContain("Warsaw · maria@example.com");
     expect(html).not.toContain("–");
   });
 });
@@ -914,9 +914,12 @@ describe("#439 letterhead — name, contact, headline, each on its own centred l
   const rule = (html: string, selector: string) =>
     html.match(new RegExp(`(?:^|[\\s}])${selector.replace(".", "\\.")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
 
+  /** The letterhead with the contact line's item boxes taken out — the text a reader sees. */
+  const plain = (html: string) => topBlock(html).replace(/<\/?span[^>]*>/g, "");
+
   it("prints the name, then the contact, then the headline, in that order", () => {
     const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
-    expect(topBlock(html)).toMatch(
+    expect(plain(html)).toMatch(
       new RegExp(
         "^<h1>Maria Kowalski</h1>\\n" +
           '<p class="contact">Warsaw · maria\\.kowalski@example\\.com</p>\\n' +
@@ -930,10 +933,22 @@ describe("#439 letterhead — name, contact, headline, each on its own centred l
     for (const sel of ["h1", ".contact", ".headline"]) expect(rule(html, sel)).toMatch(/text-align:\s*center/);
   });
 
-  it("lets a long contact line wrap inside the page instead of running off it", () => {
-    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
+  // QA #443: the wrap broke inside a LinkedIn link, so an ATS could read the link in two pieces.
+  // Each item is one box that does not break while it fits (its separator kept at its end, so the
+  // text reads the same); the line wraps only between boxes. A box wider than the line still breaks.
+  it("wraps a long contact line only between its items, never inside one that fits", () => {
+    const html = renderPreviewHtml(
+      { ...sampleDraft, contact: "Lyon, France · +33 6 00 00 00 00 · linkedin.com/in/maria-kowalski-delivery-lead" },
+      matchPosting([]),
+      { banner: false },
+    );
+    expect(html).toContain(
+      '<p class="contact"><span class="ci">Lyon, France ·</span> <span class="ci">+33 6 00 00 00 00 ·</span> ' +
+        '<span class="ci">linkedin.com/in/maria-kowalski-delivery-lead</span></p>',
+    );
+    expect(rule(html, ".ci")).toMatch(/display:\s*inline-block/);
+    expect(rule(html, ".ci")).toMatch(/max-width:\s*100%/);
     expect(rule(html, ".contact")).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(rule(html, ".contact")).not.toMatch(/nowrap/);
   });
 
   it("leaves the contact line out entirely when the draft has none", () => {
@@ -953,10 +968,10 @@ describe("#439 letterhead — name, contact, headline, each on its own centred l
       contact: "Lyon, France | +33 6 00 00 00 00 | +33 4 00 00 00 00 | jean.dupont@example.com | linkedin.com/in/jean-dupont",
     };
     const shape = (d: Draft) =>
-      topBlock(renderPreviewHtml(d, matchPosting([]), { banner: false })).replace(/>[^<]*</g, "><").trim();
+      plain(renderPreviewHtml(d, matchPosting([]), { banner: false })).replace(/>[^<]*</g, "><").trim();
     expect(shape(twoColumn)).toBe(shape(singleColumn));
     expect(shape(singleColumn)).toBe('<h1></h1><p class="contact"></p><p class="headline"></p>');
-    expect(renderPreviewHtml(twoColumn, matchPosting([]))).toContain(
+    expect(plain(renderPreviewHtml(twoColumn, matchPosting([])))).toContain(
       '<p class="contact">Lyon, France · +33 6 00 00 00 00 · +33 4 00 00 00 00 · jean.dupont@example.com · linkedin.com/in/jean-dupont</p>',
     );
   });

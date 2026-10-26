@@ -110,15 +110,60 @@ try {
         align: getComputedStyle(el).textAlign,
         overflow: el.scrollWidth > el.clientWidth || r.right > document.documentElement.clientWidth,
         pageScroll: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        // QA #443: the line wraps between items, never inside one that fits on a line (a link
+        // broken in two reads as two pieces to an ATS). Per item: the line tops its letters sit on.
+        split: (() => {
+          const text = el.textContent;
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          const chars = [];
+          for (let n; (n = walker.nextNode()); ) for (let o = 0; o < n.length; o++) chars.push([n, o]);
+          const top = (i) => {
+            const r = document.createRange();
+            r.setStart(chars[i][0], chars[i][1]);
+            r.setEnd(chars[i][0], chars[i][1] + 1);
+            return Math.round(r.getBoundingClientRect().top);
+          };
+          const probe = document.createElement("span");
+          probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap";
+          el.append(probe);
+          const out = [];
+          let at = 0;
+          for (const item of text.split(" · ")) {
+            probe.textContent = item;
+            const fits = probe.getBoundingClientRect().width <= el.clientWidth;
+            const tops = new Set();
+            for (let i = at; i < at + item.length; i++) if (text[i].trim()) tops.add(top(i));
+            if (fits && tops.size > 1) out.push(item);
+            at += item.length + 3;
+          }
+          probe.remove();
+          return out;
+        })(),
       };
     });
-    if (m.lines < 2 || m.align !== "center" || m.overflow || m.pageScroll) {
+    if (m.lines < 2 || m.align !== "center" || m.overflow || m.pageScroll || m.split.length) {
       console.error(`GATE FAILED (${name}): the long contact line must wrap centred inside the page — ${JSON.stringify(m)}`);
       process.exit(1);
     }
-    console.log(`GATE PASSED (${name}): the long contact line wraps onto ${m.lines} centred lines inside the page.`);
+    console.log(`GATE PASSED (${name}): the long contact line wraps onto ${m.lines} centred lines inside the page, between items only.`);
     await page.close();
   }
+  // QA #443: an item wider than the line itself still breaks inside, so it never runs off the page.
+  const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+  await page.setContent(
+    renderPreviewHtml({ ...draft, contact: `Lyon, France · linkedin.com/in/${"maria-kowalski-".repeat(6)}lead` }, posting, { banner: false }),
+    { waitUntil: "load" },
+  );
+  const off = await page.evaluate(() => {
+    const el = document.querySelector(".contact");
+    return el.scrollWidth > el.clientWidth || document.documentElement.scrollWidth > document.documentElement.clientWidth;
+  });
+  if (off) {
+    console.error("GATE FAILED (390px): a contact item wider than the line runs off the page.");
+    process.exit(1);
+  }
+  console.log("GATE PASSED (390px): a contact item wider than the line breaks inside the page.");
+  await page.close();
 } finally {
   await browser.close();
 }
