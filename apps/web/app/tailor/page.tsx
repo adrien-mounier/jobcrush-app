@@ -902,7 +902,7 @@ export default function TailorPage() {
               onOpen={openSuggestion}
               onAnswer={(id, answer) => void (answer === "no" ? answerStretchNo(id) : approveStretch(id, answer))}
               onUndo={(id) => void undoStretch(id)}
-              onSkipRest={() => openSuggestion(null)}
+              onClose={() => openSuggestion(null)}
               onLookAgain={() => setLookAgain((n) => n + 1)}
               headingRef={stretchHeadingRef}
               answering={stretchAnswering || stretchEdit !== null}
@@ -912,7 +912,7 @@ export default function TailorPage() {
               onEditText={(text) => (editTextRef.current = text)}
               editButtonRef={editButtonRef}
               onSeeInJob={() => openJob("line")}
-              onJob={showJob}
+              jobShowing={showJob}
             />
             {askError && !state.questions.length && (
               <p className="err" role="alert">

@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { ScoredJobCard, StretchSuggestion, StretchView, TailorState } from "../lib/api";
+import { STRETCH_COPY } from "../app/tailor/stretch";
 
 // #433 §1: the suggestion numbers render properly everywhere — a geometry check, not a text one.
 // The owner's staging run showed "2•": the CV's number sat on the bullet dot. qa-main's fake never
@@ -180,27 +181,30 @@ for (const [label, width, height] of [
     await page.setViewportSize({ width, height });
     await openTailor(page, true);
     const frame = page.frameLocator(".draft-frame");
-    const used = frame.getByRole("button", { name: "Stretch: this job only, suggestion 4" });
-    const added = frame.getByRole("button", { name: "Added to your CV, suggestion 5" });
+    const { USED_LABEL } = (await import(PREVIEW)) as { USED_LABEL: Record<"this-job" | "every-job", string> };
+    const used = frame.getByRole("button", { name: `${USED_LABEL["this-job"]}, suggestion 4` });
+    const added = frame.getByRole("button", { name: `${USED_LABEL["every-job"]}, suggestion 5` });
     await expect(used).toHaveText("◆");
-    await expect(used).toHaveAttribute("title", "Stretch: this job only");
-    await expect(added).toHaveAttribute("title", "Added to your CV");
+    await expect(used).toHaveAttribute("title", USED_LABEL["this-job"]);
+    await expect(added).toHaveAttribute("title", USED_LABEL["every-job"]);
     // Only the two changed lines carry one (an unchanged line's absence: stretchSuggestions.test.ts).
     await expect(frame.locator(".pin.used")).toHaveCount(2);
     // Deep gold, at the number's text size, no fill or ring.
-    const look = await used.evaluate((el) => {
+    const diamond = await used.evaluate((el) => {
       const s = getComputedStyle(el);
       const num = getComputedStyle(el.ownerDocument.querySelector(".pin:not(.used)")!);
       return { color: s.color, fill: s.backgroundColor, border: s.borderTopColor, size: s.fontSize, numSize: num.fontSize };
     });
-    expect(look).toEqual({ color: "rgb(168, 118, 43)", fill: "rgba(0, 0, 0, 0)", border: "rgba(0, 0, 0, 0)", size: look.numSize, numSize: "11px" });
+    expect(diamond).toEqual({ color: "rgb(168, 118, 43)", fill: "rgba(0, 0, 0, 0)", border: "rgba(0, 0, 0, 0)", size: diamond.numSize, numSize: "11px" });
 
     await used.click();
     const card = page.getByRole("region", { name: "Suggestion 4 of 12" });
     await expect(card).toBeVisible();
     await expect(card.getByRole("heading")).toContainText("Requirement 4");
-    await expect(card).toContainText("Used for this job");
-    await expect(card.getByRole("button", { name: "Undo" })).toBeVisible();
+    // #437: answered, so #433's settled look — gold is only for the line being placed now.
+    expect(await look(card.locator(".h .num"))).toEqual({ ...SETTLED, ratio: expect.any(Number) });
+    await expect(card).toContainText(STRETCH_COPY.K14);
+    await expect(card.getByRole("button", { name: STRETCH_COPY.K15 })).toBeVisible();
     // An answered card takes no answer: U and N send nothing here.
     const answers: string[] = [];
     page.on("request", (r) => r.url().includes("/suggestions/") && answers.push(r.url()));
@@ -213,8 +217,8 @@ for (const [label, width, height] of [
     await page.keyboard.press("Enter");
     const second = page.getByRole("region", { name: "Suggestion 5 of 12" });
     await expect(second).toBeVisible();
-    await expect(second).toContainText("Kept on your CV for every job");
-    await second.getByRole("button", { name: "Close" }).click();
+    await expect(second).toContainText(STRETCH_COPY.K21);
+    await second.getByRole("button", { name: STRETCH_COPY.C1 }).click();
     await expect(page.getByRole("region", { name: /Suggestion \d+ of 12/ })).toHaveCount(0);
   });
 
@@ -341,6 +345,8 @@ for (const [label, width, height] of [
 const OPEN = { fill: "rgb(232, 163, 61)", digits: "rgb(26, 18, 6)", border: "rgb(168, 118, 43)" };
 // Waiting: an outline, no fill — Reserve Grey on the dark ground, the page's muted grey on the CV.
 const DARK_WAITING = { fill: "rgba(0, 0, 0, 0)", digits: "rgb(151, 170, 188)", border: "rgb(151, 170, 188)" };
+// Answered: #433's settled outline (dimmed with opacity, so the colours are the muted grey's own).
+const SETTLED = { fill: "rgba(0, 0, 0, 0)", digits: "rgb(138, 149, 162)", border: "rgb(138, 149, 162)" };
 const PAGE_WAITING = { fill: "rgba(0, 0, 0, 0)", digits: "rgb(90, 102, 117)", border: "rgb(90, 102, 117)" };
 
 /** A number's computed colours, and its digits' contrast against what is actually behind them

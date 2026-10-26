@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { ScoredJobCard, StretchSuggestion, StretchView, TailorDraftView, TailorState } from "../lib/api";
+import { STRETCH_COPY } from "../app/tailor/stretch";
 
 // #417 (ADR-0020 clauses 3-4): stretch suggestions beside the finished draft. Route-mocked like
 // tailor.spec.ts: every call is stubbed and this rides straight to /tailor. The server's own render
@@ -757,8 +758,8 @@ test("#424 phone (390px): 'Read the job' brings the whole 'Your CV | The job' st
 test("#424 computer: on The job the open card says to switch to Your CV; back on Your CV it points at the struck-out line again", async ({ page }) => {
   await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
   const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
-  const struck = card.getByText("On your CV it replaces the line struck out on the page.", { exact: true });
-  const toCv = card.getByText("Switch to Your CV to see the line it changes.", { exact: true });
+  const struck = card.getByText(STRETCH_COPY.K2, { exact: true });
+  const toCv = card.getByText(STRETCH_COPY.J2, { exact: true });
   await expect(struck).toBeVisible();
   await expect(toCv).toBeHidden();
 
