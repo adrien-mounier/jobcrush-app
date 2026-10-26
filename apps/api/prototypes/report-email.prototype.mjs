@@ -210,7 +210,9 @@ function night(m, icons = false) {
     `<tr><td style="padding:16px 4px 16px;font:14px/1.6 ${SANS};color:${C.muted};">${intro(m)}</td></tr>`,
     m.checks.length
       ? card("Check before you send", m.checks.map((c) => (icons ? withIcon("check", `<p style="margin:0 0 12px;font:14px/1.5 ${SANS};color:${C.ink};">${esc(c)}</p>`) : `<p style="margin:0 0 12px;font:14px/1.5 ${SANS};color:${C.ink};">⚠&nbsp; ${esc(c)}</p>`)).join(""), "#cf222e")
-      : "",
+      : icons
+        ? card("Check before you send", withIcon("strong", `<p style="margin:0 0 14px;font:14px/1.5 ${SANS};color:${C.ink};">Nothing to check. The CV is exactly as you approved it, and nothing in this job was left unchecked.</p>`), C.gold)
+        : "",
     card("The job, in short", `<p style="margin:0 0 14px;font:15px/1.6 ${SANS};color:${C.ink};">${esc(r.jobInShort)}</p>${r.ageing ? `<p style="margin:0 0 14px;font:14px/1.5 ${SANS};color:${C.muted};">${esc(r.ageing)}</p>` : ""}`),
     card("Where you are strong", r.strong.map((s) => item(s.requirement, s.say, false, "strong")).join("")),
     card("Where you are not, and what to say", r.gaps.map((g) => (g.say ? item(g.requirement, g.say, false, "weak") : item(g.requirement, L.expectIt, true, "weak"))).join("")),
@@ -385,13 +387,13 @@ async function textPart() {
   return reportEmailText(P.report, P.posting, P.pages, P.notices);
 }
 
-async function send(key) {
+async function send(key, sampleChecks = false) {
   const d = DIRECTIONS[key];
   if (!d) throw new Error(`send ${Object.keys(DIRECTIONS).join("|")}`);
-  const m = model(P);
+  const m = model(P, { sampleChecks });
   const mail = {
     to: [OWNER],
-    subject: `[Prototype ${key} · ${d.name}] Your CV for ${P.posting.title} at ${P.posting.company}`,
+    subject: `[Prototype ${key} · ${d.name}${sampleChecks ? " · SAMPLE checks" : ""}] Your CV for ${P.posting.title} at ${P.posting.company}`,
     html: (ICON_SRC = (name) => `cid:${name}`, d.render(m)),
     text: await textPart(),
     // Resend: an attachment with a content_id is inline, referenced as cid:<id>.
@@ -445,4 +447,4 @@ draw();</script></body></html>`;
   console.log("wrote", join(HERE, "report-email.preview.html"));
 }
 
-process.argv[2] === "send" ? await send(process.argv[3]) : preview();
+process.argv[2] === "send" ? await send(process.argv[3], process.argv.includes("--sample-checks")) : preview();
