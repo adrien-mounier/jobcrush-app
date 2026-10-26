@@ -426,6 +426,12 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect(extractContact(segment("Kontakt\njane@example.com\nJane Doe\nChef de projet\n\nExperience\nPM at X")).name?.value).toBe("Jane Doe");
     });
 
+    // A place in that column ("City, Country") is still the location — never the name or the title.
+    it("a place in a contact column above the name is the location", () => {
+      const c = extractContact(segment("Contact\nParis, France\njane@example.com\nJane Doe\nProduct Manager\n\nExperience\nPM at X"));
+      expect([c.name?.value, c.title?.value, c.location?.value]).toEqual(["Jane Doe", "Product Manager", "Paris, France"]);
+    });
+
     it("a street address is never the title", () => {
       expect(extractContact(segment("Jane Doe\n35 rue Nationale\nChef de projet\njane@example.com\n\nExperience\nPM at X")).title?.value).toBe("Chef de projet");
       expect(extractContact(segment("Jane Doe\nLausanne 1000 | jane@example.com\n\nExperience\nPM at X")).title).toBeNull();

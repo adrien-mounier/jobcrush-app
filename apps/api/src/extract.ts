@@ -214,18 +214,20 @@ function cleanPart(part: string): string {
  *  word, or a postal code at the end. "3D Artist" is not one. */
 const isAddress = (part: string) => /^\d+,?\s|\s\d{4,5}$/.test(part);
 /** #409: a line of a contact column — a lone word (a heading such as "Coordonnées", a bare label, a
- *  country), contact details, or a street line. A two-column CV can put a whole column of these
- *  above the name. ponytail: a name split one word per line ("PRIYA" / "RAMAN") is skipped too;
- *  join short leading lines if that shows up. */
+ *  country), contact details, a street line, or a "City, Country". A two-column CV can put a whole
+ *  column of these above the name. ponytail: a name split one word per line ("PRIYA" / "RAMAN") is
+ *  skipped too; join short leading lines if that shows up. Only the comma shape counts as a place
+ *  here — the market vocabulary matches substrings, so it would skip a name like "Paris Hilton". */
 const isContactLine = (line: string) => {
   const p = cleanPart(line);
-  return EMAIL_RE.test(line) || PHONE_RE.test(line) || !/\s/.test(p) || isAddress(p);
+  return EMAIL_RE.test(line) || PHONE_RE.test(line) || !/\s/.test(p) || isAddress(p) || CITY_COUNTRY_RE.test(p);
 };
 
 /** #381: name = the first line that is not part of a contact column (#409); location = the first
  *  part that reads as a place ("City, Country" or a known market); title = the first other part
- *  that is not a street line. Parts are the letterhead's lines below the name split on `|`, `·`,
- *  `•` or a spaced dash, with email/phone/links taken out.
+ *  that is not a street line, read from the lines below the name — a contact column above it feeds
+ *  the location only. Parts are the letterhead's lines split on `|`, `·`, `•` or a spaced dash,
+ *  with email/phone/links taken out.
  *  ponytail: a title spelled "Director, Operations" reads as a location — widen isLocation with a
  *  place vocabulary if that shows up. */
 export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
@@ -234,12 +236,13 @@ export function splitLetterhead(header: string): Pick<ContactExtraction, "name" 
   const at = lines.findIndex((l) => !isContactLine(l));
   const first = lines[at];
   const name = first ? read(first) : null;
-  const parts = lines
-    .slice(at + 1)
-    .flatMap((l) => l.split(partSep(l)))
-    .map(cleanPart)
-    .filter((p) => /\p{L}/u.test(p) && !isLink(p));
-  const location = parts.find(isLocation);
+  const partsOf = (ls: string[]) =>
+    ls
+      .flatMap((l) => l.split(partSep(l)))
+      .map(cleanPart)
+      .filter((p) => /\p{L}/u.test(p) && !isLink(p));
+  const parts = partsOf(lines.slice(at + 1));
+  const location = [...parts, ...partsOf(lines.slice(0, Math.max(at, 0)))].find(isLocation);
   const title = parts.find((p) => p !== location && !isAddress(p));
   return { name, title: title ? read(title) : null, location: location ? read(location) : null };
 }
