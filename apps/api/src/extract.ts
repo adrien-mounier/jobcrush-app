@@ -195,10 +195,14 @@ const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
  *  left dangling at the part's end is dropped: a colon inside a title ("Head of Delivery: EMEA") is
  *  a word. No per-language word list. */
 const LABEL_TAIL_RE = /(?:^|\s)(?:\S+\s*:\s*)+$/;
+/** #410: every email and phone leaves the part, not just the first — a second phone kept its label
+ *  alive as a title. */
+const EMAIL_ALL_RE = new RegExp(EMAIL_RE.source, "g");
+const PHONE_ALL_RE = new RegExp(PHONE_RE.source, "g");
 /** QA #402: a label can hide behind a trailing comma ("E-mail: , Phone: " → "E-mail: ,"), so the
  *  label strip and the edge trim run until nothing changes. */
 function cleanPart(part: string): string {
-  let p = part.replace(EMAIL_RE, "").replace(PHONE_RE, "");
+  let p = part.replace(EMAIL_ALL_RE, "").replace(PHONE_ALL_RE, "");
   for (let q = ""; q !== p; ) {
     q = p;
     p = p.replace(LABEL_TAIL_RE, "").replace(PART_EDGE_RE, "");
@@ -206,22 +210,37 @@ function cleanPart(part: string): string {
   return p;
 }
 
-/** #381: name = the first line unless it carries contact details; location = the first part that
- *  reads as a place ("City, Country" or a known market); title = the first other part. Parts are
- *  the letterhead's lines split on `|`, `·`, `•` or a spaced dash, with email/phone/links taken out.
+/** #409: a street line ("35 rue Nationale", "1000 Lausanne", "Lausanne 1000") — a number then a
+ *  word, or a postal code at the end. "3D Artist" is not one. */
+const isAddress = (part: string) => /^\d+,?\s|\s\d{4,5}$/.test(part);
+/** #409: a line of a contact column — a lone word (a heading such as "Coordonnées", a bare label, a
+ *  country), contact details, or a street line. A two-column CV can put a whole column of these
+ *  above the name. ponytail: a name split one word per line ("PRIYA" / "RAMAN") is skipped too;
+ *  join short leading lines if that shows up. */
+const isContactLine = (line: string) => {
+  const p = cleanPart(line);
+  return EMAIL_RE.test(line) || PHONE_RE.test(line) || !/\s/.test(p) || isAddress(p);
+};
+
+/** #381: name = the first line that is not part of a contact column (#409); location = the first
+ *  part that reads as a place ("City, Country" or a known market); title = the first other part
+ *  that is not a street line. Parts are the letterhead's lines below the name split on `|`, `·`,
+ *  `•` or a spaced dash, with email/phone/links taken out.
  *  ponytail: a title spelled "Director, Operations" reads as a location — widen isLocation with a
  *  place vocabulary if that shows up. */
 export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
   const read = (value: string): ContactFieldRead => ({ value, sourceText: value });
   const lines = header.split("\n").map((l) => l.trim()).filter(Boolean);
-  const first = lines[0];
-  const name = first && !EMAIL_RE.test(first) && !PHONE_RE.test(first) ? read(first) : null;
-  const parts = (name ? lines.slice(1) : lines)
+  const at = lines.findIndex((l) => !isContactLine(l));
+  const first = lines[at];
+  const name = first ? read(first) : null;
+  const parts = lines
+    .slice(at + 1)
     .flatMap((l) => l.split(partSep(l)))
     .map(cleanPart)
     .filter((p) => /\p{L}/u.test(p) && !isLink(p));
   const location = parts.find(isLocation);
-  const title = parts.find((p) => p !== location);
+  const title = parts.find((p) => p !== location && !isAddress(p));
   return { name, title: title ? read(title) : null, location: location ? read(location) : null };
 }
 
