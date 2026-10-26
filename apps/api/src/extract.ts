@@ -215,55 +215,68 @@ function cleanPart(part: string): string {
 const isAddress = (part: string) => /^\d+,?\s|\s\d{4,5}$/.test(part);
 /** #409: real contact data on a line — an email, a phone, a street line, or a bare label
  *  ("Natel:", nothing left once cleaned). */
-const isContactData = (line: string | undefined) => {
-  if (line === undefined) return false;
+const isContactData = (line: string) => {
   const p = cleanPart(line);
   return EMAIL_RE.test(line) || PHONE_RE.test(line) || isAddress(p) || !/\p{L}/u.test(p);
 };
-/** A line that looks like contact only by its shape: a lone word (a heading such as "Coordonnées", a
- *  country) or a "City, Country". Only the comma shape counts as a place here — the market
- *  vocabulary matches substrings, so it would skip a name like "Paris Hilton". */
+/** #409: below a contact heading a lone word ("Suisse") or a "City, Country" is contact too. Only
+ *  the comma shape counts as a place here — the market vocabulary matches substrings, so it would
+ *  skip a name like "Paris Hilton". */
 const isContactShape = (line: string) => {
   const p = cleanPart(line);
   return !/\s/.test(p) || CITY_COUNTRY_RE.test(p);
 };
-/** #409, QA #443: the index of the first line below a contact column (the name), -1 if every line
- *  is contact. Contact data always counts; a line that is contact only by shape counts after a
- *  contact line, or as a heading word followed (past any "City, Country") by contact data. So
- *  "John Smith, PMP", "Smith, John", "MADONNA" above a title stay the name. ponytail: a one-word
- *  name directly above its email ("Jean-Pierre" / "jp@x.com") reads as a heading — no word list
- *  tells them apart. */
-const firstAfterContactColumn = (lines: string[]) =>
-  lines.findIndex(
-    (l, i) =>
-      !(
-        isContactData(l) ||
-        (i > 0 && isContactShape(l)) ||
-        (!/\s/.test(cleanPart(l)) && isContactData(lines.slice(i + 1).find((x) => !CITY_COUNTRY_RE.test(cleanPart(x)))))
-      ),
-  );
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+/** QA #443: the headings that open a contact column — a vocabulary that grows, one entry per
+ *  heading met on a real CV (CLAUDE.md golden rule). It replaces guessing a heading by its shape,
+ *  which cannot tell "MADONNA" (a name) from "Kontakt" (a heading). Matched case- and
+ *  accent-insensitively, a trailing colon ignored. */
+const CONTACT_HEADINGS = new Set(
+  [
+    "contact", "contacts", "kontakt", "coordonnées", "contacto", "contatti", "contatto", "contact details",
+    "personal details", "personal information", "informations personnelles", "persönliche daten",
+  ].map(fold),
+);
+const isContactHeading = (line: string) => CONTACT_HEADINGS.has(fold(line).replace(/[\s:]+$/, ""));
+/** A part that can be a name: words left once contact details are out, and not a street line, a
+ *  link or a place. */
+const isNameLike = (part: string) => /\p{L}/u.test(part) && !isAddress(part) && !isLink(part) && !isLocation(part);
+const cleanPartsOf = (line: string) => line.split(partSep(line)).map(cleanPart);
 
-/** #381: name = the first line that is not part of a contact column (#409); location = the first
- *  part that reads as a place ("City, Country" or a known market); title = the first other part
- *  that is not a street line, read from the lines below the name — a contact column above it feeds
- *  the location only. Parts are the letterhead's lines split on `|`, `·`, `•` or a spaced dash,
- *  with email/phone/links taken out.
+/** #409, QA #443: where the name sits — its line (`at`, -1 when none), its value, and the parts
+ *  left beside it on its own line. Below a known contact heading the contact column is skipped; on
+ *  a contact line the name is the first part ("Jane Doe | jane@…"); leading lines of pure contact
+ *  data are skipped; otherwise the name is the first line. No line is read as contact by its shape
+ *  alone, so "MADONNA" or "Smith, John" above anything stays the name. */
+function findName(lines: string[]): { at: number; name: string | null; beside: string[] } {
+  const first = lines[0];
+  const below = (at: number) => ({ at, name: lines[at] ?? null, beside: [] });
+  if (first === undefined) return below(-1);
+  if (isContactHeading(first)) return below(lines.findIndex((l, i) => i > 0 && !isContactData(l) && !isContactShape(l)));
+  if (!EMAIL_RE.test(first) && !PHONE_RE.test(first)) return below(0);
+  const [lead = "", ...beside] = cleanPartsOf(first);
+  if (isNameLike(lead)) return { at: 0, name: lead, beside };
+  // A place or another word beside the contact details, and no name first: no name, as before.
+  if (beside.some(isNameLike)) return below(-1);
+  return below(lines.findIndex((l) => !isContactData(l) || cleanPartsOf(l).some(isNameLike)));
+}
+
+/** #381: name = see findName; location = the first part that reads as a place ("City, Country" or
+ *  a known market); title = the first other part that is not a street line, read from the name's
+ *  line and the lines below it — a contact column above it feeds the location only. Parts are the
+ *  letterhead's lines split on `|`, `·`, `•` or a spaced dash, with email/phone/links taken out.
  *  ponytail: a title spelled "Director, Operations" reads as a location — widen isLocation with a
  *  place vocabulary if that shows up. */
 export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
   const read = (value: string): ContactFieldRead => ({ value, sourceText: value });
   const lines = header.split("\n").map((l) => l.trim()).filter(Boolean);
-  const at = firstAfterContactColumn(lines);
-  const first = lines[at];
-  const name = first ? read(first) : null;
-  const partsOf = (ls: string[]) =>
-    ls
-      .flatMap((l) => l.split(partSep(l)))
-      .map(cleanPart)
-      .filter((p) => /\p{L}/u.test(p) && !isLink(p));
-  const parts = partsOf(lines.slice(at + 1));
+  const { at, name: found, beside } = findName(lines);
+  const name = found ? read(found) : null;
+  const useful = (p: string) => /\p{L}/u.test(p) && !isLink(p);
+  const partsOf = (ls: string[]) => ls.flatMap(cleanPartsOf).filter(useful);
+  const parts = [...beside.filter(useful), ...partsOf(lines.slice(at + 1))];
   const location = [...parts, ...partsOf(lines.slice(0, Math.max(at, 0)))].find(isLocation);
-  const title = parts.find((p) => p !== location && !isAddress(p));
+  const title = parts.find((p) => p !== location && !isAddress(p) && !isContactHeading(p));
   return { name, title: title ? read(title) : null, location: location ? read(location) : null };
 }
 

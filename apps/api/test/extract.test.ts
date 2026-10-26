@@ -432,19 +432,27 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
       expect([c.name?.value, c.title?.value, c.location?.value]).toEqual(["Jane Doe", "Product Manager", "Paris, France"]);
     });
 
-    // QA #443: the contact-column skip read a name line on its own shape — "X, Y" as a place, one
-    // word as a heading — so the name became the title line. A line is skipped only inside a run
-    // anchored by real contact data; a name line stays the name, as it was before #409.
+    // QA #443 (twice): guessing contact lines by shape read a name as contact — "X, Y" as a place,
+    // one word as a heading — and the title line became the name. A column is skipped only below a
+    // known contact heading or leading contact data; a name on the contact line is its first part.
     it.each([
-      ["John Smith, PMP\nSenior IT Project Manager\njohn@example.com | +1 555 000 0000", "John Smith, PMP", "Senior IT Project Manager"],
-      ["Jane Doe, PhD\nProduct Owner\njane@example.com", "Jane Doe, PhD", "Product Owner"],
-      ["Smith, John\nIT Project Manager\njohn@example.com", "Smith, John", "IT Project Manager"],
-      ["Jean-Pierre\nChef de projet\njp@example.com", "Jean-Pierre", "Chef de projet"],
-      ["MADONNA\nSinger\nm@example.com", "MADONNA", "Singer"],
-      ["John Smith, PMP\njohn@example.com\nSenior IT Project Manager", "John Smith, PMP", "Senior IT Project Manager"],
-    ])("a name line shaped like a contact line is still the name: %j", (head, name, title) => {
+      ["John Smith, PMP\nSenior IT Project Manager\njohn@example.com | +1 555 000 0000", "John Smith, PMP", "Senior IT Project Manager", null],
+      ["Jane Doe, PhD\nProduct Owner\njane@example.com", "Jane Doe, PhD", "Product Owner", null],
+      ["Smith, John\nIT Project Manager\njohn@example.com", "Smith, John", "IT Project Manager", null],
+      ["Jean-Pierre\nChef de projet\njp@example.com", "Jean-Pierre", "Chef de projet", null],
+      ["MADONNA\nSinger\nm@example.com", "MADONNA", "Singer", null],
+      ["John Smith, PMP\njohn@example.com\nSenior IT Project Manager", "John Smith, PMP", "Senior IT Project Manager", null],
+      ["MADONNA\nLondon, UK\nm@example.com\nSinger", "MADONNA", "Singer", "London, UK"],
+      ["MADONNA\n+44 7700 900000\nSinger", "MADONNA", "Singer", null],
+      ["Jean-Pierre\njp@example.com\nChef de projet", "Jean-Pierre", "Chef de projet", null],
+      ["Jane Doe | jane.doe@example.com | +44 7700 900000\nSenior IT Project Manager", "Jane Doe", "Senior IT Project Manager", null],
+      ["Jane Doe - jane@example.com - +33 6 12 34 56 78\nProduct Owner", "Jane Doe", "Product Owner", null],
+      ["jane@example.com\nJane Doe, PhD\nProduct Owner", "Jane Doe, PhD", "Product Owner", null],
+      ["Coordonnées\n+41 79 000 00 00\nthomas@example.ch\n35 rue Nationale\n1000 Lausanne\nThomas Example\nChef de projet IT", "Thomas Example", "Chef de projet IT", null],
+      ["KONTAKT:\nBerlin, Deutschland\njane@example.com\nJane Doe\nProjektleiterin", "Jane Doe", "Projektleiterin", "Berlin, Deutschland"],
+    ])("the name is read from a letterhead shaped %j", (head, name, title, location) => {
       const c = extractContact(segment(`${head}\n\nExperience\nPM at X`));
-      expect([c.name?.value, c.title?.value, c.location?.value ?? null]).toEqual([name, title, null]);
+      expect([c.name?.value, c.title?.value, c.location?.value ?? null]).toEqual([name, title, location]);
     });
 
     it("a street address is never the title", () => {
