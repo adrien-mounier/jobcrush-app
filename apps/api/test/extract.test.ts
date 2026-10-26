@@ -399,6 +399,47 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
     it("a label hidden behind a trailing comma is still never a title", () => {
       expect(extractContact(segment("Jane Doe\nE-mail: x@y.com, Phone: +33 6 12 34 56 78\n\nExperience\nPM at X")).title).toBeNull();
     });
+
+    // #409: a two-column CV whose contact column comes out first — a one-word heading, labels on
+    // their own lines, a street address over three lines — then the name and the title. The heading
+    // used to be read as the name and the street line as the title. Invented values, real shape.
+    it("a contact column above the name is never read as the name or the title", () => {
+      const sidebar = [
+        "Coordonnées",
+        "Natel:",
+        "(+41) 79 000 00 00",
+        "Mail:",
+        "jean.martin@example.com",
+        "Adresse:",
+        "12 rue des Lilas,",
+        "1000 Lausanne,",
+        "Suisse",
+        "Jean Martin",
+        "Chef de projet",
+        "",
+        "Experience",
+        "PM at X",
+      ].join("\n");
+      const c = extractContact(segment(sidebar));
+      expect(c.name?.value).toBe("Jean Martin");
+      expect(c.title?.value).toBe("Chef de projet");
+      expect(extractContact(segment("Kontakt\njane@example.com\nJane Doe\nChef de projet\n\nExperience\nPM at X")).name?.value).toBe("Jane Doe");
+    });
+
+    it("a street address is never the title", () => {
+      expect(extractContact(segment("Jane Doe\n35 rue Nationale\nChef de projet\njane@example.com\n\nExperience\nPM at X")).title?.value).toBe("Chef de projet");
+      expect(extractContact(segment("Jane Doe\nLausanne 1000 | jane@example.com\n\nExperience\nPM at X")).title).toBeNull();
+    });
+
+    // #410: only the first phone was taken out of a part, so a second one kept its label alive
+    // ("E-mail:  , Tel: , Mobile: +33 7 …" became the title). Every phone and email goes; the
+    // first of each is still the stored value.
+    it("a contact line with two phone numbers leaves no title, and keeps the first phone", () => {
+      const c = extractContact(segment("Jane Doe\nE-mail: x@y.com , Tel: +33 6 00 00 00 00, Mobile: +33 7 00 00 00 00\n\nExperience\nPM at X"));
+      expect(c.title).toBeNull();
+      expect(c.phone?.value).toBe("+33 6 00 00 00 00");
+      expect(c.email?.value).toBe("x@y.com");
+    });
   });
 });
 
