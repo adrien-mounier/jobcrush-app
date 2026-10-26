@@ -399,6 +399,37 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
     it("a label hidden behind a trailing comma is still never a title", () => {
       expect(extractContact(segment("Jane Doe\nE-mail: x@y.com, Phone: +33 6 12 34 56 78\n\nExperience\nPM at X")).title).toBeNull();
     });
+
+    // #409: a two-column CV whose contact column comes out first — a one-word heading, labels on
+    // their own lines, a street address over three lines — then the name and the title. The heading
+    // used to be read as the name and the street line as the title. Invented values, real shape.
+    it("a contact column above the name is never read as the name or the title", () => {
+      const sidebar = [
+        "Coordonnées",
+        "Natel:",
+        "(+41) 79 000 00 00",
+        "Mail:",
+        "jean.martin@example.com",
+        "Adresse:",
+        "12 rue des Lilas,",
+        "1000 Lausanne,",
+        "Suisse",
+        "Jean Martin",
+        "Chef de projet",
+        "",
+        "Experience",
+        "PM at X",
+      ].join("\n");
+      const c = extractContact(segment(sidebar));
+      expect(c.name?.value).toBe("Jean Martin");
+      expect(c.title?.value).toBe("Chef de projet");
+      expect(extractContact(segment("Kontakt\njane@example.com\nJane Doe\nChef de projet\n\nExperience\nPM at X")).name?.value).toBe("Jane Doe");
+    });
+
+    it("a street address is never the title", () => {
+      expect(extractContact(segment("Jane Doe\n35 rue Nationale\nChef de projet\njane@example.com\n\nExperience\nPM at X")).title?.value).toBe("Chef de projet");
+      expect(extractContact(segment("Jane Doe\nLausanne 1000 | jane@example.com\n\nExperience\nPM at X")).title).toBeNull();
+    });
   });
 });
 
