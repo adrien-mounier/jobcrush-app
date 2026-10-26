@@ -1003,7 +1003,8 @@
   justify-content: space-between;
   margin-top: 10px;
 }
-.tailor .stretch-card .skip {
+.tailor .stretch-card .skip,
+.tailor .stretch-card .close {
   display: block;
   margin: 8px auto 0;
 }
@@ -1158,17 +1159,20 @@
   display: grid;
   gap: 2px;
 }
-.tailor .slist .result {
+.tailor .slist .result,
+.tailor .stretch-card .result {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
 }
-.tailor .slist .result.r-use .s {
+.tailor .slist .result.r-use .s,
+.tailor .stretch-card .result.r-use .s {
   color: var(--gold);
 }
 /* #419: kept on the CV for every job — the person's own fact, in plain ink (the prototype's r-true). */
-.tailor .slist .result.r-true .s {
+.tailor .slist .result.r-true .s,
+.tailor .stretch-card .result.r-true .s {
   color: var(--hud-ink);
 }
 /* #419: the "It's true" confirmation, with its Undo — held over the page, bottom centre. */

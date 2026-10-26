@@ -203,7 +203,7 @@ await page.waitForTimeout(2000);
 const after = await api('/api/onboarding/tailor');
 await assert(after?.requirements?.find((r) => r.id === s1.requirementId)?.state === 'stretched', 'Use took: the requirement reads "stretched"');
 await qa.note(`score ${before?.card?.matchPct}% → ${after?.card?.matchPct}%`);
-await assert((await src()).includes(`<li>${esc(EDITED)}</li>`), 'the CV carries the edited line');
+await assert((await src()).includes(`${esc(EDITED)}</li>`), 'the CV carries the edited line'); // #438: after its ◆
 
 // ---------------------------------------------------------------------------------------------
 // 6. No — on suggestion 2 (when the step found one).

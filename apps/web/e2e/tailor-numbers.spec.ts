@@ -100,13 +100,28 @@ const DRAFT = {
   additional: [],
 };
 
-async function openTailor(page: Page) {
+// #438: suggestion 4 used for this job, 5 said to be true — each line keeps a ◆ (role 2's two bullets).
+const ANSWERED: StretchView = {
+  status: "ran",
+  suggestions: SUGGESTIONS.map((s, i) =>
+    i === 3 || i === 4
+      ? { ...s, state: "approved", decidedAt: "2026-10-25T09:05:00.000Z", scope: i === 3 ? "this-job" : "every-job" }
+      : s,
+  ),
+};
+const USED = [
+  { slot: SLOTS[3], n: 4, id: SUGGESTIONS[3]!.id, scope: "this-job" },
+  { slot: SLOTS[4], n: 5, id: SUGGESTIONS[4]!.id, scope: "every-job" },
+];
+
+async function openTailor(page: Page, answered = false) {
   const { renderPreviewHtml } = (await import(PREVIEW)) as {
     renderPreviewHtml: (draft: unknown, posting: unknown, opts: unknown) => string;
   };
   const marks = {
     open: { slot: SLOTS[0], lineIn: "Line in 1", n: 1 },
     numerals: SLOTS.slice(1).map((slot, i) => ({ slot, n: i + 2 })).filter(({ n }) => n === 2 || n === 3 || n === 12),
+    ...(answered ? { used: USED } : {}),
   };
   const html = renderPreviewHtml(DRAFT, { title: CARD.title, company: CARD.company }, { banner: false, marks });
   await page.route("**/api/sessions/me", (route) => route.fulfill({ json: { ok: true } }));
@@ -114,7 +129,7 @@ async function openTailor(page: Page) {
   await page.route("**/api/onboarding/tailor/draft**", (route) =>
     route.request().method() === "POST"
       ? route.fulfill({ json: { ready: true } })
-      : route.fulfill({ json: { html, disclosure: [], conservationNotices: [], draftedAt: "2026-10-25T08:00:00.000Z", stretch: RAN } }),
+      : route.fulfill({ json: { html, disclosure: [], conservationNotices: [], draftedAt: "2026-10-25T08:00:00.000Z", stretch: answered ? ANSWERED : RAN } }),
   );
   await page.goto("/tailor");
   await expect(page.locator(".draft-frame")).toBeVisible();
@@ -128,9 +143,10 @@ for (const [label, width, height] of [
 ] as const) {
   test(`#433 ${label}: every CV number sits in its own margin column — clear of the bullet dot, inside the page, sized to its digits`, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await openTailor(page);
+    await openTailor(page, true); // #438: the ◆ marks share the column
     const frame = page.frameLocator(".draft-frame");
-    await expect(frame.locator(".pin")).toHaveCount(4);
+    await expect(frame.locator(".pin")).toHaveCount(6);
+    await expect(frame.locator(".pin.used")).toHaveCount(2);
     const pins = await frame.locator("body").evaluate((body) =>
       [...body.querySelectorAll<HTMLElement>(".pin")].map((pin) => {
         const box = pin.getBoundingClientRect();
@@ -158,6 +174,48 @@ for (const [label, width, height] of [
     // One column: every number's right edge lines up.
     const rights = new Set(pins.map((p) => Math.round(p.right)));
     expect(rights.size, "the numbers share one margin column").toBe(1);
+  });
+
+  test(`#438 ${label}: a line an accepted suggestion changed keeps a deep-gold ◆, named by its change; click or Enter reopens that suggestion`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await openTailor(page, true);
+    const frame = page.frameLocator(".draft-frame");
+    const used = frame.getByRole("button", { name: "Stretch: this job only, suggestion 4" });
+    const added = frame.getByRole("button", { name: "Added to your CV, suggestion 5" });
+    await expect(used).toHaveText("◆");
+    await expect(used).toHaveAttribute("title", "Stretch: this job only");
+    await expect(added).toHaveAttribute("title", "Added to your CV");
+    // Only the two changed lines carry one (an unchanged line's absence: stretchSuggestions.test.ts).
+    await expect(frame.locator(".pin.used")).toHaveCount(2);
+    // Deep gold, at the number's text size, no fill or ring.
+    const look = await used.evaluate((el) => {
+      const s = getComputedStyle(el);
+      const num = getComputedStyle(el.ownerDocument.querySelector(".pin:not(.used)")!);
+      return { color: s.color, fill: s.backgroundColor, border: s.borderTopColor, size: s.fontSize, numSize: num.fontSize };
+    });
+    expect(look).toEqual({ color: "rgb(168, 118, 43)", fill: "rgba(0, 0, 0, 0)", border: "rgba(0, 0, 0, 0)", size: look.numSize, numSize: "11px" });
+
+    await used.click();
+    const card = page.getByRole("region", { name: "Suggestion 4 of 12" });
+    await expect(card).toBeVisible();
+    await expect(card.getByRole("heading")).toContainText("Requirement 4");
+    await expect(card).toContainText("Used for this job");
+    await expect(card.getByRole("button", { name: "Undo" })).toBeVisible();
+    // An answered card takes no answer: U and N send nothing here.
+    const answers: string[] = [];
+    page.on("request", (r) => r.url().includes("/suggestions/") && answers.push(r.url()));
+    await page.keyboard.press("u");
+    await page.keyboard.press("n");
+    await expect(card).toBeVisible();
+    expect(answers).toEqual([]);
+
+    await added.focus();
+    await page.keyboard.press("Enter");
+    const second = page.getByRole("region", { name: "Suggestion 5 of 12" });
+    await expect(second).toBeVisible();
+    await expect(second).toContainText("Kept on your CV for every job");
+    await second.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("region", { name: /Suggestion \d+ of 12/ })).toHaveCount(0);
   });
 
   test(`#433 ${label}: on The job, two numbers on one line sit side by side, clear of each other and of the text`, async ({ page }) => {

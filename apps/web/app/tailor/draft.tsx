@@ -225,9 +225,11 @@ export interface TailorDraftProps {
   onEditEnd?: () => void;
   /** #420: bumped when an edit ends — the frame is re-read and remounted as a fresh document. */
   rev?: number;
+  /** #438: a ◆ on the page was pressed (click or Enter) — reopen that suggestion. */
+  onOpenStretch?: (id: string) => void;
 }
 
-export function TailorDraft({ open = null, onStretch, editing = false, onEditText, onEditEnd, rev = 0 }: TailorDraftProps = {}) {
+export function TailorDraft({ open = null, onStretch, editing = false, onEditText, onEditEnd, rev = 0, onOpenStretch }: TailorDraftProps = {}) {
   const [phase, setPhase] = useState<Phase>({ kind: "writing" });
   const streamRef = useRef<EventSource | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -236,8 +238,8 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
   openRef.current = open;
   const onStretchRef = useRef(onStretch);
   onStretchRef.current = onStretch;
-  const editRef = useRef({ onEditText, onEditEnd });
-  editRef.current = { onEditText, onEditEnd };
+  const editRef = useRef({ onEditText, onEditEnd, onOpenStretch });
+  editRef.current = { onEditText, onEditEnd, onOpenStretch };
   const frameRef = useRef<HTMLIFrameElement>(null);
   // Counts the frame's loads: a srcDoc swap is a new document, which the edit must be armed in.
   const [frameLoads, setFrameLoads] = useState(0);
@@ -299,6 +301,20 @@ export function TailorDraft({ open = null, onStretch, editing = false, onEditTex
       line.removeAttribute("contenteditable");
     };
   }, [editing, frameLoads]);
+
+  // #438: the ◆ marks in the frame are buttons naming their suggestion; the frame runs no script of
+  // its own, so the page listens on each document it loads (a key's Enter arrives as a click).
+  useEffect(() => {
+    const doc = frameRef.current?.contentDocument;
+    if (!doc) return;
+    const onClick = (e: MouseEvent) => {
+      // The target lives in the frame's realm, so no `instanceof Element` here.
+      const id = (e.target as Element | null)?.closest?.("[data-stretch]")?.getAttribute("data-stretch");
+      if (id) editRef.current.onOpenStretch?.(id);
+    };
+    doc.addEventListener("click", onClick);
+    return () => doc.removeEventListener("click", onClick);
+  }, [frameLoads]);
 
   const load = useCallback(async () => {
     setPhase({ kind: "writing" });

@@ -59,6 +59,8 @@ const E4 = "An empty line cannot go on your CV, so we kept the suggested wording
 const E5 = "We could not save your wording just now. Try again.";
 // #423: the open suggestion's line on "The job" tab — offered only when the server found that line.
 const J1 = "See where the job asks this";
+// #438: an answered suggestion reopened from its ◆ on the page.
+const C1 = "Close";
 
 export const STRETCH_COPY = { K2, K3, F1, F2, K21 };
 
@@ -163,6 +165,37 @@ export function StretchCards({
   if (all.length === 0) return null; // ran, found none: nothing to put to the person
   const text = (s: StretchSuggestion) => requirements.find((r) => r.id === s.requirementId)?.text ?? s.requirementId;
   const open = all.find((s) => s.id === openId && s.state === "pending");
+
+  // #438: reopened from its ◆ on the page (the approved prototype's answered card): what it asked,
+  // why, the line as it now reads, and its answer with its Undo.
+  const answered = open ? undefined : all.find((s) => s.id === openId);
+  if (answered) {
+    const n = all.indexOf(answered) + 1;
+    return (
+      <section className="stretch-card" aria-label={`Suggestion ${n} of ${all.length}`}>
+        <p className="eyebrow">
+          {n} of {all.length}
+        </p>
+        <h2 className="h" tabIndex={-1} ref={headingRef}>
+          <span className="num" aria-hidden="true">
+            {n}
+          </span>
+          {text(answered)}
+        </h2>
+        <p className="swhy">{answered.why}</p>
+        {answered.state === "approved" && <p className="swap">{answered.claimText}</p>}
+        <p className={`result${kept(answered) ? " r-true" : answered.state === "approved" ? " r-use" : ""}`}>
+          <span className="s">{resultOf(answered)}</span>
+          <button type="button" className="link" disabled={answering} onClick={() => onUndo(answered.id)}>
+            {K15}
+          </button>
+        </p>
+        <button type="button" className="link close" onClick={onSkipRest}>
+          {C1}
+        </button>
+      </section>
+    );
+  }
 
   if (open) {
     const n = all.indexOf(open) + 1;

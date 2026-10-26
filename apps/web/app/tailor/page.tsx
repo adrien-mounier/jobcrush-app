@@ -500,15 +500,18 @@ export default function TailorPage() {
         if (openStretch) openSuggestion(null);
         return;
       }
-      if (pendingOf(stretch).length === 0) return;
+      const pending = pendingOf(stretch);
+      if (pending.length === 0) return;
+      // #438: a card reopened from its ◆ is already answered — only Undo changes it.
+      const openPending = openStretch !== null && pending.some((s) => s.id === openStretch) ? openStretch : null;
       if (key === "j") openSuggestion(nextPending(stretch, openStretch, 1));
       else if (key === "k") openSuggestion(nextPending(stretch, openStretch, -1));
-      else if (key === "n" && openStretch) void answerStretchNo(openStretch);
-      else if (key === "u" && openStretch) void approveStretch(openStretch, "use");
-      else if (key === "t" && openStretch) void approveStretch(openStretch, "true");
-      else if (key === "e" && openStretch) {
+      else if (key === "n" && openPending) void answerStretchNo(openPending);
+      else if (key === "u" && openPending) void approveStretch(openPending, "use");
+      else if (key === "t" && openPending) void approveStretch(openPending, "true");
+      else if (key === "e" && openPending) {
         e.preventDefault(); // the key starts the edit; it is not typed into the line
-        startStretchEdit(openStretch);
+        startStretchEdit(openPending);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -860,6 +863,7 @@ export default function TailorPage() {
                 onEditText={(text) => (editTextRef.current = text)}
                 onEditEnd={() => void endStretchEdit()}
                 rev={frameRev}
+                onOpenStretch={openSuggestion}
               />
             </div>
             <div role="tabpanel" id="tailor-panel-job" aria-labelledby="tailor-tab-job" hidden={!showJob}>

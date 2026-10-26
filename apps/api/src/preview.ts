@@ -1004,7 +1004,12 @@ const esc = (s: string) =>
 export interface StretchMarks {
   open?: { slot: StretchSlot; lineIn: string; n: number };
   numerals: { slot: StretchSlot; n: number }[];
+  /** #438: the lines an accepted suggestion changed — a ◆ in the margin, screen only (the export
+   *  passes no marks). `id` lets the screen reopen that suggestion from it. */
+  used?: { slot: StretchSlot; n: number; id: string; scope: "this-job" | "every-job" }[];
 }
+
+const USED_LABEL = { "this-job": "Stretch: this job only", "every-job": "Added to your CV" } as const;
 
 const sameSlot = (a: StretchSlot, b: StretchSlot) =>
   a.kind === b.kind &&
@@ -1029,12 +1034,21 @@ export function renderPreviewHtml(
     `<span class="pin${open ? " open" : ""}"><span class="sr">Suggestion </span><span class="n">${n}</span></span>`;
   const openAt = (slot: StretchSlot) => (marks?.open && sameSlot(marks.open.slot, slot) ? marks.open : undefined);
   const numeralAt = (slot: StretchSlot) => marks?.numerals.find((m) => sameSlot(m.slot, slot));
+  // #438: a line an accepted suggestion changed. A button, so the screen can reopen that suggestion
+  // from it (draft.tsx listens on the frame); a pending number on the same line takes its place.
+  const usedPin = (slot: StretchSlot) => {
+    const u = marks?.used?.find((m) => sameSlot(m.slot, slot));
+    const label = u && USED_LABEL[u.scope];
+    return u
+      ? `<button type="button" class="pin used" data-stretch="${esc(u.id)}" aria-label="${label}, suggestion ${u.n}" title="${label}">◆</button>`
+      : "";
+  };
   /** A whole line (a bullet, the summary): struck and replaced when open, numbered when pending. */
   const markedLine = (slot: StretchSlot, text: string) => {
     const open = openAt(slot);
     if (open) return `${pin(open.n, true)}<del>${esc(text)}</del> <ins>${esc(open.lineIn)}</ins>`;
     const numeral = numeralAt(slot);
-    return `${numeral ? pin(numeral.n) : ""}${esc(text)}`;
+    return `${numeral ? pin(numeral.n) : usedPin(slot)}${esc(text)}`;
   };
 
   const experience = draft.experience
@@ -1058,7 +1072,7 @@ export function renderPreviewHtml(
       const open = openAt(slot);
       const numeral = numeralAt(slot);
       const items = g.items.map(esc).join(", ") + (open ? `, <ins>${esc(open.lineIn)}</ins>` : "");
-      return `<p class="skill-group">${open ? pin(open.n, true) : numeral ? pin(numeral.n) : ""}<strong>${esc(g.label)}</strong><br>${items}</p>`;
+      return `<p class="skill-group">${open ? pin(open.n, true) : numeral ? pin(numeral.n) : usedPin(slot)}<strong>${esc(g.label)}</strong><br>${items}</p>`;
     })
     .join("");
 
@@ -1122,6 +1136,8 @@ export function renderPreviewHtml(
   li>.pin{right:calc(100% + 28px);}
   /* #437: the open suggestion is gold (DESIGN.md: "on your CV right now"); waiting ones stay the outline above. */
   .pin.open{border-color:#a8762b;background:#e8a33d;color:#1a1206;}
+  /* #438: a line an accepted suggestion changed — a deep-gold diamond in the number's place and size. */
+  .pin.used{border-color:transparent;background:none;color:#a8762b;font-family:inherit;cursor:pointer;}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
   .cert{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;}
   .edu,.addl{margin:0 0 6px;}

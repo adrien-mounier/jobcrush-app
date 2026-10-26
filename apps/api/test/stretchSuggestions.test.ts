@@ -82,6 +82,8 @@ async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie
 }
 
 const BULLET_TEXT = "Ran end-to-end delivery for the programme";
+/** A printed bullet as the screen shows it: #438 puts a ◆ before a line an accepted suggestion changed. */
+const onScreen = (text: string) => new RegExp(`<li>(?:<button [^>]*>◆</button>)?${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</li>`);
 const SECOND_BULLET = "Reported weekly to the steering committee";
 
 /** The fake tailor model (tailorDraft.test.ts's): two bullets under one role, one skills group. */
@@ -580,7 +582,7 @@ describe("#418 'Use for this job' swaps the line on this CV only (ADR-0020 claus
     // The swap shown is the swap made: the line in prints at the slot, the line out is gone, every
     // other line is as it was. Nothing was re-drafted and nothing was spent.
     const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
-    expect(after.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(after.html).toMatch(onScreen(swap.claimText));
     expect(after.html).not.toContain(BULLET_TEXT);
     expect(after.html).toContain(SECOND_BULLET);
     expect(tailor.prompts).toHaveLength(1);
@@ -588,14 +590,14 @@ describe("#418 'Use for this job' swaps the line on this CV only (ADR-0020 claus
     expect(await claims.list(sid)).toEqual(before); // never a claim (ADR-0005 clause 2)
     // The other suggestion still previews in place beside the used line.
     const open = (await get(app, cookie, `/onboarding/tailor/draft?open=${skill.id}`)).json();
-    expect(open.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(open.html).toMatch(onScreen(swap.claimText));
     expect(open.html).toContain(`<ins>${skill.claimText}</ins>`);
 
     // A skill joins its group and pushes nothing out.
     await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}`, { answer: "use" });
     const both = (await get(app, cookie, "/onboarding/tailor/draft")).json();
     expect(both.html).toContain(`Jira, ${skill.claimText}</p>`);
-    expect(both.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(both.html).toMatch(onScreen(swap.claimText));
 
     // Undo: the suggestion is pending again and the line out is back.
     const undone = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "undo" });
@@ -934,7 +936,7 @@ describe("#419 It's true keeps the line on the master CV, under the job it was s
     expect(again.json()).toEqual({ ready: true });
     const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
     expect(after.html.split(swap.claimText)).toHaveLength(2); // printed once, at the slot
-    expect(after.html).toContain(`<li>${swap.claimText}</li>`);
+    expect(after.html).toMatch(onScreen(swap.claimText));
     expect(after.html).not.toContain(BULLET_TEXT);
     expect(after.stretch.suggestions[0]).toMatchObject({ id: swap.id, state: "approved", scope: "every-job" });
     expect(tailor.prompts).toHaveLength(1);
@@ -1096,6 +1098,54 @@ describe("#419 It's true keeps the line on the master CV, under the job it was s
   });
 });
 
+// #438: a line an accepted suggestion changed keeps a small deep-gold ◆ in the margin on the
+// screen, named by its kind of change; it never reaches the document that leaves.
+describe("#438 a line changed by an accepted suggestion keeps a ◆ on screen, never in the PDF", () => {
+  it("Use and It's true each leave a ◆ on their line, with or without a card open; an unchanged line has none; the printed HTML has no marker", async () => {
+    const tailor = draftingLlm();
+    const stretch = suggestingLlm();
+    const printed: string[] = [];
+    const capturingMaker: DocumentMaker = {
+      async printCv(html) {
+        printed.push(html);
+        return new StandInDocumentMaker().printCv(html);
+      },
+    };
+    const mailer: Mailer = { live: false, async sendLoginLink() {}, async sendFamilyReady() {}, async sendTailoredCv() {} };
+    const { app, claims } = buildServer({
+      tailorLlm: tailor.llm,
+      stretchLlm: stretch.llm,
+      judge: fakeJudge(),
+      reportLlm: reportingLlm().llm,
+      documentMaker: capturingMaker,
+      mailer,
+    });
+    const cookie = await anonSession(app);
+    await reachTailorWithJob({ app, claims }, cookie, "stretch-diamond@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap, skill] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    await post(app, cookie, `/onboarding/tailor/suggestions/${skill.id}`, { answer: "true" });
+
+    const used = `<button type="button" class="pin used" data-stretch="${swap.id}" aria-label="Stretch: this job only, suggestion 1" title="Stretch: this job only">◆</button>`;
+    const added = `<button type="button" class="pin used" data-stretch="${skill.id}" aria-label="Added to your CV, suggestion 2" title="Added to your CV">◆</button>`;
+    for (const url of ["/onboarding/tailor/draft", `/onboarding/tailor/draft?open=${swap.id}`]) {
+      const html = (await get(app, cookie, url)).json().html as string;
+      expect(html, url).toContain(`<li>${used}${swap.claimText}</li>`);
+      expect(html, url).toContain(`<p class="skill-group">${added}<strong>Delivery</strong>`);
+      expect(html.match(/◆/g), url).toHaveLength(2); // the line nobody changed carries none
+      expect(html, url).toContain(`<li>${SECOND_BULLET}</li>`);
+    }
+
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    expect(printed[0]).toContain(`<li>${swap.claimText}</li>`);
+    expect(printed[0]).toContain(skill.claimText);
+    expect(printed[0]).not.toContain("◆");
+    expect(printed[0]).not.toMatch(/class="pin|data-stretch|<button/);
+  });
+});
+
 /** #419: the fake tailor model, also printing every line an "It's true" answer added (a tailor-
  *  claim) as a bullet citing it — the way a real draft may use any fact. */
 function printingStatedLines({ prompts, llm }: ReturnType<typeof draftingLlm>) {
@@ -1168,7 +1218,7 @@ describe("#420 Edit, then Use: the line printed is the line defended", () => {
     const used = await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
     expect(used.statusCode).toBe(200);
     const after = (await get(app, cookie, "/onboarding/tailor/draft")).json();
-    expect(after.html).toContain(`<li>${EDITED}</li>`);
+    expect(after.html).toMatch(onScreen(EDITED));
     expect(after.html).not.toContain(swap.claimText);
     expect(after.html).not.toContain(BULLET_TEXT);
     // What is stored: the edited sentence with the line rewritten for it, and nothing of the original pair.
@@ -1355,7 +1405,7 @@ describe("#417 a redone suggestion step keeps the answers to the suggestions tha
     expect([...byId.keys()]).toEqual([a.id, b.id, c.id]); // E did not come back: dropped
     // A: the line he used, still used for this job, still printed.
     expect(byId.get(a.id)).toMatchObject({ state: "approved", scope: "this-job", claimText: a.claimText, decidedAt: expect.any(String) });
-    expect(redone.html).toContain(`<li>${a.claimText}</li>`);
+    expect(redone.html).toMatch(onScreen(a.claimText));
     // B: still open, with his own wording and the interview line rewritten for it.
     expect(byId.get(b.id)).toMatchObject({ state: "pending", claimText: EDITED, interviewNarrative: `I can stand behind it: ${EDITED}` });
     // C: back at another slot, so another swap — a fresh suggestion, unanswered.
