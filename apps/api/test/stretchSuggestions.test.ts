@@ -82,8 +82,9 @@ async function reachTailor({ app, claims }: { app: App; claims: Claims }, cookie
 }
 
 const BULLET_TEXT = "Ran end-to-end delivery for the programme";
-/** A printed bullet as the screen shows it: #438 puts a ◆ before a line an accepted suggestion changed. */
-const onScreen = (text: string) => new RegExp(`<li>(?:<button [^>]*>◆</button>)?${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</li>`);
+/** A used line as the screen shows it: #438 puts a ◆ before a line an accepted suggestion changed —
+ *  a line reworded with Edit wording and then used included. */
+const onScreen = (text: string) => new RegExp(`<li><button [^>]*>◆</button>${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</li>`);
 const SECOND_BULLET = "Reported weekly to the steering committee";
 
 /** The fake tailor model (tailorDraft.test.ts's): two bullets under one role, one skills group. */
