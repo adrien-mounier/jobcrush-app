@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-26 (owner's defect list filed: spec #443, #440–#442; the re-proof resumes)_
+_Last updated: 2026-10-26 (#441 email design chosen: B2; #442 ready to build)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -41,8 +41,8 @@ keeps fewer stretches: owner accepted) · ~~#435~~ #431's journey runs in tier 2
 
 **Owner's defect list (2026-10-26), after the re-proof:** spec #443, one `/implement-spec #443`
 (Fable 5.1, medium): the open suggestion number gold again (#437), a mark on lines a suggestion changed
-(#438), the centred letterhead (#439), plus #424 #409 #410. The CV email's design: owner-led prototype
-#441, then build #442. A CV with a photo: parked, #440.
+(#438), the centred letterhead (#439), plus #424 #409 #410. The CV email's design: ~~#441~~ prototype done (B2,
+branch `prototype/report-email-441`); build #442 next, `/implement 442` (Fable 5.1, high). A CV with a photo: parked, #440.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
   Opus 5.5, medium) · #426 a CV
