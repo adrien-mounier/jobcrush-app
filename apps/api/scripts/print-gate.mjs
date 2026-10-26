@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderPreviewHtml } from "../dist/preview.js";
 import { makeBrowserDocumentMaker } from "../dist/documentMaker.js";
+import { chromium } from "playwright-core";
+import { PDFParse } from "pdf-parse";
 
 // The repo's own documented two-page density (#156, measured in docs/research/pdf-in-container.md):
 // 4 roles × 6 bullets = 24 experience bullets.
@@ -71,3 +73,52 @@ if (pages !== 2) {
   process.exit(1);
 }
 console.log("GATE PASSED: the real browser printed the real two-page document.");
+
+// #439: the letterhead as an ATS reads it — the PDF's text order is name, contact, headline.
+const parser = new PDFParse({ data: new Uint8Array(pdf) });
+const text = (await parser.getText()).text.toLowerCase();
+await parser.destroy?.();
+const at = [draft.name, draft.contact, draft.headline].map((s) => text.indexOf(s.toLowerCase()));
+if (at.includes(-1) || !(at[0] < at[1] && at[1] < at[2])) {
+  console.error(`GATE FAILED: the PDF's letterhead text is not name, contact, headline (positions ${at.join(", ")}).`);
+  process.exit(1);
+}
+console.log("GATE PASSED: the PDF reads name, contact, headline, in that order.");
+
+// #439: a long contact line wraps, centred, and stays inside the page — on A4 (print media at
+// the printable width, 210mm less the 12mm margins) and on a 390px phone.
+const longHtml = renderPreviewHtml(
+  {
+    ...draft,
+    contact:
+      "Lyon, France · +33 6 00 00 00 00 · +33 4 00 00 00 00 · maria.kowalski@example.com · linkedin.com/in/maria-kowalski-delivery-lead",
+  },
+  posting,
+  { banner: false },
+);
+const browser = await chromium.launch();
+try {
+  for (const [name, width, media] of [["A4", 703, "print"], ["390px", 390, "screen"]]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    await page.emulateMedia({ media });
+    await page.setContent(longHtml, { waitUntil: "load" });
+    const m = await page.evaluate(() => {
+      const el = document.querySelector(".contact");
+      const r = el.getBoundingClientRect();
+      return {
+        lines: Math.round(r.height / parseFloat(getComputedStyle(el).lineHeight)),
+        align: getComputedStyle(el).textAlign,
+        overflow: el.scrollWidth > el.clientWidth || r.right > document.documentElement.clientWidth,
+        pageScroll: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    if (m.lines < 2 || m.align !== "center" || m.overflow || m.pageScroll) {
+      console.error(`GATE FAILED (${name}): the long contact line must wrap centred inside the page — ${JSON.stringify(m)}`);
+      process.exit(1);
+    }
+    console.log(`GATE PASSED (${name}): the long contact line wraps onto ${m.lines} centred lines inside the page.`);
+    await page.close();
+  }
+} finally {
+  await browser.close();
+}

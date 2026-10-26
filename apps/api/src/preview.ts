@@ -991,8 +991,8 @@ const esc = (s: string) =>
 
 /**
  * Render the draft as a self-contained HTML document styled like the engine's DOCX output
- * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, left-aligned two-line header (name, then
- * role + contact folded onto one line, #157 item 1 variant C "one spine" — binding on #159),
+ * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, a centred three-line letterhead (name,
+ * contact, then the headline — #439, replacing #159's left-aligned two-line header),
  * uppercase bordered section heads, bold employer + italic role title, categorized skills.
  * Sections with no content (certifications, education, additional, and summary when nothing
  * earns it a place) are omitted entirely, heading included — never a heading over nothing.
@@ -1094,9 +1094,11 @@ export function renderPreviewHtml(
     padding:34px 44px 36px;line-height:1.4;font-size:14px;}
   .banner{background:#fbeaea;border:1px solid #d99;color:#8a1f1f;
     font-size:12px;padding:8px 14px;border-radius:6px;margin-bottom:24px;}
-  h1{font-size:23px;margin:0;color:#1F4E79;text-align:left;letter-spacing:.01em;}
-  .headline{font-weight:normal;text-transform:none;text-align:left;margin:5px 0 0;font-size:12.5px;color:#444;}
-  .headline .role-word{font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#1d2126;}
+  /* #439 the letterhead: name, contact, headline, each centred on its own line. A long contact
+     line wraps (a link breaks anywhere) rather than running off the page. */
+  h1{font-size:23px;margin:0;color:#1F4E79;text-align:center;letter-spacing:.01em;}
+  .contact{text-align:center;margin:5px 0 0;font-size:12.5px;color:#444;overflow-wrap:anywhere;}
+  .headline{text-align:center;margin:4px 0 0;font-size:12.5px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#1d2126;}
   h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:#1F4E79;
     border-bottom:1.5px solid #1F4E79;padding-bottom:3px;margin:18px 0 7px;}
   .role{margin-bottom:12px;}
@@ -1142,9 +1144,8 @@ ${
       )}. Facts not yet verified by the candidate; not for submission.</div>\n`
     : ""
 }<h1>${esc(draft.name)}</h1>
-<p class="headline"><span class="role-word">${esc(draft.headline)}</span>${
-  draft.contact ? ` - ${esc(draft.contact)}` : ""
-}</p>
+${draft.contact ? `<p class="contact">${esc(draft.contact)}</p>
+` : ""}<p class="headline">${esc(draft.headline)}</p>
 ${draft.summary.trim() ? section("Professional Summary", `<p class="summary">${markedLine({ kind: "summary" }, draft.summary)}</p>`) : ""}
 ${section("Professional Experience", experience)}
 ${section("Skills", skills)}

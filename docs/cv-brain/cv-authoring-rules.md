@@ -398,6 +398,12 @@ nothing yet checks that cited ∪ unprinted **covers** the source — a claim dr
 listed passes silently (the *"N more not shown"* control is #157's build).
 
 **Visual formatting and section design** — full reference: `/research_result/2026-06-09_cv-formatting-design-standards.md`. Apply on every CV write:
+- **The letterhead is three centred lines, in this order** (owner, 2026-10-26, #439): the name; the
+  contact details (separated by a middle dot `·` or a dash, never a pipe); then the headline, the job
+  title written for this job. Every produced CV has this shape whatever the uploaded CV's layout
+  was (a two-column or designed letterhead is restructured into it; a photo is dropped). A long
+  contact line wraps, centred, inside the page. The contact stays in the page body, never in a PDF
+  header or footer. This replaces the left-aligned two-line header of #159.
 - **Section order is fixed by the root CV** (Summary, Professional Experience, Personal Projects, Skills, Education, Additional Information). Never move Skills above Professional Experience (council-validated 2026-06-11).
 - **Never write a skills/competencies block as a run-on comma paragraph.** Use 2-4 categorized groups, each a bold category label on its own line followed by a comma-separated list. 8-12 skills total. (Markdown: a line wrapped entirely in `**...**` renders as a bold sub-label; put the comma list on the next line with no blank line between.)
 - **Do not run two near-identical Skills and Core Competencies blocks.** Default to one categorized Skills section; only keep a separate Core Competencies snapshot if it genuinely differs (and is itself categorized, never a run-on).

@@ -907,29 +907,63 @@ describe("#159 summary prints only when it earns its place — schema + render",
   });
 });
 
-describe("#159 header — left-aligned, two-line, no filler (BINDING DESIGN #157 item 1 variant C)", () => {
-  it("left-aligns the name instead of centering it", () => {
-    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
-    // Whitespace-tolerant (code review take-if-cheap): a harmless "h1{" -> "h1 {" reformat must
-    // not redden this, only an actual alignment regression should.
-    expect(html).toMatch(/h1\s*\{[^}]*text-align:\s*left/);
-    expect(html).not.toMatch(/h1\s*\{[^}]*text-align:\s*center/);
-  });
+describe("#439 letterhead — name, contact, headline, each on its own centred line", () => {
+  // The top block as printed, in document order — what a browser paints top to bottom and what
+  // an ATS reads out of the PDF's text layer (the print adds no reordering).
+  const topBlock = (html: string) => html.slice(html.indexOf("<h1>"), html.indexOf("<h2>"));
+  const rule = (html: string, selector: string) =>
+    html.match(new RegExp(`(?:^|[\\s}])${selector.replace(".", "\\.")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
 
-  it("folds the headline and contact onto one line, joined by a dash, not a pipe", () => {
+  it("prints the name, then the contact, then the headline, in that order", () => {
     const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
-    expect(html).toContain(
-      `<span class="role-word">${sampleDraft.headline}</span> - ${sampleDraft.contact}`,
+    expect(topBlock(html)).toMatch(
+      new RegExp(
+        "^<h1>Maria Kowalski</h1>\\n" +
+          '<p class="contact">Warsaw · maria\\.kowalski@example\\.com</p>\\n' +
+          '<p class="headline">IT Project Manager for enterprise delivery</p>\\n',
+      ),
     );
-    expect(html).not.toContain('<p class="contact">');
   });
 
-  // Code review must-fix 5: renderPreviewHtml() emits exactly one <h1> and one
-  // <p class="headline"> for every draft regardless of summary state, so counting them can never
-  // fail — it duplicated the schema+render block's own omission test without adding coverage.
-  // This instead checks the actual adjacency: with no summary, the header runs straight into the
-  // next section with nothing between them — a real filler block, or a regression to the old
-  // 3-line header, would break this exact substring.
+  it("centres all three lines", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
+    for (const sel of ["h1", ".contact", ".headline"]) expect(rule(html, sel)).toMatch(/text-align:\s*center/);
+  });
+
+  it("lets a long contact line wrap inside the page instead of running off it", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { banner: false });
+    expect(rule(html, ".contact")).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule(html, ".contact")).not.toMatch(/nowrap/);
+  });
+
+  it("leaves the contact line out entirely when the draft has none", () => {
+    const html = renderPreviewHtml({ ...sampleDraft, contact: "" }, matchPosting([]), { banner: false });
+    expect(html).not.toContain('<p class="contact">');
+    expect(html).toContain('<h1>Maria Kowalski</h1>\n<p class="headline">');
+  });
+
+  it("prints the same top-block shape whatever layout the upload had", () => {
+    // Two fake-model drafts: one from a single-column CV, one from a two-column letterhead whose
+    // contact block arrived as a run of parts (pipes included) beside the name.
+    const singleColumn: Draft = { ...sampleDraft };
+    const twoColumn: Draft = {
+      ...sampleDraft,
+      name: "Jean Dupont",
+      headline: "Product Owner, payments",
+      contact: "Lyon, France | +33 6 00 00 00 00 | +33 4 00 00 00 00 | jean.dupont@example.com | linkedin.com/in/jean-dupont",
+    };
+    const shape = (d: Draft) =>
+      topBlock(renderPreviewHtml(d, matchPosting([]), { banner: false })).replace(/>[^<]*</g, "><").trim();
+    expect(shape(twoColumn)).toBe(shape(singleColumn));
+    expect(shape(singleColumn)).toBe('<h1></h1><p class="contact"></p><p class="headline"></p>');
+    expect(renderPreviewHtml(twoColumn, matchPosting([]))).toContain(
+      '<p class="contact">Lyon, France · +33 6 00 00 00 00 · +33 4 00 00 00 00 · jean.dupont@example.com · linkedin.com/in/jean-dupont</p>',
+    );
+  });
+
+  // Code review must-fix 5 (#159): checks the actual adjacency — with no summary, the letterhead
+  // runs straight into the next section with nothing between them; a filler block would break
+  // this exact substring.
   it("adds no filler block when the summary is absent — header runs straight into Experience", () => {
     const html = renderPreviewHtml({ ...sampleDraft, summary: "" }, matchPosting([]), {
       banner: false,

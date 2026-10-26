@@ -14,12 +14,13 @@ async function stubSession(page: Page) {
 }
 
 // What renderPreviewHtml prints for a letterhead saved in Your details (#381): the name as the
-// h1, the headline with the contact line folded on.
+// h1, the contact line under it, then the headline (#439).
 const PREVIEW: CvPreviewView = {
   html:
     "<!doctype html><html><head><meta charset='utf-8'><title>CV</title></head><body>" +
     "<h1>Maria Kowalski</h1>" +
-    "<p class='headline'><span class='role-word'>IT PROJECT MANAGER</span> - Lyon, France · +33 6 00 00 00 00 · maria@example.com</p>" +
+    "<p class='contact'>Lyon, France · +33 6 00 00 00 00 · maria@example.com</p>" +
+    "<p class='headline'>IT Project Manager</p>" +
     "<h2>Professional Experience</h2><p>Nordic Retail Group</p></body></html>",
   draftedAt: "2026-10-15T10:00:00.000Z",
   job: { title: "IT Project Manager", employer: "Nordic Retail Group" },
@@ -49,7 +50,7 @@ test("#390 a fresh preview narrates its wait over the job stream, then the CV la
   // The letterhead, rendered: the name and every saved contact part, inside the document itself.
   const doc = page.frameLocator(".preview-frame");
   await expect(doc.getByRole("heading", { level: 1 })).toHaveText("Maria Kowalski");
-  await expect(doc.locator(".headline")).toContainText("Lyon, France · +33 6 00 00 00 00 · maria@example.com");
+  await expect(doc.locator(".contact")).toContainText("Lyon, France · +33 6 00 00 00 00 · maria@example.com");
   await expect(frame).toHaveAttribute("srcdoc", /Maria Kowalski/);
 
   await expect(page.getByText("Tailored for IT Project Manager at Nordic Retail Group.")).toBeVisible();
