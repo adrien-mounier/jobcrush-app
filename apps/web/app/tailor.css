@@ -13,6 +13,12 @@
   --gold-glow: rgba(232, 163, 61, 0.22);
   /* #433: muted text reads at 4.5:1 on the raised surface too (DESIGN.md's night-muted-readable). */
   --hud-mute: #8a95a2;
+  /* #437: a suggestion's number. Open = gold ("on your CV right now"), waiting = Reserve Grey
+     ("not on the page yet", DESIGN.md). */
+  --num-open: var(--gold);
+  --num-open-ink: #1a1206;
+  --num-open-edge: var(--gold-dim);
+  --num-waiting: #97aabc;
 }
 
 /* The card head is shared by the deck card and the live card — scoping it to .jcbody alone (as
@@ -743,13 +749,16 @@
   line-height: 1;
   cursor: pointer;
 }
-.tailor .num.idle,
+.tailor .num.idle {
+  border-color: var(--num-waiting);
+  background: none;
+  color: var(--num-waiting);
+}
+/* Answered (Use / It's true / No): #433's settled look, dimmed. */
 .tailor .num.settled {
   border-color: var(--hud-mute);
   background: none;
   color: var(--hud-mute);
-}
-.tailor .num.settled {
   opacity: 0.6;
 }
 .tailor .stretch-card .jlink {
@@ -840,8 +849,11 @@
   outline: none;
 }
 /* #433: one look for a suggestion's number everywhere (the CV, the card, The job, the summary):
-   solid when open, an outline when waiting; the circle grows with its digits. Not gold — the
-   screen's gold is the one primary action. */
+   filled when open, an outline when waiting; the circle grows with its digits.
+   #437: open is gold — it is the line being placed on the CV right now, beside its gold-tinted
+   `ins`, so number and line read as one thing. The gold ceiling holds: while a card is open,
+   Approve is not the gold primary (#433), so the open suggestion — its number, its line and its
+   own Use — is the screen's only gold. */
 .tailor .num {
   box-sizing: border-box;
   display: inline-grid;
@@ -851,9 +863,9 @@
   height: 20px;
   padding: 0 5px;
   border-radius: 10px;
-  border: 1px solid var(--hud-ink);
-  background: var(--hud-ink);
-  color: var(--hud-0);
+  border: 1px solid var(--num-open-edge);
+  background: var(--num-open);
+  color: var(--num-open-ink);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;

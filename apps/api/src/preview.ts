@@ -1118,7 +1118,8 @@ export function renderPreviewHtml(
     min-width:20px;height:20px;padding:0 5px;border-radius:10px;border:1px solid #5A6675;color:#5A6675;
     font-size:11px;font-weight:600;line-height:1;}
   li>.pin{right:calc(100% + 28px);}
-  .pin.open{border-color:#1d2126;background:#1d2126;color:#fff;}
+  /* #437: the open suggestion is gold (DESIGN.md: "on your CV right now"); waiting ones stay the outline above. */
+  .pin.open{border-color:#a8762b;background:#e8a33d;color:#1a1206;}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
   .cert{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;}
   .edu,.addl{margin:0 0 6px;}
