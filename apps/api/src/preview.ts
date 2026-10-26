@@ -23,7 +23,7 @@ import {
   type PostingRetrievalResultV1,
 } from "@jobcrush/contracts";
 import type { JobBlockView } from "./jobBlockStore.js";
-import type { StretchSlot } from "@jobcrush/contracts";
+import type { StretchProposalV2, StretchSlot } from "@jobcrush/contracts";
 import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
@@ -1006,10 +1006,11 @@ export interface StretchMarks {
   numerals: { slot: StretchSlot; n: number }[];
   /** #438: the lines an accepted suggestion changed — a ◆ in the margin, screen only (the export
    *  passes no marks). `id` lets the screen reopen that suggestion from it. */
-  used?: { slot: StretchSlot; n: number; id: string; scope: "this-job" | "every-job" }[];
+  used?: { slot: StretchSlot; n: number; id: string; scope: NonNullable<StretchProposalV2["scope"]> }[];
 }
 
-const USED_LABEL = { "this-job": "Stretch: this job only", "every-job": "Added to your CV" } as const;
+/** #438: what a ◆ says it marks, by the scope of the suggestion that changed the line. */
+export const USED_LABEL = { "this-job": "Stretch: this job only", "every-job": "Added to your CV" } as const;
 
 const sameSlot = (a: StretchSlot, b: StretchSlot) =>
   a.kind === b.kind &&

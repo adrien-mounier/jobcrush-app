@@ -488,7 +488,7 @@ export function stretchMarks(checkpoint: StretchCheckpoint | undefined, openId: 
   const numbered = checkpoint.suggestions.map((s, i) => ({ s, n: i + 1 }));
   const used = numbered
     .filter(({ s }) => s.state === "approved")
-    .map(({ s, n }) => ({ slot: s.slot, n, id: s.id, scope: s.scope === "every-job" ? ("every-job" as const) : ("this-job" as const) }));
+    .map(({ s, n }) => ({ slot: s.slot, n, id: s.id, scope: s.scope ?? "this-job" })); // an approved one always has a scope (the contract)
   if (openId === undefined) return used.length > 0 ? { numerals: [], used } : undefined;
   const pending = numbered.filter(({ s }) => s.state === "pending");
   const open = pending.find(({ s }) => s.id === openId);
