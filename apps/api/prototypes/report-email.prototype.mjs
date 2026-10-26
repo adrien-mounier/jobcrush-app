@@ -20,6 +20,11 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const ICONS = ["strong", "weak", "attn", "check"];
+const ICON_ALT = { strong: "Strong", weak: "Not covered", attn: "Prepare", check: "Check" };
+const iconPng = (name) => readFileSync(join(HERE, "report-email-icons", `${name}.png`));
+// Preview: inline data. Send: cid: references to inline attachments (Gmail renders those, not data:).
+let ICON_SRC = (name) => `data:image/png;base64,${iconPng(name).toString("base64")}`;
 const P = JSON.parse(readFileSync(join(HERE, "report-email.payload.json"), "utf8"));
 const OWNER = "adrien.mounier91@gmail.com";
 const FLY = join(process.env.USERPROFILE ?? process.env.HOME, ".fly", "bin", "flyctl.exe");
@@ -120,16 +125,25 @@ function paper(m) {
 // ─── B · NIGHT MASTHEAD ─────────────────────────────────────────────────────────────────────────
 // The app's dark room as a masthead band: job title in white, the tally lit in gold. Below it,
 // white cards, one per section, each with a gold edge. The most "this is the product" of the three.
-function night(m) {
+// B2 (owner's pick, 2026-10-26): B plus Phosphor filled icons — strong, weak, and every point under
+// "Be ready to explain". Icons are 2x PNGs (report-email-icons/, rendered from @phosphor-icons/core
+// 2.1.1, MIT): Gmail strips SVG, so the send attaches them inline (cid:) and the preview inlines them.
+function night(m, icons = false) {
   const r = m.r;
+  const ic = (name) =>
+    `<img src="${ICON_SRC(name)}" width="20" height="20" alt="${ICON_ALT[name]}" style="display:block;border:0;width:20px;height:20px;">`;
+  const withIcon = (name, html) =>
+    icons
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="top" width="30" style="width:30px;padding-top:1px;">${ic(name)}</td><td>${html}</td></tr></table>`
+      : html;
   const card = (title, body, edge = C.gold) =>
     row(
       `<p style="margin:0 0 14px;font:700 16px/1.3 ${SANS};color:${C.ink};">${esc(title)}</p>${body}`,
       `background:${C.white};border:1px solid ${C.line};border-top:3px solid ${edge};border-radius:6px;padding:22px 24px 10px;`,
     ) + `<tr><td style="height:14px;line-height:14px;font-size:0;">&nbsp;</td></tr>`;
-  const item = (t, s, sMuted = false) =>
-    `<p style="margin:0 0 6px;font:600 14px/1.45 ${SANS};color:${C.ink};">${esc(t)}</p>` +
-    `<p style="margin:0 0 16px;padding:10px 12px;background:${sMuted ? C.white : C.ground};border-radius:4px;font:14px/1.55 ${SANS};color:${sMuted ? C.muted : "#33393f"};${sMuted ? "font-style:italic;padding-left:0;" : ""}">${sMuted ? esc(s) : `Say: “${esc(s)}”`}</p>`;
+  const item = (t, s, sMuted = false, iconName = null) =>
+    withIcon(iconName, `<p style="margin:0 0 6px;font:600 14px/1.45 ${SANS};color:${C.ink};">${esc(t)}</p>` +
+    `<p style="margin:0 0 16px;padding:10px 12px;background:${sMuted ? C.white : C.ground};border-radius:4px;font:14px/1.55 ${SANS};color:${sMuted ? C.muted : "#33393f"};${sMuted ? "font-style:italic;padding-left:0;" : ""}">${sMuted ? esc(s) : `Say: “${esc(s)}”`}</p>`);
   const pill = (n, label, bg, fg) =>
     `<td style="padding:0 8px 0 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:${bg};color:${fg};border-radius:999px;padding:7px 14px;font:600 13px/1 ${SANS};white-space:nowrap;">${n} ${label}</td></tr></table></td>`;
   return shell(m.title, C.ground, [
@@ -148,16 +162,16 @@ function night(m) {
     ),
     `<tr><td style="padding:16px 4px 16px;font:14px/1.6 ${SANS};color:${C.muted};">${intro(m)}</td></tr>`,
     m.checks.length
-      ? card("Check before you send", m.checks.map((c) => `<p style="margin:0 0 12px;font:14px/1.5 ${SANS};color:${C.ink};">⚠&nbsp; ${esc(c)}</p>`).join(""), "#cf222e")
+      ? card("Check before you send", m.checks.map((c) => (icons ? withIcon("check", `<p style="margin:0 0 12px;font:14px/1.5 ${SANS};color:${C.ink};">${esc(c)}</p>`) : `<p style="margin:0 0 12px;font:14px/1.5 ${SANS};color:${C.ink};">⚠&nbsp; ${esc(c)}</p>`)).join(""), "#cf222e")
       : "",
     card("The job, in short", `<p style="margin:0 0 14px;font:15px/1.6 ${SANS};color:${C.ink};">${esc(r.jobInShort)}</p>${r.ageing ? `<p style="margin:0 0 14px;font:14px/1.5 ${SANS};color:${C.muted};">${esc(r.ageing)}</p>` : ""}`),
-    card("Where you are strong", r.strong.map((s) => item(s.requirement, s.say)).join("")),
-    card("Where you are not, and what to say", r.gaps.map((g) => (g.say ? item(g.requirement, g.say) : item(g.requirement, L.expectIt, true))).join("")),
+    card("Where you are strong", r.strong.map((s) => item(s.requirement, s.say, false, "strong")).join("")),
+    card("Where you are not, and what to say", r.gaps.map((g) => (g.say ? item(g.requirement, g.say, false, "weak") : item(g.requirement, L.expectIt, true, "weak"))).join("")),
     card(
       "Be ready to explain",
       (m.stretches.length ? `<p style="margin:0 0 12px;font:13px/1.5 ${SANS};color:${C.muted};">Lines you chose to add to this CV:</p>` : "") +
-        m.stretches.map((s) => item(s.line, s.say)).join("") +
-        (m.prepare.length ? `<p style="margin:6px 0 10px;font:13px/1.5 ${SANS};color:${C.muted};">Also prepare:</p><ul style="margin:0 0 14px;padding-left:20px;">${m.prepare.map((t) => `<li style="margin:0 0 8px;font:14px/1.55 ${SANS};color:${C.ink};">${esc(t)}</li>`).join("")}</ul>` : ""),
+        m.stretches.map((s) => item(s.line, s.say, false, "attn")).join("") +
+        (m.prepare.length ? `<p style="margin:6px 0 10px;font:13px/1.5 ${SANS};color:${C.muted};">Also prepare:</p>${icons ? m.prepare.map((t) => withIcon("attn", `<p style="margin:0 0 12px;font:14px/1.55 ${SANS};color:${C.ink};">${esc(t)}</p>`)).join("") : `<ul style="margin:0 0 14px;padding-left:20px;">${m.prepare.map((t) => `<li style="margin:0 0 8px;font:14px/1.55 ${SANS};color:${C.ink};">${esc(t)}</li>`).join("")}</ul>`}` : ""),
     ),
     card("Salary", `<p style="margin:0 0 14px;font:15px/1.5 ${SANS};color:${C.ink};">${esc(r.salary ?? L.noSalary)}</p>`),
     row(`Sent by JobCrush. Nothing has been sent to the employer.`, `padding:6px 4px;font:12px/1.5 ${SANS};color:${C.muted};text-align:center;`),
@@ -312,7 +326,8 @@ function dashboard(m) {
 
 const DIRECTIONS = {
   A: { name: "Paper", render: paper },
-  B: { name: "Night masthead", render: night },
+  B: { name: "Night masthead", render: (m) => night(m) },
+  B2: { name: "B with icons", render: (m) => night(m, true) },
   C: { name: "Scorecard", render: scorecard },
   D: { name: "Dashboard", render: dashboard },
 };
@@ -325,13 +340,15 @@ async function textPart() {
 
 async function send(key) {
   const d = DIRECTIONS[key];
-  if (!d) throw new Error("send A|B|C");
+  if (!d) throw new Error(`send ${Object.keys(DIRECTIONS).join("|")}`);
   const m = model(P);
   const mail = {
     to: [OWNER],
     subject: `[Prototype ${key} · ${d.name}] Your CV for ${P.posting.title} at ${P.posting.company}`,
-    html: d.render(m),
+    html: (ICON_SRC = (name) => `cid:${name}`, d.render(m)),
     text: await textPart(),
+    // Resend: an attachment with a content_id is inline, referenced as cid:<id>.
+    ...(key === "B2" && { attachments: ICONS.map((n) => ({ filename: `${n}.png`, content: iconPng(n).toString("base64"), content_id: n })) }),
   };
   const z = gzipSync(JSON.stringify(mail)).toString("base64");
   // Runs on the staging machine: the Resend key never leaves it. No PDF attached (prototype).
