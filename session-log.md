@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-27 — Spec #443 shipped without #409: gold numbers, the used-line ◆, the centred letterhead (#437 #438 #439 #424 #410)
+
+`/implement-spec #443` (Opus 5.5): six builders in worktrees on `spec/443-tailor-polish`, `/code-review`, then five `/qa-gate` runs; GO at cc833cf.
+- Live: the open suggestion number is gold, waiting ones an outline (#437); a used line keeps a deep-gold ◆ that reopens it, screen only (#438); the letterhead is name / contact / job title, centred, the contact wrapping only between items (#439); "Read the job" shows the whole tab strip, and the card says "Switch to Your CV" on The job (#424); a second phone no longer leaves a junk title (#410).
+- #409 (the letterhead name picker) left the batch after four NO-GOs on "never worse than main": each round fixed one common shape and broke another (credentials, one-line letterheads, a city line, a link above the name). Its work and a 72-row table wait on branch `t/409-letterhead`; #446 asks whether the model should read the name instead.
+- Filed: #444 (real CV's location from body text, letter-spaced title), #445 (The job tab's journey rotted in no tier), #446 (shapes `main` already misreads), #447 (a racy key-press check in stretch.spec).
+- Owner questions: the open card's "Use for this job" button stays gold beside the gold number (#437's AC says nothing else gold); the dimmed answered number reads ~2.9:1, below AA.
+**Next:** the owner checks the PDF on staging; `/implement 442`; #409 after #446's question.
+
 ## 2026-10-26 — #441 prototype: the CV email's design chosen (B2), #442 ready to build
 
 `/prototype` + `/impeccable` (Opus 5.5), on the owner's real MSCI report from staging; branch `prototype/report-email-441` (427a148, pushed).
@@ -84,11 +93,3 @@ Owner's re-proof (`+test6`): a deck job's Tailor step showed the CV, then ~40 s 
 - `/code-review`: an unguarded save door, the brought-job line naming a gap he never confirmed, sentence-style CV lines. All fixed. QA **NO-GO** once: the report still matched by whole phrase. Fixed, then **GO** on tree e06a338: api 2252, owner journey 22/22, ladder 56/56, report 31/31.
 - New tier-2 `cv-language-level-journey.mjs`; the gate's `owner-language-filter-journey.mjs` kept on demand (its email check needs `MAIL_LOG`). Filed #426 (two languages at two levels on one CV line).
 **Next:** CI → staging; then the owner's re-proof on a fresh staging account (roadmap finish line, step 3).
-
-## 2026-10-24 — Owner's re-proof on staging stops at languages: #425 filed and decided
-
-No code. On a fresh staging account (Hong Kong), the first card needed Cantonese, which isn't on the CV, and Tailor asked about English though the CV says "English (Fluent)". Diagnosed from staging rows and the request log: the code follows the rules as written.
-- #123 (Aug 4) withdrew a job for an unticked language. #165 (Aug 12) narrowed that to an explicit "I don't speak this one", because one mistap was silently deleting jobs. #376 (Oct 14) moved the languages question off the start, so nothing asks before the deck, and 12 stored HK jobs that require Cantonese reach every new deck.
-- Owner decisions (on #425): a job that requires a language not on the profile leaves the deck, with a one-time "I left out N jobs that need X — do you speak it?" line. A working level word on the CV (native, fluent, professional, bilingual) meets the requirement, with no question.
-- Mistake to learn from: my first question framed this as a new rule. It was the original one, and the owner had to ask me to check the history.
-**Next:** `/implement 425`; then the owner's re-proof on a fresh staging account.
