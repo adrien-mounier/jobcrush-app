@@ -1,0 +1,63 @@
+{
+  "source": "staging tailor_drafts, approved 2026-10-25T14:59:26.055Z (pulled 2026-10-26)",
+  "posting": {
+    "title": "Total Plan Implementation Project Manager",
+    "company": "MSCI",
+    "location": "Hong Kong, Hong Kong"
+  },
+  "pages": 2,
+  "notices": [],
+  "report": {
+    "gaps": [
+      {
+        "say": null,
+        "requirement": "Knowledge of Single-Family-Offices, Hedge Funds, OCIO and Endowments business strategies and operational needs"
+      },
+      {
+        "say": "I designed AI-supported working processes, won general-manager approval, and trained teams through 10 workshops and designated mentors, reaching about 20 users across three teams.",
+        "requirement": "Strong collaboration and organizational skills, fostering the same within client teams"
+      }
+    ],
+    "ageing": null,
+    "salary": null,
+    "strong": [
+      {
+        "say": "I've delivered IT projects using Agile and Scrum inside banks like BRED and Societe Generale, communicating delivery status and escalating risks and issues to prevent delays.",
+        "requirement": "Knowledge of project management methodologies and best practices, applied within a Financial Institution for a minimum of 5 years"
+      },
+      {
+        "say": "I coordinated development of the FINDER chatbot with data science teams for the Risk department, giving natural-language access to large regulatory documentation.",
+        "requirement": "Knowledge of financial instruments and finance in general, with a minimum of 5 years' engagement within the financial industry"
+      },
+      {
+        "say": "I translated business and user needs into functional specifications and user stories, and led a cross-functional team on scope, priorities, budget, and delivery timelines.",
+        "requirement": "Define project scope, goals, and deliverables in collaboration with management and stakeholders, drawing on product knowledge"
+      },
+      {
+        "say": "I delivered IT projects using Agile and Scrum, communicating delivery status and escalating risks and issues to prevent delays.",
+        "requirement": "Determine content and frequency of status updates and identify risk and mitigation paths"
+      }
+    ],
+    "explain": [
+      "You chose to say \"Managed onboarding of a new chatbot capability for the Risk department, coordinating data science teams through integration into existing workflows.\" on this CV — say: \"I coordinated the FINDER chatbot build end to end with the data science teams, which included planning how it would integrate into the Risk department's existing workflow and documentation access.\"",
+      "You chose to say \"Translated business and user needs into functional specifications and user stories, leading a cross-functional team on scope, priorities, budget, and delivery timelines, and presenting project retrospectives to management.\" on this CV — say: \"As Product Owner I regularly reported progress and outcomes to management as part of leading the cross-functional team, which included looking back at what worked and what to improve for the next cycle.\"",
+      "You chose to say \"Delivered IT projects using Agile/Scrum, setting clear expectations with stakeholders and communicating delivery status while escalating risks and issues to prevent delays.\" on this CV — say: \"Running Agile/Scrum delivery meant setting sprint goals and expectations with stakeholders up front, alongside the status updates and risk escalation I already report on my CV.\"",
+      "You chose to say \"Plans execution strategy and schedules project meetings with business sponsors and IT management across the AI delivery projects, managing risks, dependencies and timelines.\" on this CV — say: \"Keeping sponsors and IT management aligned on the AI delivery projects meant setting up a regular meeting cadence alongside the risk and dependency tracking I already do.\"",
+      "You chose to say \"Written and verbal stakeholder communication\" on this CV — say: \"Writing specifications, acceptance criteria, and training materials, and presenting to banks from seven countries, all required clear written and verbal communication.\"",
+      "You chose to say \"Authored the agent instructions, skills, orchestration and MCP configuration connecting agents to Teams, email, Jira, OTRS and documentation, while running this alongside the incident-analysis, QA-testbook and progress-tracking workstreams.\" on this CV — say: \"The incident-analysis workflow, the QA-testbook automation, and the progress-tracking assistant were all in build or pilot at overlapping times, alongside the agent configuration work.\"",
+      "You chose to say \"Coordinated development of the FINDER chatbot with data science teams for the Risk department, quickly building functional knowledge of natural-language and regulatory-documentation tooling to do so.\" on this CV — say: \"I wasn't a data scientist going in, so getting the FINDER chatbot coordinated meant picking up the natural-language processing and regulatory-documentation concepts quickly enough to work with the data science team.\"",
+      "You chose to say \"Drove Ship24 to 16M website visitors, 3000+ active API subscriptions, +30% YoY user growth, and +50% YoY advertising-revenue growth in 2023 through sustained focus on growth targets.\" on this CV — say: \"Those growth numbers came from setting clear targets each quarter and focusing the team's work against them, not from incidental growth.\"",
+      "Be ready to add up your project management years across BRED and Societe Generale into a clear timeline, since the interviewer will want a number, not a list of projects.",
+      "Have a clear answer ready on how your finance-industry engagement breaks down over time, beyond the FINDER chatbot project.",
+      "If asked about onboarding or integration project management specifically, be ready to describe your process design and training work at BRED in those terms.",
+      "If asked for a client-facing project overview or retrospective example, have the Okoone retrospective work and the BRED status communication ready to connect.",
+      "Prepare a concrete example of setting expectations directly with team members, not just communicating status upward.",
+      "You have no exposure to Single-Family-Offices, Hedge Funds, OCIO or Endowments; expect this to come up and have a plan for how you would close that gap quickly."
+    ],
+    "unchecked": [],
+    "jobInShort": "MSCI is hiring a Project Manager in Hong Kong for its Total Plan Onboarding team, to run client investment-data onboarding projects on its platform. The role is about keeping projects on track, communicating status to clients and internal teams, defining scope and deliverables with stakeholders, and flagging risks early. It wants solid project-management and finance-industry grounding plus the ability to juggle several projects at once.",
+    "marketToCheck": null,
+    "applicationUrl": null,
+    "locationUnplaced": false
+  }
+}
