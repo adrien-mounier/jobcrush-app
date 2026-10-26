@@ -195,10 +195,14 @@ const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
  *  left dangling at the part's end is dropped: a colon inside a title ("Head of Delivery: EMEA") is
  *  a word. No per-language word list. */
 const LABEL_TAIL_RE = /(?:^|\s)(?:\S+\s*:\s*)+$/;
+/** #410: every email and phone leaves the part, not just the first — a second phone kept its label
+ *  alive as a title. */
+const EMAIL_ALL_RE = new RegExp(EMAIL_RE.source, "g");
+const PHONE_ALL_RE = new RegExp(PHONE_RE.source, "g");
 /** QA #402: a label can hide behind a trailing comma ("E-mail: , Phone: " → "E-mail: ,"), so the
  *  label strip and the edge trim run until nothing changes. */
 function cleanPart(part: string): string {
-  let p = part.replace(EMAIL_RE, "").replace(PHONE_RE, "");
+  let p = part.replace(EMAIL_ALL_RE, "").replace(PHONE_ALL_RE, "");
   for (let q = ""; q !== p; ) {
     q = p;
     p = p.replace(LABEL_TAIL_RE, "").replace(PART_EDGE_RE, "");
