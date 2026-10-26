@@ -207,10 +207,114 @@ function scorecard(m) {
   ].join("\n"));
 }
 
+// ─── D · DASHBOARD (owner's ask, via /impeccable) ───────────────────────────────────────────────
+// The Night Desk as a one-screen dashboard: the whole email is the dark room. The hero is a
+// requirement map — one block per advert requirement, lit gold where covered (the Gold Law: gold
+// = on your CV), Night Weak where not, outlined where nobody checked — so the fit reads before a
+// word does. Four status tiles, then the detail row by row with the same marks. The lines he chose
+// to add are cream paper slips in the serif: they are literally his CV (the Serif Means Her rule).
+// Every graphic is a table cell with a bgcolor — no SVG, no images, nothing Gmail strips.
+function dashboard(m) {
+  const r = m.r;
+  const D = { floor: "#101419", surface: "#171c23", raised: "#1f262f", line: "#2b333d", weak: "#6f7d8c", reserve: "#97aabc", settled: "#4d5865", warn: "#e0876c" };
+  const gap = (h) => `<tr><td style="height:${h}px;line-height:${h}px;font-size:0;">&nbsp;</td></tr>`;
+  const t = (px, w, color, extra = "") => `font:${w} ${px}px/1.5 ${SANS};color:${color};${extra}`;
+  // One block per requirement, in the order the sections list them.
+  const states = [
+    ...r.strong.map(() => "met"),
+    ...r.gaps.map((g) => (g.say ? "gap" : "none")),
+    ...r.unchecked.map(() => "unchecked"),
+  ];
+  const fill = { met: C.gold, gap: D.weak, none: D.settled, unchecked: D.surface };
+  const strip = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${states
+    .map(
+      (s, i) =>
+        `<td width="${(100 / states.length).toFixed(2)}%" style="padding:0 ${i === states.length - 1 ? 0 : 4}px 0 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${fill[s]}" height="34" style="height:34px;line-height:34px;font-size:0;background:${fill[s]};border-radius:4px;${s === "unchecked" ? `border:1px dashed ${D.reserve};` : ""}">&nbsp;</td></tr></table></td>`,
+    )
+    .join("")}</tr></table>`;
+  const dot = (s) =>
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${fill[s]}" width="10" height="10" style="width:10px;height:10px;line-height:10px;font-size:0;background:${fill[s]};border-radius:2px;${s === "unchecked" ? `border:1px dashed ${D.reserve};` : ""}">&nbsp;</td></tr></table>`;
+  const legend = (s, n, label) =>
+    n ? `<td style="padding:0 18px 0 0;white-space:nowrap;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 7px 0 0;">${dot(s)}</td><td style="${t(13, 400, C.nightInk)}">${n} ${label}</td></tr></table></td>` : "";
+  const counts = { met: r.strong.length, gap: r.gaps.filter((g) => g.say).length, none: r.gaps.filter((g) => !g.say).length, unchecked: r.unchecked.length };
+  const tile = (side, label, value, note, alert = false) =>
+    `<td width="50%" valign="top" style="padding:${side ? "0 0 10px 5px" : "0 5px 10px 0"};"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${D.raised}" style="background:${D.raised};border:1px solid ${alert ? D.warn : D.line};border-radius:10px;padding:14px 16px;">` +
+    `<p style="margin:0 0 4px;${t(12.5, 400, C.nightMuted)}">${esc(label)}</p>` +
+    `<p style="margin:0;${t(17, 620, alert ? D.warn : C.nightInk, "line-height:1.3;")}">${esc(value)}</p>` +
+    (note ? `<p style="margin:3px 0 0;${t(12.5, 400, C.nightMuted)}">${esc(note)}</p>` : "") +
+    `</td></tr></table></td>`;
+  const head = (title, aside = "") =>
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-bottom:1px solid ${D.line};"><tr><td style="padding:0 0 10px;${t(15, 620, C.nightInk)}">${esc(title)}</td><td align="right" style="padding:0 0 10px;${t(12.5, 400, C.nightMuted)}">${aside}</td></tr></table>`;
+  const reqRow = (s, title, body) =>
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-bottom:1px solid ${D.line};"><tr>` +
+    `<td valign="top" width="22" style="width:22px;padding:17px 0 0;">${dot(s)}</td>` +
+    `<td style="padding:13px 0 14px;"><p style="margin:0;${t(14, 600, C.nightInk, "line-height:1.45;")}">${esc(title)}</p>${body}</td></tr></table>`;
+  const say = (text) => `<p style="margin:6px 0 0;${t(13.5, 400, "#c3c9d1")}"><span style="color:${C.nightMuted};">Say:</span> “${esc(text)}”</p>`;
+  const slip = (line, answer) =>
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;"><tr><td bgcolor="${C.paper}" style="background:${C.paper};border:1px solid ${C.paperEdge};border-radius:6px 6px 0 0;padding:12px 14px;font:15px/1.5 ${SERIF};color:${C.paperInk};">${esc(line)}</td></tr>` +
+    `<tr><td bgcolor="${D.raised}" style="background:${D.raised};border:1px solid ${D.line};border-top:0;border-radius:0 0 6px 6px;padding:10px 14px;${t(13.5, 400, "#c3c9d1")}"><span style="color:${C.nightMuted};">If asked:</span> “${esc(answer)}”</td></tr></table>`;
+  const nChecks = m.checks.length;
+  const toPrepare = m.stretches.length + m.prepare.length;
+
+  return shell(m.title, D.floor, [
+    // Masthead + map
+    row(
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td style="padding:0 0 18px;${t(13, 700, C.nightInk, "letter-spacing:.02em;")}">JobCrush <span style="font-weight:400;color:${C.nightMuted};">· your CV is attached, ${m.pages}-page PDF</span></td></tr>
+        <tr><td><h1 style="margin:0;${t(24, 660, C.nightInk, "line-height:1.2;letter-spacing:-.015em;")}">${esc(m.title)}</h1>
+          <p style="margin:4px 0 0;${t(14, 400, C.nightMuted)}">${esc(m.company)} · ${esc(m.location)}</p></td></tr>
+        ${gap(26)}
+        <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td valign="bottom" style="${t(38, 660, C.nightInk, "line-height:1;letter-spacing:-.02em;")}">${m.covered}<span style="font-size:19px;color:${C.nightMuted};font-weight:400;"> / ${m.total}</span></td>
+          <td valign="bottom" align="right" style="${t(13, 400, C.nightMuted)}">requirements covered<br>by your facts</td></tr></table></td></tr>
+        ${gap(12)}
+        <tr><td>${strip}</td></tr>
+        ${gap(12)}
+        <tr><td><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>${legend("met", counts.met, "covered")}${legend("gap", counts.gap, "answer ready")}</tr><tr><td style="height:6px;font-size:0;">&nbsp;</td></tr><tr>${legend("none", counts.none, "nothing close")}${legend("unchecked", counts.unchecked, "not checked")}</tr></table></td></tr>
+      </table>`,
+      `background:${D.surface};border:1px solid ${D.line};border-radius:16px;padding:26px 26px 22px;`,
+    ),
+    gap(12),
+    // Status tiles
+    row(
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>${tile(0, "Check before you send", nChecks ? `${nChecks} to check` : "Nothing to check", nChecks ? "See below, before the PDF" : "", nChecks > 0)}${tile(1, "Apply link", r.applicationUrl ? "Saved" : "Not saved", r.applicationUrl ? "" : "Find the job's page yourself")}</tr>
+        <tr>${tile(0, "Salary", r.salary ?? "Not stated", r.salary ? "As the advert states it" : "The advert gives no figure")}${tile(1, "To prepare", `${toPrepare} points`, `${m.stretches.length} lines you added · ${m.prepare.length} more`)}</tr>
+      </table>`,
+      `padding:0;`,
+    ),
+    r.applicationUrl
+      ? row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${C.gold}" align="center" style="background:${C.gold};border-radius:10px;"><a href="${esc(r.applicationUrl)}" style="display:block;padding:14px;${t(15, 700, C.goldInk)}text-decoration:none;">Apply for this job</a></td></tr></table>`, `padding:0 0 12px;`)
+      : "",
+    // Detail
+    row(
+      [
+        nChecks
+          ? `${head("Check before you send")}${m.checks.map((c) => `<p style="margin:12px 0 0;${t(14, 400, D.warn)}">${esc(c)}</p>`).join("")}<div style="height:30px;line-height:30px;font-size:0;">&nbsp;</div>`
+          : "",
+        `${head("The job, in short")}<p style="margin:12px 0 0;${t(14.5, 400, C.nightInk, "line-height:1.6;")}">${esc(r.jobInShort)}</p>${r.ageing ? `<p style="margin:6px 0 0;${t(13, 400, C.nightMuted)}">${esc(r.ageing)}</p>` : ""}`,
+        `<div style="height:30px;line-height:30px;font-size:0;">&nbsp;</div>${head("Requirement by requirement", `${m.covered} of ${m.total} covered`)}`,
+        ...r.strong.map((s) => reqRow("met", s.requirement, say(s.say))),
+        ...r.gaps.map((g) => reqRow(g.say ? "gap" : "none", g.requirement, g.say ? say(g.say) : `<p style="margin:6px 0 0;${t(13.5, 400, C.nightMuted)}">${L.expectIt}</p>`)),
+        ...r.unchecked.map((u) => reqRow("unchecked", u, `<p style="margin:6px 0 0;${t(13.5, 400, C.nightMuted)}">${L.unchecked}</p>`)),
+        m.stretches.length
+          ? `<div style="height:30px;line-height:30px;font-size:0;">&nbsp;</div>${head("Lines you added to this CV", `${m.stretches.length}`)}<div style="height:14px;font-size:0;">&nbsp;</div>${m.stretches.map((s) => slip(s.line, s.say)).join("")}`
+          : "",
+        m.prepare.length
+          ? `<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>${head("Also prepare", `${m.prepare.length}`)}${m.prepare.map((p) => `<p style="margin:0;padding:12px 0;border-bottom:1px solid ${D.line};${t(14, 400, C.nightInk)}">${esc(p)}</p>`).join("")}`
+          : "",
+      ].join(""),
+      `background:${D.surface};border:1px solid ${D.line};border-radius:16px;padding:24px 26px 18px;`,
+    ),
+    row(`Read the CV, then send it yourself when you are ready. Nothing has been sent to the employer.`, `padding:18px 8px 4px;${t(12.5, 400, C.nightMuted)}text-align:center;`),
+  ].join("\n"));
+}
+
 const DIRECTIONS = {
   A: { name: "Paper", render: paper },
   B: { name: "Night masthead", render: night },
   C: { name: "Scorecard", render: scorecard },
+  D: { name: "Dashboard", render: dashboard },
 };
 
 // The plain-text fallback part is the product's own, from the built module.
