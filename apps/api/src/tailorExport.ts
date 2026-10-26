@@ -33,6 +33,7 @@ import {
   type Posting,
   type StoredContact,
 } from "./preview.js";
+import { iconsFor, reportEmailHtml } from "./reportEmailHtml.js";
 import type { DocumentMaker } from "./documentMaker.js";
 import type { JobStore } from "./jobs.js";
 import type { LlmClient } from "./llm.js";
@@ -202,7 +203,10 @@ async function reportFor(
   const shipped = applyUsedStretches(record.draft, record.stretch);
   const claims = printedClaims(inputs.claimsDoc, record.stretch);
   const fingerprint = reportFingerprint(input.report, posting, shipped, claims, inputs.opts);
-  if (record.reportCheckpoint?.fingerprint === fingerprint) return record.reportCheckpoint.report;
+  // #442: a report checkpointed before it kept the used lines apart (`stretches`) has them flattened
+  // into `explain` — written again, once, rather than emailed with them under "Also prepare".
+  const checkpoint = record.reportCheckpoint;
+  if (checkpoint?.fingerprint === fingerprint && checkpoint.report.stretches) return checkpoint.report;
   const report = await writeApplicationReport(deps.reportLlm, input.report, posting, shipped, claims, inputs.opts);
   await deps.tailorDrafts.put(input.sessionId, posting.id, { ...record, reportCheckpoint: { fingerprint, report } });
   return report;
@@ -262,9 +266,13 @@ export async function runTailorExportJob(
     await push("reporting", { pages: printed.pages });
     const report = await reportFor(deps, input, record);
     await push("sending", { pages: printed.pages });
+    // #442: the designed part — the score is the card's as the route built it for this press.
+    const html = reportEmailHtml(report, input.report.score, input.posting, printed.pages, notices);
     await deps.mailer.sendTailoredCv(input.email, {
       subject: `Your CV for ${input.posting.title} at ${input.posting.company}`,
       text: reportEmailText(report, input.posting, printed.pages, notices),
+      html,
+      images: iconsFor(html),
       // Title into a safe filename — a pasted advert's title is free text.
       filename: `CV - ${safeFilename(input.posting.title)}.pdf`,
       pdf: printed.pdf,

@@ -18,12 +18,22 @@ export interface Mailer {
   sendTailoredCv(email: string, doc: CvMail): Promise<void>;
 }
 
-/** #313 — one emailed CV: subject and body text, plus the PDF and the name it attaches under. */
+/** #313 — one emailed CV: subject and body text, plus the PDF and the name it attaches under.
+ *  #442: the designed HTML part beside the text, and the images it shows by `cid:<contentId>`. */
 export interface CvMail {
   subject: string;
   text: string;
+  html: string;
+  images: InlineImage[];
   filename: string;
   pdf: Buffer;
+}
+
+/** An image the HTML references as `cid:<contentId>` — sent inline, never listed as an attachment. */
+export interface InlineImage {
+  contentId: string;
+  filename: string;
+  content: Buffer;
 }
 
 export class ResendMailer implements Mailer {
@@ -72,8 +82,12 @@ export class ResendMailer implements Mailer {
         to: [email],
         subject: doc.subject,
         text: doc.text,
-        // Resend's attachment contract: base64 content + filename.
-        attachments: [{ filename: doc.filename, content: doc.pdf.toString("base64") }],
+        html: doc.html,
+        // Resend's attachment contract: base64 content + filename; a content_id makes it inline.
+        attachments: [
+          { filename: doc.filename, content: doc.pdf.toString("base64") },
+          ...doc.images.map((i) => ({ filename: i.filename, content: i.content.toString("base64"), content_id: i.contentId })),
+        ],
       }),
     });
     if (!res.ok) throw new Error(`resend cv delivery failed with status ${res.status}`);

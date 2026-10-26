@@ -2,7 +2,7 @@
 // input and validation, and the five-section email. The route-level chain (approve → report →
 // email, through the stand-in) lives in tailorExport.test.ts.
 import { describe, expect, it } from "vitest";
-import type { AdRequirementsV1, CandidateClaims, JobCardV1 } from "@jobcrush/contracts";
+import type { AdRequirementsV1, CandidateClaims, ScoredJobCardV1 } from "@jobcrush/contracts";
 import {
   KITCHEN_WORDS,
   REPORT_LINES,
@@ -71,7 +71,7 @@ const judgement = (verdicts = verdictsFor()): JudgementRecord => ({
   cost: { model: "none", inputTokens: 0, outputTokens: 0, judgedAt: "2026-10-18T00:00:00.000Z" },
   facts: [],
 });
-const judgedCard = (): JobCardV1 => buildJobCard(posting, adReq, confirmed, [], judgement(), "estimated");
+const judgedCard = (): ScoredJobCardV1 => buildJobCard(posting, adReq, confirmed, [], judgement(), "estimated");
 
 const draft: Draft = {
   name: "Test Person",
@@ -236,6 +236,22 @@ describe("#315 reportContext — the deterministic facts around the call", () =>
     for (const bar of card.notTested!) expect(ctx.requirements.find((r) => r.id === bar.id)!.state).toBe("unchecked");
     expect(ctx.applicationUrl).toBe("https://jobs.example/apply");
     expect(ctx.ageing).toContain("9 days ago");
+  });
+
+  it("#442 the score is the card's: its %, and one block per requirement by band — facts, a line he added, not covered", () => {
+    // The first requirement met by a fact, the second by a used stretch (#418), the rest open.
+    const verdicts = verdictsFor().map((v, i) => (i === 1 ? { ...v, fit: 1, stretched: true as const } : v));
+    const card = buildJobCard(posting, adReq, confirmed, [], judgement(verdicts), "estimated");
+    const { score } = reportContext({ posting, adReq, card, verdicts, confirmed, claims: confirmed, negatives: [], facts: [], broughtJob: undefined });
+    expect(score.matchPct).toBe(card.matchPct);
+    // The fixture advert: three essential, then three standard and two nice-to-have — both desirable.
+    expect(adReq.requirements.map((r) => r.band)).toEqual(["essential", "essential", "essential", "standard", "standard", "standard", "nice-to-have", "nice-to-have"]);
+    expect(score.essential).toEqual(["facts", "added", "open"]);
+    expect(score.desirable).toEqual(["open", "open", "open", "open", "open"]);
+    // The same counts the card's own breakdown makes, by its own code.
+    const met = (blocks: string[]) => blocks.filter((b) => b !== "open").length;
+    expect({ met: met(score.essential), total: score.essential.length }).toEqual(card.breakdown.essential);
+    expect({ met: met(score.desirable), total: score.desirable.length }).toEqual(card.breakdown.desirable);
   });
 });
 
@@ -416,6 +432,7 @@ describe("#315 reportEmailText — five sections, in order, and nothing else", (
       { requirement: "SAP migration", say: null },
     ],
     unchecked: ["Right to work in Vietnam"],
+    stretches: [],
     explain: ["The steering line carries two facts."],
   };
   const text = reportEmailText(report, posting, 2, ["Your languages could not be placed on this draft."]);
@@ -507,9 +524,9 @@ describe("#418 a used stretch in the report", () => {
     const ctx = context({ requirements: requirementStates(adReq, stretchedVerdicts(), confirmed, new Set(), new Set()), stretches: used });
     const { llm, prompts } = reportingLlm();
     const report = await writeApplicationReport(llm, ctx, posting, draft, claimsDoc, opts);
-    expect(report.explain[0]).toContain(used[0]!.line);
-    expect(report.explain[0]).toContain(used[0]!.say);
-    expect(report.explain.slice(1)).toEqual(["The steering line carries two facts."]);
+    // #442: kept apart, as stored — the model's points alone in `explain`.
+    expect(report.stretches).toEqual(used);
+    expect(report.explain).toEqual(["The steering line carries two facts."]);
     expect(report.strong.map((s) => s.requirement)).toEqual([adReq.requirements[0]!.requirement]); // not the stretched one
     expect(report.gaps.map((g) => g.requirement)).not.toContain(adReq.requirements[1]!.requirement);
     expect(prompts[0]).toContain(`- id: ${ids[1]}\n  state: stretched`);

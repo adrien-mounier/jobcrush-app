@@ -9,12 +9,12 @@ import { loadPostings, type Draft } from "../src/preview.js";
 import { loadAdRequirements } from "../src/e5stub.js";
 import { deniedClaim } from "./denial.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
-import type { Mailer } from "../src/mailer.js";
+import type { CvMail, Mailer } from "../src/mailer.js";
 import type { LlmClient } from "../src/llm.js";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
 import { exportGate, PAGE_NOTICES, tightenedBulletBudget } from "../src/tailorExport.js";
-import { REPORT_LINES } from "../src/applicationReport.js";
-import { fakeJudge, reportingLlm } from "./reportFakes.js";
+import { REPORT_LINES, type ApplicationReport } from "../src/applicationReport.js";
+import { emailText, fakeJudge, reportingLlm } from "./reportFakes.js";
 import type { DraftInputs } from "../src/tailorDraft.js";
 import { PostingRetrievalResultV1, type CandidateClaim } from "@jobcrush/contracts";
 
@@ -116,13 +116,7 @@ type ServerOpts = NonNullable<Parameters<typeof buildServer>[0]>;
 const exportServer = (opts: ServerOpts = {}) =>
   buildServer({ judge: fakeJudge(), reportLlm: reportingLlm().llm, ...opts });
 
-interface SentMail {
-  email: string;
-  subject: string;
-  text: string;
-  filename: string;
-  pdf: Buffer;
-}
+type SentMail = CvMail & { email: string };
 /** A mailer that records instead of sending — the test's view of "the mail is away". */
 function recordingMailer() {
   const sent: SentMail[] = [];
@@ -760,6 +754,15 @@ describe("#315 the application report", () => {
     });
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(text).not.toMatch(/6\. |Verification|Checklist|Keyword coverage/);
+    // #442: beside the text, the designed part with its icons inline — and the PDF still attached.
+    // The market to check moves up into "Check before you send" — in the HTML only (the text keeps it in 4).
+    const check = emailText(sent[0]!.html).split("Check before you send")[1]!.split("The job, in short")[0]!;
+    expect(check).toContain(REPORT_LINES.market("Vietnam"));
+    const shown = new Set([...sent[0]!.html.matchAll(/src="cid:(\w+)"/g)].map((m) => m[1]));
+    expect(sent[0]!.images.map((i) => i.contentId).sort()).toEqual([...shown].sort());
+    expect(shown.size).toBe(4); // a strength, a gap, a point to prepare and a line to check: every icon
+    expect(sent[0]!.pdf.length).toBeGreaterThan(0);
+    expect(sent[0]!.filename).toBe("CV - Senior Project Manager.pdf");
 
     // Checkpointed on the record, so a second press re-spends nothing.
     const token = cookie.split("=")[1]!;
@@ -771,6 +774,41 @@ describe("#315 the application report", () => {
     expect(prompts).toHaveLength(1);
     expect(sent).toHaveLength(2);
     expect(sent[1]!.text).toBe(text);
+  });
+
+  it("#442 a report checkpointed before the used lines were kept apart is written again, once — then reused", async () => {
+    const { sent, mailer } = recordingMailer();
+    const { llm, prompts } = reportingLlm();
+    const tailorDrafts = new InMemoryTailorDraftStore();
+    const { app, sessions, claims } = exportServer({
+      tailorLlm: draftingLlm(),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      tailorDrafts,
+      reportLlm: llm,
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "report-old-shape@example.com");
+    const view = await draftAndRead(app, cookie);
+    const press = async () => {
+      const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+      expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    };
+    await press();
+    expect(prompts).toHaveLength(1);
+    // A pre-#442 checkpoint: the same fingerprint, no `stretches` field.
+    const session = (await sessions.getByToken(cookie.split("=")[1]!))!;
+    const stored = (await tailorDrafts.get(session.id, VALID_AD_ID))!;
+    const { stretches: _, ...old } = stored.reportCheckpoint!.report;
+    await tailorDrafts.put(session.id, VALID_AD_ID, { ...stored, reportCheckpoint: { ...stored.reportCheckpoint!, report: old as ApplicationReport } });
+    await press();
+    expect(prompts).toHaveLength(2);
+    expect((await tailorDrafts.get(session.id, VALID_AD_ID))!.reportCheckpoint!.report.stretches).toEqual([]);
+    // Now in the current shape: the next press re-spends nothing and sends the same words.
+    await press();
+    expect(prompts).toHaveLength(2);
+    expect(sent).toHaveLength(3);
+    expect(sent[2]!.text).toBe(sent[0]!.text);
   });
 
   it("a denied requirement is a gap with a sentence; its years bars the card could not test are unchecked, with none", async () => {

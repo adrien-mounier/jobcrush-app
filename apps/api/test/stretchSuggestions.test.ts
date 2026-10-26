@@ -20,8 +20,10 @@ import { tailorClaimId } from "../src/tailor.js";
 import { AdRequirementsV1, type CandidateClaim } from "@jobcrush/contracts";
 import { InMemoryTailorDraftStore } from "../src/tailorDraftStore.js";
 import { StandInDocumentMaker, type DocumentMaker } from "../src/documentMaker.js";
-import type { Mailer } from "../src/mailer.js";
-import { fakeJudge, reportingLlm } from "./reportFakes.js";
+import type { CvMail, Mailer } from "../src/mailer.js";
+import { emailText, fakeJudge, reportingLlm } from "./reportFakes.js";
+import { REPORT_LINES } from "../src/applicationReport.js";
+import { matchBand } from "../src/reportEmailHtml.js";
 import type { JudgeFn } from "../src/judge.js";
 import { statedClaimId } from "../src/stretchSuggestions.js";
 
@@ -861,6 +863,50 @@ describe("#418 the export prints the used line and the report carries its interv
     expect(section4).toContain(swap.interviewNarrative);
     expect(sent[0]!.split("2. Where you are strong")[1]!.split("3. Where you are not")[0]).not.toContain(swap.requirementId);
     expect(await claims.list(sid)).toEqual(before); // the used line never became a claim
+  });
+
+  it("#442 the HTML email's score panel is the card the job's screen shows, the used line counted as a line he added", async () => {
+    const sent: CvMail[] = [];
+    const mailer: Mailer = {
+      live: false,
+      async sendLoginLink() {},
+      async sendFamilyReady() {},
+      async sendTailoredCv(_email, doc) {
+        sent.push(doc);
+      },
+    };
+    const { app, claims } = buildServer({
+      tailorLlm: draftingLlm().llm,
+      stretchLlm: suggestingLlm().llm,
+      judge: fakeJudge(),
+      reportLlm: reportingLlm().llm,
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      tailorDrafts: new InMemoryTailorDraftStore(),
+    });
+    const cookie = await anonSession(app);
+    await reachTailor({ app, claims }, cookie, "stretch-score-email@example.com");
+    const view = await draftWithSuggestions(app, cookie);
+    const [swap] = view.stretch.suggestions;
+    await post(app, cookie, `/onboarding/tailor/suggestions/${swap.id}`, { answer: "use" });
+    // The job's own screen after Use: the number, the word and the counts a person reads there.
+    const { card } = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(card.fit).toContainEqual(expect.objectContaining({ id: swap.requirementId, stretched: true }));
+
+    const res = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect((await awaitJob(app, cookie, res.json().jobId)).status).toBe("completed");
+    const panel = emailText(sent[0]!.html).split("Apply for this job")[0]!.split(REPORT_LINES.noLink)[0]!;
+    const { essential, desirable } = card.breakdown as { essential: { met: number; total: number }; desirable: { met: number; total: number } };
+    expect(panel).toContain(`${card.matchPct}% ${matchBand(card.matchPct)} match`);
+    expect(panel).toContain(`${essential.met + desirable.met} of ${essential.total + desirable.total} requirements covered`);
+    expect(panel).toContain(`Essential ${essential.met} of ${essential.total}`);
+    expect(panel).toContain(`Desirable ${desirable.met} of ${desirable.total}`);
+    const stretched = card.fit.filter((f: { stretched?: true }) => f.stretched).length;
+    expect(panel).toContain(`${card.fit.length - stretched} from your facts`);
+    expect(panel).toContain(`${stretched} line you added`);
+    // The added line is listed apart under "Be ready to explain", in both parts of the mail.
+    expect(emailText(sent[0]!.html).split("Lines you chose to add to this CV:")[1]).toContain(swap.claimText.replace(/\.$/, ""));
+    expect(sent[0]!.text).toContain(swap.claimText);
   });
 });
 

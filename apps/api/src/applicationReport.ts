@@ -19,7 +19,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { AdRequirementsV1, CandidateClaims, JobCardV1 } from "@jobcrush/contracts";
+import type { AdRequirementsV1, CandidateClaims, JobCardV1, ScoredJobCardV1 } from "@jobcrush/contracts";
 import { completeWithCost } from "./adReader.js";
 import type { BroughtJob } from "./broughtJobs.js";
 import type { ClaimRecord } from "./claims.js";
@@ -123,6 +123,21 @@ export interface ReportContext {
    *  asked, exactly as stored (ADR-0005 clause 6). Printed under *Be ready to explain* by the app;
    *  the model never sees or rewrites them. Absent on a context built before #418 — read as none. */
   stretches?: { line: string; say: string }[];
+  /** #442: the score panel of the HTML email — the job card's own number, read at every press so
+   *  it is the number the job's screen shows now. Never in the report's input or its fingerprint:
+   *  the model does not see it and the report's cost does not move. */
+  score: ReportScore;
+}
+
+/** #442: one advert requirement on the email's requirement map, as the card counts it — met by the
+ *  person's facts, met by a line they added for this job (#418), or not covered. */
+export type ScoreBlock = "facts" | "added" | "open";
+/** The card's % and one block per advert requirement in advert order, split by the card's own
+ *  rollup: essential, or desirable for `standard` and `nice-to-have` alike (judgedBreakdown). */
+export interface ReportScore {
+  matchPct: number;
+  essential: ScoreBlock[];
+  desirable: ScoreBlock[];
 }
 
 /**
@@ -142,7 +157,7 @@ export interface ReportContext {
 export function reportContext(args: {
   posting: Posting;
   adReq: AdRequirementsV1;
-  card: JobCardV1;
+  card: ScoredJobCardV1;
   verdicts: JudgeVerdict[];
   confirmed: ClaimRecord[];
   negatives: ClaimRecord[];
@@ -169,6 +184,13 @@ export function reportContext(args: {
   ]);
   const market = marketForLocationText(posting.location ?? "");
   const advertAsksWorkRights = adReq.requirements.some((r) => r.eligibilityDimension === "work-rights");
+  // #442: the blocks are read off the card's own met rows (judgedFitRows, the stretched flag
+  // included), so the map, its counts and the % can never disagree with the screen.
+  const fit = new Map(card.fit.map((row) => [row.id, row]));
+  const blockOf = (id: string): ScoreBlock => {
+    const row = fit.get(id);
+    return !row ? "open" : row.stretched ? "added" : "facts";
+  };
   return {
     requirements: requirementStates(adReq, args.verdicts, confirmed, deniedIds, uncheckedIds),
     applicationUrl: args.broughtJob?.applicationUrl ?? null,
@@ -181,6 +203,11 @@ export function reportContext(args: {
     stretches: usedStretches(args.stretch)
       .filter((s) => s.scope === "this-job")
       .map((s) => ({ line: s.claimText, say: s.interviewNarrative })),
+    score: {
+      matchPct: card.matchPct,
+      essential: adReq.requirements.filter((r) => r.band === "essential").map((r) => blockOf(r.id)),
+      desirable: adReq.requirements.filter((r) => r.band !== "essential").map((r) => blockOf(r.id)),
+    },
   };
 }
 
@@ -199,6 +226,12 @@ export interface ApplicationReport {
   gaps: { requirement: string; say: string | null }[];
   /** Named, never scored, no prepared sentence (#292 c15). */
   unchecked: string[];
+  /** #418: the lines the person chose to add for this job, as stored (ctx.stretches). #442 keeps
+   *  them apart from `explain`, so the HTML can list them on their own without reading our own
+   *  sentence back. A report checkpointed before #442 has no such field (its used lines sit
+   *  flattened in `explain`); tailorExport.ts's reportFor writes it again rather than reuse it. */
+  stretches: { line: string; say: string }[];
+  /** The model's own points to prepare — the used lines lead section 4 from `stretches`. */
   explain: string[];
 }
 
@@ -376,7 +409,8 @@ export async function writeApplicationReport(
         gaps,
         unchecked: ctx.requirements.filter((r) => r.state === "unchecked").map((r) => r.requirement),
         // #418: the used stretches lead section 4, exactly as stored — never through the model.
-        explain: [...(ctx.stretches ?? []).map((s) => REPORT_LINES.stretch(s.line, s.say)), ...doc.explain],
+        stretches: ctx.stretches ?? [],
+        explain: doc.explain,
       };
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
@@ -402,6 +436,10 @@ export function reportFingerprint(
 /** The plain words the email uses where the model wrote nothing — exported so the screen tests
  *  and the browser journeys read the product's own sentences rather than re-typed copies. */
 export const REPORT_LINES = {
+  /** The opening line of both parts of the email (#442: the HTML says it under the score panel). */
+  intro: (posting: Posting, pages: number) =>
+    `Your CV for ${posting.title} at ${posting.company} is attached (${pages} page${pages === 1 ? "" : "s"}, PDF). ` +
+    `Read it, then send it yourself when you are ready.`,
   noLink: "No apply link was saved for this job.",
   expectIt: "You have nothing close to this. Expect it to come up.",
   unchecked: "Not checked: you have not told us either way. Check it before you apply.",
@@ -415,9 +453,16 @@ export const REPORT_LINES = {
   checkBeforeSending: "Check before you send the CV:",
   /** #418: a stretch the person used for this job — the line as it prints, and what to say if asked. */
   stretch: (line: string, say: string) => `You chose to say "${line}" on this CV — say: "${say}"`,
+  /** #442, the HTML only: *Check before you send* is always shown, and a check that found nothing
+   *  says so (owner's call 2026-10-26; PRODUCT.md principle 3). */
+  nothingToCheck: "Nothing to check. The CV is exactly as you approved it, and nothing in this job was left unchecked.",
+  /** #442, the HTML only: no gap, but requirements nobody checked moved up to *Check before you send*
+   *  — so "every requirement is covered" would be untrue. */
+  nothingElseOpen: "Nothing else is missing. The requirements nobody has checked yet are listed above.",
 };
 
-/** The email body: five sections, in this order, and nothing else. The attachment is named in one
+/** The email's plain-text part (#442: the fallback beside reportEmailHtml.ts's designed part, which
+ *  is built from the same objects): five sections, in this order, and nothing else. The attachment is named in one
  *  opening line; the ship-and-tell notices (a document that left with a known loss, #313/#314)
  *  ride right under it, before section 1, so he reads them before he opens the PDF (#401). */
 export function reportEmailText(
@@ -438,6 +483,7 @@ export function reportEmailText(
     ...report.unchecked.map((u) => `${u} — ${REPORT_LINES.unchecked}`),
   ];
   const explain = [
+    ...report.stretches.map((s) => REPORT_LINES.stretch(s.line, s.say)),
     ...report.explain,
     ...(report.marketToCheck ? [REPORT_LINES.market(report.marketToCheck)] : []),
     ...(report.locationUnplaced ? [REPORT_LINES.locationUnknown] : []),
@@ -446,8 +492,7 @@ export function reportEmailText(
     ? `${REPORT_LINES.checkBeforeSending}\n${notices.map((n) => `- ${n}`).join("\n")}\n\n`
     : "";
   return (
-    `Your CV for ${posting.title} at ${posting.company} is attached (${pages} page${pages === 1 ? "" : "s"}, PDF). ` +
-    `Read it, then send it yourself when you are ready.\n\n${checks}` +
+    `${REPORT_LINES.intro(posting, pages)}\n\n${checks}` +
     `1. The job, in short\n${job}\n\n` +
     `2. Where you are strong\n${bullets(report.strong.map((s) => `${s.requirement} — say: "${s.say}"`), REPORT_LINES.nothingStrong)}\n\n` +
     `3. Where you are not, and what to say\n${bullets(notYet, REPORT_LINES.nothingOpen)}\n\n` +

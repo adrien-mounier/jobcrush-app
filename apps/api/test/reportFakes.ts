@@ -28,6 +28,20 @@ export function fakeJudge(): JudgeFn {
   return makeJudge(llm, new InMemoryJudgementStore());
 }
 
+/** #442: what a person reads in the email's HTML part — the body's text, tags gone (inline ones
+ *  without a gap, so "64<span>%</span>" reads "64%"), entities decoded, whitespace collapsed. */
+export const emailText = (html: string) =>
+  (html.split("<body")[1] ?? html)
+    .replace(/<\/?(span|a)\b[^>]*>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ");
+
 /** The report's one call, answered from the prompt's states; records every prompt it saw.
  *  `shape` lets a test bend the answer (a wrong id, a sentence for an unchecked requirement). */
 export function reportingLlm(shape?: (doc: Record<string, unknown>, states: { id: string; state: string }[]) => unknown) {
