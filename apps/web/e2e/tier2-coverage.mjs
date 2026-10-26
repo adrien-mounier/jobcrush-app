@@ -297,6 +297,17 @@ export const COVERAGE = {
     "apps/api/src/applicationReport.ts",
     "apps/api/prompts/application-report.md",
   ]),
+  // spec #443: the Tailor screen's look on two pasted jobs — the CV's letterhead and numbers (the
+  // server's render, preview.ts in TAILOR), the suggestion card and its ◆, Use / It's true, approve.
+  "tailor-polish-journey.mjs": union(DISCOVERY, AUTH, TAILOR, POSTINGS, PASTE, JOB_SCREEN, [
+    "apps/api/src/stretchSuggestions.ts",
+    "apps/api/src/tailorDraft.ts",
+    "apps/api/src/tailorDraftStore.ts",
+    "apps/api/src/tailorExport.ts",
+    "apps/api/src/applicationReport.ts",
+    "apps/api/prompts/stretch-suggestions.md",
+    "apps/api/prompts/application-report.md",
+  ]),
   // #418: the stretch flow end to end — the step, its prompts (#420: the re-say mode of an edited
   // wording), the read-time swap and score, the approve press with the report. The qa-main fake it
   // reads its suggestion from is in SHARED.

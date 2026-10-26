@@ -72,6 +72,10 @@ export const JOURNEYS = [
   // staging run 404'd behind. qa-main's deckSearchWindowMs shortens it to 20 s for this run (the
   // shipped 5 minutes is postingRetrieval.test.ts's to prove), so it runs in ~2 min, not ~9. One sign-in.
   "tailor-after-search-window-journey.mjs",
+  // spec #443: the ONLY journey that measures the Tailor screen's look end to end, at 1280 and 390 —
+  // the centred letterhead (#439), the gold open number and outlined waiting ones (#437), the card
+  // on The job (#424), the ◆ on a used line and reopening from it (#438). Two pasted jobs. ~3 min.
+  "tailor-polish-journey.mjs",
   "search-area-coverage-journey.mjs",
   // #214: the only end-to-end proof that a typed city stays a city-level target (chips, cap,
   // refusal, per-market work-rights). ~2 min against the fake-model API.

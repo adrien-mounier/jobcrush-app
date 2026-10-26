@@ -90,15 +90,28 @@ const letterhead = () =>
     const stacked = boxes[0].bottom <= boxes[1].top + 1 && boxes[1].bottom <= boxes[2].top + 1;
     const vw = doc.documentElement.clientWidth;
     const lines = els.map((e, i) => {
-      const r = doc.createRange();
-      r.selectNodeContents(e);
-      const rects = [...r.getClientRects()].filter((x) => x.width > 0);
+      // The text's own rects, grouped into painted lines: the contact line's items are boxes of
+      // their own (QA #443), so a line is centred when its whole run of text is, not each box.
+      const rects = [];
+      const walker = doc.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+      for (let n; (n = walker.nextNode()); ) {
+        if (!n.data.trim()) continue;
+        const r = doc.createRange();
+        r.selectNodeContents(n);
+        rects.push(...[...r.getClientRects()].filter((x) => x.width > 0));
+      }
+      const rows = [];
+      for (const x of rects.sort((a, b) => a.top - b.top)) {
+        const row = rows.find((w) => Math.abs(w.top - x.top) < 4);
+        if (row) Object.assign(row, { left: Math.min(row.left, x.left), right: Math.max(row.right, x.right) });
+        else rows.push({ top: x.top, left: x.left, right: x.right });
+      }
       const mid = (boxes[i].left + boxes[i].right) / 2;
       return {
         align: getComputedStyle(e).textAlign,
-        lines: new Set(rects.map((x) => Math.round(x.top))).size,
-        offCentre: Math.max(...rects.map((x) => Math.abs((x.left + x.right) / 2 - mid))),
-        inside: rects.every((x) => x.left >= -0.5 && x.right <= vw + 0.5) && e.scrollWidth <= e.clientWidth,
+        lines: rows.length,
+        offCentre: Math.max(...rows.map((x) => Math.abs((x.left + x.right) / 2 - mid))),
+        inside: rows.every((x) => x.left >= -0.5 && x.right <= vw + 0.5) && e.scrollWidth <= e.clientWidth,
       };
     });
     return { docOrder, stacked, pageScroll: doc.documentElement.scrollWidth > vw, lines, text: els.map((e) => e.textContent) };
