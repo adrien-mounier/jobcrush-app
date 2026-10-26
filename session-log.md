@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-26 — #441 prototype: the CV email's design chosen (B2), #442 ready to build
+
+`/prototype` + `/impeccable` (Opus 5.5), on the owner's real MSCI report from staging; branch `prototype/report-email-441` (427a148, pushed).
+- Four email directions sent to his Gmail via staging's Resend (8 sends, $0, free plan): A Paper, B Night masthead, C Scorecard, D Dashboard.
+- Owner's pick **B2**: B + Phosphor filled icons (strong / weak / be-ready points), a score panel (93%, Strong match; gauge at the card's 50/70 bands; Essential 5/5 · Desirable 7/9 requirement map), and Check before you send always shown (empty = one gold-tick line).
+- Found: the report carries no score, and its lists omit requirements met by added lines — the first prototypes' "4 of 6" was really 12 of 14. #442 passes the route's card through; no new model call.
+- #441 closed with the decision; #442 rewritten with the design + ACs, `ready-for-agent`.
+**Next:** `/implement 442`; the owner's re-proof and `/implement-spec #443` stand.
+
 ## 2026-10-26 — The owner's defect list filed as tickets: spec #443 (#437–#439 + #424 #409 #410), email #441 → #442, photo parked #440
 
 No code. The owner's four defects, checked against HEAD and the prototype branches first.
@@ -83,14 +92,3 @@ No code. On a fresh staging account (Hong Kong), the first card needed Cantonese
 - Owner decisions (on #425): a job that requires a language not on the profile leaves the deck, with a one-time "I left out N jobs that need X — do you speak it?" line. A working level word on the CV (native, fluent, professional, bilingual) meets the requirement, with no question.
 - Mistake to learn from: my first question framed this as a new rule. It was the original one, and the owner had to ask me to check the history.
 **Next:** `/implement 425`; then the owner's re-proof on a fresh staging account.
-
-## 2026-10-24 — #423 shipped: the Tailor screen takes the #408 layout, with "Your CV | The job" tabs (9469733)
-
-`/implement 423` (Opus 5.5). The owner's call after spec #412, prototype variant E:
-- The CV starts right under the bar, with only the tabs between. #411's breakdown and folded ad are off this screen (the deck and the job's own screen keep theirs), and the ageing line moves to the rail.
-- The job shows the job's text line for line. Each pending suggestion's numeral sits on the job line it answers, and the open one is lit. The line comes from the server: `TailorRequirement.line`, found from the reader's stored `sourceSpan`, word by word, else the longest line it starts with.
-- Phone: a one-line bar, 61px (it was ~230px; #422 closed into this). "See where the job asks this" jumps to the lit line, "Read the job" to the top.
-- `/code-review`: tests pinned exactly, the heading-steals-the-numeral case fixed, T added to the keys test. A self-inflicted journey crash taught a lesson: a spec run rebuilds `.next` under a live journey stack.
-QA **GO** on tree 3d37dc5: api 2221, mocked 299/299, six Tailor journeys plus the new `tailor-the-job-tab-journey.mjs` 78/0. Filed #424 (4px tab clip on a phone; the swap line while The job shows). `spec-301-finish` was rewritten but not run (needs `QA_PDF_PAGES=3`).
-Pushed `afff42d..9f85927`, which also carried another session's unpushed 1b4f466 (the watermark removal). CI run 40076699572 was green and deployed it to staging. The leftovers from other sessions were killed on the owner's word: the #411 worktree's `next start` on 34110 and a stuck `stretch-use` journey on 34220.
-**Next:** the owner's re-proof on a fresh staging account (roadmap finish line, step 2).
