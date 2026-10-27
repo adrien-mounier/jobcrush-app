@@ -373,11 +373,14 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     expect(after.contact.phone).toEqual({ value: "+33 6 99 99 99 99", origin: "person-said" });
   });
 
-  // #381 ACs: the letterhead lands as five fields at import (read origin, the title being the title);
+  // #381 ACs: the letterhead lands as fields at import (read origin; #451: name and city from the model);
   // the batched door (check mode's footer button) persists each edited field as person-said, skipping
   // an empty one; the profile's own per-field door edits the same fields after check mode.
-  it("#381: name/title/location land at import as read; the batched door and the per-field door both edit them", async () => {
-    const server = buildServer({ pipeline: fakePipeline() });
+  it("#381: name/location land at import as read (#451: from the letterhead reading); the batched door and the per-field door both edit them", async () => {
+    const read = (value: string) => ({ value, sourceText: value });
+    const server = buildServer({
+      pipeline: { ...fakePipeline(), readLetterhead: async () => ({ name: read("Priya Raman"), location: read("Manchester, UK") }) },
+    });
     const cookie = await anonSession(server.app);
     const created = await server.app.inject({
       method: "POST",
@@ -396,7 +399,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
     expect(before.contact).toEqual({
       name: { value: "Priya Raman", origin: "read" },
-      title: { value: "SENIOR PROJECT MANAGER", origin: "read" },
+      title: null, // #451: the job title is no longer read at upload
       email: { value: "priya.raman@example.com", origin: "read" },
       phone: { value: "+44 7700 900123", origin: "read" },
       location: { value: "Manchester, UK", origin: "read" },

@@ -91,36 +91,6 @@ for (const [name, make] of drivers) {
   });
 }
 
-// #381: a CV imported before the letterhead became fields left one raw "header" row. The store
-// splits it into name/title/location once, at start-up, as read values — so that person's drafts
-// keep printing their name, and Your details shows them filled.
-describe("PgContactStore — a pre-#381 letterhead row upgrades to fields", () => {
-  it("splits a legacy header into read fields, never over a value already stored", async () => {
-    const pool = pgPool();
-    await new PgContactStore(pool).init();
-    const legacy = "Priya Raman\npriya.raman@example.com | Manchester, UK\nSENIOR PROJECT MANAGER";
-    await pool.query(
-      `INSERT INTO contact_facts (session_id, field, value, origin, source_text) VALUES ($1,'header',$2,'read',$2), ($3,'header',$2,'read',$2)`,
-      ["old", legacy, "edited"],
-    );
-    await pool.query(
-      `INSERT INTO contact_facts (session_id, field, value, origin, source_text) VALUES ('edited','name','Priya R.','person-said','Priya R.')`,
-    );
-
-    // The restart. pg-mem cannot re-parse a CREATE TABLE IF NOT EXISTS against an existing table
-    // (pgstores.test.ts #282), which real Postgres treats as a no-op — so the restarted store's
-    // CREATEs are answered as that no-op here; every other query, the upgrade's own SQL, runs for real.
-    const restarted = { query: (sql: string, args?: unknown[]) => (sql.includes("CREATE TABLE") ? { rows: [] } : pool.query(sql, args)) };
-    const store = new PgContactStore(restarted as unknown as typeof pool);
-    await store.init();
-    const old = await store.getRecord("old");
-    expect(old.name).toMatchObject({ value: "Priya Raman", origin: "read" });
-    expect(old.title).toMatchObject({ value: "SENIOR PROJECT MANAGER", origin: "read" });
-    expect(old.location).toMatchObject({ value: "Manchester, UK", origin: "read" });
-    expect((await store.getRecord("edited")).name).toMatchObject({ value: "Priya R.", origin: "person-said" });
-  });
-});
-
 describe("PUT /contact — the profile screen's correction door", () => {
   async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
     const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });

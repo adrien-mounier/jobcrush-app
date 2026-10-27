@@ -4,7 +4,6 @@
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import type { CvKind } from "./uploads.js";
-import { marketForLocationText } from "./postingRetrieval.js";
 
 export type BlockKind = "role" | "education" | "skills" | "contact" | "other";
 
@@ -170,63 +169,6 @@ export interface ContactExtraction {
    *  here so the draft door can hand the engine a name and city after the raw CV is gone. Empty
    *  string is an honest absence, never invented. */
   header: string;
-  /** #381: the letterhead split into the fields Your details shows — read from `header`, each an
-   *  honest null when the letterhead has no such line. */
-  name: ContactFieldRead | null;
-  title: ContactFieldRead | null;
-  location: ContactFieldRead | null;
-}
-
-const PART_SEP = /\s*[|·•]\s*/;
-/** #404: on a line that carries an email or phone a spaced hyphen/dash separates parts too; an
- *  unspaced one ("Jean-Pierre") is a word. On any other line it is a word as well: a title spelled
- *  "Purchasing Manager - Ingredients & Packaging" is read whole. */
-const CONTACT_PART_SEP = /\s*[|·•]\s*|\s+[-–—]\s+/;
-const partSep = (line: string) => (EMAIL_RE.test(line) || PHONE_RE.test(line) ? CONTACT_PART_SEP : PART_SEP);
-/** Separator punctuation left at a part's ends once its contact details are taken out. */
-const PART_EDGE_RE = /^[\s|·•\-–—,]+|[\s|·•\-–—,]+$/g;
-/** "City, Country" — two comma-separated words-only parts. */
-const CITY_COUNTRY_RE = /^[^\d@,]{2,40},\s*[^\d@,]{2,30}$/;
-const isLocation = (part: string) => CITY_COUNTRY_RE.test(part) || marketForLocationText(part) !== null;
-const isLink = (part: string) => /linkedin|https?:|www\./i.test(part);
-/** #398/#402: the label a contact detail carries ("Mobile:", "Natel:", "Portable :") — one word and
- *  a colon with nothing after it once the value is taken out — is never a title. A run of them
- *  ("Mobile:  Email:", two contacts on one line with no separator) goes the same way. Only a label
- *  left dangling at the part's end is dropped: a colon inside a title ("Head of Delivery: EMEA") is
- *  a word. No per-language word list. */
-const LABEL_TAIL_RE = /(?:^|\s)(?:\S+\s*:\s*)+$/;
-/** #410: every email and phone leaves the part, not just the first — a second phone kept its label
- *  alive as a title. */
-const EMAIL_ALL_RE = new RegExp(EMAIL_RE.source, "g");
-const PHONE_ALL_RE = new RegExp(PHONE_RE.source, "g");
-/** QA #402: a label can hide behind a trailing comma ("E-mail: , Phone: " → "E-mail: ,"), so the
- *  label strip and the edge trim run until nothing changes. */
-function cleanPart(part: string): string {
-  let p = part.replace(EMAIL_ALL_RE, "").replace(PHONE_ALL_RE, "");
-  for (let q = ""; q !== p; ) {
-    q = p;
-    p = p.replace(LABEL_TAIL_RE, "").replace(PART_EDGE_RE, "");
-  }
-  return p;
-}
-
-/** #381: name = the first line unless it carries contact details; location = the first part that
- *  reads as a place ("City, Country" or a known market); title = the first other part. Parts are
- *  the letterhead's lines split on `|`, `·`, `•` or a spaced dash, with email/phone/links taken out.
- *  ponytail: a title spelled "Director, Operations" reads as a location — widen isLocation with a
- *  place vocabulary if that shows up. */
-export function splitLetterhead(header: string): Pick<ContactExtraction, "name" | "title" | "location"> {
-  const read = (value: string): ContactFieldRead => ({ value, sourceText: value });
-  const lines = header.split("\n").map((l) => l.trim()).filter(Boolean);
-  const first = lines[0];
-  const name = first && !EMAIL_RE.test(first) && !PHONE_RE.test(first) ? read(first) : null;
-  const parts = (name ? lines.slice(1) : lines)
-    .flatMap((l) => l.split(partSep(l)))
-    .map(cleanPart)
-    .filter((p) => /\p{L}/u.test(p) && !isLink(p));
-  const location = parts.find(isLocation);
-  const title = parts.find((p) => p !== location);
-  return { name, title: title ? read(title) : null, location: location ? read(location) : null };
 }
 
 /** #190: deterministic phone/email parse over the already-tagged contact block(s) — reuses the same
@@ -253,7 +195,6 @@ export function extractContact(blocks: RawCvBlock[]): ContactExtraction {
     email: email ? { value: email[0], sourceText: email[0] } : null,
     phone: phone ? { value: phone[0].trim(), sourceText: phone[0].trim() } : null,
     header,
-    ...splitLetterhead(header),
   };
 }
 

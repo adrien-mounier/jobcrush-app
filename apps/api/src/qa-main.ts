@@ -67,6 +67,7 @@ import { buildServer } from "./server.js";
 import { LocalDiskStorage } from "./storage.js";
 import { makeMineStep } from "./miner.js";
 import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
+import { makeReadLetterheadStep } from "./letterheadReader.js";
 import { loadPostings, type Draft, type Posting } from "./preview.js";
 import { lookupAdRequirements } from "./e5stub.js";
 import { makeGrillPhraser } from "./grill.js";
@@ -317,6 +318,13 @@ const fakeLlm: LlmClient = {
     // "accross", an untick suggestion for a line with "intended to", every other line kept — all
     // derived from the text the fake is handed; the REVIEWCHECK recording above is what puts them
     // on a line. Held by reviewHold so a journey can watch the progress card.
+    // #451 letterhead-reader.md: the name is the first non-empty line of the CV text handed over,
+    // quoted as written — derived from the input, so any CV a journey pastes reads its own name.
+    if (prompt.includes("You read the letterhead of a CV")) {
+      const top = prompt.slice(prompt.indexOf("===CV-TOP===") + "===CV-TOP===".length);
+      const name = top.split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+      return JSON.stringify({ name: name ? { value: name, source_quote: name } : null, location: null });
+    }
     if (prompt.includes(REVIEW_PROMPT_OPENING)) {
       seen.review += 1;
       if (reviewGate) await reviewGate.wait;
@@ -1025,6 +1033,7 @@ const { app } = buildServer({
   pipeline: {
     mine: makeMineStep(fakeLlm),
     mineJobBlocks: makeMineJobBlocksStep(fakeLlm),
+    readLetterhead: makeReadLetterheadStep(fakeLlm),
     // #221: past-job labeling over the fake model — the canned CV mines to two placeable jobs and
     // one degree the vocabulary does not cover, so a QA journey can walk both the confident case
     // (no question asked) and the "we couldn't place this" question on the review screen.

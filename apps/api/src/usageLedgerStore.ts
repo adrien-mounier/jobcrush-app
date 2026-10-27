@@ -51,7 +51,10 @@ export type LlmStage =
   | "application-report"
   // #417: the stretch suggestions beside the finished draft — one call per tailored CV, its own
   // stage so the per-CV figure (the spec's ≈$0.05 estimate) can be read off the ledger.
-  | "stretch-suggestions";
+  | "stretch-suggestions"
+  // #451: the letterhead reading at upload — name and city from the top of the CV. Its own stage so
+  // the per-upload figure (the spec's ~half a cent estimate) can be read off the ledger.
+  | "letterhead-reading";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

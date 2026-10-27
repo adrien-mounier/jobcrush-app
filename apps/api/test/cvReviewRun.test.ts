@@ -233,6 +233,8 @@ async function withCv(writer: ReturnType<typeof fakeWriter>, mined: CandidateCla
   const server = buildServer({
     pipeline: {
       mine: async () => ({ doc: null, claims: mined, roles: 2, needsGrill: 0 }),
+      // #451: the paper's letterhead name comes from the letterhead reading, faked at the LLM seam.
+      readLetterhead: async () => ({ name: { value: "Jane Doe", sourceText: "Jane Doe" } }),
       mineJobBlocks: async () => ({ doc: { schemaVersion: "1", blocks: BLOCKS, parser_flags: [] }, rawOutput: "{}" }),
       labelJobBlocks: async (sessionId) => {
         for (const [blockId, placement] of Object.entries(placements)) await jobBlocks.label(sessionId, blockId, placement);

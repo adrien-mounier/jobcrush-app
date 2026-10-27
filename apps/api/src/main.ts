@@ -11,6 +11,7 @@ import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
 import { jobBlockStoreFromEnv } from "./jobBlockStore.js";
 import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
+import { makeReadLetterheadStep } from "./letterheadReader.js";
 import { authStoreFromEnv } from "./auth.js";
 import { eligibilityStoreFromEnv } from "./eligibility.js";
 import { contactStoreFromEnv } from "./contact.js";
@@ -194,6 +195,7 @@ const { app } = buildServer({
   pipeline: {
     mine: makeMineStep(step("claim-mining")),
     mineJobBlocks: makeMineJobBlocksStep(step("job-block-mining")),
+    readLetterhead: makeReadLetterheadStep(step("letterhead-reading")),
     // #221: every mined job record is placed in a job family, on the same model the #220 grid
     // measured. Wired here only, like placeFamily above — a test that doesn't inject it leaves
     // every block unlabeled, which is exactly today's behaviour.

@@ -72,7 +72,12 @@ const MINED: CandidateClaim[] = [
   claim({ id: "city-paris", semantic_key: "city", field_key: "city", field_value: "Paris", field_label: "City", text: "Based in Paris." }),
   claim({ id: "city-lyon", semantic_key: "city", field_key: "city", field_value: "Lyon", field_label: "City", text: "Based in Lyon." }),
 ];
-const fakePipeline = () => ({ mine: async () => ({ doc: null, claims: MINED, roles: 2, needsGrill: 0 }) });
+const read = (value: string) => ({ value, sourceText: value });
+// #451: name and city come from the letterhead reading (a fake at the LLM seam), email/phone from the exact reader.
+const fakePipeline = () => ({
+  mine: async () => ({ doc: null, claims: MINED, roles: 2, needsGrill: 0 }),
+  readLetterhead: async () => ({ name: read("Jane Doe"), location: read("Paris, France") }),
+});
 
 const decision = (value: string) => ({ value, source_quote: value, machine_touch: "verbatim" as const, classification: "Verified" as const });
 function block(id: string, employer: string, title: string, startYear: number, end: MinedJobBlock["end"]["value"]): MinedJobBlock {

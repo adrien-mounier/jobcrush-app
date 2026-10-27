@@ -8,10 +8,10 @@
 // gets it for free without having to remember the rule.
 import type { Pool } from "pg";
 import { getPool } from "./db.js";
-import { splitLetterhead } from "./extract.js";
 
 // #381: the letterhead is five fields — name, title, email, phone, location — each read at mine
-// time (extract.ts's splitLetterhead) and editable through the same person-said door. They ride
+// time (#451: letterheadReader.ts reads name and location, extract.ts email and phone) and
+// editable through the same person-said door. They ride
 // this store because they share the lifecycle and the origin rules. (#310's one raw "header" row
 // is gone: the tailor's candidate header is built from these fields — letterheadText below.)
 export type ContactField = "name" | "title" | "email" | "phone" | "location";
@@ -143,33 +143,6 @@ export class PgContactStore implements ContactStore {
   async init(): Promise<void> {
     await this.pool.query(CONTACT_TABLE);
     await this.pool.query(CONTACT_HISTORY_TABLE);
-    await this.upgradeLegacyHeaders();
-  }
-
-  /** #381: a pre-fields import stored its letterhead as one "header" row. Split it into the read
-   *  fields that session has none of yet, then move the row to history (kept, never deleted) so the
-   *  upgrade runs once and never overrides a later upload or the person's own answer. */
-  private async upgradeLegacyHeaders(): Promise<void> {
-    const { rows } = await this.pool.query(`SELECT session_id, value, origin, source_text FROM contact_facts WHERE field = 'header'`);
-    type Row = { session_id: string; value: string; origin: string; source_text: string };
-    for (const { session_id: sessionId, value, origin, source_text } of rows as Row[]) {
-      const fields = splitLetterhead(value);
-      for (const field of ["name", "title", "location"] as const) {
-        const read = fields[field];
-        if (!read) continue;
-        await this.pool.query(
-          `INSERT INTO contact_facts (session_id, field, value, origin, source_text) VALUES ($1,$2,$3,'read',$4)
-           ON CONFLICT (session_id, field) DO NOTHING`,
-          [sessionId, field, read.value, read.sourceText],
-        );
-      }
-      await this.pool.query(
-        `INSERT INTO contact_fact_history (session_id, field, value, origin, source_text)
-         VALUES ($1,'header',$2,$3,$4)`,
-        [sessionId, value, origin, source_text],
-      );
-      await this.pool.query(`DELETE FROM contact_facts WHERE session_id = $1 AND field = 'header'`, [sessionId]);
-    }
   }
 
   async put(sessionId: string, field: ContactField, value: ContactValue): Promise<void> {
