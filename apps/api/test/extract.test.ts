@@ -399,6 +399,16 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
     it("a label hidden behind a trailing comma is still never a title", () => {
       expect(extractContact(segment("Jane Doe\nE-mail: x@y.com, Phone: +33 6 12 34 56 78\n\nExperience\nPM at X")).title).toBeNull();
     });
+
+    // #410: only the first phone was taken out of a part, so a second one kept its label alive
+    // ("E-mail:  , Tel: , Mobile: +33 7 …" became the title). Every phone and email goes; the
+    // first of each is still the stored value.
+    it("a contact line with two phone numbers leaves no title, and keeps the first phone", () => {
+      const c = extractContact(segment("Jane Doe\nE-mail: x@y.com , Tel: +33 6 00 00 00 00, Mobile: +33 7 00 00 00 00\n\nExperience\nPM at X"));
+      expect(c.title).toBeNull();
+      expect(c.phone?.value).toBe("+33 6 00 00 00 00");
+      expect(c.email?.value).toBe("x@y.com");
+    });
   });
 });
 

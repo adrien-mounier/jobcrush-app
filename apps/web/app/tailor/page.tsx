@@ -366,6 +366,7 @@ export default function TailorPage() {
 
   // #423: "See where the job asks this" and the phone's "Read the job" show The job, then — once it
   // is on the page — bring the open suggestion's line (or the tabs, for the top) into view, focused.
+  // #424: for the top, the whole strip is lined up, not the tab inside it (its edge hid under the bar).
   const openJob = (to: "line" | "top") => {
     setShowJob(true);
     setJump({ to });
@@ -374,7 +375,8 @@ export default function TailorPage() {
     if (!jump) return;
     const target = jump.to === "line" ? litLineRef.current : jobTabRef.current;
     target?.focus({ preventScroll: true });
-    target?.scrollIntoView({ block: jump.to === "line" ? "center" : "start" });
+    if (jump.to === "line") target?.scrollIntoView({ block: "center" });
+    else target?.closest('[role="tablist"]')?.scrollIntoView({ block: "start" });
   }, [jump]);
 
   async function oneAnswerAtATime(work: () => Promise<void>) {
@@ -500,15 +502,18 @@ export default function TailorPage() {
         if (openStretch) openSuggestion(null);
         return;
       }
-      if (pendingOf(stretch).length === 0) return;
+      const pending = pendingOf(stretch);
+      if (pending.length === 0) return;
+      // #438: a card reopened from its ◆ is already answered — only Undo changes it.
+      const openPending = openStretch !== null && pending.some((s) => s.id === openStretch) ? openStretch : null;
       if (key === "j") openSuggestion(nextPending(stretch, openStretch, 1));
       else if (key === "k") openSuggestion(nextPending(stretch, openStretch, -1));
-      else if (key === "n" && openStretch) void answerStretchNo(openStretch);
-      else if (key === "u" && openStretch) void approveStretch(openStretch, "use");
-      else if (key === "t" && openStretch) void approveStretch(openStretch, "true");
-      else if (key === "e" && openStretch) {
+      else if (key === "n" && openPending) void answerStretchNo(openPending);
+      else if (key === "u" && openPending) void approveStretch(openPending, "use");
+      else if (key === "t" && openPending) void approveStretch(openPending, "true");
+      else if (key === "e" && openPending) {
         e.preventDefault(); // the key starts the edit; it is not typed into the line
-        startStretchEdit(openStretch);
+        startStretchEdit(openPending);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -860,6 +865,7 @@ export default function TailorPage() {
                 onEditText={(text) => (editTextRef.current = text)}
                 onEditEnd={() => void endStretchEdit()}
                 rev={frameRev}
+                onOpenStretch={openSuggestion}
               />
             </div>
             <div role="tabpanel" id="tailor-panel-job" aria-labelledby="tailor-tab-job" hidden={!showJob}>
@@ -896,7 +902,7 @@ export default function TailorPage() {
               onOpen={openSuggestion}
               onAnswer={(id, answer) => void (answer === "no" ? answerStretchNo(id) : approveStretch(id, answer))}
               onUndo={(id) => void undoStretch(id)}
-              onSkipRest={() => openSuggestion(null)}
+              onClose={() => openSuggestion(null)}
               onLookAgain={() => setLookAgain((n) => n + 1)}
               headingRef={stretchHeadingRef}
               answering={stretchAnswering || stretchEdit !== null}
@@ -906,6 +912,7 @@ export default function TailorPage() {
               onEditText={(text) => (editTextRef.current = text)}
               editButtonRef={editButtonRef}
               onSeeInJob={() => openJob("line")}
+              jobShowing={showJob}
             />
             {askError && !state.questions.length && (
               <p className="err" role="alert">

@@ -480,17 +480,22 @@ export type StretchCheckpoint =
 
 /** The page marks for one read (#417): the pending suggestions numbered in list order (stable —
  *  an answered one keeps its number off the page but holds its place), the one named by `openId`
- *  previewed in place. No `openId` (the plain read, a closed card) marks nothing; an id that is
- *  not a pending suggestion numbers the pending ones and opens none. */
+ *  previewed in place. No `openId` (the plain read, a closed card) numbers nothing; an id that is
+ *  not a pending suggestion numbers the pending ones and opens none. #438: every approved one marks
+ *  its line with a ◆ on every read — this is the screen's read only; the export passes no marks. */
 export function stretchMarks(checkpoint: StretchCheckpoint | undefined, openId: string | undefined): StretchMarks | undefined {
-  if (checkpoint?.status !== "ran" || openId === undefined) return undefined;
-  const pending = checkpoint.suggestions
-    .map((s, i) => ({ s, n: i + 1 }))
-    .filter(({ s }) => s.state === "pending");
+  if (checkpoint?.status !== "ran") return undefined;
+  const numbered = checkpoint.suggestions.map((s, i) => ({ s, n: i + 1 }));
+  const used = numbered
+    .filter(({ s }) => s.state === "approved")
+    .map(({ s, n }) => ({ slot: s.slot, n, id: s.id, scope: s.scope ?? "this-job" })); // an approved one always has a scope (the contract)
+  if (openId === undefined) return used.length > 0 ? { numerals: [], used } : undefined;
+  const pending = numbered.filter(({ s }) => s.state === "pending");
   const open = pending.find(({ s }) => s.id === openId);
   return {
     ...(open ? { open: { slot: open.s.slot, lineIn: open.s.claimText, n: open.n } } : {}),
     numerals: pending.filter(({ s }) => s.id !== openId).map(({ s, n }) => ({ slot: s.slot, n })),
+    used,
   };
 }
 

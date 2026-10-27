@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { ScoredJobCard, StretchSuggestion, StretchView, TailorDraftView, TailorState } from "../lib/api";
+import { STRETCH_COPY } from "../app/tailor/stretch";
 
 // #417 (ADR-0020 clauses 3-4): stretch suggestions beside the finished draft. Route-mocked like
 // tailor.spec.ts: every call is stubbed and this rides straight to /tailor. The server's own render
@@ -740,6 +741,35 @@ test("#423 phone (390px): numerals on The job; 'See where the job asks this' ope
   await expect(jobTab).toBeFocused();
   await expect(jobTab).toBeInViewport();
   await expect(page.locator(".jobtext .jt-title")).toBeInViewport();
+});
+
+test("#424 phone (390px): 'Read the job' brings the whole 'Your CV | The job' strip into view under the top bar", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
+  await page.getByRole("button", { name: "Read the job" }).click(); // in the rail, under the CV
+  await expect(page.getByRole("tab", { name: "The job", selected: true })).toBeFocused();
+  const strip = page.getByRole("tablist", { name: "What to show" });
+  await expect(strip).toBeInViewport({ ratio: 1 });
+  const bar = (await page.locator(".dbar").boundingBox())!;
+  const box = (await strip.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(bar.y + bar.height); // not even its border under the bar
+});
+
+test("#424 computer: on The job the open card says to switch to Your CV; back on Your CV it points at the struck-out line again", async ({ page }) => {
+  await openTailor(page, { stretch: RAN, tailor: JOB_STATE });
+  const card = page.getByRole("region", { name: "Suggestion 1 of 2" });
+  const struck = card.getByText(STRETCH_COPY.K2, { exact: true });
+  const toCv = card.getByText(STRETCH_COPY.J2, { exact: true });
+  await expect(struck).toBeVisible();
+  await expect(toCv).toBeHidden();
+
+  await page.getByRole("tab", { name: "The job" }).click();
+  await expect(toCv).toBeVisible();
+  await expect(struck).toBeHidden();
+
+  await page.getByRole("tab", { name: "Your CV" }).click();
+  await expect(struck).toBeVisible();
+  await expect(toCv).toBeHidden();
 });
 
 test("#423 computer: no 'Read the job' beside the page — the tabs are the way to the job", async ({ page }) => {

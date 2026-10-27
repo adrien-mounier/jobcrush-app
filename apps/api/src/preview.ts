@@ -23,7 +23,7 @@ import {
   type PostingRetrievalResultV1,
 } from "@jobcrush/contracts";
 import type { JobBlockView } from "./jobBlockStore.js";
-import type { StretchSlot } from "@jobcrush/contracts";
+import type { StretchProposalV2, StretchSlot } from "@jobcrush/contracts";
 import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
@@ -991,8 +991,8 @@ const esc = (s: string) =>
 
 /**
  * Render the draft as a self-contained HTML document styled like the engine's DOCX output
- * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, left-aligned two-line header (name, then
- * role + contact folded onto one line, #157 item 1 variant C "one spine" — binding on #159),
+ * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, a centred three-line letterhead (name,
+ * contact, then the headline — #439, replacing #159's left-aligned two-line header),
  * uppercase bordered section heads, bold employer + italic role title, categorized skills.
  * Sections with no content (certifications, education, additional, and summary when nothing
  * earns it a place) are omitted entirely, heading included — never a heading over nothing.
@@ -1004,7 +1004,13 @@ const esc = (s: string) =>
 export interface StretchMarks {
   open?: { slot: StretchSlot; lineIn: string; n: number };
   numerals: { slot: StretchSlot; n: number }[];
+  /** #438: the lines an accepted suggestion changed — a ◆ in the margin, screen only (the export
+   *  passes no marks). `id` lets the screen reopen that suggestion from it. */
+  used?: { slot: StretchSlot; n: number; id: string; scope: NonNullable<StretchProposalV2["scope"]> }[];
 }
+
+/** #438: what a ◆ says it marks, by the scope of the suggestion that changed the line. */
+export const USED_LABEL = { "this-job": "Stretch: this job only", "every-job": "Added to your CV" } as const;
 
 const sameSlot = (a: StretchSlot, b: StretchSlot) =>
   a.kind === b.kind &&
@@ -1029,12 +1035,21 @@ export function renderPreviewHtml(
     `<span class="pin${open ? " open" : ""}"><span class="sr">Suggestion </span><span class="n">${n}</span></span>`;
   const openAt = (slot: StretchSlot) => (marks?.open && sameSlot(marks.open.slot, slot) ? marks.open : undefined);
   const numeralAt = (slot: StretchSlot) => marks?.numerals.find((m) => sameSlot(m.slot, slot));
+  // #438: a line an accepted suggestion changed. A button, so the screen can reopen that suggestion
+  // from it (draft.tsx listens on the frame); a pending number on the same line takes its place.
+  const usedPin = (slot: StretchSlot) => {
+    const u = marks?.used?.find((m) => sameSlot(m.slot, slot));
+    const label = u && USED_LABEL[u.scope];
+    return u
+      ? `<button type="button" class="pin used" data-stretch="${esc(u.id)}" aria-label="${label}, suggestion ${u.n}" title="${label}">◆</button>`
+      : "";
+  };
   /** A whole line (a bullet, the summary): struck and replaced when open, numbered when pending. */
   const markedLine = (slot: StretchSlot, text: string) => {
     const open = openAt(slot);
     if (open) return `${pin(open.n, true)}<del>${esc(text)}</del> <ins>${esc(open.lineIn)}</ins>`;
     const numeral = numeralAt(slot);
-    return `${numeral ? pin(numeral.n) : ""}${esc(text)}`;
+    return `${numeral ? pin(numeral.n) : usedPin(slot)}${esc(text)}`;
   };
 
   const experience = draft.experience
@@ -1058,7 +1073,7 @@ export function renderPreviewHtml(
       const open = openAt(slot);
       const numeral = numeralAt(slot);
       const items = g.items.map(esc).join(", ") + (open ? `, <ins>${esc(open.lineIn)}</ins>` : "");
-      return `<p class="skill-group">${open ? pin(open.n, true) : numeral ? pin(numeral.n) : ""}<strong>${esc(g.label)}</strong><br>${items}</p>`;
+      return `<p class="skill-group">${open ? pin(open.n, true) : numeral ? pin(numeral.n) : usedPin(slot)}<strong>${esc(g.label)}</strong><br>${items}</p>`;
     })
     .join("");
 
@@ -1094,9 +1109,13 @@ export function renderPreviewHtml(
     padding:34px 44px 36px;line-height:1.4;font-size:14px;}
   .banner{background:#fbeaea;border:1px solid #d99;color:#8a1f1f;
     font-size:12px;padding:8px 14px;border-radius:6px;margin-bottom:24px;}
-  h1{font-size:23px;margin:0;color:#1F4E79;text-align:left;letter-spacing:.01em;}
-  .headline{font-weight:normal;text-transform:none;text-align:left;margin:5px 0 0;font-size:12.5px;color:#444;}
-  .headline .role-word{font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#1d2126;}
+  /* #439 the letterhead: name, contact, headline, each centred on its own line. A long contact
+     line wraps only between its items (QA #443: never inside a link that fits — an ATS would read
+     it in two pieces); an item wider than the line breaks inside its box rather than run off. */
+  h1{font-size:23px;margin:0;color:#1F4E79;text-align:center;letter-spacing:.01em;}
+  .contact{text-align:center;margin:5px 0 0;font-size:12.5px;color:#444;overflow-wrap:anywhere;}
+  .ci{display:inline-block;max-width:100%;}
+  .headline{text-align:center;margin:4px 0 0;font-size:12.5px;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#1d2126;}
   h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:#1F4E79;
     border-bottom:1.5px solid #1F4E79;padding-bottom:3px;margin:18px 0 7px;}
   .role{margin-bottom:12px;}
@@ -1118,7 +1137,10 @@ export function renderPreviewHtml(
     min-width:20px;height:20px;padding:0 5px;border-radius:10px;border:1px solid #5A6675;color:#5A6675;
     font-size:11px;font-weight:600;line-height:1;}
   li>.pin{right:calc(100% + 28px);}
-  .pin.open{border-color:#1d2126;background:#1d2126;color:#fff;}
+  /* #437: the open suggestion is gold (DESIGN.md: "on your CV right now"); waiting ones stay the outline above. */
+  .pin.open{border-color:#a8762b;background:#e8a33d;color:#1a1206;}
+  /* #438: a line an accepted suggestion changed — a deep-gold diamond in the number's place and size. */
+  .pin.used{border-color:transparent;background:none;color:#a8762b;font-family:inherit;cursor:pointer;}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
   .cert{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;}
   .edu,.addl{margin:0 0 6px;}
@@ -1142,9 +1164,8 @@ ${
       )}. Facts not yet verified by the candidate; not for submission.</div>\n`
     : ""
 }<h1>${esc(draft.name)}</h1>
-<p class="headline"><span class="role-word">${esc(draft.headline)}</span>${
-  draft.contact ? ` - ${esc(draft.contact)}` : ""
-}</p>
+${draft.contact ? `<p class="contact">${esc(draft.contact).split(" · ").map((item, i, all) => `<span class="ci">${item}${i < all.length - 1 ? " ·" : ""}</span>`).join(" ")}</p>
+` : ""}<p class="headline">${esc(draft.headline)}</p>
 ${draft.summary.trim() ? section("Professional Summary", `<p class="summary">${markedLine({ kind: "summary" }, draft.summary)}</p>`) : ""}
 ${section("Professional Experience", experience)}
 ${section("Skills", skills)}

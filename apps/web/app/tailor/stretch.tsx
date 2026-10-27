@@ -14,7 +14,7 @@
 // "Ready to send" summary: each answer with its own Undo, and "Be ready to explain" with each line
 // used for this job and what to say (the prototype's words) — a line kept as true needs none.
 // Every value is server-composed (the suggestion records beside the draft); nothing is re-derived.
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import type { StretchSuggestion, StretchView, TailorRequirement } from "../../lib/api";
 
 /** What the rail shows about the step: the server's view, read with the draft once the step is done
@@ -59,8 +59,13 @@ const E4 = "An empty line cannot go on your CV, so we kept the suggested wording
 const E5 = "We could not save your wording just now. Try again.";
 // #423: the open suggestion's line on "The job" tab — offered only when the server found that line.
 const J1 = "See where the job asks this";
+// #424 (the #412 prototype, variant E): on a computer with The job showing, the struck-out line is
+// not on screen, so the card says where to see it instead (tailor.css swaps the two lines by width).
+const J2 = "Switch to Your CV to see the line it changes.";
+// #438: an answered suggestion reopened from its ◆ on the page.
+const C1 = "Close";
 
-export const STRETCH_COPY = { K2, K3, F1, F2, K21 };
+export const STRETCH_COPY = { K2, K3, F1, F2, K14, K15, K21, J2, C1 };
 
 /** #420: computer width — the edit happens on the draft; under it, on the card (the grid's 960px). */
 export const DESK_QUERY = "(min-width: 960px)";
@@ -95,7 +100,8 @@ export interface StretchCardsProps {
   onAnswer: (id: string, answer: "no" | "use" | "true") => void;
   /** #418: withdraws an answer from the summary — the suggestion is pending again and reopens. */
   onUndo: (id: string) => void;
-  onSkipRest: () => void;
+  /** Closes the open card: "Skip the rest", and #438's "Close" on an answered card. */
+  onClose: () => void;
   onLookAgain: () => void;
   headingRef: RefObject<HTMLHeadingElement | null>;
   answering: boolean;
@@ -107,6 +113,8 @@ export interface StretchCardsProps {
   editButtonRef: RefObject<HTMLButtonElement | null>;
   /** #423: opens "The job", scrolled to the open suggestion's line. */
   onSeeInJob: () => void;
+  /** #424: "The job" is the tab showing. */
+  jobShowing: boolean;
 }
 
 /** The pending suggestions, in list order — the one open, and the way J/K/N move. */
@@ -123,6 +131,38 @@ export function nextPending(view: StretchRailView, fromId: string | null, direct
   return pending[(i + direction + pending.length) % pending.length]!.id;
 }
 
+/** A card's head: its place in the list, then its number and the requirement it answers. */
+function CardHead({
+  n,
+  of,
+  note,
+  settled = false,
+  headingRef,
+  children,
+}: {
+  n: number;
+  of: number;
+  note?: string;
+  settled?: boolean;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <p className="eyebrow">
+        {n} of {of}
+        {note && ` · ${note}`}
+      </p>
+      <h2 className="h" tabIndex={-1} ref={headingRef}>
+        <span className={settled ? "num settled" : "num"} aria-hidden="true">
+          {n}
+        </span>
+        {children}
+      </h2>
+    </>
+  );
+}
+
 export function StretchCards({
   view,
   requirements,
@@ -130,7 +170,7 @@ export function StretchCards({
   onOpen,
   onAnswer,
   onUndo,
-  onSkipRest,
+  onClose,
   onLookAgain,
   headingRef,
   answering,
@@ -140,6 +180,7 @@ export function StretchCards({
   onEditText,
   editButtonRef,
   onSeeInJob,
+  jobShowing,
 }: StretchCardsProps) {
   // #420: on a phone the edit happens on the card's own line; on a computer, on the draft (draft.tsx).
   const lineRef = useRef<HTMLModElement>(null);
@@ -164,6 +205,32 @@ export function StretchCards({
   const text = (s: StretchSuggestion) => requirements.find((r) => r.id === s.requirementId)?.text ?? s.requirementId;
   const open = all.find((s) => s.id === openId && s.state === "pending");
 
+  // #438: reopened from its ◆ on the page (the approved prototype's answered card): what it asked,
+  // why, the line as it now reads, and its answer with its Undo.
+  const answered = open ? undefined : all.find((s) => s.id === openId);
+  if (answered) {
+    const n = all.indexOf(answered) + 1;
+    return (
+      <section className="stretch-card" aria-label={`Suggestion ${n} of ${all.length}`}>
+        {/* #437: answered, so its number is settled — gold is only the line being placed now. */}
+        <CardHead n={n} of={all.length} settled headingRef={headingRef}>
+          {text(answered)}
+        </CardHead>
+        <p className="swhy">{answered.why}</p>
+        {answered.state === "approved" && <p className="swap">{answered.claimText}</p>}
+        <p className={`result${kept(answered) ? " r-true" : answered.state === "approved" ? " r-use" : ""}`}>
+          <span className="s">{resultOf(answered)}</span>
+          <button type="button" className="link" disabled={answering} onClick={() => onUndo(answered.id)}>
+            {K15}
+          </button>
+        </p>
+        <button type="button" className="link close" onClick={onClose}>
+          {C1}
+        </button>
+      </section>
+    );
+  }
+
   if (open) {
     const n = all.indexOf(open) + 1;
     const editThis = edit?.id === open.id ? edit : null;
@@ -184,15 +251,9 @@ export function StretchCards({
     );
     return (
       <section className="stretch-card" aria-label={`Suggestion ${n} of ${all.length}`}>
-        <p className="eyebrow">
-          {n} of {all.length} · {K1}
-        </p>
-        <h2 className="h" tabIndex={-1} ref={headingRef}>
-          <span className="num" aria-hidden="true">
-            {n}
-          </span>
+        <CardHead n={n} of={all.length} note={K1} headingRef={headingRef}>
           {text(open)}
-        </h2>
+        </CardHead>
         {requirements.find((r) => r.id === open.requirementId)?.line !== undefined && (
           <button type="button" className="link jlink" onClick={onSeeInJob}>
             {J1}
@@ -214,6 +275,7 @@ export function StretchCards({
           )}
         </div>
         <p className="swap">{open.lineOut ? K2 : K3}</p>
+        {jobShowing && <p className="swap tocv">{J2}</p>}
         <div className="ifasked">
           <b>{K4}</b>
           {editThis ? <span className="re">{E3}</span> : open.interviewNarrative}
@@ -261,7 +323,7 @@ export function StretchCards({
             {K7}
           </button>
         </div>
-        <button type="button" className="link skip" disabled={answering} onClick={onSkipRest}>
+        <button type="button" className="link skip" disabled={answering} onClick={onClose}>
           {K8}
         </button>
       </section>

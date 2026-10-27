@@ -39,9 +39,12 @@ tailored no longer turns into "unknown card" · ~~#432~~ Approve survives a malf
 the suggestion numbers, the approve moment, Ready to send · ~~#427~~ the stretch step no longer retries (a CV
 keeps fewer stretches: owner accepted) · ~~#435~~ #431's journey runs in tier 2. **Step 3 above is next.**
 
-**Owner's defect list (2026-10-26), after the re-proof:** spec #443, one `/implement-spec #443`
-(Fable 5.1, medium): the open suggestion number gold again (#437), a mark on lines a suggestion changed
-(#438), the centred letterhead (#439), plus #424 #409 #410. The CV email's design: ~~#441~~ prototype done (B2,
+**Owner's defect list (2026-10-26), after the re-proof:** spec ~~#443~~ shipped 2026-10-27 on a `/qa-gate`
+GO: ~~#437~~ the open suggestion number gold again · ~~#438~~ a ◆ on lines a suggestion changed · ~~#439~~ the
+centred letterhead · ~~#424~~ · ~~#410~~. **Owner:** check the downloaded PDF's letterhead on staging (only
+the print gate printed it locally). #409 left the batch after four NO-GOs; owner decided 2026-10-27 that
+the model reads the name: #446 + #409 are one piece of work, design pass next (`/grill-with-docs #446`, Opus
+5.5); #409's work waits on branch `t/409-letterhead`. The CV email's design: ~~#441~~ prototype done (B2,
 branch `prototype/report-email-441`); build #442 next, `/implement 442` (Fable 5.1, high). A CV with a photo: parked, #440.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both

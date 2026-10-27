@@ -164,7 +164,9 @@ await assert(!/\+\d+%/.test(await page.locator('.tailor').innerText()), 'still n
 await qa.expectText('.tailor [aria-live="polite"]', `Match now ${after.card.matchPct}%`, 'the change is announced to a screen reader');
 await assert((await page.locator('.mote').count()) === 0, 'the mote is gone once it has landed');
 const srcAfter = await page.locator('.draft-frame').getAttribute('srcdoc');
-await assert(srcAfter.includes(`<li>${esc(s.claimText)}</li>`) && !srcAfter.includes(esc(s.lineOut)), 'the CV now carries the edited line, word for word, where the line out was');
+await assert(srcAfter.includes(`${esc(s.claimText)}</li>`) && !srcAfter.includes(esc(s.lineOut)), 'the CV now carries the edited line, word for word, where the line out was');
+// #438: the changed line keeps a deep-gold ◆ in the margin, named by its kind of change.
+await assert(srcAfter.includes(`aria-label="Stretch: this job only, suggestion 1" title="Stretch: this job only">◆</button>${esc(s.claimText)}</li>`), 'the used line keeps a ◆ in the margin');
 await assert(!(await page.locator('.tailor .gaps').innerText().catch(() => '')).includes(requirement.text), '"Also asked, not on your CV" no longer names it');
 
 const met = after.requirements.filter((r) => r.state === 'met' || r.state === 'stretched').length;
@@ -206,7 +208,7 @@ await qa.goto('/tailor', 'reload');
 await page.locator('.draft-frame').waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
 await assert((await pct()) === after.card.matchPct, `the number survived the reload (${after.card.matchPct}%)`);
 const srcReload = await page.locator('.draft-frame').getAttribute('srcdoc');
-await assert(srcReload.includes(`<li>${esc(s.claimText)}</li>`), 'the used line is still on the CV');
+await assert(srcReload.includes(`${esc(s.claimText)}</li>`), 'the used line is still on the CV');
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

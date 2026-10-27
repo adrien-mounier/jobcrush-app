@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderPreviewHtml } from "../dist/preview.js";
 import { makeBrowserDocumentMaker } from "../dist/documentMaker.js";
+import { chromium } from "playwright-core";
+import { PDFParse } from "pdf-parse";
 
 // The repo's own documented two-page density (#156, measured in docs/research/pdf-in-container.md):
 // 4 roles × 6 bullets = 24 experience bullets.
@@ -71,3 +73,97 @@ if (pages !== 2) {
   process.exit(1);
 }
 console.log("GATE PASSED: the real browser printed the real two-page document.");
+
+// #439: the letterhead as an ATS reads it — the PDF's text order is name, contact, headline.
+const parser = new PDFParse({ data: new Uint8Array(pdf) });
+const text = (await parser.getText()).text.toLowerCase();
+await parser.destroy?.();
+const at = [draft.name, draft.contact, draft.headline].map((s) => text.indexOf(s.toLowerCase()));
+if (at.includes(-1) || !(at[0] < at[1] && at[1] < at[2])) {
+  console.error(`GATE FAILED: the PDF's letterhead text is not name, contact, headline (positions ${at.join(", ")}).`);
+  process.exit(1);
+}
+console.log("GATE PASSED: the PDF reads name, contact, headline, in that order.");
+
+// #439: a long contact line wraps, centred, and stays inside the page — on A4 (print media at
+// the printable width, 210mm less the 12mm margins) and on a 390px phone.
+const longHtml = renderPreviewHtml(
+  {
+    ...draft,
+    contact:
+      "Lyon, France · +33 6 00 00 00 00 · +33 4 00 00 00 00 · maria.kowalski@example.com · linkedin.com/in/maria-kowalski-delivery-lead",
+  },
+  posting,
+  { banner: false },
+);
+const browser = await chromium.launch();
+try {
+  for (const [name, width, media] of [["A4", 703, "print"], ["390px", 390, "screen"]]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    await page.emulateMedia({ media });
+    await page.setContent(longHtml, { waitUntil: "load" });
+    const m = await page.evaluate(() => {
+      const el = document.querySelector(".contact");
+      const r = el.getBoundingClientRect();
+      return {
+        lines: Math.round(r.height / parseFloat(getComputedStyle(el).lineHeight)),
+        align: getComputedStyle(el).textAlign,
+        overflow: el.scrollWidth > el.clientWidth || r.right > document.documentElement.clientWidth,
+        pageScroll: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        // QA #443: the line wraps between items, never inside one that fits on a line (a link
+        // broken in two reads as two pieces to an ATS). Per item: the line tops its letters sit on.
+        split: (() => {
+          const text = el.textContent;
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          const chars = [];
+          for (let n; (n = walker.nextNode()); ) for (let o = 0; o < n.length; o++) chars.push([n, o]);
+          const top = (i) => {
+            const r = document.createRange();
+            r.setStart(chars[i][0], chars[i][1]);
+            r.setEnd(chars[i][0], chars[i][1] + 1);
+            return Math.round(r.getBoundingClientRect().top);
+          };
+          const probe = document.createElement("span");
+          probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap";
+          el.append(probe);
+          const out = [];
+          let at = 0;
+          for (const item of text.split(" · ")) {
+            probe.textContent = item;
+            const fits = probe.getBoundingClientRect().width <= el.clientWidth;
+            const tops = new Set();
+            for (let i = at; i < at + item.length; i++) if (text[i].trim()) tops.add(top(i));
+            if (fits && tops.size > 1) out.push(item);
+            at += item.length + 3;
+          }
+          probe.remove();
+          return out;
+        })(),
+      };
+    });
+    if (m.lines < 2 || m.align !== "center" || m.overflow || m.pageScroll || m.split.length) {
+      console.error(`GATE FAILED (${name}): the long contact line must wrap centred inside the page — ${JSON.stringify(m)}`);
+      process.exit(1);
+    }
+    console.log(`GATE PASSED (${name}): the long contact line wraps onto ${m.lines} centred lines inside the page, between items only.`);
+    await page.close();
+  }
+  // QA #443: an item wider than the line itself still breaks inside, so it never runs off the page.
+  const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
+  await page.setContent(
+    renderPreviewHtml({ ...draft, contact: `Lyon, France · linkedin.com/in/${"maria-kowalski-".repeat(6)}lead` }, posting, { banner: false }),
+    { waitUntil: "load" },
+  );
+  const off = await page.evaluate(() => {
+    const el = document.querySelector(".contact");
+    return el.scrollWidth > el.clientWidth || document.documentElement.scrollWidth > document.documentElement.clientWidth;
+  });
+  if (off) {
+    console.error("GATE FAILED (390px): a contact item wider than the line runs off the page.");
+    process.exit(1);
+  }
+  console.log("GATE PASSED (390px): a contact item wider than the line breaks inside the page.");
+  await page.close();
+} finally {
+  await browser.close();
+}
