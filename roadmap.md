@@ -45,8 +45,8 @@ centred letterhead · ~~#424~~ · ~~#410~~. **Owner:** check the downloaded PDF'
 the print gate printed it locally). #409 left the batch after four NO-GOs; owner decided 2026-10-27 that
 the model reads the name and city, Your details loses its title field, and the headline becomes the job
 ad's own title: spec [#450](https://github.com/adrien-mounier/jobcrush-app/issues/450) (#409 #444 #446),
-`/to-tickets #450` next, then `/implement-spec #450` (Fable 5.1, high); the eval grid's source waits on
-branch `t/409-letterhead`. The CV email's design: ~~#441~~ prototype done (B2,
+tickets #451 → #452, #453, #454; **Owner:** `/implement-spec #450` (Fable 5.1, high). The eval grid's
+source waits on branch `t/409-letterhead`. The CV email's design: ~~#441~~ prototype done (B2,
 branch `prototype/report-email-441`); #442 built and live 2026-10-27 (8eeec75). **Owner:** approve one CV on staging and
 check the email in Gmail on a computer and a phone, dark mode too; then #442 closes. Next build: #448 (each
 person keeps their own apply link). A CV with a photo: parked, #440.

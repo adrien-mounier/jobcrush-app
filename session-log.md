@@ -10,7 +10,8 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 - **Your details loses its job title field**, with no replacement (the job's own screen confirms it).
 - **The headline is the job ad's own title** in the ad's words, labels dropped, never a stretch, never translated; no title or "Preview as CV" → the own job's title.
 - `GLOSSARY.md`: Letterhead, Headline added; Stretch amended. ACs changed with the owner's OK: #409's title clause falls away, #444's letter-spaced title is empty.
-**Next:** `/to-tickets #450`, then `/implement-spec #450` (Fable 5.1, high).
+- `/to-tickets #450`: #451 the model reads name and city → #452 the real-model grid; #453 Your details loses its title; #454 the headline is the job's own title.
+**Next:** `/implement-spec #450` (Fable 5.1, high).
 
 ## 2026-10-27 — #442 live: the CV email is sent as a designed digest (B2) beside its plain text (8eeec75)
 
