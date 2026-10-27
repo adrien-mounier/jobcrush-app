@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-27 (#446 decided: spec #450, the model reads the letterhead's name and city)_
+_Last updated: 2026-10-27 (owner confirmed #425's "Chinese" rule; #446 decided: spec #450)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -26,8 +26,8 @@ each suggestion's number on the job line it answers (it closes ~~#422~~). Both a
 **Finish line, what remains (v1 before the chat):**
 1. ~~**Owner:** type `/implement-spec #412` (Fable 5.1, high).~~ Shipped 2026-10-24 on a `/qa-gate` GO.
 2. ~~**Agent:** #425. A job that requires a language not on your profile leaves the deck, and a working
-   language on the CV is not asked again.~~ Shipped 2026-10-24 (c74cb64) on a `/qa-gate` GO. Owner to
-   confirm one call it made: a job asking for "Chinese" counts as met by Mandarin or Cantonese.
+   language on the CV is not asked again.~~ Shipped 2026-10-24 (c74cb64) on a `/qa-gate` GO. Owner
+   confirmed 2026-10-27: a job asking for "Chinese" counts as met by Mandarin or Cantonese.
 3. **Owner:** one more real report on staging, on a fresh account. Sign in as
    `adrien.mounier91+test1@gmail.com` in a private window; any new address is a new, empty account,
    so #345 is not needed for this. Runs so far found ~~#428~~ and, on 2026-10-25, ~~#431~~–~~#434~~,
