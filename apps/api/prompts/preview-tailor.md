@@ -115,8 +115,13 @@ worse CV, whatever the posting says.
     bullet under a role — it compresses or points to it, never duplicates it. A language woven
     into the summary is prose ("fluent in English", "working French"), never the Languages-line
     form ("is English (Fluent)") — `Name (Level)` belongs only on the Languages line of
-    `additional`. `headline` is one line (title-style, not a sentence)
-    and is always required, even when `summary` is empty.
+    `additional`. `headline` is always required, even when `summary` is empty: it is the
+    JOB-POSTING's title, copied in the posting's own words and language, with the posting's labels
+    left out — a gender marker (H/F, (m/f/d)), a contract type (CDI, permanent), a working pattern
+    or place (Hybrid, Remote, a city), a reference number. Never translate it, never reword it,
+    never write a positioning phrase instead; it names the job applied for, so it is printed as is
+    even when the candidate has never held that title. A posting with no title: the title of the
+    candidate's current role from the Roles: block.
 
 ## Writing style
 
@@ -149,7 +154,7 @@ Output shape (JSON only, no prose):
 ```json
 {
   "name": "…",
-  "headline": "one line positioning the candidate for THIS posting, grounded in claims",
+  "headline": "the posting's own title, its labels left out, never translated (rule 10)",
   "contact": "city · phone · email — only parts present in the header",
   "summary": "… (or \"\" — see rule 10; empty is correct when nothing earns the section a place)",
   "experience": [

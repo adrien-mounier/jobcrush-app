@@ -38,6 +38,8 @@ import type { EligibilityFact } from "./eligibility.js";
 // #305: type-only, and it has to stay that way — broughtJobs.ts reads `Posting` from here, so a value
 // import in this direction would close a runtime cycle. TS erases this one.
 import type { BroughtJob } from "./broughtJobs.js";
+// Value import, no cycle: cvPreview.ts takes only the `Posting` type from here (erased).
+import { ownJob } from "./cvPreview.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -517,8 +519,9 @@ export function conservationIssues(
   // page element, every meaningful word of the denial (phraseStated): the stated ceiling is that it
   // catches the denial's own words, never a paraphrase.
   if (denied.length > 0) {
+    // #454: the headline is not here — it is the job's own title (names the job applied for,
+    // never a claim), so a denial's words in it are the ad's, not the candidate's.
     const pageTexts = [
-      draft.headline,
       draft.summary,
       // Role titles and employers are model-written text that prints too — a denial restated as a
       // role title ("SAP Migration Lead") is the same handed capability as a bullet stating it.
@@ -926,6 +929,24 @@ export interface TailoredDraft {
   conservationNotices: string[];
 }
 
+/** The letterhead's words, case and accents folded, for the guard below. */
+const headlineWords = (s: string) =>
+  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/** #454 (spec #450, GLOSSARY "Headline"): the headline is the job's own title. The model copies the
+ *  posting's title without the ad's labels (gender marker, contract, place, reference); the guard
+ *  keeps that copy only when every word of it is the title's, else prints the title as given —
+ *  never a positioning phrase, never a translation. A posting with no title (the ad named none)
+ *  takes the person's own job's title (ADR-0019's rule); with no job on record either, the
+ *  model's line stands rather than an empty letterhead line. */
+function headlineFor(modelHeadline: string, posting: Pick<Posting, "title">, jobBlocks: JobBlockView[]): string {
+  const title = posting.title.trim();
+  if (!title) return ownJob(jobBlocks)?.title.value || modelHeadline;
+  const allowed = new Set(headlineWords(title));
+  const words = headlineWords(modelHeadline);
+  return words.length > 0 && words.every((w) => allowed.has(w)) ? modelHeadline : title;
+}
+
 export async function tailorDraft(
   claims: CandidateClaims,
   posting: Posting,
@@ -949,6 +970,7 @@ export async function tailorDraft(
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
       continue;
     }
+    draft.headline = headlineFor(draft.headline, posting, opts.jobBlocks ?? []);
     const issues = conservationIssues(
       claims,
       draft,
