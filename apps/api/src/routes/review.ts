@@ -92,10 +92,9 @@ const ReviewSection = z.union([
 const LetterheadField = z.object({ value: z.string(), origin: z.enum(["read", "person-said"]) });
 const ReviewStateSchema = z.object({
   completed: z.boolean(),
-  // #381: Your details' five fields.
+  // #381: Your details' fields.
   letterhead: z.object({
     name: LetterheadField.nullable(),
-    title: LetterheadField.nullable(),
     email: LetterheadField.nullable(),
     phone: LetterheadField.nullable(),
     location: LetterheadField.nullable(),

@@ -158,10 +158,9 @@ describe("#338 the paper", () => {
     const state = await review(app, cookie);
 
     expect(state.completed).toBe(false);
-    // #381: the letterhead as Your details' five fields; this CV has a city but no title.
+    // #381: the letterhead as Your details' fields.
     expect(state.letterhead).toEqual({
       name: { value: "Jane Doe", origin: "read" },
-      title: null,
       email: { value: "jane.doe.338@example.com", origin: "read" },
       phone: { value: "+33 6 00 00 00 00", origin: "read" },
       location: { value: "Paris, France", origin: "read" },

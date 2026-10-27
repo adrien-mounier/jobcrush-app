@@ -24,7 +24,6 @@ const C_NOT_FOUND = "Not found in your CV";
  *  autofill hint and keyboard. */
 const DETAIL_FIELDS: Array<{ field: ContactField; label: string; type: string; autoComplete: string }> = [
   { field: "name", label: "Name", type: "text", autoComplete: "name" },
-  { field: "title", label: "Title", type: "text", autoComplete: "organization-title" },
   { field: "email", label: "Email", type: "email", autoComplete: "email" },
   { field: "phone", label: "Phone", type: "tel", autoComplete: "tel" },
   { field: "location", label: "Location", type: "text", autoComplete: "address-level2" },

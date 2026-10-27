@@ -399,8 +399,12 @@ listed passes silently (the *"N more not shown"* control is #157's build).
 
 **Visual formatting and section design** — full reference: `/research_result/2026-06-09_cv-formatting-design-standards.md`. Apply on every CV write:
 - **The letterhead is three centred lines, in this order** (owner, 2026-10-26, #439): the name; the
-  contact details (separated by a middle dot `·` or a dash, never a pipe); then the headline, the job
-  title written for this job. Every produced CV has this shape whatever the uploaded CV's layout
+  contact details (separated by a middle dot `·` or a dash, never a pipe); then the headline, the job's
+  own title (owner, 2026-10-27, #454): on a CV for a job ad, the ad's title in the ad's own words and
+  language, without its labels (gender marker, contract type, working pattern or place, reference),
+  printed straight even for a title the person has never held — it names the job applied for, so it is
+  never a stretch; with no title in the ad, and on the profile's Preview as CV, the title of the
+  person's own job (current, else most recent). Never a positioning phrase. Every produced CV has this shape whatever the uploaded CV's layout
   was (a two-column or designed letterhead is restructured into it; a photo is dropped). A long
   contact line wraps, centred, inside the page. The contact stays in the page body, never in a PDF
   header or footer. This replaces the left-aligned two-line header of #159.

@@ -379,7 +379,6 @@ export default function CheckPage() {
           details={{
             values: {
               name: typed.name ?? saved("name"),
-              title: typed.title ?? saved("title"),
               email: typed.email ?? saved("email"),
               phone: typed.phone ?? saved("phone"),
               location: typed.location ?? saved("location"),

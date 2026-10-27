@@ -319,10 +319,10 @@ describe("#390 the letterhead and the download", () => {
       method: "PUT",
       url: "/contact",
       headers: { cookie: s.cookie },
-      payload: { fields: { name: "Jane Dubois", title: "Head of Delivery", location: "Lyon, France", email: "jane@example.com", phone: "+33 6 00 00 00 00" } },
+      payload: { fields: { name: "Jane Dubois", location: "Lyon, France", email: "jane@example.com", phone: "+33 6 00 00 00 00" } },
     });
     await makePreview(s.app, s.cookie);
-    expect(s.prompts[0]).toContain("===CANDIDATE-HEADER===\nJane Dubois\nHead of Delivery\nLyon, France · +33 6 00 00 00 00 · jane@example.com\n");
+    expect(s.prompts[0]).toContain("===CANDIDATE-HEADER===\nJane Dubois\nLyon, France · +33 6 00 00 00 00 · jane@example.com\n");
     const { html } = (await get(s.app, s.cookie, "/profile/cv-preview")).json();
     expect(html).toContain("<h1>Jane Dubois</h1>");
     expect(html).toContain("jane@example.com");
@@ -361,5 +361,29 @@ describe("#390 the letterhead and the download", () => {
     const res = await get(s.app, s.cookie, "/profile/cv-preview/pdf");
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe("no_preview");
+  });
+});
+
+// #454 (spec #450): the preview's headline is the person's own job's title as written on that
+// job, whatever the model composed; a preview stored before the rule reads as none and is remade.
+describe("#454 the preview's headline is the own job's title", () => {
+  const HEAD = block("head", "Now Co", "Head of Delivery Programmes", { year: 2021, month: 3 }, ONGOING);
+
+  it("prints the own job's title as written, not the model's positioning line", async () => {
+    const s = await withJobs([HEAD]);
+    await makePreview(s.app, s.cookie);
+    const { html } = (await get(s.app, s.cookie, "/profile/cv-preview")).json();
+    expect(html).toContain('<p class="headline">Head of Delivery Programmes</p>');
+  });
+
+  it("a preview stored under an earlier input fingerprint reads as none and is remade on the next ask", async () => {
+    const s = await withJobs([HEAD]);
+    await makePreview(s.app, s.cookie);
+    const stored = (await s.tailorDrafts.get(s.sessionId, CV_PREVIEW_AD_ID))!;
+    await s.tailorDrafts.put(s.sessionId, CV_PREVIEW_AD_ID, { ...stored, inputFingerprint: "made-before-#454" });
+    expect((await get(s.app, s.cookie, "/profile/cv-preview")).statusCode).toBe(404);
+    expect((await makePreview(s.app, s.cookie)).statusCode).toBe(202);
+    expect(s.prompts).toHaveLength(2);
+    expect((await get(s.app, s.cookie, "/profile/cv-preview")).statusCode).toBe(200);
   });
 });

@@ -26,7 +26,7 @@ for (const [name, make] of drivers) {
 
     it("unknown reads as null — never invented", async () => {
       expect(await store.get(sid, "phone")).toBeNull();
-      expect(await store.getRecord(sid)).toEqual({ phone: null, email: null, name: null, title: null, location: null });
+      expect(await store.getRecord(sid)).toEqual({ phone: null, email: null, name: null, location: null });
     });
 
     it("stores a read value with its source text as origin", async () => {
@@ -86,7 +86,7 @@ for (const [name, make] of drivers) {
       const record = await store.getRecord(sid);
       expect(record.phone).toMatchObject({ value: "+33 6 00 00 00 00" });
       expect(record.email).toMatchObject({ value: "jane@example.com" });
-      expect(await store.getRecord("other-session")).toEqual({ phone: null, email: null, name: null, title: null, location: null });
+      expect(await store.getRecord("other-session")).toEqual({ phone: null, email: null, name: null, location: null });
     });
   });
 }
@@ -121,7 +121,6 @@ describe("PUT /contact — the profile screen's correction door", () => {
       phone: null,
       email: { value: "jane@example.com", origin: "person-said", sourceText: "jane@example.com" },
       name: null,
-      title: null,
       location: null,
     });
   });
@@ -135,14 +134,13 @@ describe("PUT /contact — the profile screen's correction door", () => {
       method: "PUT",
       url: "/contact",
       headers: { cookie },
-      payload: { fields: { name: "Jane Doe", title: " Delivery Lead ", location: "", phone: "+33 6 99 99 99 99" } },
+      payload: { fields: { name: "Jane Doe", email: " jane@example.com ", location: "", phone: "+33 6 99 99 99 99" } },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       name: { value: "Jane Doe", origin: "person-said", sourceText: "Jane Doe" },
-      title: { value: "Delivery Lead", origin: "person-said", sourceText: "Delivery Lead" },
       phone: { value: "+33 6 99 99 99 99", origin: "person-said", sourceText: "+33 6 99 99 99 99" },
-      email: null,
+      email: { value: "jane@example.com", origin: "person-said", sourceText: "jane@example.com" },
       location: null,
     });
   });
@@ -157,6 +155,19 @@ describe("PUT /contact — the profile screen's correction door", () => {
       payload: { fields: { address: "somewhere" } },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  // #453: the job title left Your details — `title` is no longer a contact field, on either shape.
+  it("#453: rejects a title field, on both shapes, while the four fields still land", async () => {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    const single = await server.app.inject({ method: "PUT", url: "/contact", headers: { cookie }, payload: { field: "title", value: "Head of Delivery" } });
+    expect(single.statusCode).toBe(400);
+    const batched = await server.app.inject({ method: "PUT", url: "/contact", headers: { cookie }, payload: { fields: { title: "Head of Delivery", name: "Jane Doe" } } });
+    expect(batched.statusCode).toBe(400);
+    const ok = await server.app.inject({ method: "PUT", url: "/contact", headers: { cookie }, payload: { fields: { name: "Jane Doe", location: "Lyon, France" } } });
+    expect(ok.statusCode).toBe(200);
+    expect(Object.keys(ok.json()).sort()).toEqual(["email", "location", "name", "phone"]);
   });
 
   it("rejects an unknown field", async () => {

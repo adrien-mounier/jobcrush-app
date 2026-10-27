@@ -30,7 +30,6 @@ const REVIEW: ReviewState = {
   completed: false,
   letterhead: {
     name: { value: "Jane Doe", origin: "read" },
-    title: { value: "IT Project Manager", origin: "read" },
     email: { value: "jane.doe@example.com", origin: "read" },
     phone: { value: "+33 6 00 00 00 00", origin: "read" },
     location: { value: "Paris, France", origin: "read" },
@@ -628,14 +627,14 @@ test("with the check failed to load, the screen says so and offers a retry", asy
   await expect(heading(page)).toHaveText("Your details");
 });
 
-// #381 (ADR-0018 clause 5): Your details are the person's own facts, shown as five editable fields
+// #381 (ADR-0018 clause 5): Your details are the person's own facts, shown as four editable fields
 // in a plain card; the footer button saves what changed, and typing survives moving around.
 test.describe("#381 Your details as editable fields", () => {
-  const FIELDS = ["name", "title", "email", "phone", "location"] as const;
+  const FIELDS = ["name", "email", "phone", "location"] as const;
   const field = (page: Page, name: (typeof FIELDS)[number]) => page.locator(`.card.form .fields input[name=${name}]`);
   const contactCalls = (calls: Recorded[]) => calls.filter((c) => c.url === "/api/contact");
 
-  test("the five fields arrive filled from the letterhead, in a plain card with no button of its own", async ({ page }) => {
+  test("the four fields arrive filled from the letterhead, in a plain card with no button of its own", async ({ page }) => {
     await stubReview(page);
     await page.goto("/profile/check");
     await expect(heading(page)).toHaveText(SCREENS[0]!);
@@ -645,6 +644,7 @@ test.describe("#381 Your details as editable fields", () => {
     for (const f of FIELDS) await expect(page.locator(`.card.form .fields label:has(input[name=${f}])`)).toHaveCount(1);
     await expect(page.locator(".card.form button")).toHaveCount(0);
     await expect(page.locator(".card.form")).toHaveCount(1);
+    await expect(page.locator(".card.form .fields input")).toHaveCount(4); // #453: no Title field
   });
 
   test("a CV with no location shows the empty field with its placeholder, and the screen still confirms without a save", async ({ page }) => {
@@ -664,17 +664,17 @@ test.describe("#381 Your details as editable fields", () => {
   test("editing a field and pressing Next saves it — only what changed — and a reload shows it", async ({ page }) => {
     const { calls } = await stubReview(page);
     await page.goto("/profile/check");
-    await field(page, "title").fill("Head of Delivery");
+    await field(page, "email").fill("jane.dm@example.com");
     await field(page, "location").fill("Lyon, France");
     await primary(page).click();
     await expect(heading(page)).toHaveText(SCREENS[1]!);
     expect(contactCalls(calls)).toEqual([
-      { method: "PUT", url: "/api/contact", body: { fields: { title: "Head of Delivery", location: "Lyon, France" } } },
+      { method: "PUT", url: "/api/contact", body: { fields: { email: "jane.dm@example.com", location: "Lyon, France" } } },
     ]);
 
     await page.reload();
     await expect(heading(page)).toHaveText(SCREENS[0]!);
-    await expect(field(page, "title")).toHaveValue("Head of Delivery");
+    await expect(field(page, "email")).toHaveValue("jane.dm@example.com");
     await expect(field(page, "location")).toHaveValue("Lyon, France");
     await expect(field(page, "name")).toHaveValue("Jane Doe");
   });
@@ -1802,7 +1802,7 @@ test.describe("#386 the end date and the import conflict", () => {
     await picks.nth(1).click();
     expect(calls).toEqual([{ method: "POST", url: "/api/review/conflicts/location", body: { value: "Lyon" } }]);
     await expect(conflict(page)).toHaveCount(0);
-    await expect(page.locator(".fields input")).toHaveCount(5); // Your details' fields stay
+    await expect(page.locator(".fields input")).toHaveCount(4); // Your details' fields stay (#453: four)
   });
 
   test("an unanswered conflict sends nothing and never holds the button; with no conflict there is no card", async ({ page }) => {
@@ -1821,7 +1821,7 @@ test.describe("#386 the end date and the import conflict", () => {
   });
 
   test("a conflict is asked even when the CV gave no details to show", async ({ page }) => {
-    await stubReview(page, { ...CONFLICT, letterhead: { name: null, title: null, email: null, phone: null, location: null } });
+    await stubReview(page, { ...CONFLICT, letterhead: { name: null, email: null, phone: null, location: null } });
     await page.goto("/profile/check");
     await expect(conflict(page)).toHaveCount(1);
   });
@@ -1883,6 +1883,7 @@ test.describe("#386 while the check runs, and a part it never answered", () => {
     await expect(reading.locator(".readprog i")).toHaveCount(2); // one segment per unit of the run
     await expect(reading.locator(".readprog i.done")).toHaveCount(1);
     await expect(reading.locator(".sheet .name")).toHaveText("Jane Doe"); // her own CV, not a picture of one
+    await expect(reading.locator(".sheet p").nth(1)).toHaveText("Professional Summary"); // #453: no title line under the name
     const rows = await reading.locator(".sheet p").count();
     await expect(reading.locator(".sheet p.inked")).toHaveCount(Math.round(rows / 2)); // half the run, half the page
     await expect(page.locator(".foot, .guide")).toHaveCount(0); // nothing to walk yet

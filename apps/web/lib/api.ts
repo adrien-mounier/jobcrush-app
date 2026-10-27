@@ -681,8 +681,8 @@ export interface ProfileContactField {
   value: string;
   origin: "read" | "person-said";
 }
-/** #381: the letterhead's five fields — mirrors apps/api/src/contact.ts's ContactField. */
-export type ContactField = "name" | "title" | "email" | "phone" | "location";
+/** #381: the letterhead's fields — mirrors apps/api/src/contact.ts's ContactField (#453: no title). */
+export type ContactField = "name" | "email" | "phone" | "location";
 export type ProfileContact = Record<ContactField, ProfileContactField | null>;
 
 // #214: the rail's Location data is a LIST now — mirrors apps/api/src/profile.ts's ProfileLocation.

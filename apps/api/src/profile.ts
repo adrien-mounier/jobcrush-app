@@ -91,7 +91,7 @@ export interface ProfileContactField {
   value: string;
   origin: "read" | "person-said";
 }
-/** #381: the letterhead's five fields — name, title, email, phone, location. */
+/** #381: the letterhead's fields — name, email, phone, location. */
 export type ProfileContact = Record<ContactField, ProfileContactField | null>;
 /** #185: the rail's work-rights line — present only once a search area has resolved to a covered
  *  market (never a placeholder market). `answer` is null when THIS market has no stored answer yet

@@ -20,6 +20,9 @@ import { makeMineStep } from "../src/miner.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { isTerminal } from "../src/jobs.js";
 import type { LlmClient } from "../src/llm.js";
+import type { Posting } from "../src/preview.js";
+import { applyUsedStretches } from "../src/stretchSuggestions.js";
+import { StretchSlot, type StretchProposalV2 } from "@jobcrush/contracts";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)));
 
@@ -1424,5 +1427,116 @@ describe("#399 lint + prompt — a language is prose in the summary, no fact pri
     expect(flat).toContain("fluent in English");
     expect(flat).toContain("never the Languages-line form");
     expect(flat).toContain("never repeats a fact that prints as a bullet under a role");
+  });
+});
+
+// #454 (spec #450) — the headline is the job's own title: the posting's title in its own words
+// without the ad's labels, guarded server-side; the own job's title when the posting has none.
+describe("#454 the headline is the job's own title", () => {
+  const titled = (title: string): Posting => ({ ...matchPosting([]), title });
+  const written = (headline: string) => llmReturning({ ...sampleDraft, headline });
+  const headlineRule = (html: string) => html.match(/[\s}]\.headline\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  it("keeps the model's headline when it is the posting title without its labels, and prints it uppercase under the contact line", async () => {
+    const posting = titled("Chef de projet IT H/F");
+    const { draft } = await tailorDraft(await recordedClaims(), posting, written("Chef de projet IT"));
+    expect(draft.headline).toBe("Chef de projet IT");
+    const html = renderPreviewHtml(draft, posting, { banner: false });
+    expect(html).toContain('<p class="contact"><span class="ci">Warsaw ·</span> <span class="ci">maria.kowalski@example.com</span></p>\n<p class="headline">Chef de projet IT</p>');
+    expect(headlineRule(html)).toMatch(/text-transform:\s*uppercase/);
+  });
+
+  it("falls back to the posting title as given when the model composes a positioning phrase", async () => {
+    const { draft } = await tailorDraft(await recordedClaims(), titled("Chef de projet IT H/F"), written("IT Project Manager for enterprise delivery"));
+    expect(draft.headline).toBe("Chef de projet IT H/F");
+  });
+
+  it("a French ad title over an English CV stays French — a translated headline is replaced by the title", async () => {
+    const { draft } = await tailorDraft(await recordedClaims(), titled("Chef de projet IT H/F"), written("IT Project Manager"));
+    expect(draft.headline).toBe("Chef de projet IT H/F");
+  });
+
+  it("matches the title's words ignoring case and accents", async () => {
+    const { draft } = await tailorDraft(await recordedClaims(), titled("CHEF DE PROJET SÉCURITÉ (H/F) - CDI"), written("Chef de projet Securite"));
+    expect(draft.headline).toBe("Chef de projet Securite");
+  });
+
+  it("an empty posting title gives the person's own job's title (ADR-0019's rule)", async () => {
+    const decision = (value: string) => ({ value, source_quote: value, machine_touch: "verbatim" as const, classification: "Verified" as const });
+    const store = new InMemoryJobBlockStore();
+    await store.ingest(
+      "s1",
+      {
+        schemaVersion: "1",
+        blocks: [
+          {
+            id: "old",
+            employer: decision("Past Co"),
+            title: decision("Delivery Lead"),
+            start: { value: { year: 2015, month: 1, precision: "month" as const }, source_quote: "2015", machine_touch: "verbatim" as const, classification: "Verified" as const },
+            end: { value: { state: "ended" as const, date: { year: 2019, month: 6, precision: "month" as const } }, source_quote: "2019", machine_touch: "verbatim" as const, classification: "Verified" as const },
+            kind: decision("job"),
+          },
+          {
+            id: "now",
+            employer: decision("Now Co"),
+            title: decision("Head of Delivery Programmes"),
+            start: { value: { year: 2020, month: 1, precision: "month" as const }, source_quote: "2020", machine_touch: "verbatim" as const, classification: "Verified" as const },
+            end: { value: { state: "ongoing" as const }, source_quote: "Present", machine_touch: "verbatim" as const, classification: "Verified" as const },
+            kind: decision("job"),
+          },
+        ],
+      } as never,
+      "raw",
+    );
+    const { draft } = await tailorDraft(await recordedClaims(), titled(""), written("IT Project Manager"), "", { jobBlocks: await store.list("s1") });
+    expect(draft.headline).toBe("Head of Delivery Programmes");
+    // Nothing to fall back on: the model's line stands rather than an empty letterhead line.
+    const bare = await tailorDraft(await recordedClaims(), titled("  "), written("IT Project Manager"), "", { jobBlocks: [] });
+    expect(bare.draft.headline).toBe("IT Project Manager");
+  });
+
+  it("the denied-capability check skips the headline (it names the job applied for, not a claim) but still catches a bullet", async () => {
+    const claims = await recordedClaims();
+    const DENIED = "SAP S/4HANA migration experience";
+    const inHeadline: Draft = { ...sampleDraft, headline: "SAP S/4HANA migration experience lead" };
+    expect(conservationIssues(claims, inHeadline, [], [], [DENIED]).filter((i) => i.fatal)).toEqual([]);
+    const inBullet: Draft = {
+      ...sampleDraft,
+      experience: [{ ...sampleDraft.experience[0]!, bullets: [{ ...sampleDraft.experience[0]!.bullets[0]!, text: "Led SAP S/4HANA migration experience for retail" }] }],
+    };
+    expect(conservationIssues(claims, inBullet, [], [], [DENIED]).some((i) => i.fatal)).toBe(true);
+  });
+
+  it("a stretch can never land on the headline: no headline slot exists, and used stretches leave it as drafted", () => {
+    expect(StretchSlot.safeParse({ kind: "headline" }).success).toBe(false);
+    const proposal = (id: string, slot: StretchSlot, lineOut: string | null): StretchProposalV2 => ({
+      schemaVersion: "2",
+      id,
+      adId: "ad",
+      requirementId: "req",
+      why: "why",
+      claimText: "Owned the vendor tender end to end.",
+      intendedClass: "Partially-Supported",
+      interviewNarrative: "say",
+      slot,
+      lineOut,
+      derivedFrom: null,
+      createdAt: "2026-10-27T00:00:00.000Z",
+      state: "approved",
+      decidedAt: "2026-10-27T00:00:00.000Z",
+      scope: "this-job",
+    });
+    const applied = applyUsedStretches(sampleDraft, {
+      fingerprint: "f",
+      status: "ran",
+      suggestions: [
+        proposal("s-bullet", { kind: "bullet", role: 0, bullet: 0 }, "out"),
+        proposal("s-summary", { kind: "summary" }, "out"),
+        proposal("s-skill", { kind: "skill", group: 0 }, null),
+      ],
+    });
+    expect(applied.summary).toBe("Owned the vendor tender end to end."); // the swap did happen
+    expect(applied.headline).toBe(sampleDraft.headline);
   });
 });

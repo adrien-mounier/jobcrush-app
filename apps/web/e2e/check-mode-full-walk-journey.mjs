@@ -66,7 +66,7 @@ const RAID_EDITED = 'Introduced RAID logging across four squads, cutting escalat
 const STEERING = 'Ran steering committee reporting for the CIO.';
 const MINE = 'Aligned the business and IT groups through every checkout release.';
 const ABOUT_MINE = 'Delivered the checkout replatform two months early and ran EUR 1.2M across three vendors.';
-const NEW_TITLE = 'Senior IT Project Manager';
+const NEW_CITY = 'Lyon, France';
 
 const ADVERT = `Senior IT Project Manager — Helvara Group ${RUN}
 Singapore
@@ -233,21 +233,20 @@ try {
   }
 
   // -------------------------------------------------------------------------------------------
-  // 2. Your details — five editable fields in a plain card (#381).
+  // 2. Your details — four editable fields in a plain card (#381; #453 removed the title).
   // -------------------------------------------------------------------------------------------
   await qa.goto('/profile/check', 'check mode, from the top');
   await qa.expectText(h1, 'Your details', 'the walk opens at her details');
-  for (const f of ['name', 'title', 'email', 'phone', 'location']) await qa.expectVisible(`input[name=${f}]`, `the ${f} field`);
+  for (const f of ['name', 'email', 'phone', 'location']) await qa.expectVisible(`input[name=${f}]`, `the ${f} field`);
+  await assert((await page.locator('input[name=title]').count()) === 0, '#453 no Title field in Your details');
   const values = {};
-  for (const f of ['name', 'title', 'email', 'phone', 'location']) values[f] = await page.locator(`input[name=${f}]`).inputValue();
+  for (const f of ['name', 'email', 'phone', 'location']) values[f] = await page.locator(`input[name=${f}]`).inputValue();
   await qa.note(`fields as read: ${JSON.stringify(values)}`);
   await assert(values.name.includes('Jane Doe') && values.email === EMAIL, 'name and email as read');
-  await assert(values.title.length < 80, `the title is a title, not a summary (${values.title.length} chars)`);
-  await assert(values.title === '', `her CV has no title line, and the phone's label is not read as one (${JSON.stringify(values.title)})`);
   await assert((await page.locator('main .sg, main .hd').count()) === 0, 'no gold frame, no "Please check" header — a plain card');
   await qa.expectText(lead, 'Check how I read your details', 'one plain sentence says what to do');
   if (!values.location) await qa.expectVisible('input[name=location][placeholder="Not found in your CV"]', 'an empty location says so');
-  await qa.fill('input[name=title]', NEW_TITLE, 'she sets her title');
+  await qa.fill('input[name=location]', NEW_CITY, 'she sets her city');
   await qa.scrollThrough('her details');
   await copyRule('Your details');
   if (PHONE) {
@@ -258,9 +257,10 @@ try {
   await qa.click(primary, `the footer button saves and moves on (${await label()})`);
   await qa.expectText(h1, 'About you', 'About you comes next');
   await qa.click(back, 'Back');
-  await assert((await page.locator('input[name=title]').inputValue()) === NEW_TITLE, 'Back shows her title');
+  await assert((await page.locator('input[name=location]').inputValue()) === NEW_CITY, 'Back shows her city');
   const lh = (await review()).letterhead;
-  await assert(lh.title?.value === NEW_TITLE, `the server holds the title (${JSON.stringify(lh.title)})`);
+  await assert(lh.location?.value === NEW_CITY, `the server holds the city (${JSON.stringify(lh.location)})`);
+  await assert(!('title' in lh), `#453 the letterhead carries no title field (${Object.keys(lh).join(', ')})`);
 
   // -------------------------------------------------------------------------------------------
   // 3. About you — written from the whole CV, kept or edited (#371).
@@ -462,7 +462,7 @@ try {
   await assert([d3, ...rest].every((d) => !m1.md.includes(d.text)), 'no dismissed suggestion prints');
   await assert(m1.md.includes(d1.text) && m1.md.includes(MINE), 'what she added prints, in her words');
   await assert(m1.md.includes(RAID_EDITED) && !m1.md.includes(RAID), 'the edited item prints her words, never the words as read');
-  await qa.note(`master CV letterhead (owner decision pending, deviation 2): title "${NEW_TITLE}" printed: ${m1.md.includes(NEW_TITLE)}`);
+  await assert(m1.md.includes(NEW_CITY), 'the master CV letterhead prints her city');
 
   // -------------------------------------------------------------------------------------------
   // 9. The profile after check mode: removed tray, Fixed tag, no on-screen ticked/kept/reviewed.

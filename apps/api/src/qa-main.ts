@@ -417,7 +417,10 @@ const fakeLlm: LlmClient = {
       const header = rawHeader === "(none captured)" ? "" : rawHeader;
       const contact = header ? header.split("\n").filter(Boolean).join(" · ") : DRAFT.contact;
       const name = header ? (header.split("\n")[0] || DRAFT.name).trim() : DRAFT.name;
-      return JSON.stringify({ ...DRAFT, name, contact });
+      // #454: the headline is the posting's own title, read off the prompt's JOB-POSTING line as
+      // the real tailor copies it (the server's guard would rewrite a composed one anyway).
+      const headline = /===JOB-POSTING===\n(.+?) at /.exec(prompt)?.[1] || DRAFT.headline;
+      return JSON.stringify({ ...DRAFT, name, contact, headline });
     }
     // card-judge.md's own opening line, checked like every other stage: one verdict per requirement
     // id, read back out of the prompt's own "- id: x" lines (buildJudgeInput's shape) so coverage is

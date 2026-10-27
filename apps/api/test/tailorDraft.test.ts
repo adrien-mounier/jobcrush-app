@@ -274,9 +274,9 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     expect(prompts[0]).not.toContain("(none captured)");
   });
 
-  // #381: the draft prints the SAVED fields — a name and title the person corrected in Your details
+  // #381: the draft prints the SAVED fields — a name and city the person corrected in Your details
   // (the batched door check mode's footer button sends) are what the engine is handed, never the CV's.
-  it("#381: the candidate header carries the name and title saved in Your details", async () => {
+  it("#381: the candidate header carries the name and city saved in Your details", async () => {
     const { prompts, llm } = draftingLlm();
     const server = buildServer({ tailorLlm: llm });
     const cookie = await anonSession(server.app);
@@ -284,21 +284,21 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     const sessionId = (await get(server.app, cookie, "/sessions/me")).json().id as string;
     const read = (value: string) => ({ value, origin: "read" as const, sourceText: value });
     await server.contact.put(sessionId, "name", read("Jane Dubois"));
-    await server.contact.put(sessionId, "title", read("PROJECT LEAD"));
+    await server.contact.put(sessionId, "location", read("Paris, France"));
 
     const saved = await server.app.inject({
       method: "PUT",
       url: "/contact",
       headers: { cookie },
-      payload: { fields: { name: "Jane Dubois-Martin", title: "Head of Delivery", location: "Lyon, France" } },
+      payload: { fields: { name: "Jane Dubois-Martin", location: "Lyon, France" } },
     });
     expect(saved.statusCode).toBe(200);
 
     const started = await post(server.app, cookie, "/onboarding/tailor/draft");
     await awaitJob(server.app, cookie, started.json().jobId);
     const header = prompts[0]!.split("===CANDIDATE-HEADER===\n")[1]!.split("\n\n")[0];
-    expect(header).toBe("Jane Dubois-Martin\nHead of Delivery\nLyon, France");
-    expect(prompts[0]).not.toContain("PROJECT LEAD");
+    expect(header).toBe("Jane Dubois-Martin\nLyon, France");
+    expect(prompts[0]).not.toContain("Paris, France");
   });
 
   it("GET never serves a draft the facts have outgrown — a stale checkpoint reads as no draft", async () => {
