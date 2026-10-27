@@ -238,6 +238,18 @@ export function requireUser(req: FastifyRequest): SessionRecord {
   return session;
 }
 
+/** The default read-path contact write (#190, #381): the letterhead's fields — what Your details
+ *  shows and the tailor's candidate header is built from — land with origin "read", so the
+ *  store's person-said guard applies. Exported so tests that run the pipeline directly reuse it. */
+export const persistContactInto =
+  (contact: ContactStore): NonNullable<PipelineDeps["persistContact"]> =>
+  async (sessionId, extraction) => {
+    for (const field of CONTACT_FIELDS) {
+      const read = extraction[field];
+      if (read) await contact.put(sessionId, field, { ...read, origin: "read" });
+    }
+  };
+
 export function buildServer(opts: BuildOptions = {}) {
   const store = opts.store ?? new InMemoryJobStore();
   const sessions = opts.sessions ?? new InMemorySessionStore();
@@ -588,16 +600,7 @@ export function buildServer(opts: BuildOptions = {}) {
       }),
     // #190: shared by both the upload and paste pipeline entry points — sessionId travels as a
     // plain argument, not a per-request closure, so contact capture works uniformly on either path.
-    persistContact:
-      opts.pipeline?.persistContact ??
-      (async (sessionId, extraction) => {
-        // #381: the letterhead's five fields — what Your details shows and the tailor's candidate
-        // header is built from (letterheadText).
-        for (const field of CONTACT_FIELDS) {
-          const read = extraction[field];
-          if (read) await contact.put(sessionId, field, { ...read, origin: "read" });
-        }
-      }),
+    persistContact: opts.pipeline?.persistContact ?? persistContactInto(contact),
     // #161: shared by both intake paths, same convention as persistContact above — sessionId travels
     // as a plain argument so job-block capture works uniformly on either upload or paste.
     persistJobBlocks:

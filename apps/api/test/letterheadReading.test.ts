@@ -7,14 +7,13 @@
 // shows. A test that wants a particular reading makes the FAKE MODEL say it; nothing asserts prompt
 // wording.
 import { describe, expect, it } from "vitest";
-import { buildServer } from "../src/server.js";
+import { buildServer, persistContactInto } from "../src/server.js";
 import { InMemoryContactStore } from "../src/contact.js";
 import { InMemoryJobStore, isTerminal, type JobRecord } from "../src/jobs.js";
 import { runOnboardingJob, type PipelineDeps } from "../src/pipeline.js";
 import { makeReadLetterheadStep } from "../src/letterheadReader.js";
 import { meterLlm } from "../src/llmMeter.js";
 import { InMemoryUsageLedgerStore } from "../src/usageLedgerStore.js";
-import { CONTACT_FIELDS } from "../src/contact.js";
 import type { LlmClient } from "../src/llm.js";
 import type { RawCv } from "../src/extract.js";
 
@@ -146,19 +145,11 @@ describe("#451 the letterhead reading — name and city from the model, email an
 });
 
 describe("#451 checkpoint and ledger", () => {
-  /** The pipeline run directly on a job store, with the server's own read-path write (server.ts's
-   *  persistContact default is the CONTACT_FIELDS loop; the same loop here). */
-  function deps(llm: LlmClient, contact: InMemoryContactStore): PipelineDeps {
-    return {
-      readLetterhead: makeReadLetterheadStep(llm),
-      persistContact: async (sid, fields) => {
-        for (const field of CONTACT_FIELDS) {
-          const read = fields[field];
-          if (read) await contact.put(sid, field, { ...read, origin: "read" });
-        }
-      },
-    };
-  }
+  /** The pipeline run directly on a job store, with the server's own read-path write. */
+  const deps = (llm: LlmClient, contact: InMemoryContactStore): PipelineDeps => ({
+    readLetterhead: makeReadLetterheadStep(llm),
+    persistContact: persistContactInto(contact),
+  });
 
   it("a retried upload after the checkpoint makes no second call", async () => {
     const { llm, calls } = fakeLlm(() => answer(quoted("J A N E  D O E"), null));
@@ -171,6 +162,25 @@ describe("#451 checkpoint and ledger", () => {
 
     await runOnboardingJob(jobs, job.id, { type: "paste", text: CV }, deps(llm, contact));
     expect(calls).toHaveLength(1);
+    expect(await contact.get("sess-1", "name")).toMatchObject({ value: "J A N E  D O E" });
+  });
+
+  it.each([
+    ["a thrown call", () => Promise.reject(new Error("timeout"))],
+    ["an unreadable answer", () => "not json at all"],
+  ])("%s is not checkpointed: a retried upload makes a second call", async (_, failing) => {
+    let reply = failing;
+    const { llm, calls } = fakeLlm(() => reply());
+    const contact = new InMemoryContactStore();
+    const jobs = new InMemoryJobStore();
+    const job = await jobs.create("onboarding", "sess-1");
+    await runOnboardingJob(jobs, job.id, { type: "paste", text: CV }, deps(llm, contact));
+    expect(calls).toHaveLength(1);
+    expect((await jobs.get(job.id))?.progress.letterhead).toBeUndefined();
+
+    reply = () => answer(quoted("J A N E  D O E"), null);
+    await runOnboardingJob(jobs, job.id, { type: "paste", text: CV }, deps(llm, contact));
+    expect(calls).toHaveLength(2);
     expect(await contact.get("sess-1", "name")).toMatchObject({ value: "J A N E  D O E" });
   });
 

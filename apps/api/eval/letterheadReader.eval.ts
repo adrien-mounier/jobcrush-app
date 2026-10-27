@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { RawCv } from "../src/extract.js";
+import { buildRawCv } from "../src/extract.js";
 import { makeReadLetterheadStep } from "../src/letterheadReader.js";
 import { llmForStep } from "../src/llm.js";
 import { perCase } from "./harness.js";
@@ -59,13 +59,7 @@ const allCases = (JSON.parse(readFileSync(GRID_PATH, "utf8")) as { cases: GridCa
 const only = process.env.EVAL_ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
 const cases = only?.length ? allCases.filter((c) => only.includes(c.id)) : allCases;
 
-const rawCv = (text: string): RawCv => ({
-  source: "paste",
-  status: "ok",
-  fullText: text,
-  blocks: [],
-  stats: { roles: 0, bullets: 0, chars: text.length, pages: null },
-});
+const rawCv = (text: string) => buildRawCv("paste", text, null);
 
 describe("#452 the letterhead grid", () => {
   it("every row is right on name and city, and no call failed", { timeout: 60 * 60 * 1000 }, async () => {

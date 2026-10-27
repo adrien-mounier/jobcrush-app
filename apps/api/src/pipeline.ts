@@ -66,7 +66,8 @@ export interface PipelineDeps {
   persistContact?: (sessionId: string, fields: Partial<Record<ContactField, ContactFieldRead | null>>) => Promise<void>;
   /** #451: the model reads the name and city from the top of the CV (letterheadReader.ts), beside
    *  the job-block read, checkpointed in progress.letterhead so a retry never pays twice. A failure
-   *  is logged and leaves the fields unwritten; the upload goes on and nothing is shown. The reads
+   *  is logged, leaves the fields unwritten and the checkpoint absent (a retry reads again); the
+   *  upload goes on and nothing is shown. The reads
    *  land through persistContact's "read" path, so the person-said guard applies as usual. */
   readLetterhead?: (rawCv: RawCv) => Promise<LetterheadRead>;
   /** #161 job-block miner: raw CV -> mined dated blocks (employer/title/start/end/kind, each with
@@ -237,14 +238,14 @@ export async function runOnboardingJob(
       const sessionId = job?.sessionId;
       if (!deps.readLetterhead || !deps.persistContact || !sessionId) return;
       if ((await store.get(jobId))?.progress.letterhead) return;
-      let read: LetterheadRead | null = null;
       try {
-        read = await deps.readLetterhead(rawCv);
+        const read: LetterheadRead = await deps.readLetterhead(rawCv);
         await deps.persistContact(sessionId, read);
+        // Checkpointed only once the read landed — a failure leaves it absent so a retry runs it.
+        await store.update(jobId, { progress: { letterhead: read } });
       } catch (err) {
         console.error("[pipeline] letterhead reading failed", err);
       }
-      await store.update(jobId, { progress: { letterhead: read ?? { failed: true } } });
     })();
 
     // Step 1.5 — job blocks (#161): independent of the sentence-level claim miner below, so it

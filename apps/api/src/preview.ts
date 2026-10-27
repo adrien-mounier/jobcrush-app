@@ -929,7 +929,7 @@ export interface TailoredDraft {
   conservationNotices: string[];
 }
 
-/** The letterhead's words, case and accents folded, for the guard below. */
+/** A title's words (the posting's, or the model's headline), case and accents folded, for the guard below. */
 const headlineWords = (s: string) =>
   s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
