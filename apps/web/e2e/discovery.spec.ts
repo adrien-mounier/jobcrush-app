@@ -369,7 +369,7 @@ test("#376/#392: after question 1 nothing is asked — the count holds, then the
     await route.fulfill({
       json: {
         completed: false,
-        letterhead: { name: { value: "Jane Doe", origin: "read" }, title: null, email: null, phone: null, location: null },
+        letterhead: { name: { value: "Jane Doe", origin: "read" }, email: null, phone: null, location: null },
         conflict: null,
         progress: null,
         unchecked: false,

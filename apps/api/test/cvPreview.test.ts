@@ -319,10 +319,10 @@ describe("#390 the letterhead and the download", () => {
       method: "PUT",
       url: "/contact",
       headers: { cookie: s.cookie },
-      payload: { fields: { name: "Jane Dubois", title: "Head of Delivery", location: "Lyon, France", email: "jane@example.com", phone: "+33 6 00 00 00 00" } },
+      payload: { fields: { name: "Jane Dubois", location: "Lyon, France", email: "jane@example.com", phone: "+33 6 00 00 00 00" } },
     });
     await makePreview(s.app, s.cookie);
-    expect(s.prompts[0]).toContain("===CANDIDATE-HEADER===\nJane Dubois\nHead of Delivery\nLyon, France · +33 6 00 00 00 00 · jane@example.com\n");
+    expect(s.prompts[0]).toContain("===CANDIDATE-HEADER===\nJane Dubois\nLyon, France · +33 6 00 00 00 00 · jane@example.com\n");
     const { html } = (await get(s.app, s.cookie, "/profile/cv-preview")).json();
     expect(html).toContain("<h1>Jane Dubois</h1>");
     expect(html).toContain("jane@example.com");

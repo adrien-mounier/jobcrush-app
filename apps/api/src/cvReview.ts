@@ -114,7 +114,7 @@ export interface ReviewProgress {
 }
 export interface ReviewState {
   completed: boolean;
-  /** #381: Your details — the letterhead's five fields, each null when the CV has none. */
+  /** #381: Your details — the letterhead's fields, each null when the CV has none. */
   letterhead: Record<ContactField, ReviewLetterheadField | null>;
   /** #323: a field the CV gave two values for, asked once here. Null once settled or when none. */
   conflict: { fieldId: string; question: string; values: string[] } | null;

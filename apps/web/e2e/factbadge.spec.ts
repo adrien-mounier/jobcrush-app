@@ -72,7 +72,7 @@ test("the badge renders on tailor with the session's count, and tapping it opens
         facts: [{ id: "sap", text: "Ran SAP rollouts across three sites.", colour: "gold", source: "told", job: null }],
       },
     ],
-    contact: { name: null, title: null, location: null, phone: null, email: null },
+    contact: { name: null, location: null, phone: null, email: null },
     location: { areas: [], workRights: [] },
     cvPreviewHold: null,
     languagesQuestion: {

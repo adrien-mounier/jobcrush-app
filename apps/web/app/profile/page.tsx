@@ -127,13 +127,10 @@ const CX_PHONE_QUESTION = "What's the best phone number for your CV?";
 const CX_EMAIL_QUESTION = "What email should your CV show?";
 const CX_PHONE_DOOR = "Not your number?";
 const CX_EMAIL_DOOR = "Not the right email?";
-// #381: the letterhead's other three fields, the same door each.
+// #381: the letterhead's other two fields, the same door each.
 const CX_NAME_LABEL = "Name";
 const CX_NAME_QUESTION = "What name should your CV show?";
 const CX_NAME_DOOR = "Not your name?";
-const CX_TITLE_LABEL = "Title";
-const CX_TITLE_QUESTION = "What title should your CV show?";
-const CX_TITLE_DOOR = "Not the right title?";
 const CX_LOCATION_LABEL = "Location";
 const CX_LOCATION_QUESTION = "Where should your CV say you live?";
 const CX_LOCATION_DOOR = "Not the right place?";
@@ -1039,15 +1036,6 @@ function ContactPanel({
         label={CX_NAME_LABEL}
         question={CX_NAME_QUESTION}
         doorLabel={CX_NAME_DOOR}
-        contact={contact}
-        onUpdated={onUpdated}
-        onAnnounce={onAnnounce}
-      />
-      <ContactField
-        field="title"
-        label={CX_TITLE_LABEL}
-        question={CX_TITLE_QUESTION}
-        doorLabel={CX_TITLE_DOOR}
         contact={contact}
         onUpdated={onUpdated}
         onAnnounce={onAnnounce}

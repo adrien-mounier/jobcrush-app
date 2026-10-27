@@ -176,9 +176,8 @@ export function buildReviewInput(
   const cvLines = (lines: ReviewLine[]) => lines.filter((l) => !isUnaddedDraft(l.state));
   const line = (l: ReviewLine) => `- [${l.id}] ${l.text}`;
   const cv: string[] = [];
-  const { name, title, location, phone, email } = paper.letterhead;
+  const { name, location, phone, email } = paper.letterhead;
   if (name) cv.push(`# ${name.value}`);
-  if (title) cv.push(title.value);
   const contact = [location?.value, phone?.value, email?.value].filter(Boolean).join(" · ");
   if (contact) cv.push(contact);
   for (const section of paper.sections) {

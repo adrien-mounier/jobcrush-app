@@ -20,9 +20,7 @@ type Row = { text: string; kind: "name" | "role" | "head" | "line" };
 function rowsOf(state: ReviewState): Row[] {
   const rows: Row[] = [];
   const name = state.letterhead.name?.value;
-  const title = state.letterhead.title?.value;
   if (name) rows.push({ text: name, kind: "name" });
-  if (title) rows.push({ text: title, kind: "role" });
   for (const s of state.sections) {
     rows.push({ text: s.heading, kind: "head" });
     if ("jobs" in s) {

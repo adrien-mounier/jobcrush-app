@@ -10,11 +10,12 @@ import type { Pool } from "pg";
 import { getPool } from "./db.js";
 import { splitLetterhead } from "./extract.js";
 
-// #381: the letterhead is five fields — name, title, email, phone, location — each read at mine
+// #381: the letterhead is four fields — name, email, phone, location (#453 dropped the title; a
+// stored title row stays in the table, never read) — each read at mine
 // time (extract.ts's splitLetterhead) and editable through the same person-said door. They ride
 // this store because they share the lifecycle and the origin rules. (#310's one raw "header" row
 // is gone: the tailor's candidate header is built from these fields — letterheadText below.)
-export type ContactField = "name" | "title" | "email" | "phone" | "location";
+export type ContactField = "name" | "email" | "phone" | "location";
 export type ContactOrigin = "read" | "person-said";
 
 export interface ContactValue {
@@ -31,18 +32,18 @@ export interface SupersededContactValue extends ContactValue {
   supersededAt: string;
 }
 
-export const CONTACT_FIELDS: ContactField[] = ["name", "title", "email", "phone", "location"];
-export const EMPTY_CONTACT_RECORD: ContactRecord = { name: null, title: null, email: null, phone: null, location: null };
+export const CONTACT_FIELDS: ContactField[] = ["name", "email", "phone", "location"];
+export const EMPTY_CONTACT_RECORD: ContactRecord = { name: null, email: null, phone: null, location: null };
 
 const recordOf = async (get: (field: ContactField) => Promise<ContactValue | null>): Promise<ContactRecord> =>
   Object.fromEntries(await Promise.all(CONTACT_FIELDS.map(async (f) => [f, await get(f)]))) as ContactRecord;
 
 /** #381: the CANDIDATE-HEADER the tailor copies name and contact data from (preview-tailor.md rule
  *  3), built from the saved fields so an edit in Your details prints on every draft and export.
- *  Name, then title, then the contact line in the prompt's own order (city · phone · email). */
+ *  Name, then the contact line in the prompt's own order (city · phone · email). */
 export function letterheadText(record: ContactRecord): string {
   const contact = [record.location, record.phone, record.email].map((v) => v?.value).filter(Boolean).join(" · ");
-  return [record.name?.value, record.title?.value, contact].filter(Boolean).join("\n");
+  return [record.name?.value, contact].filter(Boolean).join("\n");
 }
 
 export interface ContactStore {
@@ -154,7 +155,7 @@ export class PgContactStore implements ContactStore {
     type Row = { session_id: string; value: string; origin: string; source_text: string };
     for (const { session_id: sessionId, value, origin, source_text } of rows as Row[]) {
       const fields = splitLetterhead(value);
-      for (const field of ["name", "title", "location"] as const) {
+      for (const field of ["name", "location"] as const) {
         const read = fields[field];
         if (!read) continue;
         await this.pool.query(

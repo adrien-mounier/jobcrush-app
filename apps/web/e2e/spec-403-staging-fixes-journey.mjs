@@ -141,12 +141,11 @@ if (!/\/profile\/check/.test(page.url())) await qa.goto('/profile/check', 'check
 // 2. Your details.
 await qa.expectText(page.locator('h1'), 'Your details', 'check mode opens on Your details');
 const values = {};
-for (const f of ['name', 'title', 'email', 'phone', 'location']) values[f] = await page.locator(`input[name=${f}]`).inputValue();
+for (const f of ['name', 'email', 'phone', 'location']) values[f] = await page.locator(`input[name=${f}]`).inputValue();
 await qa.note(`Your details as read: ${JSON.stringify(values)}`);
 await qa.expectVisible('input[name=location]', `the location field reads "${values.location}"`);
 await must(values.location === 'Bangkok, Thailand', `#404 the location is "Bangkok, Thailand", no dashes left on it (${JSON.stringify(values.location)})`);
-await qa.expectVisible('input[name=title]', `the title field reads "${values.title}"`);
-await must(values.title === '', `#402/#404 no title from the contact line — "Natel:" is not a title (${JSON.stringify(values.title)})`);
+await must((await page.locator('input[name=title]').count()) === 0, '#453 Your details has no Title field');
 await must(values.name === 'Jane Doe' && values.email === EMAIL, `name and email as read (${values.name}, ${values.email})`);
 await qa.expectVisible('input[name=phone]', `the phone field reads "${values.phone}"`);
 await must(values.phone === '+41 79 123 45 67', `#404 the phone ends on its last digit, no trailing dash (${JSON.stringify(values.phone)})`);
