@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-27 — #442 live: the CV email is sent as a designed digest (B2) beside its plain text (8eeec75)
+
+`/implement 442` (Opus 5.5) on branch `fix/442-email-design`, built beside the #443 run; `/code-review`, then `/qa-gate` GO twice (its own tree, then merged with main at 8eeec75; tree 3881192).
+- The email gains an HTML part ported from #441's B2, pixel-identical to the prototype on the owner's MSCI report at 800 and 375px: the card's own %, word, gauge and requirement map (met by facts / by a line added / not covered), Check before you send always shown (gold tick when empty), Be ready to explain split (lines you added · also prepare). The plain text is unchanged.
+- The score is the card the approve route builds (stretches counted), carried in `ReportContext.score`: no new model call. The report now stores the used lines apart (`stretches`); a report saved before is written again once (one report call).
+- `/code-review` caught all four icons always attached (Gmail lists an unused inline image as an attachment): only the icons the HTML shows are sent.
+- Owner decisions: the new HTML-only line "Nothing else is missing. The requirements nobody has checked yet are listed above." stays; #448 filed and decided (each person keeps their own apply link, latest wins; blocked by #442, ships before the first real visitor).
+- Filed: #449 (the two email journeys sit in no CI tier). Lesson: `record-go.mjs` writes into the main checkout, so parallel builds share one GO marker.
+**Next:** the owner approves one CV on staging and checks the email in Gmail (computer, phone, dark mode), then #442 closes; then #448.
+
 ## 2026-10-27 — Spec #443 shipped without #409: gold numbers, the used-line ◆, the centred letterhead (#437 #438 #439 #424 #410)
 
 `/implement-spec #443` (Opus 5.5): six builders in worktrees on `spec/443-tailor-polish`, `/code-review`, then five `/qa-gate` runs; GO at cc833cf.
@@ -84,12 +94,3 @@ Owner's re-proof (`+test6`): a deck job's Tailor step showed the CV, then ~40 s 
 - Also on the run: the stretch call retried once (#427); ~1 min of Anthropic "credit balance too low" just before (recovered by itself; owner to check billing).
 - Filed #427, #429 (Look again keeps the old failure message beside the wait screen), #430 (a stretch delay in qa-main; #428's journey into tier 2).
 **Next:** CI → staging; the owner resumes the re-proof.
-
-## 2026-10-24 — #425 shipped: a job that needs a language you don't have leaves the deck (c74cb64)
-
-`/implement 425` (Opus 5.5). A required language must be on the CV (any line not rejected, printed or not) or the profile, or the job leaves the deck. The reveal names each language with its count and "Yes, I speak <X>" (`POST /review/languages/spoken`), also on the empty and widened decks. "I don't speak this one" still wins over the CV; pasted jobs never leave.
-- A working word on the CV (native, fluent, professional, bilingual) settles the language: no Tailor question, the card shows it met ("Your CV says: …"), the report never says "Not checked". One rule, `unsettledLanguage`.
-- The "existing language-name rules" the ticket cited did not exist. New, in `languageLevel.ts`: Putonghua = Mandarin; "Chinese" is met by Mandarin or Cantonese (owner to confirm); "X and Y" / "X or Y"; words around a name ("fluent English").
-- `/code-review`: an unguarded save door, the brought-job line naming a gap he never confirmed, sentence-style CV lines. All fixed. QA **NO-GO** once: the report still matched by whole phrase. Fixed, then **GO** on tree e06a338: api 2252, owner journey 22/22, ladder 56/56, report 31/31.
-- New tier-2 `cv-language-level-journey.mjs`; the gate's `owner-language-filter-journey.mjs` kept on demand (its email check needs `MAIL_LOG`). Filed #426 (two languages at two levels on one CV line).
-**Next:** CI → staging; then the owner's re-proof on a fresh staging account (roadmap finish line, step 3).

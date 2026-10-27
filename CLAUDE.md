@@ -16,8 +16,9 @@ product owner — pastes a real job posting he'd actually apply to, runs it thro
 end, and it hands him a CV good enough that he chooses to send it himself. The paste-a-job-ad door
 is the way in; the deck stays live but off the critical path. **No real visitors while this scope
 holds**; the day that changes, #288 (sign-in refusal reads as a crash) and #298 (warm machine)
-un-park first. Every phase `roadmap.md`'s Milestones lists as parked (full tables in
-`docs/archive/roadmap-2026-10-06.md`) remains the final product — parked, not cancelled.
+un-park first, and #448 (each person keeps their own apply link) must already have shipped. Every
+phase `roadmap.md`'s Milestones lists as parked (full tables in `docs/archive/roadmap-2026-10-06.md`)
+remains the final product — parked, not cancelled.
 
 **The golden rule — built for one user, designed for many.** No schema, contract, or code path may
 hardcode the owner's case: job families stay plural and growable, markets stay a parameter,

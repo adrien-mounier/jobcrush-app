@@ -229,6 +229,7 @@ Playwright, don't curl.
 - 0-second jobs with no logs = an account block (a $0 spending limit reads as "payments failed"), never a code fault. Read the run's annotation; the billable-minutes API reads 0 on free tier.
 - Count undeployed work by diffing `main` against the last green `deploy-staging` sha, not by scanning the run list.
 - A run takes 72–88 min (2026-10-09..15); the tier-2 journeys step is the long pole and every QA-gate-born journey adopted into tier 2 lengthens it (88 min after the 12th). Poll `gh run view` once, never background a watcher; say "about 80 minutes", not "an hour".
+- `record-go.mjs` writes its GO into the **main checkout's** `.claude/`, even when run from a worktree, so two builds in parallel share one marker and the second GO overwrites the first. A branch-only build beside another build skips recording, and earns its GO again on the tree merged with `main` (#442, 2026-10-27).
 - When Actions is unavailable, the hand-deploy recipe (same gates first, then two `flyctl deploy` with `BUILD_SHA`) is in the archive under "CI blocked ≠ deploy blocked".
 
 ### Staging ops
