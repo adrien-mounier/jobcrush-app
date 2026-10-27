@@ -21,7 +21,7 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 - `/code-review` caught all four icons always attached (Gmail lists an unused inline image as an attachment): only the icons the HTML shows are sent.
 - Owner decisions: the new HTML-only line "Nothing else is missing. The requirements nobody has checked yet are listed above." stays; #448 filed and decided (each person keeps their own apply link, latest wins; blocked by #442, ships before the first real visitor).
 - Filed: #449 (the two email journeys sit in no CI tier). Lesson: `record-go.mjs` writes into the main checkout, so parallel builds share one GO marker.
-**Next:** the owner approves one CV on staging and checks the email in Gmail (computer, phone, dark mode), then #442 closes; then #448.
+**Next:** the owner approves one CV on staging and checks the email in Gmail (computer, phone, dark mode), then #442 closes; then #448. *Same day: CI green in 86 min, staging serves a139ee0; #442 closed on the owner's call, the Gmail check moved to #455.*
 
 ## 2026-10-27 — Spec #443 shipped without #409: gold numbers, the used-line ◆, the centred letterhead (#437 #438 #439 #424 #410)
 

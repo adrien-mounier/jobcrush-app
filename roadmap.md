@@ -47,8 +47,8 @@ the model reads the name and city, Your details loses its title field, and the h
 ad's own title: spec [#450](https://github.com/adrien-mounier/jobcrush-app/issues/450) (#409 #444 #446),
 tickets #451 → #452, #453, #454; **Owner:** `/implement-spec #450` (Fable 5.1, high). The eval grid's
 source waits on branch `t/409-letterhead`. The CV email's design: ~~#441~~ prototype done (B2,
-branch `prototype/report-email-441`); #442 built and live 2026-10-27 (8eeec75). **Owner:** approve one CV on staging and
-check the email in Gmail on a computer and a phone, dark mode too; then #442 closes. Next build: #448 (each
+branch `prototype/report-email-441`); ~~#442~~ live 2026-10-27 (a139ee0). **Owner, when you can:** #455, one real email read in
+Gmail on a computer and a phone, dark mode too. Next build: #448 (each
 person keeps their own apply link). A CV with a photo: parked, #440.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
