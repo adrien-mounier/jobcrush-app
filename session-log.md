@@ -2,6 +2,16 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-27 — #446 decided: the model reads the letterhead's name and city; spec #450 (#409 #444 #446)
+
+`/grill-with-docs #446` then `/to-spec` (Opus 5.5). No code.
+- Upload: a new small model call reads **name and city** from the top of the CV, kept as written (credentials, order, capitals; letter-spacing joined); a name not in the CV's words is dropped; a failure leaves both empty. Email/phone stay deterministic. The shape rules are deleted, no fallback. ~$0.005/upload.
+- Regression set: the 72-row table on `t/409-letterhead` (3b93bdd) becomes a real-model eval grid, every row right (~$0.40/run, free on the CLI path).
+- **Your details loses its job title field**, with no replacement (the job's own screen confirms it).
+- **The headline is the job ad's own title** in the ad's words, labels dropped, never a stretch, never translated; no title or "Preview as CV" → the own job's title.
+- `GLOSSARY.md`: Letterhead, Headline added; Stretch amended. ACs changed with the owner's OK: #409's title clause falls away, #444's letter-spaced title is empty.
+**Next:** `/to-tickets #450`, then `/implement-spec #450` (Fable 5.1, high).
+
 ## 2026-10-27 — #442 live: the CV email is sent as a designed digest (B2) beside its plain text (8eeec75)
 
 `/implement 442` (Opus 5.5) on branch `fix/442-email-design`, built beside the #443 run; `/code-review`, then `/qa-gate` GO twice (its own tree, then merged with main at 8eeec75; tree 3881192).
@@ -85,12 +95,3 @@ One long session (Opus 5.5), the owner's rule throughout: build on branches, one
 - QA **GO** on tree bc38fc4: api 2257; a live drive waiting 6 min 20 s, then edit, It's true, Undo, Use, No, Approve, with the email sent at 7 min 13 s (20/20); six Tailor journeys green.
 - Filed #434 (a later deck search that fails or drops the job still turns it into "unknown card") and #435 (the new 9-minute journey is in no tier). The #427 branch's four docs commits were cherry-picked here, so main's roadmap is current.
 **Next:** CI → staging; #432; then the owner's re-proof resumes.
-
-## 2026-10-24 — #428 shipped: the Tailor step's CV and its suggestions arrive at once (e2920ec)
-
-Owner's re-proof (`+test6`): a deck job's Tailor step showed the CV, then ~40 s later a closed "Ready to send" panel, every suggestion "Not answered, left out"; he read it as no suggestions. The staging log showed the step had run. Cause: #418 showed the draft on "suggesting" and reported "running", which spent the page's once-only auto-open; a failed step spent it too, so "Look again" also landed closed.
-- Owner's call: the CV and its suggestions arrive at once. The wait screen holds until the job completes, the "running" rail state is gone, and only a view that ran spends the auto-open.
-- No test saw it: mocked specs answer at once, and qa-main's fake finishes before the stream connects (lesson added). Two specs red on the old code, green now; QA **GO** on tree fc86206 (live with the step held 15 s: 45/45).
-- Also on the run: the stretch call retried once (#427); ~1 min of Anthropic "credit balance too low" just before (recovered by itself; owner to check billing).
-- Filed #427, #429 (Look again keeps the old failure message beside the wait screen), #430 (a stretch delay in qa-main; #428's journey into tier 2).
-**Next:** CI → staging; the owner resumes the re-proof.

@@ -43,6 +43,8 @@ with job requirements.
   - [Kept line](#kept-line)
   - [Fix](#fix)
   - [Master CV](#master-cv)
+  - [Letterhead](#letterhead)
+  - [Headline](#headline)
   - [CV chat](#cv-chat)
   - [Chat proposal](#chat-proposal)
   - [Stretch](#stretch)
@@ -332,6 +334,20 @@ CV starts from it; changing it changes the base, never one application. Its home
 than any one application prints: which of them print is decided per application (ADR-0007).
 _Avoid_: Root CV, base CV, profile CV
 
+**Letterhead**:
+The top of a CV: the person's name and contact details (city, phone, email) and, on a CV the
+product makes, the **headline**. From an uploaded CV the product reads only the name and contact
+details; a title printed there is not read.
+_Avoid_: Header, contact block
+
+**Headline**:
+The job title line in the **letterhead** of every CV the product makes. On a CV for a job ad it is
+that ad's own job title in the ad's own words, even when the CV is in another language, without
+the ad's labels (gender marker, contract type, place, reference); with no title in the ad, and on
+the profile's preview, it is the title of the person's own job. It names the job applied for, not
+a job held, so it is never a **stretch**, even for a title the person has never held.
+_Avoid_: Title (that is a job's own), tagline, positioning line
+
 **CV chat**:
 A conversation with the product that changes the **master CV**, opened from a door on one thing
 ("+ tell us more": a job, a line, the letterhead — the chat covers only that thing) or on a section
@@ -355,7 +371,7 @@ to that one application and never joins the profile (ADR-0005), and the requirem
 as met — *met by a stretch* — on that application's match only. A suggested line the person says is
 simply true is kept on the **master CV** instead, and is then their fact, not a stretch. Saying one of
 the person's own facts in the job's words is tailoring, not a stretch: the CV writer does that
-without asking (#408).
+without asking (#408). The **headline** is never a stretch.
 _Avoid_: Wording stretch, enrichment, embellishment
 
 **Application report**:
