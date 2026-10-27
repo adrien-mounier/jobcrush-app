@@ -8,8 +8,8 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 - Live: the open suggestion number is gold, waiting ones an outline (#437); a used line keeps a deep-gold ◆ that reopens it, screen only (#438); the letterhead is name / contact / job title, centred, the contact wrapping only between items (#439); "Read the job" shows the whole tab strip, and the card says "Switch to Your CV" on The job (#424); a second phone no longer leaves a junk title (#410).
 - #409 (the letterhead name picker) left the batch after four NO-GOs on "never worse than main": each round fixed one common shape and broke another (credentials, one-line letterheads, a city line, a link above the name). Its work and a 72-row table wait on branch `t/409-letterhead`; #446 asks whether the model should read the name instead.
 - Filed: #444 (real CV's location from body text, letter-spaced title), #445 (The job tab's journey rotted in no tier), #446 (shapes `main` already misreads), #447 (a racy key-press check in stretch.spec).
-- Owner questions: the open card's "Use for this job" button stays gold beside the gold number (#437's AC says nothing else gold); the dimmed answered number reads ~2.9:1, below AA.
-**Next:** the owner checks the PDF on staging; `/implement 442`; #409 after #446's question.
+- Owner questions: the open card's "Use for this job" button stays gold beside the gold number (#437's AC says nothing else gold); the dimmed answered number reads ~2.9:1, below AA. *Decided same day (on #437, #446): both stay gold; the dim stays; the model reads the name (#446 + #409, design pass next).* CI green, live on staging.
+**Next:** the owner checks the PDF on staging; `/implement 442`; #446 + #409 design pass (`/grill-with-docs`).
 
 ## 2026-10-26 — #441 prototype: the CV email's design chosen (B2), #442 ready to build
 
