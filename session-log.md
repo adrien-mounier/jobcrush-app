@@ -8,7 +8,8 @@ Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/s
 - The apply link moved from the shared advert to the person's own paste record: two people pasting the same job each see and are emailed their own link; someone who gave none gets the "add the application link" control, never another's. Latest link wins for the same person; a link-less re-paste keeps it.
 - Old links move on every boot (idempotent) to whoever pasted that job first; a link with no owner is dropped and counted in the boot log (`[ops] #448 pasted links`). Staging likely has 0–1.
 - New journey `apps/web/e2e/apply-link-per-person-journey.mjs` sits in no CI tier yet → added to #449's scope.
-**Next:** CI → staging; real-visitors gate now needs only #288 and #298.
+- CI for 73266dd (and #450's 533ae6b before it) failed tier 2: `cv-preview-journey` still saved the `title` #453 removed. Fixed in 3d63f9c (QA GO, 26/26); neither #450 nor #448 was on staging until then. Headline-check gap → #456.
+**Next:** CI run 40705389725 → staging; real-visitors gate now needs only #288 and #298.
 
 ## 2026-10-28 — Spec #450 shipped: the model reads the letterhead's name and city; the headline is the job's own title (533ae6b; #451 #452 #453 #454, closing #409 #444 #446)
 

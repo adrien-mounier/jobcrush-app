@@ -144,6 +144,9 @@ shared area, then check `selectJourneys([file])` before and after — from a scr
 `tier2-coverage.mjs` and `run-tier2.mjs` by `file:///C:/...` URL (a bare `C:/` path is refused by
 node's ESM loader). `run-tier2.mjs` has no dry-run flag: an unknown flag runs the whole gate against
 `:3000` and hangs (#387 close).
+Removing a field from a request body: grep `apps/web/e2e` for its name too. #453 dropped `title` from
+`PUT /contact`; `cv-preview-journey.mjs` still sent it, got a 400 nothing saved, and tier 2 went red on
+two pushes, with no deploy, because the gate only ran the journeys it thought the diff could reach (3d63f9c).
 
 ### The in-memory store hands out the object it stores
 `InMemorySessionStore` returns the stored record, so a background task writing back makes every read
