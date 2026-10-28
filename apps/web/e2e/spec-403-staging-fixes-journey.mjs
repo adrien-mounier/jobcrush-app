@@ -144,7 +144,8 @@ const values = {};
 for (const f of ['name', 'email', 'phone', 'location']) values[f] = await page.locator(`input[name=${f}]`).inputValue();
 await qa.note(`Your details as read: ${JSON.stringify(values)}`);
 await qa.expectVisible('input[name=location]', `the location field reads "${values.location}"`);
-await must(values.location === 'Bangkok, Thailand', `#404 the location is "Bangkok, Thailand", no dashes left on it (${JSON.stringify(values.location)})`);
+// #451: the model reads the city now (the " - " splitter is gone); the fake reader answers no city.
+await must(values.location === 'Bangkok, Thailand' || values.location === '', `#404 the location is "Bangkok, Thailand" with a real model, empty on the fake stack, never a dashed fragment (${JSON.stringify(values.location)})`);
 await must((await page.locator('input[name=title]').count()) === 0, '#453 Your details has no Title field');
 await must(values.name === 'Jane Doe' && values.email === EMAIL, `name and email as read (${values.name}, ${values.email})`);
 await qa.expectVisible('input[name=phone]', `the phone field reads "${values.phone}"`);
@@ -176,14 +177,8 @@ const jobPath = new URL(page.url()).pathname;
 await qa.note(`landed on ${jobPath}`);
 const own = await checkCard('.onejob .jobcard', "the job's own screen", lines);
 
-// 4b. The same card lives on the tailor screen: the reason must read as a sentence there too, not
-//     pick up the tailor's own uppercase ".why" eyebrow style (found by this gate).
-await qa.click(page.getByRole('button', { name: 'Write the tailored CV' }), 'press "Write the tailored CV"');
-const tailorWhy = page.locator('.tailor .row.fit .fit-why').first();
-await tailorWhy.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {});
-await qa.expectVisible(tailorWhy, 'the tailor screen: the reason under the Where you fit row');
-const tailorStyle = await tailorWhy.evaluate((el) => ({ t: getComputedStyle(el).textTransform, f: getComputedStyle(el).fontFamily })).catch(() => null);
-await must(tailorStyle?.t === 'none', `#407 the tailor screen: the reason reads as a sentence, not an uppercase label (${JSON.stringify(tailorStyle)})`);
+// 4b. (#407 once checked the reason's style on the tailor screen too; since #423 that screen shows
+//     the job's full text, not the card, so the job's own screen above is the one place it prints.)
 
 // 5. The same job on the deck card.
 await qa.goto('/deck', 'on to the deck');

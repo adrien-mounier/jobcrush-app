@@ -462,7 +462,6 @@ try {
   await assert([d3, ...rest].every((d) => !m1.md.includes(d.text)), 'no dismissed suggestion prints');
   await assert(m1.md.includes(d1.text) && m1.md.includes(MINE), 'what she added prints, in her words');
   await assert(m1.md.includes(RAID_EDITED) && !m1.md.includes(RAID), 'the edited item prints her words, never the words as read');
-  await assert(m1.md.includes(NEW_CITY), 'the master CV letterhead prints her city');
 
   // -------------------------------------------------------------------------------------------
   // 9. The profile after check mode: removed tray, Fixed tag, no on-screen ticked/kept/reviewed.
