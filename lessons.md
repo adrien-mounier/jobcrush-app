@@ -260,6 +260,8 @@ Playwright, don't curl.
   write is then refused); rebuild a step's input through the real route via `buildServer` +
   `app.inject` with every model call stubbed, and compare its sha256 to the stored fingerprint. A
   deck job's search result ages out, so pin `Date.now` to the record's time while rebuilding.
+  The script is `apps/api/scripts/stretch-replay-staging.mjs` (#457); its header is the run order.
+  A base64 upload over ~24 KB fails with "Argument list too long" — append it in two halves.
 - **Fly's auto-stop reads load, not traffic** (#363): its stop loop samples each machine's in-flight
   requests every few minutes and stops one at zero. A short request every few seconds (the review
   page polls at 3 s; the ping above at 60 s) is zero at sampling time and holds nothing. The one thing

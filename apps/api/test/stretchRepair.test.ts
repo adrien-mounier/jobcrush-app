@@ -94,3 +94,26 @@ describe("#427 a retry that succeeds says why the first answer was refused", () 
     );
   });
 });
+
+describe("#457 one [ops] line per run says how many were proposed and why each drop was dropped", () => {
+  it("counts every drop reason on a fake answer that hits each one, and no CV text", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const answer = {
+      suggestions: [
+        suggestion("req-budget"), // kept
+        suggestion("req-tender", { slot: null, lineIn: null, better: false }), // not better
+        suggestion("req-safe", { slot: null, lineIn: null, better: false }), // not better
+        suggestion("req-nope"), // unknown requirement
+        suggestion("req-budget", { lineIn: "A second budget line." }), // duplicate
+        suggestion("req-tender", { slot: { kind: "bullet", role: 0, bullet: 9 } }), // slot not printed
+        suggestion("req-safe", { lineIn: "Led the SAFe rollout." }), // denied word
+      ],
+    };
+    const kept = await suggestStretches(replay(answer), "input", draft, requirements, ["SAFe"], "posting:x");
+    expect(kept.map((s) => s.requirementId)).toEqual(["req-budget"]);
+    const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.startsWith("[ops] stretch suggestions gated"));
+    expect(line).toBe(
+      "[ops] stretch suggestions gated: 7 proposed, 1 kept; dropped: 2 not better, 1 met or unknown requirement, 1 duplicate, 1 slot not printed, 1 denied word",
+    );
+  });
+});

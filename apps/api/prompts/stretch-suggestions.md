@@ -47,7 +47,13 @@ done that, and the requirement reads `met`. You suggest only for requirements th
    what the line out carries for this job and what the line in carries. `better` is true only when
    the line in is worth more to THIS job than the line it would push out. When it is not, say so
    and set `better` to false — that suggestion is then not made. A skill has no line out; its
-   comparison says what the skills line gains.
+   comparison says what the skills line gains. `better` weighs ONLY what each line is worth to
+   THIS job: what the job gains from the line in against what it loses with the line out. How far
+   the facts hold the line in is not part of the comparison — every suggestion here is a stretch
+   by definition, and that price is already carried by `intendedClass`, `why` and `say`. "No fact
+   shows this", "the person does not actually have this", "this implies a certification they do
+   not hold", "this risks overclaiming" are not comparisons: when that is the only objection,
+   `better` is true and `comparison` says what the job gains.
 5. **Never touch a denied capability.** The person has said they do not have the items under
    `===NEVER-SUGGEST===`. No suggestion may claim one, soften one, or imply one. There is nothing
    to stretch from.
@@ -57,8 +63,9 @@ done that, and the requirement reads `met`. You suggest only for requirements th
    the facts hold exactly; add none.
 7. **`say` is what to say if asked** — one or two sentences in the first person, as the person
    would speak them, resting only on the facts listed. It defends exactly the sentence in `lineIn`.
-8. **Never moralise.** No warnings, no advice about honesty, no "be careful". The person owns every
-   word; your job is to put the choice in front of them with its price visible.
+8. **Never moralise.** No warnings, no advice about honesty, no "be careful" — not in `comparison`
+   either. The person owns every word; your job is to put the choice in front of them with its
+   price visible.
 
 ## What you are given
 

@@ -343,7 +343,10 @@ section is the instruction.
 5. **The comparison is explicit, and it decides.** The answer carries one sentence comparing the
    line in against the line out for this job and a verdict; a verdict of *not better* makes no
    suggestion (clause 4 step 3 — the step a model skips while appearing to succeed, so it is a field
-   the code reads, not an implication).
+   the code reads, not an implication). The verdict weighs only what each line is worth to this
+   job: that the line in is a stretch, or only partly held by the facts, is never a reason for *not
+   better* — that price is carried by the class, the why and the interview line (#457: a verdict
+   that refuses on honesty grounds is rule 8 broken, and leaves the person nothing to choose).
 6. **A denied capability is never the subject of a stretch** (§8 clause 3). The step is told the
    denied list; a line in that states a denied item's words is dropped in code by the same word
    check `conservationIssues()` runs on the page. The ceiling is the same: words, never a paraphrase.

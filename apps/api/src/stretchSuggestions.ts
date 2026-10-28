@@ -8,7 +8,8 @@
 //   - a suggestion stating a denied capability is dropped (tailoring-reasoning.md §8 clause 3), the
 //     same word check conservationIssues() runs on the page;
 //   - a met requirement, an unknown one, a second suggestion for the same one, or a slot the draft
-//     does not print, is dropped.
+//     does not print, is dropped;
+//   - #457: one [ops] line per run counts the drops by reason, so "ran, found none" is explainable.
 // The result is stored BESIDE the draft (tailorDraftStore.ts), per person and job, never as a claim
 // and never in the claim graph (ADR-0005 clause 2). The checkpoint key is the hash of the exact
 // input, so a reload or a re-read never re-spends and a changed draft or verdict runs it again.
@@ -95,19 +96,24 @@ export function failureReason(err: unknown): string {
  *  - a suggestion the model itself marks `better: false` is never made (gateSuggestions drops it),
  *    so it is dropped before validation — it was written with a null slot and line in;
  *  - an extra key holding nothing (`"why_note": ""`) is dropped. An extra key that holds text still
- *    fails, as does every missing or malformed field on a suggestion that could be made. */
-export function repairSuggestions(doc: unknown): unknown {
+ *    fails, as does every missing or malformed field on a suggestion that could be made.
+ *  #457: returns the counts the ops line reads — how many the model proposed and how many of them
+ *  it marked not better (dropped here, so gateSuggestions never sees one on this path). */
+export function repairSuggestions(doc: unknown): { doc: unknown; proposed: number; notBetter: number } {
   const list = (doc as { suggestions?: unknown } | null)?.suggestions;
-  if (!Array.isArray(list)) return doc;
+  if (!Array.isArray(list)) return { doc, proposed: 0, notBetter: 0 };
+  const made = list.filter((s) => (s as { better?: unknown } | null)?.better !== false);
   return {
-    ...(doc as object),
-    suggestions: list
-      .filter((s) => (s as { better?: unknown } | null)?.better !== false)
-      .map((s) =>
+    proposed: list.length,
+    notBetter: list.length - made.length,
+    doc: {
+      ...(doc as object),
+      suggestions: made.map((s) =>
         typeof s === "object" && s !== null
           ? Object.fromEntries(Object.entries(s).filter(([k, v]) => SUGGESTION_KEYS.has(k) || !(v === null || (typeof v === "string" && !v.trim()))))
           : s,
       ),
+    },
   };
 }
 
@@ -261,9 +267,14 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 export const stretchProposalId = (adId: string, requirementId: string): string =>
   `stretch-${slug(adId)}-${slug(requirementId)}`;
 
+/** #457: why each suggestion the model made was dropped, counts only — the ops line that tells
+ *  "ran, found none" apart from "the model proposed six and the gates dropped them all". */
+export type StretchDrops = { notBetter: number; requirement: number; duplicate: number; slot: number; denied: number };
+
 /**
  * The code-side gates on one answer (pure, directly tested): at most one per unmet requirement, a
- * printed slot, the comparison's verdict honoured, no denied words. Returns the stored records.
+ * printed slot, the comparison's verdict honoured, no denied words. Returns the stored records and
+ * the drop counts (`notBetter` stays 0 on the step's own path: repairSuggestions counted them).
  */
 export function gateSuggestions(
   answer: SuggestionAnswer[],
@@ -272,19 +283,21 @@ export function gateSuggestions(
   denied: string[],
   adId: string,
   createdAt: string,
-): StretchProposalV2[] {
+): { kept: StretchProposalV2[]; drops: StretchDrops } {
   const unmet = new Set(requirements.filter((r) => r.state !== "met").map((r) => r.id));
   const taken = new Set<string>();
   const kept: StretchProposalV2[] = [];
+  const drops: StretchDrops = { notBetter: 0, requirement: 0, duplicate: 0, slot: 0, denied: 0 };
   for (const s of answer) {
-    if (!unmet.has(s.requirementId) || taken.has(s.requirementId)) continue;
-    if (!s.better) continue; // ADR-0005 clause 4 step 3: the explicit comparison decides
+    if (!unmet.has(s.requirementId)) { drops.requirement++; continue; }
+    if (taken.has(s.requirementId)) { drops.duplicate++; continue; }
+    if (!s.better) { drops.notBetter++; continue; } // ADR-0005 clause 4 step 3: the explicit comparison decides
     const lineOut = lineOutAt(draft, s.slot);
-    if (lineOut === undefined) continue; // a slot the draft does not print
+    if (lineOut === undefined) { drops.slot++; continue; } // a slot the draft does not print
     // §8 clause 3: the line that would PRINT may not state a denied capability — the same word
     // check conservationIssues() runs on the finished page.
     const tokens = textTokens(s.lineIn);
-    if (denied.some((phrase) => phraseStated(phrase, tokens))) continue;
+    if (denied.some((phrase) => phraseStated(phrase, tokens))) { drops.denied++; continue; }
     taken.add(s.requirementId);
     kept.push(
       StretchProposalV2.parse({
@@ -306,7 +319,7 @@ export function gateSuggestions(
       }),
     );
   }
-  return kept;
+  return { kept, drops };
 }
 
 /**
@@ -323,9 +336,17 @@ export const suggestStretches = (
   denied: string[],
   adId: string,
 ): Promise<StretchProposalV2[]> =>
-  completeChecked(llm, input, "suggestions", (doc) =>
-    gateSuggestions(SuggestionAnswer.parse(repairSuggestions(doc)).suggestions, draft, requirements, denied, adId, new Date().toISOString()),
-  );
+  completeChecked(llm, input, "suggestions", (raw) => {
+    const { doc, proposed, notBetter } = repairSuggestions(raw);
+    const { kept, drops } = gateSuggestions(SuggestionAnswer.parse(doc).suggestions, draft, requirements, denied, adId, new Date().toISOString());
+    drops.notBetter += notBetter;
+    // #457: one line per run, counts only (no CV text).
+    console.log(
+      `[ops] stretch suggestions gated: ${proposed} proposed, ${kept.length} kept; dropped: ${drops.notBetter} not better, ` +
+        `${drops.requirement} met or unknown requirement, ${drops.duplicate} duplicate, ${drops.slot} slot not printed, ${drops.denied} denied word`,
+    );
+    return kept;
+  });
 
 /**
  * #417 (review): the step redone on a draft that stands keeps the person's word on every suggestion
