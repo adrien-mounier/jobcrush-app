@@ -26,9 +26,11 @@ import {
 } from "../src/employerLookup.js";
 import {
   InMemoryPasteRecordStore,
+  PASTE_RECORDS_LINK_COLUMN,
   PgPasteRecordStore,
   type PasteRecordStore,
 } from "../src/pasteRecordStore.js";
+import { movePastedLinksToPasteRecords } from "../src/pastedAdvert.js";
 import {
   InMemoryTailorDraftStore,
   PgTailorDraftStore,
@@ -1713,7 +1715,7 @@ for (const [name, make] of pasteRecordDrivers) {
     it("records person + advert + when, and reads it back", async () => {
       await store.record("session-1", "posting:aaa", "2026-09-28T08:00:00.000Z");
       expect(await store.listBySession("session-1")).toEqual([
-        { sessionId: "session-1", adId: "posting:aaa", pastedAt: "2026-09-28T08:00:00.000Z" },
+        { sessionId: "session-1", adId: "posting:aaa", pastedAt: "2026-09-28T08:00:00.000Z", applicationUrl: null },
       ]);
       expect(await store.listBySession("session-2")).toEqual([]);
     });
@@ -1742,6 +1744,29 @@ for (const [name, make] of pasteRecordDrivers) {
         "posting:newer",
         "posting:older",
       ]);
+    });
+
+    // #448 — the apply link is the person's own, and the opposite rule from the clock.
+    it("keeps each person's own link; their latest link wins, and a re-paste with none keeps it", async () => {
+      await store.record("session-1", "posting:aaa", "2026-09-21T08:00:00.000Z", "https://a.example/1");
+      await store.record("session-2", "posting:aaa", "2026-09-22T08:00:00.000Z", "https://b.example/1");
+      await store.record("session-1", "posting:aaa", "2026-09-28T08:00:00.000Z", "https://a.example/2");
+      await store.record("session-1", "posting:aaa", "2026-09-29T08:00:00.000Z", null);
+      expect(await store.listBySession("session-1")).toEqual([
+        { sessionId: "session-1", adId: "posting:aaa", pastedAt: "2026-09-21T08:00:00.000Z", applicationUrl: "https://a.example/2" },
+      ]);
+      expect((await store.listBySession("session-2"))[0]!.applicationUrl).toBe("https://b.example/1");
+    });
+
+    it("adoptLink hands a link to the earliest paster only, and never over a link they have", async () => {
+      await store.record("session-late", "posting:aaa", "2026-09-28T08:00:00.000Z");
+      await store.record("session-early", "posting:aaa", "2026-09-21T08:00:00.000Z");
+      expect(await store.adoptLink("posting:aaa", "https://old.example/1")).toBe(true);
+      expect((await store.listBySession("session-early"))[0]!.applicationUrl).toBe("https://old.example/1");
+      expect((await store.listBySession("session-late"))[0]!.applicationUrl).toBeNull();
+      expect(await store.adoptLink("posting:aaa", "https://old.example/2")).toBe(false);
+      expect((await store.listBySession("session-early"))[0]!.applicationUrl).toBe("https://old.example/1");
+      expect(await store.adoptLink("posting:nobody", "https://old.example/3")).toBe(false);
     });
   });
 }
@@ -2022,5 +2047,44 @@ describe("CvReviewStore — a units table from before #363 gains `failures` and 
     expect((await store.get("old"))!.units[0]).toEqual({ unit: "socgen", attempts: 2, failures: 0, lastError: null, result: null });
     await store.recordFailure("old", "socgen", "answered for no job, asked for j3");
     expect((await store.get("old"))!.units[0]).toMatchObject({ attempts: 2, failures: 1, lastError: "answered for no job, asked for j3" });
+  });
+});
+
+// #448 — the stored-data upgrade, against Postgres: a paste_records table from before the link moved
+// here, and a shared advert record still carrying the link. The link lands with the person who pasted
+// first, with nobody else, and the shared record no longer carries it.
+describe("#448 links stored on the shared advert move to the person who pasted it first", () => {
+  it("upgrades an old paste_records table and moves each link, once", async () => {
+    const pool = pgPool();
+    await pool.query(
+      `CREATE TABLE paste_records (session_id text NOT NULL, ad_id text NOT NULL, pasted_at timestamptz NOT NULL, PRIMARY KEY (session_id, ad_id))`,
+    );
+    const postings = new PgPostingStore(pool);
+    await postings.init();
+    const shared = providerRecord({
+      providerId: "pasted-by-you",
+      providerPostingId: "fp-1",
+      sourceUrl: "pasted:fp-1",
+      applicationUrl: "https://first.example/apply?trk=a",
+      verifiedLiveAt: null,
+    });
+    await postings.upsert(shared);
+    const adId = `posting:${canonicalKeyOf(shared.company, shared.location, shared.title)}`;
+    await pool.query(
+      `INSERT INTO paste_records VALUES ('second', $1, '2026-10-02T08:00:00.000Z'), ('first', $1, '2026-10-01T08:00:00.000Z')`,
+      [adId],
+    );
+    // init() runs this ALTER after its CREATE TABLE IF NOT EXISTS (which pg-mem cannot re-run).
+    await pool.query(PASTE_RECORDS_LINK_COLUMN);
+    const pasteRecords = new PgPasteRecordStore(pool);
+
+    expect(await movePastedLinksToPasteRecords(postings, pasteRecords)).toEqual({ moved: 1, dropped: 0 });
+    expect((await pasteRecords.listBySession("first"))[0]!.applicationUrl).toBe("https://first.example/apply?trk=a");
+    expect((await pasteRecords.listBySession("second"))[0]!.applicationUrl).toBeNull();
+    expect((await postings.get("pasted-by-you", "fp-1"))!.applicationUrl).toBeNull();
+
+    // Every boot runs it again: nothing left to move, nothing changes.
+    expect(await movePastedLinksToPasteRecords(postings, pasteRecords)).toEqual({ moved: 0, dropped: 0 });
+    expect((await pasteRecords.listBySession("first"))[0]!.applicationUrl).toBe("https://first.example/apply?trk=a");
   });
 });

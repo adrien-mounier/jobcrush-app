@@ -14,6 +14,7 @@ import { buildDeckServer } from "./fixtureDeck.js";
 import { InMemoryJobStore } from "../src/jobs.js";
 import { InMemoryPasteRecordStore } from "../src/pasteRecordStore.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
+import { makeBroughtJobs } from "../src/broughtJobs.js";
 import type { JobRecord } from "../src/jobs.js";
 import type { PasteProgress } from "../src/routes/paste.js";
 import type { Posting } from "../src/preview.js";
@@ -61,13 +62,10 @@ function linkServer() {
         ],
       }),
   );
-  return buildDeckServer({
-    readPastedAdvert,
-    readAd,
-    postings: new InMemoryPostingStore(),
-    pasteRecords: new InMemoryPasteRecordStore(),
-    store: new InMemoryJobStore(),
-  });
+  const postings = new InMemoryPostingStore();
+  const pasteRecords = new InMemoryPasteRecordStore();
+  const built = buildDeckServer({ readPastedAdvert, readAd, postings, pasteRecords, store: new InMemoryJobStore() });
+  return { ...built, postings, pasteRecords };
 }
 
 type App = ReturnType<typeof linkServer>["app"];
@@ -164,7 +162,7 @@ describe("#306 where to apply, on the job's own screen", () => {
     expect((await jobCard(app, cookie, adId)).applicationUrl).toBeUndefined();
   });
 
-  it("never replaces a link that is already there — the first one wins, and it says so", async () => {
+  it("never replaces a link he already gave — it says so and shows what is there", async () => {
     const { app } = linkServer();
     const cookie = await readyToPaste(app);
     const adId = await paste(app, cookie, PASTED, LINK);
@@ -187,17 +185,67 @@ describe("#306 where to apply, on the job's own screen", () => {
     expect((await jobCard(app, mine, adId)).applicationUrl).toBeUndefined();
   });
 
-  it("shares an added link with the next person who brings the same advert in", async () => {
-    // The advert record is shared by everyone who pastes it (#294 ruling 1), which is already true
-    // of the link the paste door itself stores. Adding one therefore helps the next person, and
-    // — because the first link wins — cannot overwrite what they give us first.
-    const { app } = linkServer();
-    const mine = await readyToPaste(app);
-    const adId = await paste(app, mine, PASTED);
-    expect((await addLink(app, mine, adId, LINK)).statusCode).toBe(200);
+});
 
-    const theirs = await readyToPaste(app);
-    expect(await paste(app, theirs, PASTED)).toBe(adId);
-    expect((await jobCard(app, theirs, adId)).applicationUrl).toBe(LINK);
+// #448 — each person keeps their own apply link. A copied link often carries a tracking or referral
+// code tied to whoever copied it, so one person's link never reaches another person's screen.
+describe("#448 each person keeps their own apply link", () => {
+  it("two people paste the same advert with two links: each sees their own", async () => {
+    const { app } = linkServer();
+    const a = await readyToPaste(app);
+    const b = await readyToPaste(app);
+    const adId = await paste(app, a, PASTED, LINK);
+    expect(await paste(app, b, PASTED, OTHER_LINK)).toBe(adId);
+    expect((await jobCard(app, a, adId)).applicationUrl).toBe(LINK);
+    expect((await jobCard(app, b, adId)).applicationUrl).toBe(OTHER_LINK);
+  });
+
+  it("the application email reads the same per-person link: broughtJobs is the one place both read", async () => {
+    // applicationReport.ts's reportContext prints `broughtJob.applicationUrl`, the job this resolves.
+    const { app, postings, pasteRecords, sessions } = linkServer();
+    const a = await readyToPaste(app);
+    const b = await readyToPaste(app);
+    await paste(app, a, PASTED, LINK);
+    await paste(app, b, PASTED, OTHER_LINK);
+    const brought = makeBroughtJobs({ postings, pasteRecords });
+    const idOf = async (cookie: string) => (await sessions.getByToken(cookie.split("=")[1]!))!.id;
+    expect((await brought(await idOf(a)))[0]!.applicationUrl).toBe(LINK);
+    expect((await brought(await idOf(b)))[0]!.applicationUrl).toBe(OTHER_LINK);
+  });
+
+  it("another person's link is never lent to someone who gave none — they can add their own", async () => {
+    const { app } = linkServer();
+    const a = await readyToPaste(app);
+    const b = await readyToPaste(app);
+    const adId = await paste(app, a, PASTED, LINK);
+    expect(await paste(app, b, PASTED)).toBe(adId);
+    expect((await jobCard(app, b, adId)).applicationUrl).toBeUndefined();
+
+    // The control is offered to B whoever else pasted the job, and writes to B's record only.
+    const added = await addLink(app, b, adId, OTHER_LINK);
+    expect(added.statusCode).toBe(200);
+    expect((await jobCard(app, b, adId)).applicationUrl).toBe(OTHER_LINK);
+    expect((await jobCard(app, a, adId)).applicationUrl).toBe(LINK);
+  });
+
+  it("a link added on the job's screen is not shared with the next person", async () => {
+    const { app } = linkServer();
+    const a = await readyToPaste(app);
+    const adId = await paste(app, a, PASTED);
+    expect((await addLink(app, a, adId, LINK)).statusCode).toBe(200);
+
+    const b = await readyToPaste(app);
+    expect(await paste(app, b, PASTED)).toBe(adId);
+    expect((await jobCard(app, b, adId)).applicationUrl).toBeUndefined();
+  });
+
+  it("the same person pasting again: their latest link wins, and a re-paste with none keeps it", async () => {
+    const { app } = linkServer();
+    const a = await readyToPaste(app);
+    const adId = await paste(app, a, PASTED, LINK);
+    await paste(app, a, PASTED, OTHER_LINK);
+    expect((await jobCard(app, a, adId)).applicationUrl).toBe(OTHER_LINK);
+    await paste(app, a, PASTED, "");
+    expect((await jobCard(app, a, adId)).applicationUrl).toBe(OTHER_LINK);
   });
 });

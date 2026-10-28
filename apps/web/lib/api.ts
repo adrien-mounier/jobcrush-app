@@ -1245,7 +1245,7 @@ export function getJob(adId: string): Promise<{ card: JobCard }> {
 
 /** #306 — the apply row's own control: he adds the link an advert he pasted did not carry. The
  *  server answers with the link the job now holds, and refuses (409, `link_already_set`) rather than
- *  replacing one somebody else gave first — the advert record is shared by everyone who pastes it. */
+ *  replacing one he already gave. #448: the link is his own, never shared with others who paste it. */
 export function addApplicationLink(adId: string, applicationUrl: string): Promise<{ applicationUrl: string }> {
   return jfetch(`/api/onboarding/jobs/${encodeURIComponent(adId)}/application-link`, {
     method: "PUT",

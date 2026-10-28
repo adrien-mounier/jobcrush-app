@@ -954,7 +954,8 @@ const qaPasteRecordsInner = new InMemoryPasteRecordStore();
 const qaPasteRecords: PasteRecordStore = {
   durable: qaPasteRecordsInner.durable,
   init: () => qaPasteRecordsInner.init(),
-  record: (sessionId, adId, pastedAt) => qaPasteRecordsInner.record(sessionId, adId, pastedAt),
+  record: (sessionId, adId, pastedAt, applicationUrl) => qaPasteRecordsInner.record(sessionId, adId, pastedAt, applicationUrl),
+  adoptLink: (adId, applicationUrl) => qaPasteRecordsInner.adoptLink(adId, applicationUrl),
   listBySession: async (sessionId) =>
     (await qaPasteRecordsInner.listBySession(sessionId)).map((row) =>
       qaPasteDaysAgo === 0

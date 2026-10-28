@@ -42,8 +42,8 @@ export interface BroughtJob {
   posting: Posting;
   ageing: string | null;
   /** #306 — the link he gave the paste door, or the one he added afterwards on the job's own screen.
-   *  Read from the shared advert record, so the job's own screen shows the link the emailed report
-   *  will print (#293) rather than a second copy that could disagree with it. */
+   *  #448: read from HIS paste record, never the shared advert, so nobody is shown another person's
+   *  link. Both the job's own screen and the emailed report read it from here (#293), so they agree. */
   applicationUrl: string | null;
 }
 
@@ -85,7 +85,7 @@ export function makeBroughtJobs(deps: BroughtJobsDeps): BroughtJobsFn {
         {
           posting: postingOf(posting),
           ageing: ageingLine(record.pastedAt, posting.expiresAt, now),
-          applicationUrl: posting.applicationUrl,
+          applicationUrl: record.applicationUrl,
         },
       ];
     });

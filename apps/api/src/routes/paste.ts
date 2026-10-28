@@ -34,7 +34,6 @@ import { readingLanguages } from "../language.js";
 import { eligiblePostings, type Posting } from "../preview.js";
 import { jobsOpen } from "../workRightsCard.js";
 import {
-  addPastedApplicationUrl,
   isWebLink,
   MAX_ADVERT_CHARS,
   pasteAdvert,
@@ -384,20 +383,14 @@ export function pasteRoutes(deps: PasteDeps) {
       },
     );
 
-    /** #306 — he adds the link himself, on the job's own screen, when the advert he pasted carried
-     *  none. This is the endpoint behind the apply row's empty state, and it is the ONLY way a link
-     *  reaches an advert after its first paste: #294 clause 9 refused a silent backfill on a second
-     *  paste and named this control as the remedy, so a second invisible writer of the same field is
-     *  exactly what must not exist.
+    /** #306 — he adds the link himself, on the job's own screen, when he has given none. This is the
+     *  endpoint behind the apply row's empty state.
      *
-     *  Scoped to the adverts HE brought, like the screen itself: the reading is shared, but being
-     *  allowed to write to a shared record is a different question from being allowed to read it, and
-     *  an unscoped write here would let anyone who can guess an adId put a link of their choosing in
-     *  front of the people who pasted that job.
+     *  #448: it writes to HIS paste record only, so whoever else pasted the job is untouched. Scoped
+     *  to the adverts he brought, like the screen itself: no paste record, nothing to write to.
      *
-     *  409, not a silent success, when the record already has a link: the control is only offered on
-     *  a job with none, so arriving here anyway means somebody else got there first — and the honest
-     *  answer is to say so and show what they gave, never to replace it. */
+     *  409 when he already has a link: the control only adds a missing one (changing a link is out of
+     *  #448's scope), so arriving here anyway — a second tab — says so and shows what is there. */
     app.put(
       "/onboarding/jobs/:adId/application-link",
       { schema: { params: Params, body: LinkBody } },
@@ -408,8 +401,7 @@ export function pasteRoutes(deps: PasteDeps) {
         if (job.applicationUrl) {
           return reply.status(409).send({ error: LINK_ALREADY_SET, applicationUrl: job.applicationUrl });
         }
-        const written = await addPastedApplicationUrl(deps.postings, req.params.adId, req.body.applicationUrl);
-        if (!written) return reply.status(409).send({ error: LINK_ALREADY_SET });
+        await deps.pasteRecords.record(session.id, req.params.adId, new Date().toISOString(), req.body.applicationUrl);
         return { applicationUrl: req.body.applicationUrl };
       },
     );
@@ -434,8 +426,7 @@ const UNKNOWN_CARD = { error: { code: "unknown_card", message: "no such job" } }
 const PASTE_GONE = { error: { code: "paste_gone", message: "we lost your answer while the job was being read" } };
 const REVIEW_PENDING = { code: "review_pending", message: "your CV is waiting to be reviewed" };
 
-// #306: the first link wins (pastedAdvert.ts's addPastedApplicationUrl), so a race with another person
-// who pasted the same advert ends here rather than in a silent overwrite.
+// #306/#448: the control only adds a missing link; a person who already has one is told so.
 const LINK_ALREADY_SET = {
   code: "link_already_set",
   message: "This job already has an application link.",

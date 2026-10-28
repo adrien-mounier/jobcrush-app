@@ -234,10 +234,8 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
   if (existing) {
     // The same advert, already read. No model call, at any version — the reading is a property of
     // the advert, not of the person (#294 ruling 1) — and no write either: FIRST PASTE WINS, whole
-    // (#294 clause 9). A second paste carrying a link the first did not have is deliberately NOT
-    // merged in: the designed remedy for a job with no link is the apply row's own control on the
-    // job's own screen, "No application link yet — add the application link" (#300 change 1, built
-    // by #306), and a silent backfill here would be a second, invisible way to set the same field.
+    // (#294 clause 9). The link is not part of the advert (#448): it goes on this person's own paste
+    // record below, whoever pasted the text first.
     record = existing;
   } else {
     let header = input.header;
@@ -261,7 +259,9 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
       company: header.company,
       location: header.location,
       sourceUrl: sourceMarkerFor(fingerprint),
-      applicationUrl: typedLink ?? linkInText(text),
+      // #448: never a person's link — that is theirs, on their paste record. A link here would also
+      // be lent to a found job this advert dedupes onto (postings.ts merges applicationUrl).
+      applicationUrl: null,
       // #294 clause 9: the advert's OWN TEXT is stored on the job, because this is the first record
       // in the app that cannot be re-fetched. `excerpt` is the field the reader and the card already
       // read, so the text is stored where it is used rather than in a second place that could rot.
@@ -284,7 +284,7 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
   }
 
   const adId = adIdOf(record);
-  const pastedAt = await deps.pasteRecords.record(input.sessionId, adId, capturedAt);
+  const pastedAt = await deps.pasteRecords.record(input.sessionId, adId, capturedAt, typedLink ?? linkInText(text));
   return {
     ok: true,
     adId,
@@ -317,48 +317,27 @@ const adIdOf = (record: ProviderPostingRecordV1Value) =>
   `posting:${canonicalKeyOf(record.company, record.location, record.title)}`;
 
 /**
- * #306 — the one sanctioned way an application link is added to an advert already pasted.
+ * #448 — the one-off upgrade from the days the apply link sat on the SHARED advert record. Each link
+ * there goes to the person who pasted that advert first (earliest paste record), and to nobody else;
+ * then the shared record is cleared, so the link can never be lent to anyone again.
  *
- * It exists because #294 clause 9 made the first paste win WHOLE: a second paste carrying a link the
- * first did not have is deliberately not merged in, and the remedy it named instead is this — an
- * explicit human edit on the job's own screen, where the empty state is a control rather than a
- * caption (#300 change 1). So the rule here is the same rule from the other side: **the first link
- * wins**, and a record that already carries one is left exactly as it is, reported back as `false`.
- * Nothing in this product may replace a link somebody else typed without saying so.
- *
- * The write lands on the SHARED advert record, which is what everything else about a pasted advert
- * already is (#294 ruling 1: one reading per advert, whoever pastes it) — including the link the paste
- * door itself stores. Adding a link therefore helps the next person who brings the same job in, and
- * cannot overwrite anything they gave us first.
- *
- * Returns false when nothing was written: no stored advert has this canonical id, or the one that does
- * already has a link. The caller decides what that means to the person.
+ * Idempotent, so it runs on every boot: once cleared there is nothing left to move, and a boot that
+ * died between the two writes re-adopts into a record that already has the link, which is a no-op.
+ * A link with no owner to take it is dropped, and counted: an advert with no paste record, or a second
+ * copy of the same job whose first paster already took a link. Handing it to anyone else would be
+ * exactly the leak #448 closes.
  */
-export async function addPastedApplicationUrl(
+export async function movePastedLinksToPasteRecords(
   store: Pick<PostingStore, "listByProvider" | "upsert">,
-  adId: string,
-  applicationUrl: string,
-): Promise<boolean> {
-  // Refused here as well as at the route's own boundary: this value is printed at the top of the
-  // application email and rendered as an anchor, and a write path that trusts its caller's validation
-  // is one route away from storing a scheme nobody checked.
-  if (!isWebLink(applicationUrl)) return false;
-  const records = await store.listByProvider(PASTED_SOURCE_PROVIDER_ID);
-  // Matched on the CANONICAL id rather than the fingerprint, because that is the id the job's own
-  // screen was opened with — and two different pastings of the same job (a fuller copy, a re-format)
-  // fingerprint apart while canonicalising together. Every record behind the id gets the link, so the
-  // answer does not depend on which of them the dedupe happens to pick today.
-  // ponytail: reads every pasted row to find the handful behind one id — the same bound
-  // `pastedPostings` already states, and this runs once, on a human pressing a button. Index by
-  // canonical key in the store if the pasted table ever grows large.
-  let written = false;
-  for (const record of records) {
-    if (adIdOf(record) !== adId) continue;
-    if (record.applicationUrl) continue; // first link wins, as above
-    await store.upsert({ ...record, applicationUrl });
-    written = true;
+  pasteRecords: Pick<PasteRecordStore, "adoptLink">,
+): Promise<{ moved: number; dropped: number }> {
+  const counts = { moved: 0, dropped: 0 };
+  for (const record of await store.listByProvider(PASTED_SOURCE_PROVIDER_ID)) {
+    if (!record.applicationUrl) continue;
+    counts[(await pasteRecords.adoptLink(adIdOf(record), record.applicationUrl)) ? "moved" : "dropped"] += 1;
+    await store.upsert({ ...record, applicationUrl: null });
   }
-  return written;
+  return counts;
 }
 
 /** Every advert pasted by anyone, as canonical postings. Goes through dedupePostings rather than

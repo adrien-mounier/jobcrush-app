@@ -33,7 +33,7 @@ import { pasteRecordStoreFromEnv } from "./pasteRecordStore.js";
 import { tailorDraftStoreFromEnv } from "./tailorDraftStore.js";
 import { keepAliveOverHttp } from "./cvReviewRun.js";
 import { cvReviewStoreFromEnv } from "./cvReviewStore.js";
-import { makePastedAdvertReader } from "./pastedAdvert.js";
+import { makePastedAdvertReader, movePastedLinksToPasteRecords } from "./pastedAdvert.js";
 import { unmappedLabelStoreFromEnv } from "./unmappedLabels.js";
 import { techmapProviderFromEnv } from "./postingProvider.js";
 import { loadActivePostingProviders } from "./postings.js";
@@ -153,6 +153,9 @@ try {
   await usageLedger.init();
   await postingStore.init();
   await pasteRecords.init();
+  // #448: links that sat on the shared advert move to the person who pasted it first. Idempotent.
+  const links = await movePastedLinksToPasteRecords(postingStore, pasteRecords);
+  if (links.moved + links.dropped > 0) console.log(`[ops] #448 pasted links: ${links.moved} moved, ${links.dropped} dropped`);
   await unmappedLabels.init();
   await employerLookups.init();
   await tailorDrafts.init();

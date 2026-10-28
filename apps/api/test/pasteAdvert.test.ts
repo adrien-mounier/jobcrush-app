@@ -335,15 +335,15 @@ describe("#303 POST /onboarding/paste", () => {
     expect(await postings.listByProvider(PASTED_SOURCE_PROVIDER_ID)).toHaveLength(0);
   });
 
-  it("first paste wins whole — a later paste's link never overwrites, and never backfills", async () => {
-    const { app, postings } = pasteServer();
+  it("#448 the shared advert never carries a person's link, and a re-paste's link goes on his record", async () => {
+    const { app, sessions, postings, pasteRecords } = pasteServer();
     const cookie = await anonSession(app);
     await paste(app, cookie, { text: ADVERT }); // no link anywhere in the text
     await paste(app, cookie, { text: ADVERT, applicationUrl: "https://gradion.example/apply/42" });
 
-    // The designed remedy for a job with no link is the apply row's own control on the job's own
-    // screen (#300 change 1, built by #306) — never a second, invisible way to set the same field.
     expect((await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(ADVERT)))!.applicationUrl).toBeNull();
+    const sessionId = (await sessions.getByToken(cookie.split("=")[1]!))!.id;
+    expect((await pasteRecords.listBySession(sessionId))[0]!.applicationUrl).toBe("https://gradion.example/apply/42");
   });
 
   it("an advert whose requirements have not been read yet says so — never 'you told us you can't'", async () => {
@@ -383,19 +383,17 @@ describe("#303 POST /onboarding/paste", () => {
   });
 
   it("carries the typed application link, and reads one out of the text when he typed none", async () => {
-    const { app, postings } = pasteServer();
+    const { app, sessions, pasteRecords } = pasteServer();
     const cookie = await anonSession(app);
 
+    // #448: on HIS paste record, never the shared advert. The header fixture gives both adverts one
+    // job id, so the second paste is the same job again and its link is his latest.
+    const sessionId = (await sessions.getByToken(cookie.split("=")[1]!))!.id;
+    const linkOf = async () => (await pasteRecords.listBySession(sessionId))[0]!.applicationUrl;
     await paste(app, cookie, { text: ADVERT, applicationUrl: "https://gradion.example/apply/42" });
-    expect((await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(ADVERT)))!.applicationUrl).toBe(
-      "https://gradion.example/apply/42",
-    );
-
-    const withLink = `${OTHER_ADVERT}\n\nApply: https://northwind.example/jobs/7`;
-    await paste(app, cookie, { text: withLink });
-    expect((await postings.get(PASTED_SOURCE_PROVIDER_ID, advertFingerprint(withLink)))!.applicationUrl).toBe(
-      "https://northwind.example/jobs/7",
-    );
+    expect(await linkOf()).toBe("https://gradion.example/apply/42");
+    await paste(app, cookie, { text: `${OTHER_ADVERT}\n\nApply: https://northwind.example/jobs/7` });
+    expect(await linkOf()).toBe("https://northwind.example/jobs/7");
   });
 
   it("pasting does not change what the deck looks for", async () => {

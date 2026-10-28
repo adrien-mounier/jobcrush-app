@@ -98,9 +98,9 @@ export function ApplyRow({ adId, applicationUrl }: { adId: string; applicationUr
     try {
       setSaved((await addApplicationLink(adId, value)).applicationUrl);
     } catch (e) {
-      // A link somebody else added first is not a failure, it is the answer: the advert record is
-      // shared, the first link wins, and the server hands back the one that is actually there. Show
-      // THAT rather than leaving him pressing a control over a gap that is already closed.
+      // A link he already gave (another tab, #448: the link is his own) is not a failure, it is the
+      // answer: the server hands back the one that is actually there. Show THAT rather than leaving
+      // him pressing a control over a gap that is already closed.
       const already = e instanceof Error ? (e as { body?: { applicationUrl?: string } }).body : undefined;
       if (already?.applicationUrl) return setSaved(already.applicationUrl);
       // The route refuses exactly one thing, and its refusal arrives in Fastify's schema envelope,
