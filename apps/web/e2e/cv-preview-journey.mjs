@@ -36,7 +36,7 @@ const CV = [
 ].join('\n');
 const DETAILS = {
   name: 'Jane Q. Doe',
-  title: 'Senior IT Project Manager',
+  // #453 removed the title field from Your details; the server refuses an unknown field.
   location: 'Warsaw, Poland',
   phone: '+48 600 100 200',
   email: `jane.${RUN}@example.com`,
