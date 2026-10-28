@@ -45,7 +45,8 @@ centred letterhead · ~~#424~~ · ~~#410~~. **Owner:** check the downloaded PDF'
 the print gate printed it locally). ~~#409~~ left the batch after four NO-GOs; spec ~~[#450](https://github.com/adrien-mounier/jobcrush-app/issues/450)~~ (~~#451~~ ~~#452~~ ~~#453~~ ~~#454~~, closing ~~#409~~ ~~#444~~ ~~#446~~) shipped 2026-10-28 on a `/qa-gate` GO (533ae6b): the model reads the letterhead's name and city, Your details has no title field, the headline is the job ad's own title. **Owner:** on staging, one French-titled ad end to end and the PDF letterhead; stored drafts are remade on first open. Branch `t/409-letterhead` can be deleted (its table lives in `apps/api/eval/letterhead-grid.json`). The CV email's design: ~~#441~~ prototype done (B2,
 branch `prototype/report-email-441`); ~~#442~~ live 2026-10-27 (a139ee0). **Owner, when you can:** #455, one real email read in
 Gmail on a computer and a phone, dark mode too. ~~#448~~ each
-person keeps their own apply link, shipped 2026-10-28 (15c3655). A CV with a photo: parked, #440.
+person keeps their own apply link, shipped 2026-10-28 (15c3655). ~~#457~~ the stretch comparison weighs the job, not
+honesty, and an ops line counts the drops, shipped 2026-10-29 (15f5d60). A CV with a photo: parked, #440.
 
 - **Agent, when asked:** #395 broken journeys still waiting for questions #376 removed (Opus 5.5, medium) · #421 withdrawal journey rotted in no tier · #318 tablet widths (641–959px) have no browser check (both
   Opus 5.5, medium) · #426 a CV

@@ -2,6 +2,15 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-29 — #457 shipped: the stretch comparison weighs the job, not honesty; an ops line counts the drops (15f5d60)
+
+`/implement #457` (Fable 5.1), `/code-review` (3 standards findings, 1 spec finding, all fixed), `/qa-gate` GO first round (4/4 ACs, 3 reachable journeys 164/0).
+- The owner's 2026-10-28 job got no stretches: the model made suggestions and refused every one as *not better* on honesty grounds. Rule 4 now says `better` weighs only worth to this job; how far the facts hold the line is the class, the why and the interview line. Rule 8 reaches `comparison` too; cv-brain §10 clause 5 says the same.
+- One `[ops] stretch suggestions gated:` line per run, counts only: proposed, kept, and each drop reason. "Ran, found none" is explainable from the log now.
+- Staging re-proof, read-only, fingerprint-matched: 5 calls, USD 0.28 (outside the app's ledger). The first wording still let two verdicts cite support; the shipped wording kept 4, 4 and 5 stretches over 3 runs, every *not better* a value-to-job reason. One borderline sentence ("no new substance behind it") read as value; the owner may read it as support.
+- The replay script is in the repo this time (`apps/api/scripts/stretch-replay-staging.mjs`); three sessions had rewritten it.
+**Next:** CI → staging; the owner's re-proof on his bank job should now show stretches.
+
 ## 2026-10-28 — #448 shipped: each person keeps their own apply link for a pasted job (15c3655)
 
 `/implement #448` (Opus 5.5), `/code-review`, `/qa-gate` GO first round (9/9 ACs, 3 browsers, real Postgres 16).
