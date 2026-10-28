@@ -64,6 +64,7 @@ is recorded unmet with the table, not redefined until green.
 - A harness that can't tell "the model answered X" from "the call failed" reports absurd results with confidence (a sous chef confirmed as a PM). Count each case's own calls; refuse to score if any degraded. Evals write results to disk.
 - When eight models from five labs disagree with one hand-written label, suspect the label — but the owner arbitrates the change, never the author, and owner-arbitrated expectations are never flipped to make a rate green.
 - Emitting the justification before the answer token (`why` first) ended a flip.
+- Placeholder names in fixtures ("Jane Doe", "MADONNA") read as sample text to the model: on the CLI route it answered "no name" one run in three on the letterhead grid. Fixtures use invented but plausible names (#452).
 
 ### A model test is blind only if the generator never saw the answer
 The session model drafted CV lines right after reading the owner's real ones — partly a copy. A

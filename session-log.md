@@ -2,6 +2,17 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-28 — Spec #450 shipped: the model reads the letterhead's name and city; the headline is the job's own title (533ae6b; #451 #452 #453 #454, closing #409 #444 #446)
+
+`/implement-spec 450` (Fable 5.1): four builders in worktrees on `spec/450`, `/code-review`, `/qa-gate` three rounds (two NO-GOs on journey scripts only), GO at 533ae6b; main fast-forwarded and pushed.
+- Upload: a new small model call reads **name and city** from the top of the CV, kept as written (letter-spacing joined; a quote not in the CV is dropped; a failed read leaves both empty and is read again on retry; a retried upload after the checkpoint makes no second call). The deterministic splitter and the startup legacy-header upgrade are deleted. Real file through the product: "Thomas Chauviere", city from the letterhead address, no job line as a city.
+- `eval:letterhead`: 84-layout grid, 84/84 right on the CLI route (USD 0; ~USD 0.40/run on the API). Two placeholder names changed: the CLI model reads "Jane Doe"/"MADONNA" as sample text.
+- Your details, the profile and the Reading sheet lose the Title field; stored titles stay in the table, unread. No migration.
+- The headline is the ad's title minus labels ("Chef de projet IT H/F" prints CHEF DE PROJET IT, on screen and in the PDF, French kept over an English CV); no ad or Preview as CV prints the own job's title; never a claim or a stretch.
+- Known consequences: every stored ad draft and preview is remade on next open (the writer prompt is in the fingerprint); the pre-#381 legacy upgrade no longer runs at boot.
+- Gate found three script defects: a master-CV city assert the master CV never prints, a Bangkok city check that belonged to the deleted splitter plus a Tailor-screen card check stale since #423, and raw backspaces in the gate's own journey. Older, not blocking: the paste door refuses French-bodied ads; local ad reading times out at 15 s; the tailored CV for a pasted ad was proven through the writer and PDF, not on screen with the real model.
+**Next:** CI → staging (run 40635080572); owner's re-proof on staging (one French-titled ad, the PDF letterhead); #455; then #448.
+
 ## 2026-10-27 — #446 decided: the model reads the letterhead's name and city; spec #450 (#409 #444 #446)
 
 `/grill-with-docs #446` then `/to-spec` (Opus 5.5). No code.
@@ -87,12 +98,3 @@ One long session (Opus 5.5), the owner's rule throughout: build on branches, one
 - QA **GO** on tree 0fe4dcb: api 2265, contracts 60, typecheck 7/7; no browser pass (no screen, a live run needs a paid call).
 - Not pushed. #427's commit carries `Closes #427`, so both close when main gets the branch.
 **Next:** the owner ships the branch → CI → staging; the re-proof resumes (first Approve press is the live check).
-
-## 2026-10-25 — #431 shipped: a deck job stays tailorable past the deck's 5-minute search window (a415f26)
-
-`/implement 431` (Opus 5.5), on its own branch off main so #427 (still waiting on the owner) does not ride along. The Tailor step read its job through the deck's "search again?" rule, so five minutes after the deck's search every Tailor door answered "unknown card".
-- The Tailor step now reads the session's last search, kept past the window. Each job is still held to its own liveness (expiry, its source's freshness window), and a search made for a different request is still refused (#101). The deck's 5-minute rule is unchanged.
-- `/code-review` caught the Tailor profile answer's "Hidden N jobs" count, which would have read an empty pool past the window and said 0. Fixed and tested. The want door shares the lookup, so a card picked from a deck page left open over 5 minutes now works.
-- QA **GO** on tree bc38fc4: api 2257; a live drive waiting 6 min 20 s, then edit, It's true, Undo, Use, No, Approve, with the email sent at 7 min 13 s (20/20); six Tailor journeys green.
-- Filed #434 (a later deck search that fails or drops the job still turns it into "unknown card") and #435 (the new 9-minute journey is in no tier). The #427 branch's four docs commits were cherry-picked here, so main's roadmap is current.
-**Next:** CI → staging; #432; then the owner's re-proof resumes.

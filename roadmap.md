@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-10-27 (owner confirmed #425's "Chinese" rule; #446 decided: spec #450)_
+_Last updated: 2026-10-28 (spec #450 shipped: the model reads the letterhead; the headline is the job's own title)_
 
 One screen. The GitHub tracker owns tickets, order and blocking; this page points, never copies.
 `#n` = `https://github.com/adrien-mounier/jobcrush-app/issues/n`. What shipped: closed issues + git log.
@@ -42,11 +42,7 @@ keeps fewer stretches: owner accepted) · ~~#435~~ #431's journey runs in tier 2
 **Owner's defect list (2026-10-26), after the re-proof:** spec ~~#443~~ shipped 2026-10-27 on a `/qa-gate`
 GO: ~~#437~~ the open suggestion number gold again · ~~#438~~ a ◆ on lines a suggestion changed · ~~#439~~ the
 centred letterhead · ~~#424~~ · ~~#410~~. **Owner:** check the downloaded PDF's letterhead on staging (only
-the print gate printed it locally). #409 left the batch after four NO-GOs; owner decided 2026-10-27 that
-the model reads the name and city, Your details loses its title field, and the headline becomes the job
-ad's own title: spec [#450](https://github.com/adrien-mounier/jobcrush-app/issues/450) (#409 #444 #446),
-tickets #451 → #452, #453, #454; **Owner:** `/implement-spec #450` (Fable 5.1, high). The eval grid's
-source waits on branch `t/409-letterhead`. The CV email's design: ~~#441~~ prototype done (B2,
+the print gate printed it locally). ~~#409~~ left the batch after four NO-GOs; spec ~~[#450](https://github.com/adrien-mounier/jobcrush-app/issues/450)~~ (~~#451~~ ~~#452~~ ~~#453~~ ~~#454~~, closing ~~#409~~ ~~#444~~ ~~#446~~) shipped 2026-10-28 on a `/qa-gate` GO (533ae6b): the model reads the letterhead's name and city, Your details has no title field, the headline is the job ad's own title. **Owner:** on staging, one French-titled ad end to end and the PDF letterhead; stored drafts are remade on first open. Branch `t/409-letterhead` can be deleted (its table lives in `apps/api/eval/letterhead-grid.json`). The CV email's design: ~~#441~~ prototype done (B2,
 branch `prototype/report-email-441`); ~~#442~~ live 2026-10-27 (a139ee0). **Owner, when you can:** #455, one real email read in
 Gmail on a computer and a phone, dark mode too. Next build: #448 (each
 person keeps their own apply link). A CV with a photo: parked, #440.
