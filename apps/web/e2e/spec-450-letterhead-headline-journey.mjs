@@ -307,7 +307,7 @@ else {
   const lines = cvText.split('\n').map((l) => l.trim()).filter(Boolean);
   await qa.note(`the tailored PDF's first lines: name, contact, ${JSON.stringify(lines[2] ?? null)} — ${cvFile}`);
   // pdftotext can run the centred letterhead lines together; the letterhead is the text's opening.
-  if (!fake) await must(/CHEF DE PROJET IT/.test(lines.slice(0, 4).join(' ')) && !/CHEF DE PROJET IT H\/F/.test(cvText), '#454 the printed PDF carries "CHEF DE PROJET IT" in its letterhead, without "H/F"');
+  if (!fake) await must(/\bCHEF DE PROJET IT\b/.test(lines.slice(0, 4).join(' ')) && !/CHEF DE PROJET IT H\/F/.test(cvText), '#454 the printed PDF carries "CHEF DE PROJET IT" in its letterhead, without "H/F"');
 }
 
 const ok = await qa.finish();
