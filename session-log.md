@@ -2,6 +2,14 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-28 — #448 shipped: each person keeps their own apply link for a pasted job (15c3655)
+
+`/implement #448` (Opus 5.5), `/code-review`, `/qa-gate` GO first round (9/9 ACs, 3 browsers, real Postgres 16).
+- The apply link moved from the shared advert to the person's own paste record: two people pasting the same job each see and are emailed their own link; someone who gave none gets the "add the application link" control, never another's. Latest link wins for the same person; a link-less re-paste keeps it.
+- Old links move on every boot (idempotent) to whoever pasted that job first; a link with no owner is dropped and counted in the boot log (`[ops] #448 pasted links`). Staging likely has 0–1.
+- New journey `apps/web/e2e/apply-link-per-person-journey.mjs` sits in no CI tier yet → added to #449's scope.
+**Next:** CI → staging; real-visitors gate now needs only #288 and #298.
+
 ## 2026-10-28 — Spec #450 shipped: the model reads the letterhead's name and city; the headline is the job's own title (533ae6b; #451 #452 #453 #454, closing #409 #444 #446)
 
 `/implement-spec 450` (Fable 5.1): four builders in worktrees on `spec/450`, `/code-review`, `/qa-gate` three rounds (two NO-GOs on journey scripts only), GO at 533ae6b; main fast-forwarded and pushed.
@@ -89,12 +97,3 @@ One long session (Opus 5.5), the owner's rule throughout: build on branches, one
 - `/code-review` caught a re-pick of the same job overwriting a good kept copy with one from an older search: fixed. The copy is frozen at the pick (ceiling marked in code).
 - QA **GO** on tree e74fef0: api 2270, typecheck 7/7, new tests red on the old code; live drive 14/14 (deck down, then a search without the job, then Approve sent); 5 Tailor journeys + 65 browser specs green; migration checked on a throwaway Postgres 16. Filed #436 (no test proves /sessions/me withholds the kept copy).
 **Next:** the owner ships the branch (#427, #432, #433, #434) → CI → staging; the re-proof resumes.
-
-## 2026-10-25 — #432 built on a local branch: a stray newline or tab in a model answer is repaired, not retried (8e7e1fa)
-
-`/implement 432` (Opus 5.5) under the owner's no-CI, no-deploy, no-paid-calls constraint. The named base `fix/431-tailor-target` did not exist; owner chose `fix/432-report-json` = `fix/431-unknown-card` + #427's 972e97f copied (faacbff; docs conflicts kept #431's side).
-- `extractJson` (every step reads answers through it) escapes raw control characters inside JSON strings before parsing. Test red on the old code with staging's exact error, green now.
-- The report's and stretch step's final failure lines go through `failureReason`: cause only, never the answer. `/code-review` caught the report's "talks about the document" refusal quoting the model's line into the log; now names only the matched phrase.
-- QA **GO** on tree 0fe4dcb: api 2265, contracts 60, typecheck 7/7; no browser pass (no screen, a live run needs a paid call).
-- Not pushed. #427's commit carries `Closes #427`, so both close when main gets the branch.
-**Next:** the owner ships the branch → CI → staging; the re-proof resumes (first Approve press is the live check).
